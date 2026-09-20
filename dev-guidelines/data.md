@@ -8,7 +8,7 @@ Three kinds of file, all fetched client-side (no backend, no server-side templat
 
 There is no global `data/products.json` any more; it split into the three above.
 
-**Every path inside these files is repo-root-relative with no leading slash** (`assets/series/bones/...`, `series/bones/hero.css`). That resolves correctly *only* because every HTML page sits at the repo root — the fetches are relative to the page, and `vite.config.js` sets `base: "/emjive/"`. A page in a subdirectory would silently break all of them.
+**Every path inside these files is repo-root-relative with no leading slash** (`assets/series/bones/...`, `series/bones/hero.css`). That resolves correctly *only* because every HTML page sits at the repo root — the fetches are relative to the page, and `vite.config.js` sets `base: "/"`. A page in a subdirectory would silently break all of them.
 
 ## `data/series.json` — top-level schema
 

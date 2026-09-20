@@ -52,36 +52,26 @@ adds two things on top of Vite's defaults:
   `js/three-viewer.js`. Copying those four folders (`js/`, `assets/`,
   `data/`, `series/`) verbatim sidesteps tracing every case individually.
 
-### The current setup: GitHub Pages (interim)
+### The live setup: OVH, over FTP
 
-`.github/workflows/deploy.yml` runs that build on every push to `main`
-and publishes `dist/` to GitHub Pages. `vite.config.js` also sets
-`base: "/emjive/"`, because a GitHub Pages *project* page
-(`mariusvnt.github.io/emjive/`) is served from a subpath rather than a
-domain root — every built `<script>`/`<link>` reference needs that
-prefix to resolve. **This is explicitly a stopgap** for the current URL,
-not the intended long-term home for the site.
+The site is served from the root of `emjive.eu` on OVH shared hosting.
+There's no CI — deploying is manual:
 
-### Moving to a real domain
+1. `npm run build`.
+2. Upload the *contents* of `dist/` (not the `dist` folder itself) to the
+   `www/` folder on the OVH FTP server, so `index.html` sits directly in
+   `www/`. Delete OVH's placeholder page there if it's still around.
+3. Hard-refresh (Ctrl+F5) to get past cached copies.
 
-Most static hosts (Netlify, Vercel, Cloudflare Pages, …) run the build
-themselves once you point them at the repo — build command `npm run build`,
-publish directory `dist`, no GitHub Actions involved. Two things actually
-need to change when that happens:
+`vite.config.js` sets `base: "/"` to match. If the site ever goes into a
+subfolder instead, set `base` to that subfolder's path (e.g. `"/shop/"`)
+before building. Every page's `og:url`, `og:image` and `twitter:image` are
+absolute `https://emjive.eu/...` URLs and would need updating on a domain
+change.
 
-1. In `vite.config.js`, change `base: "/emjive/"` to `base: "/"` (or just
-   delete the line — `/` is Vite's default). This is the one setting
-   that's specifically about GitHub's subpath, not about deploying in
-   general — everything else in `vite.config.js` (the multi-page entries,
-   the copy step) stays, since any host running a real Vite build has the
-   same underlying limitations to work around.
-2. Delete `.github/workflows/deploy.yml` — it's GitHub-Pages-specific CI,
-   superseded by the new host's own build pipeline.
-
-If you also want `mariusvnt.github.io/emjive/` to stop resolving
-afterward, that's a manual step in this repo's GitHub Settings → Pages
-(switch the source away from "GitHub Actions", or disable Pages
-entirely) — not something committing code here can do.
+The host is Linux, so filenames are **case-sensitive**: a path in
+`products.json` that differs from the real filename only by case works on
+Windows and 404s in production.
 
 ## Structure, at a glance
 

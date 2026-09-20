@@ -34,7 +34,7 @@ None of the three is wired into `build`. They're deliberate, occasional, reviewa
 
 ## `vite.config.js`
 
-Exists specifically because `npm run build`'s output needs to be *deployable*, not just correct in dev — a plain `vite build` with no config silently produces a broken `dist/` for this site (confirmed by inspecting the output directly): Vite only treats `index.html` as a build entry by default (every other page would ship unprocessed, with the same unresolved bare-specifier `three` import that breaks on any plain static host), and it can't bundle or copy classic `<script src>` tags at all (so `js/main.js`, `js/product.js`, and the other classic scripts vanish from the build entirely — not just left unbundled, actually absent) or trace paths that only exist as runtime string data (a series' `products.json` icon/model paths, the hero-bundle paths in `data/series.json`, the HDRI path in `three-viewer.js`). Two things fix this: `build.rollupOptions.input` lists all seven HTML pages explicitly, and a small inline `closeBundle` plugin copies `js/`, `assets/`, `data/`, and `series/` into `dist/` verbatim after the real build runs. `series/` is on that list for the same reason as `data/` — it holds each series' hero bundle, referenced only as string paths and injected at runtime, which is also why a hero bundle's JS can never use a bare specifier. Also sets `base: "/emjive/"` — GitHub Pages project-page-specific, see below and `README.md`'s "Deploying" section for why and when to change it.
+Exists specifically because `npm run build`'s output needs to be *deployable*, not just correct in dev — a plain `vite build` with no config silently produces a broken `dist/` for this site (confirmed by inspecting the output directly): Vite only treats `index.html` as a build entry by default (every other page would ship unprocessed, with the same unresolved bare-specifier `three` import that breaks on any plain static host), and it can't bundle or copy classic `<script src>` tags at all (so `js/main.js`, `js/product.js`, and the other classic scripts vanish from the build entirely — not just left unbundled, actually absent) or trace paths that only exist as runtime string data (a series' `products.json` icon/model paths, the hero-bundle paths in `data/series.json`, the HDRI path in `three-viewer.js`). Two things fix this: `build.rollupOptions.input` lists all seven HTML pages explicitly, and a small inline `closeBundle` plugin copies `js/`, `assets/`, `data/`, and `series/` into `dist/` verbatim after the real build runs. `series/` is on that list for the same reason as `data/` — it holds each series' hero bundle, referenced only as string paths and injected at runtime, which is also why a hero bundle's JS can never use a bare specifier. Also sets `base: "/"` because the site is served from the root of `emjive.eu`; a subfolder deploy would need that subfolder's path instead (see `README.md`'s "Deploying" section).
 
 ### What the build deliberately does *not* ship
 
@@ -47,10 +47,6 @@ Copying whole trees is the right default but it isn't free, and two separate mec
 - **`js/three-viewer.js`** (~50KB) — the unbundled ES module source. Built pages load Vite's bundled copy; this one still carries the bare `import "three"` that nothing at runtime can resolve. Every *other* file in `js/` is a classic script the built HTML really does load by its original path, which is why this is one exclusion rather than a rule about `js/`.
 
 `dropUnusedDracoDecoderCopies()` is a `generateBundle` hook deleting bundle entries matching `/draco_(decoder|wasm_wrapper)/` (~1.26MB). Those come from three's own `DRACOLoader.js`, which resolves its bundled decoder with `new URL('../libs/draco/…', import.meta.url)` — a pattern Vite treats as a static asset reference and emits. This site can never request them: `js/three-viewer.js` calls `setDecoderPath(new URL("assets/draco/", document.baseURI).href)` before any load, replacing every one of those URLs with the self-hosted copy under `assets/draco/` (which stays, and is still copied). **If that `setDecoderPath` call is ever removed or made conditional, this hook has to go with it** — three would then genuinely need the copies it emitted.
-
-## `.github/workflows/deploy.yml`
-
-Builds and publishes to GitHub Pages on every push to `main` (standard `actions/upload-pages-artifact` + `actions/deploy-pages` pattern). This is explicitly a stopgap for the current `mariusvnt.github.io/emjive/` URL, not the site's intended long-term host — see `README.md`'s "Deploying" section for the full picture, including exactly what to change/delete when the site moves to its own domain.
 
 ## `scripts/auto-render.js` (~720 lines)
 
@@ -107,5 +103,5 @@ Deliberately a **third, completely separate** bare `http` server, same reasoning
 
 - Usage / when to run this: `procedures.md`
 - The JSON fields it writes: `data.md`
-- Deployment (what `vite.config.js`/`deploy.yml` are for, and how to remove them when the site moves off GitHub Pages): `README.md`'s "Deploying" section
+- Deployment (building `dist/` and uploading it to the OVH host): `README.md`'s "Deploying" section
 - Where the files it writes end up: `assets.md`

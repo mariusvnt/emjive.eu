@@ -2,7 +2,7 @@
 
 The 7 HTML files at the repo root.
 
-**They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/emjive/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`).
+**They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`).
 
 ## Titles and headings — one `h1` per page, one distinct `<title>` per page
 
@@ -22,6 +22,7 @@ Three things to keep in step when adding a page:
 
 - `product.html` and `series.html` still overwrite `document.title` at runtime (`js/product.js`, `js/series-page.js`) with the real product/series name, in the same `<name> — em·ji·ve` shape. The static value is what a crawler and a social preview see, so it has to stand on its own.
 - `og:title` and `twitter:title` carry the same string as `<title>` on every page. They were the same hardcoded `em·ji·ve` everywhere, which is why every shared link previewed identically.
+- `og:url`, `og:image` and `twitter:image` are absolute `https://emjive.eu/...` URLs (crawlers don't resolve relative ones), `og:url` being the page's own address (`https://emjive.eu/` for the homepage). A new page needs its own `og:url`; if the domain ever changes, it's a find-and-replace across all seven.
 - The shell pages' heading is the *page's own title*, so it is an `h1`. `product.html`'s "Description"/"Characteristics"/"Shipping & Returns" stay `h2` — they are subsections under the product's `h1`. `css/style.css` targets `.section-head :is(h1, h2)` so both get the same treatment; the level is about document structure, not size. `.visually-hidden` (see `styling.md`) is for the two pages whose design has nowhere to put a visible title.
 
 ## Shared header — one byte-identical nav

@@ -100,7 +100,7 @@
 
   function buildFilterHref(cat) {
     // Built off the real index URL so ?series= is preserved and the
-    // "/emjive/" base is never a concern.
+    // site's base path is never a concern.
     var url = new URL("index.html", window.location.href);
     var series = window.EmjiveSeries.slug;
     if (series && !window.EmjiveSeries.isFeatured(series)) {
@@ -722,7 +722,7 @@
     var url = new URL(window.location.href);
     if (activeCats.length) url.searchParams.set("cat", activeCats.join(","));
     else url.searchParams.delete("cat");
-    // new URL(location.href) keeps ?series= and the "/emjive/" base intact
+    // new URL(location.href) keeps ?series= and the site's base path intact
     // for free, and replaceState avoids stacking a history entry per toggle.
     // history.state is passed back through rather than nulled: it carries
     // js/scroll-memory.js's per-entry token, and wiping it here would make

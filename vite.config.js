@@ -99,11 +99,10 @@ function dropUnusedDracoDecoderCopies() {
 }
 
 export default defineConfig({
-  // GitHub Pages project sites (mariusvnt.github.io/emjive/) are served
-  // from a subpath, not the domain root — every built <script>/<link>
-  // reference needs that prefix to resolve correctly. Flip this back to
-  // "/" (the default) once the site moves to its own domain.
-  base: "/emjive/",
+  // The site is served from the domain root (OVH), so every built
+  // <script>/<link> reference resolves from "/". If it ever goes into a
+  // subfolder instead, set this to that subfolder's path (e.g. "/shop/").
+  base: "/",
   plugins: [dropUnusedDracoDecoderCopies(), copyFilesVitesBuildCantTrace()],
   build: {
     rollupOptions: {
@@ -111,7 +110,7 @@ export default defineConfig({
       // page needs listing explicitly or its own <script type="module">
       // tags (three-viewer.js on product.html) would ship unprocessed,
       // with the same unresolved bare-specifier "three" import that broke
-      // index.html on GitHub Pages. Add a line here for any new page.
+      // index.html on the first deploy. Add a line here for any new page.
       input: {
         main: resolve(__dirname, "index.html"),
         product: resolve(__dirname, "product.html"),

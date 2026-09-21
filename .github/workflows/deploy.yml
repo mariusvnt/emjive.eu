@@ -1,0 +1,44 @@
+name: Deploy to OVH (FTP)
+
+# Builds the site and uploads dist/ to the OVH FTP server on every push to
+# main. See the "Deploying" section in README.md for the one-time secrets
+# setup this needs.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two overlapping FTP uploads to the same folder can leave a half-mixed
+# site, so a newer push waits for the running deploy instead of racing it.
+concurrency:
+  group: ovh-ftp-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Upload dist/ to OVH
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # OVH shared hosting speaks explicit FTPS on the normal FTP port.
+          # If the connection is refused, try `ftp` here.
+          protocol: ftps
+          # Trailing slashes are required by the action. The contents of
+          # dist/ land directly in www/, so index.html sits at its root.
+          local-dir: ./dist/
+          server-dir: www/

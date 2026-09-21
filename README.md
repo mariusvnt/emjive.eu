@@ -55,13 +55,34 @@ adds two things on top of Vite's defaults:
 ### The live setup: OVH, over FTP
 
 The site is served from the root of `emjive.eu` on OVH shared hosting.
-There's no CI — deploying is manual:
+Every push to `main` deploys it automatically: the GitHub Actions workflow
+in `.github/workflows/deploy.yml` runs `npm ci` and `npm run build`, then
+uploads the *contents* of `dist/` to the `www/` folder on the OVH FTP
+server, so `index.html` sits directly in `www/`. It's also runnable by hand
+from the repo's Actions tab ("Run workflow"). After a deploy, hard-refresh
+(Ctrl+F5) to get past cached copies.
 
-1. `npm run build`.
-2. Upload the *contents* of `dist/` (not the `dist` folder itself) to the
-   `www/` folder on the OVH FTP server, so `index.html` sits directly in
-   `www/`. Delete OVH's placeholder page there if it's still around.
-3. Hard-refresh (Ctrl+F5) to get past cached copies.
+The upload is incremental: [FTP-Deploy-Action](https://github.com/SamKirkland/FTP-Deploy-Action)
+keeps a `.ftp-deploy-sync-state.json` file in `www/` recording what it last
+uploaded, so later runs only send what changed and delete what the build no
+longer produces. Anything in `www/` it never uploaded (an `.htaccess`, say)
+is left alone. Don't delete that state file — the next run would treat the
+server as empty and re-upload everything.
+
+**One-time setup:** the workflow reads three repository secrets (GitHub →
+Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `FTP_SERVER` | the FTP host from the OVH control panel, e.g. `ftp.cluster0XX.hosting.ovh.net` |
+| `FTP_USERNAME` | the FTP login |
+| `FTP_PASSWORD` | that login's password |
+
+The workflow connects with explicit FTPS. If OVH refuses that, change
+`protocol: ftps` to `ftp` in the workflow.
+
+To deploy by hand instead (without GitHub), run `npm run build` and upload
+the contents of `dist/` to `www/` with any FTP client.
 
 `vite.config.js` sets `base: "/"` to match. If the site ever goes into a
 subfolder instead, set `base` to that subfolder's path (e.g. `"/shop/"`)

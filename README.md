@@ -62,12 +62,30 @@ over SFTP (port 22, via `lftp`), so `index.html` sits directly in `www/`.
 It's also runnable by hand from the repo's Actions tab ("Run workflow").
 After a deploy, hard-refresh (Ctrl+F5) to get past cached copies.
 
-Every run re-uploads the whole build (about 20 MB) rather than diffing it.
-The upload only adds and overwrites: a file that a later build no longer
-produces (an old hashed asset, a removed image) stays on the server until
-it's deleted by hand. Anything in `www/` the build never produced (an
-`.htaccess`, say) is left alone. The server's host key is accepted on
-connect rather than pinned.
+Every run re-uploads the whole build (about 20 MB) rather than diffing it,
+then makes `www/` an **exact mirror** of `dist/`: anything on the server
+that the build doesn't produce (an old hashed asset, a removed image) is
+deleted, after the new files are up so the site is never missing pages
+mid-deploy. That includes files put there by hand (an `.htaccess`, a
+`robots.txt`) — if one is ever needed, put it in a `public/` folder at the
+repo root, which Vite copies into `dist/` as-is. The job
+refuses to run if `dist/index.html` is missing, so a broken build can't wipe
+the site.
+
+To see what a run would do before it does it, use the Actions tab → "Deploy
+to OVH (SFTP)" → "Run workflow" with **dry_run** ticked. It builds, connects,
+and logs every file it would upload or delete (lftp prints "Removing old
+file" followed by "Transferring file" for every file it merely overwrites, so
+only a "Removing" with no matching "Transferring" is a real deletion) without
+changing anything on the server.
+
+The server's SSH host keys are pinned in the workflow (`SFTP_HOST_KEYS`), so
+the password is only ever sent to the real OVH server; a different key stops
+the deploy with "Host key verification failed" before any login. If OVH ever
+rotates its keys or moves the hosting, that's the error you'll see — re-scan
+with `ssh-keyscan -p 22 -t rsa,ecdsa,ed25519 <FTP_SERVER>` (and check the
+fingerprints against the OVH control panel if it shows them) and replace the
+two key lines in the workflow.
 
 **One-time setup:** the workflow reads three repository secrets (GitHub →
 Settings → Secrets and variables → Actions). The names say FTP for

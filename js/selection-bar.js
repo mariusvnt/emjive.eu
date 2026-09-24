@@ -64,21 +64,48 @@
   // can reach the bar's true right edge, past the toggle button's own,
   // narrower box) — so it needs its own click handling below rather than
   // relying on being inside that button.
-  var emptyLabelEl = el("span", "selection-bar__empty-label");
+  // All three of these (plus addActionBtn below) start with .is-hidden —
+  // updateSummaryState()'s first call (from the unconditional render() at
+  // the bottom of this file) reveals whichever one actually matches the
+  // real starting state; without an explicit starting class here, the two
+  // NOT chosen would have nothing telling them to stay hidden, since
+  // classList.remove("is-hidden") on the chosen one is a no-op against an
+  // element that never had the class to begin with.
+  var emptyLabelEl = el("span", "selection-bar__empty-label is-hidden");
   emptyLabelEl.textContent = "No selected item";
+  emptyLabelEl.setAttribute("aria-hidden", "true");
 
   var orderLink = document.createElement("a");
-  orderLink.className = "selection-bar__order";
+  orderLink.className = "selection-bar__order is-hidden";
   orderLink.href = "launch-order.html";
+  orderLink.setAttribute("aria-hidden", "true");
   var orderCountEl = el("span", "selection-bar__order-count");
   var orderChevronEl = el("span", "selection-bar__order-chevron");
   orderChevronEl.textContent = "›"; // ›
   orderLink.appendChild(orderCountEl);
   orderLink.appendChild(orderChevronEl);
 
+  // Occupies the same reserved slot as emptyLabelEl/orderLink (see
+  // updateSummaryState() below) — shown only while js/product.js has a
+  // size picked in the still-open sliding sheet, replacing whichever of
+  // the other two would otherwise be showing. pendingConfirm is the
+  // callback that actually performs the add, supplied by whoever called
+  // showAddAction().
+  var addActionBtn = document.createElement("button");
+  addActionBtn.type = "button";
+  addActionBtn.className = "selection-bar__add is-hidden";
+  addActionBtn.textContent = "Add";
+  addActionBtn.setAttribute("aria-hidden", "true");
+  var pendingConfirm = null;
+  // No click listener of its own — while it's showing, the whole bar acts
+  // as its hit box instead (see the bar-level listener below), which this
+  // button's own bubbling click already reaches. A listener here too would
+  // double-fire pendingConfirm() on a direct click.
+
   summary.appendChild(toggleBtn);
   summary.appendChild(emptyLabelEl);
   summary.appendChild(orderLink);
+  summary.appendChild(addActionBtn);
 
   // Drawer sits before the summary row in DOM order so it stacks visually
   // above it inside this column-flex bar — the bar's total height is
@@ -97,7 +124,16 @@
   // height instantly.
   function syncDrawerHeight() {
     var isOpen = drawer.classList.contains("is-open");
-    drawer.style.maxHeight = isOpen ? drawerInner.offsetHeight + "px" : "0px";
+    var drawerContentHeight = isOpen ? drawerInner.offsetHeight : 0;
+    drawer.style.maxHeight = isOpen ? drawerContentHeight + "px" : "0px";
+    // Published so a concurrently-open size-selection sheet (js/product.js's
+    // #sizeModal) can reserve exactly this much space above the bar instead
+    // of a fixed summary-only height — see .size-modal--drawer's
+    // --selection-bar-reserved in css/style.css, which reads this and caps
+    // it at 50vh. Harmless to set even when nothing reads it (every other
+    // page/context on the site just never references this custom property).
+    var liveHeight = summary.getBoundingClientRect().height + drawerContentHeight;
+    document.documentElement.style.setProperty("--selection-bar-live-height", liveHeight + "px");
   }
 
   // Registered with window.EmjiveMenus (js/series.js) so a click away from
@@ -117,6 +153,10 @@
   }
 
   function toggleDrawer() {
+    // The bar's own "pop up" (its drawer) sits out entirely while the bar
+    // itself is acting as one big Add button (see .is-add-active below) —
+    // the whole point of that mode is a single, unambiguous hit target.
+    if (bar.classList.contains("is-add-active")) return;
     setDrawerOpen(!drawer.classList.contains("is-open"));
   }
   toggleBtn.addEventListener("click", toggleDrawer);
@@ -124,6 +164,107 @@
   // comment above), so it needs this wired separately to still open the
   // drawer when clicked.
   emptyLabelEl.addEventListener("click", toggleDrawer);
+
+  // While a size is picked (js/product.js's sliding sheet), the ENTIRE bar
+  // becomes addActionBtn's hit box rather than just its own small centered
+  // label — bubbling catches a click anywhere in the bar, including a
+  // keyboard Enter/Space activation of addActionBtn itself (which also
+  // dispatches a real, bubbling click). Guarded on is-add-active so this
+  // is a complete no-op the rest of the time.
+  bar.addEventListener("click", function () {
+    if (bar.classList.contains("is-add-active") && pendingConfirm) pendingConfirm();
+  });
+
+  // Three-way slot for the summary row's right-hand side: emptyLabelEl/
+  // orderLink normally split it based on hasItems (as before), but a
+  // pendingConfirm from js/product.js's sliding sheet overrides both of
+  // them, showing addActionBtn instead regardless of hasItems — even an
+  // empty cart shows "Add" once a size is picked.
+  function summaryElFor(mode) {
+    return mode === "add" ? addActionBtn : mode === "order" ? orderLink : emptyLabelEl;
+  }
+  function computeSummaryMode() {
+    if (pendingConfirm) return "add";
+    return window.EmjiveSelection.getSelection().length > 0 ? "order" : "empty";
+  }
+
+  // Sequenced, not simultaneous: the incoming label only starts fading in
+  // once the outgoing one has fully faded out, rather than both crossfading
+  // at once — a simultaneous swap left two semi-transparent labels stacked
+  // on top of each other for the middle of the transition, which read as a
+  // glitch rather than a clean handoff. visibleSummaryMode is null only
+  // before the very first call, which sets the right one instantly instead
+  // (nothing to visibly arrive from on a fresh page — same reasoning
+  // render() already uses for the icon strip's own entrance animation).
+  var visibleSummaryMode = null;
+  var summaryRevealTimer = null;
+  var summaryHideListenerEl = null;
+
+  function onSummaryHideEnd(e) {
+    if (e.propertyName !== "opacity") return;
+    revealCurrentSummaryMode();
+  }
+
+  function revealCurrentSummaryMode() {
+    clearTimeout(summaryRevealTimer);
+    if (summaryHideListenerEl) {
+      summaryHideListenerEl.removeEventListener("transitionend", onSummaryHideEnd);
+      summaryHideListenerEl = null;
+    }
+    var el = summaryElFor(visibleSummaryMode);
+    el.classList.remove("is-hidden");
+    el.setAttribute("aria-hidden", "false");
+  }
+
+  function updateSummaryState() {
+    var mode = computeSummaryMode();
+    // Ahead of the early return below (which only fires once nothing about
+    // the visible label actually needs to change) so this stays correct
+    // even on a redundant call — cheap, and classList.toggle/setDrawerOpen
+    // are already idempotent besides. Entering add mode also closes the
+    // drawer if it happened to be open — that "pop up" behavior sits out
+    // entirely while the bar is one big Add button (see toggleDrawer()'s
+    // own guard above, which is what keeps it closed for the duration).
+    bar.classList.toggle("is-add-active", mode === "add");
+    if (mode === "add") setDrawerOpen(false);
+    if (mode === visibleSummaryMode) return;
+
+    var outgoingEl = visibleSummaryMode ? summaryElFor(visibleSummaryMode) : null;
+    visibleSummaryMode = mode;
+
+    if (!outgoingEl) {
+      revealCurrentSummaryMode();
+      return;
+    }
+
+    outgoingEl.classList.add("is-hidden");
+    outgoingEl.setAttribute("aria-hidden", "true");
+    // Forces layout before the transitionend listener below is attached —
+    // Safari has a known history of coalescing/dropping a transition
+    // that's triggered by a class change with nothing reading layout in
+    // between (same reasoning as playEnterAnimation()'s own
+    // `void iconEl.offsetWidth` a bit further down this file).
+    void outgoingEl.offsetWidth;
+
+    clearTimeout(summaryRevealTimer);
+    if (summaryHideListenerEl) summaryHideListenerEl.removeEventListener("transitionend", onSummaryHideEnd);
+    summaryHideListenerEl = outgoingEl;
+    outgoingEl.addEventListener("transitionend", onSummaryHideEnd);
+    // Fallback in case transitionend never fires (e.g. a backgrounded tab),
+    // matching the 0.3s opacity transition these three share plus a buffer.
+    summaryRevealTimer = setTimeout(revealCurrentSummaryMode, 350);
+  }
+
+  window.EmjiveSelectionBar = {
+    showAddAction: function (onConfirm) {
+      pendingConfirm = onConfirm;
+      updateSummaryState();
+    },
+    hideAddAction: function () {
+      pendingConfirm = null;
+      updateSummaryState();
+    }
+  };
 
   /* ---- render -------------------------------------------------------------
      Full rebuild every time (rows + icons), same convention as
@@ -289,10 +430,8 @@
     // see the .is-hidden rules in css/style.css — rather than popping
     // instantly between "No selected item" and "Order (N)".
     var hasItems = items.length > 0;
-    emptyLabelEl.classList.toggle("is-hidden", hasItems);
     iconsEl.hidden = !hasItems;
-    orderLink.classList.toggle("is-hidden", !hasItems);
-    orderLink.setAttribute("aria-hidden", String(!hasItems));
+    updateSummaryState();
     // Only updated while there's at least one item — unselecting the
     // last one leaves this reading whatever it last said (e.g. "Order
     // (1)") while Order fades out, instead of flipping to "Order (0)"

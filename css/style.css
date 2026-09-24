@@ -28,7 +28,7 @@
      usages, Geist Mono (loaded from Google Fonts). font-main: everything
      else, DINish (self-hosted — see @font-face below, needs the actual
      font file dropped into assets/fonts/). */
-  --font-secondary: "Geist Mono", "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --font-secondary: "Geist Mono", monospace;
   --font-main: "DINish", sans-serif;
 
   /* Shared text recipe for on-page buttons: DINish (--font-main) Black
@@ -1886,9 +1886,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   text-transform: var(--button-text-transform);
   text-align: center;
   cursor: pointer;
-  transition: background 0.2s ease;
 }
-.product-detail__select:hover { background: var(--black); }
 .product-detail__select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- 5–7. prose sections (description / characteristics / shipping) ---- */
@@ -1976,6 +1974,81 @@ body:has(.order-checkout-bar:not([hidden])) {
   );
 }
 .size-modal.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* ---- drawer variant: #sizeModal only ----
+   Anchors the panel+guide group (.size-modal__sheet) to rest right above the
+   selection bar instead of centering it, and slides that whole sheet the
+   rest of the way up from behind the bar rather than the base rule's 12px
+   rise. #modifyModal (launch-order.html, no selection bar) keeps the bare
+   centered behavior above untouched.
+
+   --selection-bar-reserved is how much room is actually kept clear for the
+   bar: js/selection-bar.js publishes --selection-bar-live-height (its own
+   real rendered height, summary + open drawer) on every drawer open/close/
+   resize, and this caps it at 50vh — if the bar's own drawer has enough
+   items to want more room than that, the sheet stops getting pushed any
+   further and the bar's own drawer scroll (already capped independently at
+   66vh) takes over instead. The var(--selection-bar-live-height, …) fallback
+   only matters for the instant before that script's first render() call. */
+.size-modal--drawer {
+  --selection-bar-reserved: min(var(--selection-bar-live-height, var(--selection-bar-height)), 50vh);
+  justify-content: flex-end;
+  padding-bottom: var(--selection-bar-reserved);
+  /* opacity/padding-bottom animate normally in both directions. visibility
+     is the odd one out — it isn't itself continuously animatable, it just
+     snaps at whatever point its transition-delay places it — so closed
+     (the end state when .is-open is removed) delays the snap-to-hidden
+     until AFTER the sheet's own 0.3s slide-down has actually finished;
+     .is-open below re-zeroes that delay so opening shows the sheet
+     immediately rather than waiting on the same delay in reverse. Without
+     this, .size-modal's own visibility (not covered by prefers-reduced-
+     motion's transition-duration override, since it's a separate
+     longhand) would cut the slide-down off mid-flight, which is exactly
+     the "abrupt disappearing" this replaces. */
+  transition: opacity 0.25s ease, visibility 0s linear 0.3s, padding-bottom 0.3s ease;
+}
+.size-modal--drawer .size-modal__backdrop {
+  /* Stops the dim scrim exactly at the bar's top edge instead of covering
+     it — the bar has to stay visible and clickable (its own drawer and the
+     sheet's new "Add" button specifically) while the sheet is open. Same
+     reserved value as the padding above, and transitions in step with it
+     so the scrim's lower edge follows the bar smoothly rather than
+     snapping while the panel above it eases into place. */
+  inset: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: var(--selection-bar-reserved);
+  transition: bottom 0.3s ease;
+}
+/* .size-modal itself is inset: 0 with pointer-events: auto once .is-open —
+   an invisible region still hit-tests, so without this the reserved gap
+   above the bar (where the backdrop above no longer paints) would swallow
+   clicks meant for the bar underneath — including into its own open
+   drawer, which is exactly what now sits in that gap. pointer-events
+   inherits, so this narrows hit-testing back down to exactly the backdrop
+   and the sheet (which in turn re-enables it for its own guide/panel
+   children through that same inheritance). */
+.size-modal--drawer.is-open {
+  transition: opacity 0.25s ease, visibility 0s linear 0s, padding-bottom 0.3s ease;
+  pointer-events: none;
+}
+.size-modal--drawer.is-open .size-modal__backdrop,
+.size-modal--drawer.is-open .size-modal__sheet {
+  pointer-events: auto;
+}
+/* Guide + panel slide as one rigid unit, glued together — see
+   .size-modal__sheet below for why this has to be a shared wrapper rather
+   than each of the two animating its own transform. */
+.size-modal__sheet { width: 100%; }
+.size-modal--drawer .size-modal__sheet {
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+.size-modal--drawer.is-open .size-modal__sheet {
+  transform: translateY(0);
+}
+
 .size-modal__backdrop {
   position: absolute;
   inset: 0;
@@ -1997,6 +2070,19 @@ body:has(.order-checkout-bar:not([hidden])) {
   transition: transform 0.25s ease;
 }
 .size-modal.is-open .size-modal__panel { transform: translateY(0); }
+/* Drawer variant: the slide itself lives on .size-modal__sheet (the shared
+   wrapper around this + .size-modal__guide, above) so the two travel as one
+   rigid unit — this cancels the base rule's own 12px-rise transform instead
+   of stacking a second motion underneath the wrapper's. max-height is
+   rebudgeted against the bar's reserved height (see --selection-bar-reserved
+   above — tracks the bar's OWN drawer opening too, not just its fixed
+   summary height) so a short viewport can't push content off the top of the
+   screen (unreachable there, since the group is bottom-anchored). */
+.size-modal--drawer .size-modal__panel {
+  transform: none;
+  transition: none;
+  max-height: calc(90vh - var(--selection-bar-reserved));
+}
 /* margin/padding mirror .site-header__row and .selection-bar__summary/__row
    — same --edge-px edge padding, so the modal's rows line up with the
    header/bar's content at narrow/mobile widths, while .size-modal__panel
@@ -2181,39 +2267,20 @@ body:has(.order-checkout-bar:not([hidden])) {
   transition: background 0.2s ease;
 }
 .size-modal__confirm:hover { background: var(--black); }
-/* No :disabled visual — the gating (no size picked yet, "Add" only) is
-   silent, not shown. "Save" is never actually disabled in normal use. */
+/* #modifyModal's "Save" only now — #sizeModal's own "Add" confirm was
+   removed; that action lives in .selection-bar__add instead (see the
+   floating selection bar section below). No :disabled visual here —
+   "Save" toggles the real attribute but is never actually disabled in
+   normal use (a pre-filled item always has some size going in). */
 
-/* product.html's "Add" confirm only — launch-order.html's "Save" confirm
-   is plain text with no nested spans, so these simply don't match there.
-   Same opacity crossfade recipe as .order-item__content/__overlay
-   (0.3s, cubic-bezier(0.4, 0, 0.6, 1)): clicking "Add" with no size
-   chosen yet (js/product.js) toggles .is-nudging on the button itself,
-   swapping the label for a prompt in place rather than resizing it —
-   nudge is position: absolute + inset: 0 so it overlays the label's own
-   box exactly, matching .order-item__overlay's own inset: 0 over
-   .order-item__content. */
-.size-modal__confirm-label,
-.size-modal__confirm-nudge {
-  white-space: nowrap;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
-}
-.size-modal__confirm-nudge {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-}
-.size-modal__confirm.is-nudging .size-modal__confirm-label { opacity: 0; }
-.size-modal__confirm.is-nudging .size-modal__confirm-nudge { opacity: 1; }
-
-/* ---- size guide: a separate helper band appended directly under the
-   modal panel's bottom edge (sibling of .size-modal__panel, not nested
-   inside .size-modal__content anymore) — full-bleed like the panel
-   itself, at full opacity so it reads as clearly as the modal above it.
+/* ---- size guide: a separate helper band, always a sibling of
+   .size-modal__panel rather than nested inside .size-modal__content — full-
+   bleed like the panel itself, at full opacity so it reads as clearly as
+   the modal above it. On #modifyModal it's still appended directly under
+   the panel's bottom edge (unchanged); on #sizeModal it's moved ahead of
+   the panel in markup instead, so it sits at the top of the sliding sheet
+   (see .size-modal--drawer above) — this rule itself doesn't care which
+   side, it's pure sibling styling either way.
    position: relative + z-index: 1 mirrors .size-modal__panel exactly —
    both need to outrank .size-modal__backdrop (position: absolute,
    z-index: auto, full-bleed over the whole modal) in paint order, or the
@@ -2231,6 +2298,11 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: var(--bg);
   opacity: 1;
 }
+/* On #sizeModal this no longer fades in on its own — it's inside
+   .size-modal__sheet along with .size-modal__panel, so the wrapper's single
+   slide transform (see .size-modal--drawer .size-modal__sheet above) carries
+   both together, and the guide reads as physically attached to the panel's
+   top edge throughout the motion instead of arriving separately after it. */
 .size-modal__guide-toggle {
   display: flex;
   align-items: center;
@@ -2364,6 +2436,18 @@ body.has-series-hero .selection-bar {
    overlay exactly the same spot and crossfade via opacity, rather than
    sitting side by side in normal flex flow where the invisible one would
    still claim its own width + gap and shove the visible one over. */
+/* overflow: hidden + the mask below are what actually stop a big icon stack
+   from ever reaching .selection-bar__order — .selection-bar__icons (a
+   descendant, positioned absolute) is clipped to exactly this box, whose own
+   width already excludes Order's reserved flex space (see the comment
+   above), so however wide the stack grows it clips here first instead of
+   spilling into/past Order. The mask fades that clipped edge to transparent
+   over its first 1rem (anchored to THIS box's fixed left edge via absolute
+   units, not a percentage of the icon strip's own shrink-to-fit width — so
+   it only ever visibly fades something that's actually being clipped; a
+   short stack that doesn't reach this edge renders with no fade at all) —
+   the stack reads as bleeding away off the left edge instead of a hard,
+   awkward cutoff. */
 .selection-bar__toggle {
   position: relative;
   flex: 1;
@@ -2372,6 +2456,9 @@ body.has-series-hero .selection-bar {
   background: none;
   color: var(--white);
   cursor: pointer;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1rem);
+  mask-image: linear-gradient(to right, transparent, #000 1rem);
 }
 /* No gap here on purpose — each icon carries its own margin-right instead,
    so it (and that spacing) can collapse to zero together on removal. See
@@ -2391,14 +2478,50 @@ body.has-series-hero .selection-bar {
   bottom: 0;
   display: flex;
   align-items: center;
+  /* flex-end, not the flex-start default: once the stack (now flex-shrink:
+     0 per-icon, see .selection-bar__icon below) is too wide for this box's
+     own shrink-to-fit width — itself capped at .selection-bar__toggle's
+     available width — flex-start would keep the newest (DOM-first) icon
+     pinned to this box's own left edge and let the overflow push the
+     oldest icon (DOM-last) out past its right edge, straight into Order.
+     flex-end instead keeps that whole packed group flush against the
+     box's right edge (still anchored to Order's left, via right: 0 above)
+     and lets the excess spill past the LEFT edge instead, exactly where
+     .selection-bar__toggle's own overflow/mask (see its comment) is set up
+     to clip and fade it. */
+  justify-content: flex-end;
+  /* Fast, matching .selection-bar__add's own 0.075s — this is the icon
+     strip receding on entering add mode (see .is-add-active below), which
+     reads as the bar itself going dark since there's no color change
+     behind it, just the thumbnails disappearing. */
+  transition: opacity 0.075s ease;
+  /* Own compositor layer, same reasoning as .selection-bar__order/
+     __empty-label/__add below — see .selection-bar__order's comment. */
+  transform: translateZ(0);
+  will-change: opacity;
 }
 /* Same [hidden]-vs-display: flex precedence issue as .selection-bar__order
    above — harmless today since this is always empty whenever it's
    hidden, but restated for correctness regardless. */
 .selection-bar__icons[hidden] { display: none; }
+/* Recedes so the centered .selection-bar__add button — which would
+   otherwise sit right on top of a wide icon strip — has the bar to itself
+   while a size is picked (.is-add-active, toggled alongside the
+   summary-slot mode in js/selection-bar.js's updateSummaryState()). */
+.selection-bar.is-add-active .selection-bar__icons {
+  opacity: 0;
+  pointer-events: none;
+}
 .selection-bar__icon {
   width: 2.25rem;
   height: 2.25rem;
+  /* Without this, a flex item's default flex-shrink: 1 kicks in the moment
+     the stack doesn't fit .selection-bar__toggle's own width — every icon
+     would quietly shrink smaller and smaller as more get added instead of
+     staying full-size and letting .selection-bar__toggle's overflow/mask
+     (above) clip and fade the overflow off the left edge, which is the
+     actual intended "gets big → bleeds off-screen" behavior. */
+  flex-shrink: 0;
   margin-right: 0.5rem;
   object-fit: contain;
   background: transparent;
@@ -2442,7 +2565,15 @@ body.has-series-hero .selection-bar {
   color: var(--white);
   opacity: 1;
   cursor: pointer;
-  transition: opacity 0.3s ease;
+  /* Matches .selection-bar__icons/.selection-bar__add's own 0.075s — on
+     entering add mode, the icon strip and whichever of this/Order is
+     currently showing fade out together rather than at staggered speeds
+     (icons used to be much faster than this at 0.3s, so they'd vanish
+     well before this one finished, even though both start at once). */
+  transition: opacity 0.075s ease;
+  /* Own compositor layer — see .selection-bar__order's comment. */
+  transform: translateZ(0);
+  will-change: opacity;
 }
 .selection-bar__empty-label.is-hidden {
   opacity: 0;
@@ -2460,7 +2591,19 @@ body.has-series-hero .selection-bar {
   gap: 0.3rem;
   color: var(--white);
   opacity: 1;
-  transition: opacity 0.3s ease;
+  /* Matches .selection-bar__icons/.selection-bar__add's own 0.075s — see
+     .selection-bar__empty-label's own comment on this same duration. */
+  transition: opacity 0.075s ease;
+  /* Own compositor layer (also applied to __empty-label/__icons/__add) —
+     mitigates a known WebKit issue where an element transitioning its own
+     opacity, nested inside an ancestor that's already promoted to a layer
+     via will-change/transform (.selection-bar itself has both, for the
+     homepage's scroll-driven reveal — see its own comment), can fail to
+     reliably repaint on toggle. transform: translateZ(0) forces this
+     element onto its own layer instead of leaving Safari to work that out
+     implicitly for a plain descendant. */
+  transform: translateZ(0);
+  will-change: opacity;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-font-size);
@@ -2472,6 +2615,53 @@ body.has-series-hero .selection-bar {
   pointer-events: none;
 }
 .selection-bar__order-chevron { line-height: 1; }
+
+/* Centered on the bar itself, not tucked into .selection-bar__order's old
+   right-edge slot — it's the one control the bar's own faded-out icon
+   strip (.is-add-active, see above) is clearing the stage for, so it gets
+   the bar's visual center rather than sharing a corner with Order.
+   left/transform (not the empty-label/order inset recipe) is what centers
+   it: those two size themselves to their own
+   content and get positioned via right/top/bottom, but a translateX(-50%)
+   centering needs no width of its own to agree on. Text-only, matching
+   .selection-bar__order's type recipe rather than a filled pill: the bar
+   itself is already dark, so a black-on-black button box would read the
+   same way .order-checkout-bar__button's own comment already explains for
+   that bar. */
+.selection-bar__add {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  bottom: 0;
+  /* translateZ(0) rides along in the same transform as the centering
+     translateX (a second transform: declaration would just overwrite this
+     one, not combine with it) — own compositor layer, same reasoning as
+     .selection-bar__order's comment. */
+  transform: translateX(-50%) translateZ(0);
+  display: flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--white);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  opacity: 1;
+  will-change: opacity;
+  /* Fast in both directions — it's the moment the bar's whole "confirm
+     this" state kicks in and shouldn't lag behind the icon-strip fade it
+     appears alongside. */
+  transition: opacity 0.075s ease;
+}
+.selection-bar__add.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.selection-bar__add:hover { opacity: 0.6; }
 
 /* ---- drawer: item list. Height is driven by js/selection-bar.js setting
    max-height inline (in px, measured off .selection-bar__drawer-inner's
@@ -2544,10 +2734,20 @@ body.has-series-hero .selection-bar {
   object-fit: contain;
   background: transparent;
 }
+/* Same recipe as .order-item__meta (name + attrs, one continuous label, no
+   gap between them): white-space/overflow clip a long name+attrs combo to
+   one line instead of wrapping to a second, masked to fade to transparent
+   over the last 1rem of the box rather than an ellipsis or a mid-letter
+   hard cut. A short label, nowhere near that last 1rem, renders exactly as
+   before either way. */
 .selection-bar__row-text {
   flex: 1;
   min-width: 0;
   color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
 }
 .selection-bar__row-name { font-family: var(--font-main); }
 .selection-bar__row-attrs {
@@ -2649,7 +2849,8 @@ input:focus-visible,
 /* Flush-edge cases: an outset ring would be clipped by the parent, so the
    ring is drawn just inside the control's own box instead. */
 .selection-bar__order:focus-visible,
-.selection-bar__toggle:focus-visible {
+.selection-bar__toggle:focus-visible,
+.selection-bar__add:focus-visible {
   outline-offset: -2px;
 }
 

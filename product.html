@@ -154,7 +154,12 @@
   </div>
 </main>
 
-<!-- Size-selection modal, opened by the Select button.
+<!-- Size-selection modal, opened by the Select button — slides up as a
+     bottom sheet resting right above the floating selection bar (see
+     .size-modal--drawer in css/style.css), rather than the centered dialog
+     #modifyModal (launch-order.html) still uses. Confirming a size is done
+     from the bar's own "Add" button (js/selection-bar.js), not from a
+     button in here — this panel is a pure picker.
 
      role/aria-modal/aria-label sit on THIS element, not on
      .size-modal__panel where they used to: the "Size guide" toggle below is
@@ -164,37 +169,42 @@
      would have made that toggle tabbable but unannounced. tabindex="-1" is
      what lets the trap focus this element on open so the aria-label is read
      before the first control. -->
-<div class="size-modal" id="sizeModal" aria-hidden="true"
+<div class="size-modal size-modal--drawer" id="sizeModal" aria-hidden="true"
      role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
-  <div class="size-modal__panel">
-    <div class="size-modal__content">
-      <div class="size-modal__standard-row" id="sizeModalStandardRow">
-        <span class="size-modal__standard-label">Standard sizes</span>
-        <div class="size-modal__standard-options" id="sizeModalStandardOptions"></div>
-      </div>
-
-      <div class="size-modal__custom-row" id="sizeModalCustomRow">
-        <span class="size-modal__custom-label">Custom size</span>
-        <div class="size-modal__custom-field">
-          <span class="size-modal__custom-underline">
-            <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" />
-            <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
-          </span>
+  <!-- Guide + panel share one wrapper (.size-modal__sheet) so a single slide
+       transform drives both as one rigid unit — the guide reads as physically
+       attached to the panel's top edge throughout the motion instead of
+       fading in separately once the panel's own slide has already finished
+       (see .size-modal--drawer .size-modal__sheet in css/style.css). Guide
+       sits ahead of the picker panel in markup (unlike #modifyModal) so it's
+       the top of that sliding sheet, with the size picker itself resting at
+       the bottom, right above the selection bar. -->
+  <div class="size-modal__sheet">
+    <div class="size-modal__guide">
+      <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
+      <div class="size-modal__guide-panel" id="sizeModalGuide">
+        <div class="size-modal__guide-panel-inner">
+          <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
         </div>
       </div>
-
-      <button class="size-modal__confirm" id="sizeModalConfirm" type="button">
-        <span class="size-modal__confirm-label">Add</span>
-        <span class="size-modal__confirm-nudge">First select a size</span>
-      </button>
     </div>
-  </div>
-  <div class="size-modal__guide">
-    <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
-    <div class="size-modal__guide-panel" id="sizeModalGuide">
-      <div class="size-modal__guide-panel-inner">
-        <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
+    <div class="size-modal__panel">
+      <div class="size-modal__content">
+        <div class="size-modal__standard-row" id="sizeModalStandardRow">
+          <span class="size-modal__standard-label">Standard sizes</span>
+          <div class="size-modal__standard-options" id="sizeModalStandardOptions"></div>
+        </div>
+
+        <div class="size-modal__custom-row" id="sizeModalCustomRow">
+          <span class="size-modal__custom-label">Custom size</span>
+          <div class="size-modal__custom-field">
+            <span class="size-modal__custom-underline">
+              <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" />
+              <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

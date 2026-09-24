@@ -776,7 +776,6 @@
     var customUnit = document.getElementById("sizeModalCustomUnit");
     var guideToggle = document.getElementById("sizeModalGuideToggle");
     var guidePanel = document.getElementById("sizeModalGuide");
-    var confirmBtn = document.getElementById("sizeModalConfirm");
 
     // Nothing sizeable about this category at all yet — same disabled
     // fallback as before, now gated on sizes AND a unit rather than just
@@ -792,16 +791,6 @@
     standardRow.hidden = sizes.length === 0;
 
     var modal = document.getElementById("sizeModal");
-
-    // Nudge is the confirm button's own label/prompt crossfade (see
-    // .size-modal__confirm-label/-nudge in css/style.css) — cleared
-    // whenever selection state actually changes, not just left to expire
-    // on its own timer, so it never lingers stale once a size is picked.
-    var nudgeTimer = null;
-    function resetNudge() {
-      confirmBtn.classList.remove("is-nudging");
-      clearTimeout(nudgeTimer);
-    }
 
     // Same reasoning as the metal picker's aria-pressed (see
     // renderMetalOptions): which size is chosen was a CSS class and nothing
@@ -819,14 +808,14 @@
 
     function clearSelection() {
       state.selectedSize = null;
-      resetNudge();
+      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAddAction();
       markStandardSelected(null);
       customRow.classList.remove("is-selected");
     }
 
     function selectStandard(size, btn) {
       state.selectedSize = size;
-      resetNudge();
+      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.showAddAction(confirmAdd);
       markStandardSelected(btn);
       customRow.classList.remove("is-selected");
       customInput.value = "";
@@ -859,7 +848,7 @@
       customInput.value = cleaned;
       if (cleaned) {
         state.selectedSize = cleaned;
-        resetNudge();
+        if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.showAddAction(confirmAdd);
         customRow.classList.add("is-selected");
         markStandardSelected(null);
       } else {
@@ -894,26 +883,19 @@
       modal.setAttribute("aria-hidden", "true");
       document.body.classList.remove("is-modal-open");
       window.EmjiveFocusTrap.release();
+      // Covers both paths that reach here: a successful confirmAdd() (which
+      // calls this after adding) and an abandoned pick via backdrop/Escape
+      // — either way, the bar's Add button shouldn't linger once the sheet
+      // is gone.
+      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAddAction();
     }
 
-    selectBtn.addEventListener("click", openModal);
-    document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
-    // Escape is handled by the focus trap's own keydown listener (registered
-    // on activate, removed on release) rather than by a permanent
-    // document-level one here. That listener already exists for Tab, and
-    // folding Escape into it means the two can't disagree about whether the
-    // modal is open — the old handler gated on .is-open, a second source of
-    // truth for exactly that.
-
-    confirmBtn.addEventListener("click", function () {
-      if (!state.selectedSize) {
-        confirmBtn.classList.add("is-nudging");
-        clearTimeout(nudgeTimer);
-        nudgeTimer = setTimeout(function () {
-          confirmBtn.classList.remove("is-nudging");
-        }, 2000);
-        return;
-      }
+    // The actual "add to cart" action — reachable only via the selection
+    // bar's own Add button (js/selection-bar.js), which by construction
+    // only shows up once state.selectedSize is truthy (see selectStandard/
+    // the custom-input listener above), so there's no "nothing picked yet"
+    // guard needed here the way the old in-panel confirm button had.
+    function confirmAdd() {
       var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
         // Which series this came from — product ids are only unique within
@@ -928,7 +910,16 @@
         image: (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || ""
       });
       closeModal();
-    });
+    }
+
+    selectBtn.addEventListener("click", openModal);
+    document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
+    // Escape is handled by the focus trap's own keydown listener (registered
+    // on activate, removed on release) rather than by a permanent
+    // document-level one here. That listener already exists for Tab, and
+    // folding Escape into it means the two can't disagree about whether the
+    // modal is open — the old handler gated on .is-open, a second source of
+    // truth for exactly that.
   }
 
   wireCarouselNav();

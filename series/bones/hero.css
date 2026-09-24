@@ -36,7 +36,7 @@
 .reveal {
   position: relative;
   --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
-  --reveal-frontier-height: clamp(0.4875rem, 1.3vw, 0.75rem); /* height of the scanning band (narrow-screen floor is 30% taller than it once was); width is always full screen */
+  --reveal-frontier-height: 0.8rem; /* height of the scanning band (narrow-screen override below); width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
      which also needs it, lives outside .reveal entirely. */
 
@@ -58,6 +58,12 @@
   --ring-rotation: 0deg;
 
   height: var(--reveal-scroll-vh);
+}
+
+@media (max-width: 640px) {
+  .reveal {
+    --reveal-frontier-height: 0.7rem;
+  }
 }
 
 .reveal__pin {

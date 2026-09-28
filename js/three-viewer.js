@@ -127,23 +127,43 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     };
   }
 
-  // { rotation, tilt, zoom } -> radians + a percent (100% = the distance
-  // that exactly frames the model's bounding sphere for the camera's fov).
-  // rotation spins left/right, tilt is up/down (90 = eye-level), zoom is
-  // that same radius expressed as a percent — descriptive names for what
-  // used to be a single "<theta>deg <phi>deg <radius%>" string (matching
-  // model-viewer's old camera-orbit attribute convention, which this
-  // whole viewer replaced).
+  // { rotation, tilt, zoom, roll } -> radians + a percent (100% = the
+  // distance that exactly frames the model's bounding sphere for the
+  // camera's fov). rotation spins left/right, tilt is up/down (90 =
+  // eye-level), zoom is that same radius expressed as a percent, roll
+  // spins the camera around its own view axis (0 = level) — descriptive
+  // names for what used to be a single "<theta>deg <phi>deg <radius%>"
+  // string (matching model-viewer's old camera-orbit attribute convention,
+  // which this whole viewer replaced; roll has no equivalent there, it's
+  // new). `roll` is optional and defaults to 0 — every product predating
+  // it omits the field entirely, and it's still the overwhelmingly common
+  // case for a new one, since most product photography wants a level
+  // horizon; scene-tool.html only writes it once a free-drag has actually
+  // set a nonzero one.
   function parseOrbitConfig(config) {
     var cfg = config || DEFAULT_ORBIT;
     var theta = typeof cfg.rotation === "number" ? cfg.rotation : 0;
     var phi = typeof cfg.tilt === "number" ? cfg.tilt : 75;
     var radiusPercent = typeof cfg.zoom === "number" ? cfg.zoom : 105;
+    var roll = typeof cfg.roll === "number" ? cfg.roll : 0;
     return {
       thetaRad: (theta * Math.PI) / 180,
       phiRad: (phi * Math.PI) / 180,
-      radiusPercent: radiusPercent
+      radiusPercent: radiusPercent,
+      rollRad: (roll * Math.PI) / 180
     };
+  }
+
+  // The resting "up" for a given eye direction: WORLD_UP's component
+  // perpendicular to eyeDir (the level up at that position), spun around
+  // eyeDir by rollRad. Left unnormalized on purpose — its length is the
+  // sine of the eye's angle from the pole, which is exactly the fade the
+  // leveling drift wants (see the animate loop), and it degenerates to
+  // zero at the poles rather than to NaN. frameCamera() and the idle
+  // nudge normalize it; the drift uses it raw.
+  function restUpRaw(out, eyeDir, rollRad) {
+    out.copy(WORLD_UP).addScaledVector(eyeDir, -WORLD_UP.dot(eyeDir));
+    return out.applyAxisAngle(eyeDir, rollRad);
   }
 
   // Builds a bare primitive mesh in place of a loaded GLTF model — used
@@ -459,22 +479,18 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // starts the animate loop at all, so a drag would be visually dead),
     // but with the two "auto-correcting" behaviors below (release inertia,
     // the ease-back-to-default reset) switched off — the whole point is
-    // manually setting a pose and having its *position* stay exactly there
-    // so it can be read back and saved. Orientation is a different story:
-    // see the isFreeOrbit branch in the animate loop below for why roll
-    // gets hard-corrected every frame instead of left alone like the other
-    // three noAutoMotion() behaviors.
+    // manually setting a pose and having it stay exactly there so it can
+    // be read back and saved, roll included (see frameCamera()'s `roll`
+    // handling, and readCurrentOrbit() in scene-tool.html).
     var isFreeOrbit = !!options.freeOrbit;
-    // prefers-reduced-motion turns out to want three of the same four
+    // prefers-reduced-motion turns out to want exactly the same four
     // behaviors off that freeOrbit does — release inertia, the
-    // ease-back-to-default pose reset, and the idle nudge (the fourth, the
-    // up-vector leveling drift, freeOrbit replaces with a stronger, instant
-    // version instead of skipping — see the animate loop) — so they share
-    // one predicate for those three rather than growing a parallel set of
-    // conditions. The two arrive at it for different reasons: freeOrbit
-    // wants a pose to STAY put so the tool can read it back and save it;
-    // reduced motion wants nothing to move that the visitor didn't move
-    // themselves.
+    // ease-back-to-default pose reset, the continuous up-vector leveling
+    // drift, and the idle nudge — so they share one predicate rather than
+    // growing a parallel set of conditions. The two arrive at it for
+    // different reasons: freeOrbit wants a pose to STAY put so the tool can
+    // read it back and save it; reduced motion wants nothing to move that
+    // the visitor didn't move themselves.
     //
     // What neither disables is dragging. That's visitor-initiated, so it
     // isn't what the media query is about, and a model you can't turn is a
@@ -756,6 +772,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     var defaultCameraPosition = new THREE.Vector3();
     var defaultCameraUp = new THREE.Vector3();
+    var defaultRollRad = 0;
     var defaultRadius = 0;
     var nudgeWaypoints = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
@@ -786,19 +803,55 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
       controls.target.copy(target);
       camera.position.copy(target).add(offset);
-      camera.up.copy(WORLD_UP);
+
+      // camera.up needs to be more than a WORLD_UP stand-in now that roll
+      // is a real, savable degree of freedom (see parseOrbitConfig above):
+      // restUpRaw() — WORLD_UP's own component perpendicular to the eye
+      // direction (the "level" up for this exact position), rotated around
+      // that same eye direction by orbit.rollRad. For roll 0 this lands on
+      // exactly the same final orientation camera.up = WORLD_UP always
+      // produced here before — lookAt() only ever uses the up hint's
+      // component perpendicular to the view direction, and the two differ
+      // only by a component parallel to it — so it only changes the *value*
+      // left in camera.up, which is what the animate loop needs: the
+      // ease-back-to-default tween slerps toward defaultCameraUp (captured
+      // right below), and the leveling drift and idle nudge both rebuild
+      // their reference from restUpRaw() with defaultRollRad, so the
+      // resting pose — authored roll included — is an exact fixed point of
+      // all three rather than something they slowly flatten back to level.
+      var eyeDir = offset.clone().normalize();
+      restUpRaw(camera.up, eyeDir, orbit.rollRad);
+      // Degenerates exactly at the poles (tilt 0/180, eyeDir parallel to
+      // WORLD_UP) — which auto-render's top shots always sit on (tilt 0).
+      // Falls back to level-up's own limit along this rotation's meridian,
+      // (-cos(tilt)·sin(rotation), 0, -cos(tilt)·cos(rotation)). At
+      // rotation 0 that's -Z (north pole) / +Z (south), exactly what
+      // lookAt()'s own parallel-up nudge produced back when up was
+      // WORLD_UP — so top shots keep the orientation the hero-hand
+      // overlays' rotation values were tuned against. An arbitrary axis
+      // here (+Z was tried) turns every top shot 180 degrees.
+      if (camera.up.lengthSq() < 1e-8) {
+        var cosTilt = Math.cos(orbit.phiRad);
+        camera.up
+          .set(-cosTilt * Math.sin(orbit.thetaRad), 0, -cosTilt * Math.cos(orbit.thetaRad))
+          .applyAxisAngle(eyeDir, orbit.rollRad);
+      }
+      camera.up.normalize();
       camera.lookAt(target);
       camera.updateProjectionMatrix();
       controls.update();
 
       defaultCameraPosition.copy(camera.position);
       defaultCameraUp.copy(camera.up);
+      defaultRollRad = orbit.rollRad;
       defaultRadius = camera.position.distanceTo(controls.target);
 
       // Idle-nudge waypoints: the default eye direction, and that same
-      // direction rotated +/- NUDGE_ANGLE_RAD around world-up. up doesn't
-      // enter into it — a left/right yaw around the vertical axis doesn't
-      // change what "level" means.
+      // direction rotated +/- NUDGE_ANGLE_RAD around world-up. The nudge
+      // itself re-derives up per frame from whichever eye direction it's
+      // at (restUpRaw), so the authored roll holds steady through the
+      // yaw instead of wobbling — a fixed up vector only stays roll-free
+      // under a yaw when it's literally WORLD_UP.
       nudgeWaypoints[0].copy(defaultCameraPosition).sub(controls.target).normalize();
       nudgeWaypoints[1].copy(nudgeWaypoints[0]).applyAxisAngle(WORLD_UP, NUDGE_ANGLE_RAD);
       nudgeWaypoints[2].copy(nudgeWaypoints[0]).applyAxisAngle(WORLD_UP, -NUDGE_ANGLE_RAD);
@@ -933,6 +986,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var eyeDirectionPrev = new THREE.Vector3();
     var preFrameUp = new THREE.Vector3();
     var tangentTowardUp = new THREE.Vector3();
+    var restRef = new THREE.Vector3();
     var driftDelta = new THREE.Vector3();
     var fromDirection = new THREE.Vector3();
     var toDirection = new THREE.Vector3();
@@ -1249,7 +1303,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
         slerpVectors(tweenDirection, nudgeWaypoints[nudgePhase], nudgeWaypoints[(nudgePhase + 1) % 3], neased);
         camera.position.copy(tweenDirection).multiplyScalar(defaultRadius).add(controls.target);
-        camera.up.copy(defaultCameraUp);
+        restUpRaw(camera.up, tweenDirection, defaultRollRad);
+        if (camera.up.lengthSq() < 1e-8) camera.up.copy(defaultCameraUp);
+        else camera.up.normalize();
         camera.lookAt(controls.target);
 
         var handFrom = HAND_OFFSETS[nudgePhase];
@@ -1310,35 +1366,34 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
         var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
 
-        // Reduced motion (not freeOrbit — see below) skips this
-        // leveling-drift correction entirely — camera.up (and therefore the
-        // framing) stays exactly wherever the drag left it, with no
-        // auto-correction ever nudging it back toward level. It's the
-        // subtlest of the four, and the most unsettling to watch if you
-        // didn't ask for it: the image rotates slowly under a stationary
-        // pointer.
-        if (isFreeOrbit) {
-          // scene-tool.html only. rotation/tilt/zoom (parseOrbitConfig
-          // above) only ever encode the camera's *position* on the orbit
-          // sphere — frameCamera() always reconstructs a zero-roll pose
-          // from those three numbers alone, wherever they're applied from
-          // (a page load, typing exact values, Reset). But TrackballControls'
-          // own rotate step also spins .up right along with the eye (see
-          // its own file), so an ordinary free-drag can leave the camera
-          // rolled away from that canonical orientation. readCurrentOrbit()
-          // in scene-tool.html reads rotation/tilt from camera position
-          // only, has no way to see or save that roll, so a pose saved
-          // mid-roll looks right in the two numbers and wrong the moment
-          // those numbers are reapplied. Hard-resetting .up every frame
-          // (rather than the gradual drift below, which freeOrbit skips
-          // same as reduced motion) keeps position/framing fully free —
-          // including crossing the poles — while guaranteeing what's on
-          // screen already IS the zero-roll pose those three numbers
-          // reconstruct, so there's nothing left to lose on save/reload.
-          camera.up.copy(WORLD_UP);
-        } else if (!noAutoMotion()) {
-          var s = preFrameUp.dot(WORLD_UP);
-          tangentTowardUp.copy(WORLD_UP).addScaledVector(preFrameUp, -s);
+        // freeOrbit and reduced motion both skip this leveling-drift
+        // correction entirely — camera.up (and therefore the framing) stays
+        // exactly wherever the drag left it, with no auto-correction ever
+        // nudging it back toward level. It's the subtlest of the four, and
+        // the most unsettling to watch if you didn't ask for it: the image
+        // rotates slowly under a stationary pointer. freeOrbit wants this
+        // off for a second reason beyond "let a pose stay put": roll (the
+        // camera's orientation around its own view axis) is now a real,
+        // savable part of a product's `3d-viewer-camera-default` — see
+        // frameCamera()'s `roll` handling above — and this drift would
+        // otherwise fight whatever roll a free-drag just dialed in.
+        //
+        // The attractor is the resting up for the current eye direction
+        // (restUpRaw with the product's own roll), not WORLD_UP itself: the
+        // resting pose then sits exactly on a fixed point (tangent is 0),
+        // so an authored roll holds instead of decaying toward level, and a
+        // roll-0 model stops churning camera.up along the view axis (an
+        // invisible change that still defeated render-on-demand). Left
+        // unnormalized, its length is sin(angle from the pole), which makes
+        // the in-plane pull for roll 0 identical to the old WORLD_UP-based
+        // one, sin^2 fade near the poles included. It flips sign crossing a
+        // pole, but s and tangentTowardUp flip together, so driftDelta
+        // doesn't — the same two-attractor continuity as before, the two
+        // attractors now being the authored roll and roll + 180deg.
+        if (!noAutoMotion()) {
+          restUpRaw(restRef, eyeDirection, defaultRollRad);
+          var s = preFrameUp.dot(restRef);
+          tangentTowardUp.copy(restRef).addScaledVector(preFrameUp, -s);
           var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
           driftDelta.copy(tangentTowardUp).multiplyScalar(driftRateThisFrame * s * (1 - poleAlignment));
           camera.up.add(driftDelta).normalize();

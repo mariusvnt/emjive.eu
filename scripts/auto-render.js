@@ -354,7 +354,13 @@ const HARNESS_HTML = `<!doctype html>
     // shots stay consistently framed with the product's other renders —
     // rotation is fixed at 0 rather than the product's own default, for a
     // canonical, camera-north-up top-down shot regardless of how each
-    // model's default 3/4 view happens to be rotated.
+    // model's default 3/4 view happens to be rotated. roll is omitted
+    // below for the identical reason (parseOrbitConfig defaults it to 0)
+    // — an authored roll is exactly as much a "how this model's default
+    // view happens to be oriented" choice as rotation is, and a top shot
+    // composited onto the homepage hero's hand needs the same canonical,
+    // unrolled framing every other product's top shot has, independent of
+    // whatever any one product's 3/4 view was rolled to.
     var defaultOrbit = product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
     var zoom = typeof defaultOrbit.zoom === "number" ? defaultOrbit.zoom : 105;
     var handle = window.EmjiveModelViewer(product, metalKey, {

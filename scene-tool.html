@@ -1,7 +1,7 @@
 <!--
   scene-tool.html — standalone dev page: preview a product (or a bare
   primitive shape, for swatch-scene tuning) under a chosen HDRI/metal, set
-  a camera angle (drag the model, or type exact rotation/tilt/zoom values
+  a camera angle (drag the model, or type exact rotation/tilt/roll/zoom values
   directly), tweak that metal's shader live, then tick which of {HDRI,
   camera, metal shader} to save and click Save.
 
@@ -140,6 +140,9 @@
       <div class="readout">
         <span class="orbit-field">Rotation: <input type="number" id="rotationInput" step="1"> &deg;</span>
         <span class="orbit-field">Tilt: <input type="number" id="tiltInput" step="1"> &deg;</span>
+      </div>
+      <div class="readout">
+        <span class="orbit-field">Roll: <input type="number" id="rollInput" step="1"> &deg;</span>
         <span class="orbit-field">Zoom: <input type="number" id="zoomInput" step="1"> %</span>
       </div>
       <button type="button" id="resetCameraBtn">Reset to saved default</button>
@@ -187,6 +190,9 @@
 import * as THREE from "three";
 
 const PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
+// Mirrors js/three-viewer.js's own module-scope WORLD_UP — readCurrentOrbit()
+// below needs it for the same "level up" projection frameCamera() uses.
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 const state = {
   seriesIndex: null,
@@ -204,7 +210,7 @@ const state = {
 const els = {};
 [
   "hdriSelect", "modelSelect", "metalButtons", "viewerContainer", "statusMessage",
-  "rotationInput", "tiltInput", "zoomInput", "resetCameraBtn",
+  "rotationInput", "tiltInput", "zoomInput", "rollInput", "resetCameraBtn",
   "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
   "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults"
 ].forEach((id) => { els[id] = document.getElementById(id); });
@@ -317,6 +323,7 @@ function wireEvents() {
   els.rotationInput.addEventListener("change", onOrbitInputChange);
   els.tiltInput.addEventListener("change", onOrbitInputChange);
   els.zoomInput.addEventListener("change", onOrbitInputChange);
+  els.rollInput.addEventListener("change", onOrbitInputChange);
   els.resetCameraBtn.addEventListener("click", onResetCamera);
   els.saveBtn.addEventListener("click", onSaveClick);
   els.copyJsonBtn.addEventListener("click", onCopyJsonClick);
@@ -449,13 +456,14 @@ function setCameraControlsEnabled(enabled) {
   els.rotationInput.disabled = !enabled;
   els.tiltInput.disabled = !enabled;
   els.zoomInput.disabled = !enabled;
+  els.rollInput.disabled = !enabled;
   els.resetCameraBtn.disabled = !enabled;
   els.saveCamera.disabled = !enabled;
   if (!enabled) els.saveCamera.checked = false;
 }
 
-// Reads {rotation, tilt, zoom} back from the live camera — the exact
-// inverse of js/three-viewer.js's frameCamera()'s forward transform.
+// Reads {rotation, tilt, zoom, roll} back from the live camera — the
+// exact inverse of js/three-viewer.js's frameCamera()'s forward transform.
 // Runs off the handle's own camera/target/scene (no state kept here
 // beyond what's read each frame), so whatever's on screen is always
 // exactly what gets displayed and (if saved) posted.
@@ -466,8 +474,31 @@ function readCurrentOrbit(handle) {
   const offset = camera.position.clone().sub(target);
   const radius = offset.length();
   if (radius < 1e-6) return null;
+  const eyeDir = offset.clone().normalize();
   const phiRad = Math.acos(THREE.MathUtils.clamp(offset.y / radius, -1, 1));
   const thetaRad = Math.atan2(offset.x, offset.z);
+
+  // Roll: the signed angle, around eyeDir, from "level" (WORLD_UP's own
+  // component perpendicular to eyeDir — what frameCamera() uses for roll 0
+  // at this exact position) to the camera's actual .up — the exact inverse
+  // of frameCamera()'s levelUp.applyAxisAngle(eyeDir, rollRad). A free-drag
+  // (TrackballControls' own rotate step spins .up right along with the eye)
+  // is the only way .up ends up anywhere but level; typing exact values or
+  // Reset always lands back on frameCamera()'s own canonical roll. Same
+  // pole degeneracy as the forward transform — falls back to 0 there.
+  const levelUp = WORLD_UP.clone().addScaledVector(eyeDir, -WORLD_UP.dot(eyeDir));
+  let rollRad = 0;
+  if (levelUp.lengthSq() > 1e-8) {
+    levelUp.normalize();
+    const actualUp = camera.up.clone().addScaledVector(eyeDir, -camera.up.dot(eyeDir));
+    if (actualUp.lengthSq() > 1e-8) {
+      actualUp.normalize();
+      const cosRoll = THREE.MathUtils.clamp(levelUp.dot(actualUp), -1, 1);
+      const sinRoll = levelUp.clone().cross(actualUp).dot(eyeDir);
+      rollRad = Math.atan2(sinRoll, cosRoll);
+    }
+  }
+
   const box = new THREE.Box3().setFromObject(handle.scene);
   const sphere = box.getBoundingSphere(new THREE.Sphere());
   if (!(sphere.radius > 0)) return null;
@@ -477,7 +508,8 @@ function readCurrentOrbit(handle) {
   return {
     rotation: Math.round((thetaRad * 180) / Math.PI),
     tilt: Math.round((phiRad * 180) / Math.PI),
-    zoom: Math.round(zoom)
+    zoom: Math.round(zoom),
+    roll: Math.round((rollRad * 180) / Math.PI)
   };
 }
 
@@ -492,10 +524,11 @@ function readoutLoop() {
   if (document.activeElement !== els.rotationInput) els.rotationInput.value = orbit.rotation;
   if (document.activeElement !== els.tiltInput) els.tiltInput.value = orbit.tilt;
   if (document.activeElement !== els.zoomInput) els.zoomInput.value = orbit.zoom;
+  if (document.activeElement !== els.rollInput) els.rollInput.value = orbit.roll;
 }
 
-// Fires on any of the three fields committing a value (blur/Enter) —
-// reads all three current field values together and jumps the camera
+// Fires on any of the four fields committing a value (blur/Enter) —
+// reads all four current field values together and jumps the camera
 // straight there via handle.setCameraOrbit(), the same primitive
 // scripts/auto-render.js's top-shot render already uses.
 function onOrbitInputChange() {
@@ -503,8 +536,9 @@ function onOrbitInputChange() {
   const rotation = parseFloat(els.rotationInput.value);
   const tilt = parseFloat(els.tiltInput.value);
   const zoom = parseFloat(els.zoomInput.value);
-  if (![rotation, tilt, zoom].every(Number.isFinite)) return;
-  state.handle.setCameraOrbit({ rotation, tilt, zoom });
+  const roll = parseFloat(els.rollInput.value);
+  if (![rotation, tilt, zoom, roll].every(Number.isFinite)) return;
+  state.handle.setCameraOrbit({ rotation, tilt, zoom, roll });
 }
 
 function onResetCamera() {
@@ -546,7 +580,8 @@ async function onSaveClick() {
         productId: state.product.id,
         rotation: state.lastOrbit.rotation,
         tilt: state.lastOrbit.tilt,
-        zoom: state.lastOrbit.zoom
+        zoom: state.lastOrbit.zoom,
+        roll: state.lastOrbit.roll
       });
     }
     if (els.saveHdri.checked) {
@@ -561,7 +596,8 @@ async function onSaveClick() {
         primitive: state.primitive,
         rotation: state.lastOrbit.rotation,
         tilt: state.lastOrbit.tilt,
-        zoom: state.lastOrbit.zoom
+        zoom: state.lastOrbit.zoom,
+        roll: state.lastOrbit.roll
       });
     }
     if (els.saveHdri.checked) {

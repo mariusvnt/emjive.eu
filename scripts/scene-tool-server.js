@@ -112,7 +112,7 @@ function updateCameraDefaultInText(text, productId, orbit) {
   if (!fieldPattern.test(block)) return null;
   var newFieldText =
     '"3d-viewer-camera-default": { "rotation": ' + orbit.rotation +
-    ', "tilt": ' + orbit.tilt + ', "zoom": ' + orbit.zoom + ' }';
+    ', "tilt": ' + orbit.tilt + ', "zoom": ' + orbit.zoom + ', "roll": ' + orbit.roll + ' }';
   var newBlock = block.replace(fieldPattern, newFieldText);
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
@@ -154,7 +154,8 @@ function updateSwatchSceneInText(text, updates) {
     if (!cameraPattern.test(result)) return null;
     var c = updates["swatch-camera"];
     var newCameraText =
-      '"swatch-camera": { "rotation": ' + c.rotation + ', "tilt": ' + c.tilt + ', "zoom": ' + c.zoom + ' }';
+      '"swatch-camera": { "rotation": ' + c.rotation + ', "tilt": ' + c.tilt + ', "zoom": ' + c.zoom +
+      ', "roll": ' + c.roll + ' }';
     result = result.replace(cameraPattern, newCameraText);
   }
   return result;
@@ -196,8 +197,8 @@ async function handleSaveProductCamera(req, res) {
   var seriesSlug = body.seriesSlug;
   var productId = body.productId;
   if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
-  if (![body.rotation, body.tilt, body.zoom].every(isFiniteNumber)) {
-    return sendJson(res, 400, { error: "rotation/tilt/zoom must be finite numbers" });
+  if (![body.rotation, body.tilt, body.zoom, body.roll].every(isFiniteNumber)) {
+    return sendJson(res, 400, { error: "rotation/tilt/zoom/roll must be finite numbers" });
   }
 
   var seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
@@ -206,7 +207,12 @@ async function handleSaveProductCamera(req, res) {
 
   var productsPath = path.join(ROOT, seriesEntry.products);
   var text = fs.readFileSync(productsPath, "utf8");
-  var orbit = { rotation: Math.round(body.rotation), tilt: Math.round(body.tilt), zoom: Math.round(body.zoom) };
+  var orbit = {
+    rotation: Math.round(body.rotation),
+    tilt: Math.round(body.tilt),
+    zoom: Math.round(body.zoom),
+    roll: Math.round(body.roll)
+  };
   var patched = updateCameraDefaultInText(text, productId, orbit);
   if (!patched) {
     return sendJson(res, 404, {
@@ -247,12 +253,17 @@ async function handleSaveSwatchCamera(req, res) {
   if (!KNOWN_PRIMITIVES.includes(primitive)) {
     return sendJson(res, 400, { error: "primitive must be one of: " + KNOWN_PRIMITIVES.join(", ") });
   }
-  if (![body.rotation, body.tilt, body.zoom].every(isFiniteNumber)) {
-    return sendJson(res, 400, { error: "rotation/tilt/zoom must be finite numbers" });
+  if (![body.rotation, body.tilt, body.zoom, body.roll].every(isFiniteNumber)) {
+    return sendJson(res, 400, { error: "rotation/tilt/zoom/roll must be finite numbers" });
   }
 
   var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var camera = { rotation: Math.round(body.rotation), tilt: Math.round(body.tilt), zoom: Math.round(body.zoom) };
+  var camera = {
+    rotation: Math.round(body.rotation),
+    tilt: Math.round(body.tilt),
+    zoom: Math.round(body.zoom),
+    roll: Math.round(body.roll)
+  };
   var patched = updateSwatchSceneInText(text, { "swatch-primitive": primitive, "swatch-camera": camera });
   if (!patched) {
     return sendJson(res, 404, { error: "could not find \"swatch-primitive\"/\"swatch-camera\" in data/series.json — add them by hand first" });

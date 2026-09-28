@@ -13,7 +13,7 @@
         "bronze": { "price": 240,   "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
-      "3d-viewer-camera-default": { "rotation": 30, "tilt": 70, "zoom": 100 },
+      "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 100, "roll": 0 },
       "assets": {
         "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
         "icons": {

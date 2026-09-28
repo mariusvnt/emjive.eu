@@ -714,6 +714,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       // until something else happened to move. See needsRender's own
       // comment down in the animate loop.
       needsRender = true;
+      // A static viewer has no animate loop to consume needsRender, and
+      // setSize() above has just wiped the canvas. The wrapper is still
+      // detached when the ready path's one render runs, so whenever that
+      // render beats this observer to the real size — a primitive swatch
+      // with the HDRI decode already cached is fast enough to — the
+      // harness screenshotted a blank canvas. Skipped for a viewer that's
+      // torn down or whose wrapper has left the page: auto-render clears
+      // the body between renders without disconnecting old observers.
+      if (isStatic && modelLoaded && !isDisposed && wrapper.isConnected) {
+        renderer.render(scene, camera);
+      }
       // TrackballControls caches the element's screen rect itself
       // (.screen.width/left/etc, read via handleResize()) rather than
       // measuring it fresh on every pointer event — it only does this

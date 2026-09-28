@@ -250,7 +250,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": -100, "tilt": 21, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 105, "roll": 44 },
       "assets": {
         "model": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_gltf.glb",
         "icons": {

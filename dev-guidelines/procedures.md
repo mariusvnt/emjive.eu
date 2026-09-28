@@ -226,15 +226,18 @@ entry controls the angle it loads at. It's also the pose the model eases
 back to smoothly whenever you let go after dragging it, on the live site:
 
 ```json
-"3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 }
+"3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105, "roll": 0 }
 ```
 
 `rotation` spins it left/right, `tilt` tilts it up/down (90 = eye-level),
 `zoom` is a `%` of the distance that exactly frames the model's bounding
 sphere (`js/three-viewer.js`'s `parseOrbitConfig()` — unlike the old
 model-viewer-based system, `zoom` is always a percent, never an absolute
-distance like `1.2m`). If `3d-viewer-camera-default` is omitted, it falls
-back to `{ rotation: 0, tilt: 75, zoom: 105 }`.
+distance like `1.2m`), `roll` spins the camera around its own view axis (0
+= level). `roll` is optional and defaults to 0 — omit it for a level shot,
+which is every product predating the field and will stay the overwhelming
+majority going forward. If `3d-viewer-camera-default` is omitted entirely,
+it falls back to `{ rotation: 0, tilt: 75, zoom: 105, roll: 0 }`.
 
 **Use `scene-tool.html` to set this** rather than hand-editing it:
 
@@ -244,16 +247,20 @@ npm run scene-tool
 
 then open `http://localhost:5200/scene-tool.html`, pick the product, drag
 it to the angle you want (release and it stays exactly there — no
-momentum, no easing back, unlike the live site) or type exact
-rotation/tilt/zoom values directly into the three number fields, tick
-"Camera," and Save writes the numbers straight into that product's
+momentum, no easing back, unlike the live site, roll included: a
+free-drag can roll the camera same as any real trackball, and unlike the
+live site nothing ever auto-levels it back out from under you) or type
+exact rotation/tilt/zoom/roll values directly into the four number fields,
+tick "Camera," and Save writes the numbers straight into that product's
 `3d-viewer-camera-default` for you. Replaces the old workflow of dragging
 as a visual reference, hand-editing the JSON, and reloading to compare —
 there's still no console helper like the old `model-viewer.getCameraOrbit()`
 (`TrackballControls` just holds a raw camera position, nothing tracks
 "orbit" in these terms), `scene-tool.html` computes it back from the live
-camera pose itself instead. See `tooling.md` for how the tool/server are
-built.
+camera pose itself instead — including roll, which isn't visible in the
+camera's position at all, only in how `.up` sits relative to it; see
+`client-scripts.md` for the read-back math. See `tooling.md` for how the
+tool/server are built.
 
 ### Choosing a series' HDRI
 
@@ -403,8 +410,8 @@ list, if none are given), across every series (or just one, with
   stand-in for a neutral studio IBL, but that override was removed as an
   unnecessary divergence). A straight-down view (`{ rotation: 0, tilt: 0,
   zoom }`, reusing the product's own `3d-viewer-camera-default` zoom but
-  always rotation 0 for a canonical top-down framing regardless of that
-  product's own default rotation) plus a soft contact shadow (a
+  always rotation 0 and roll 0 for a canonical top-down framing regardless
+  of that product's own default rotation/roll) plus a soft contact shadow (a
   radial-gradient texture generated on the fly with a 2D canvas, not a
   static asset, on a plane positioned at the model's bounding-sphere
   floor), rather than the flat, shadow-free cutout look of the icons.

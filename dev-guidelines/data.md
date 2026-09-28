@@ -39,7 +39,7 @@ There is no global `data/products.json` any more; it split into the three above.
 
 `{ "series": "<slug>", "products": Product[] }` — the `series` field is self-identifying, a cheap cross-check if a file ever gets copied to a new folder and half-edited.
 
-Currently one series: **Bones** (`data/series/bones/products.json`), 8 entries (Furcula, Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended), all category `"ring"`.
+Currently one series: **Bones** (`data/series/bones/products.json`), 9 entries (Furcula, Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended, joint), all category `"ring"`.
 
 ## `data/series/<slug>/manifest.json`
 

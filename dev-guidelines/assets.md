@@ -11,6 +11,7 @@ assets/
                hand_xray_extension_1.webp, hand_xray_extension_2.webp
     products/  furcula_ring/  foramen_ring/  disc_ring/  marrow_ring/
                suture_ring/  cartilage_ring/  rib-cage_ring/  rib-cage-extended_ring/
+               joint_ring/
   draco/                             ─┐
   fonts/  dinish-woff2/               │
           geist-mono-woff2/           │
@@ -50,13 +51,14 @@ suture_ring/               suture_gltf.glb, suture_icon_{bronze,silver,steel}.we
 cartilage_ring/            cartilage_gltf.glb, cartilage_icon_{bronze,silver,steel}.webp, cartilage_fallback-img_{bronze,silver,steel}.webp, cartilage_top-shot_{bronze,silver,steel}.webp — no xray/photos
 rib-cage_ring/             rib-cage_gltf.glb, rib-cage_icon_{bronze,silver,steel}.webp, rib-cage_fallback-img_{bronze,silver,steel}.webp, rib-cage_top-shot_{bronze,silver,steel}.webp — no xray/photos
 rib-cage-extended_ring/    rib-cage-extended_gltf.glb, rib-cage-extended_icon_{bronze,silver,steel}.webp, rib-cage-extended_fallback-img_{bronze,silver,steel}.webp, rib-cage-extended_top-shot_{bronze,silver,steel}.webp — no xray/photos
+joint_ring/                joint_gltf.glb, joint_icon_{bronze,silver,steel}.webp, joint_fallback-img_{bronze,silver,steel}.webp, joint_top-shot_{bronze,silver,steel}.webp — no xray/photos
 ```
 
 **Every** `.glb` in the catalog now carries `KHR_draco_mesh_compression` (check via a model's `extensionsRequired` in its own glTF JSON chunk), and all of them are produced by one re-runnable script — `npm run optimize-models` (`scripts/optimize-models.js`, see `tooling.md`). That was not always true: three shipped compressed and five didn't, which left the series at **66.9MB of glTF** with a single ring at 20.6MB. After one pass it is **8.3MB**. Run it on any newly added model; it is idempotent enough to run over the whole folder.
 
 Alongside Draco, that script strips each model's textures and its `TEXCOORD_0`/`COLOR_n`/`TANGENT` vertex attributes. That is safe **only because** `js/three-viewer.js`'s `applyMaterial()` unconditionally replaces every mesh's material with a freshly built, untextured `MeshStandardMaterial` from `METAL_PRESETS` — a model's own maps and UVs are never read by anything. If the viewer ever starts honoring them, that step has to go.
 
-What Draco does **not** fix is triangle count, and that is where the remaining cost sits: `rib-cage-extended` is 2.32M triangles, `rib-cage` 1.25M, `suture` 721K — dense, faceted, presumably un-decimated exports (their vertex:triangle ratios are ~1.9:1, i.e. essentially unwelded, which is also why `--simplify` barely moves them). Those are download-cheap and GPU-expensive. Fixing them properly means smooth-shading + merge-by-distance in Blender before export, not a flag on the script.
+What Draco does **not** fix is triangle count, and that is where the remaining cost sits: `rib-cage-extended` is 2.42M triangles, `rib-cage` 1.25M, `suture` 721K, `joint` 885K — dense, faceted, presumably un-decimated exports. `rib-cage`/`suture`/`joint` sit at a ~1.9–2.0:1 vertex:triangle ratio, essentially unwelded, which is also why `--simplify` barely moves them (a few percent at most). `rib-cage-extended`'s model was replaced (Sep 2026) with a better-behaved ~1.5:1 remesh that does respond to `--simplify` (about 30% off at `--simplify=0.25`) — improved, but still well short of a properly welded ~0.5:1 mesh. Those are all download-cheap and GPU-expensive regardless. Fixing them properly means smooth-shading + merge-by-distance in Blender before export, not a flag on the script.
 
 `js/three-viewer.js`'s `GLTFLoader` needs a `DRACOLoader` to decode the extension at all — see `draco/` below and `client-scripts.md`. Without one, `GLTFLoader` doesn't degrade gracefully: it throws synchronously per-model, the load promise rejects, and the model just never appears (the pre-load image stays up forever, silently, with no visible error) — confirmed as the root cause the one time rib-cage/rib-cage-extended shipped ahead of the decoder being wired up.
 

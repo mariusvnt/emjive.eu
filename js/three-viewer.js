@@ -459,17 +459,22 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // starts the animate loop at all, so a drag would be visually dead),
     // but with the two "auto-correcting" behaviors below (release inertia,
     // the ease-back-to-default reset) switched off — the whole point is
-    // manually setting a pose and having it stay exactly there so it can
-    // be read back and saved.
+    // manually setting a pose and having its *position* stay exactly there
+    // so it can be read back and saved. Orientation is a different story:
+    // see the isFreeOrbit branch in the animate loop below for why roll
+    // gets hard-corrected every frame instead of left alone like the other
+    // three noAutoMotion() behaviors.
     var isFreeOrbit = !!options.freeOrbit;
-    // prefers-reduced-motion turns out to want exactly the same four
+    // prefers-reduced-motion turns out to want three of the same four
     // behaviors off that freeOrbit does — release inertia, the
-    // ease-back-to-default pose reset, the continuous up-vector leveling
-    // drift, and the idle nudge — so they share one predicate rather than
-    // growing a parallel set of conditions. The two arrive at it for
-    // different reasons: freeOrbit wants a pose to STAY put so the tool can
-    // read it back and save it; reduced motion wants nothing to move that
-    // the visitor didn't move themselves.
+    // ease-back-to-default pose reset, and the idle nudge (the fourth, the
+    // up-vector leveling drift, freeOrbit replaces with a stronger, instant
+    // version instead of skipping — see the animate loop) — so they share
+    // one predicate for those three rather than growing a parallel set of
+    // conditions. The two arrive at it for different reasons: freeOrbit
+    // wants a pose to STAY put so the tool can read it back and save it;
+    // reduced motion wants nothing to move that the visitor didn't move
+    // themselves.
     //
     // What neither disables is dragging. That's visitor-initiated, so it
     // isn't what the media query is about, and a model you can't turn is a
@@ -1305,13 +1310,33 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
         var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
 
-        // freeOrbit and reduced motion both skip this leveling-drift
-        // correction entirely — camera.up (and therefore the framing) stays
-        // exactly wherever the drag left it, with no auto-correction ever
-        // nudging it back toward level. It's the subtlest of the four, and
-        // the most unsettling to watch if you didn't ask for it: the image
-        // rotates slowly under a stationary pointer.
-        if (!noAutoMotion()) {
+        // Reduced motion (not freeOrbit — see below) skips this
+        // leveling-drift correction entirely — camera.up (and therefore the
+        // framing) stays exactly wherever the drag left it, with no
+        // auto-correction ever nudging it back toward level. It's the
+        // subtlest of the four, and the most unsettling to watch if you
+        // didn't ask for it: the image rotates slowly under a stationary
+        // pointer.
+        if (isFreeOrbit) {
+          // scene-tool.html only. rotation/tilt/zoom (parseOrbitConfig
+          // above) only ever encode the camera's *position* on the orbit
+          // sphere — frameCamera() always reconstructs a zero-roll pose
+          // from those three numbers alone, wherever they're applied from
+          // (a page load, typing exact values, Reset). But TrackballControls'
+          // own rotate step also spins .up right along with the eye (see
+          // its own file), so an ordinary free-drag can leave the camera
+          // rolled away from that canonical orientation. readCurrentOrbit()
+          // in scene-tool.html reads rotation/tilt from camera position
+          // only, has no way to see or save that roll, so a pose saved
+          // mid-roll looks right in the two numbers and wrong the moment
+          // those numbers are reapplied. Hard-resetting .up every frame
+          // (rather than the gradual drift below, which freeOrbit skips
+          // same as reduced motion) keeps position/framing fully free —
+          // including crossing the poles — while guaranteeing what's on
+          // screen already IS the zero-roll pose those three numbers
+          // reconstruct, so there's nothing left to lose on save/reload.
+          camera.up.copy(WORLD_UP);
+        } else if (!noAutoMotion()) {
           var s = preFrameUp.dot(WORLD_UP);
           tangentTowardUp.copy(WORLD_UP).addScaledVector(preFrameUp, -s);
           var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);

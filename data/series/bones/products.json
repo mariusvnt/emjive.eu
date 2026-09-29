@@ -13,7 +13,7 @@
         "bronze": { "price": 240,   "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
-      "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 100, "roll": 0 },
+      "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {
         "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
         "icons": {
@@ -50,7 +50,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
-      "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 85 },
+      "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
         "icons": {
@@ -84,7 +84,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
-      "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/disc_ring/disc_gltf.glb",
         "icons": {
@@ -118,7 +118,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/marrow_ring/Marrow_gltf.glb",
         "icons": {
@@ -148,7 +148,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/suture_ring/suture_gltf.glb",
         "icons": {
@@ -182,7 +182,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/cartilage_ring/cartilage_gltf.glb",
         "icons": {
@@ -216,7 +216,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/rib-cage_ring/rib-cage_gltf.glb",
         "icons": {
@@ -250,7 +250,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 105, "roll": 44 },
+      "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
       "assets": {
         "model": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_gltf.glb",
         "icons": {
@@ -284,7 +284,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/joint_ring/joint_gltf.glb",
         "icons": {

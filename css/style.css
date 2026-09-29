@@ -145,34 +145,12 @@
 html {
   scroll-behavior: smooth;
   background: var(--bg);
-  /* Reserves the vertical scrollbar's track width unconditionally, even
-     on pages/viewport heights short enough not to need a scrollbar right
-     now. Without this, a page just tall enough to scroll (showing a
-     scrollbar) vs. one that isn't renders at a slightly different usable
-     width — and since .selection-bar is position: fixed; left:0; right:0,
-     everything inside it (the icon strip, Order link) would visibly
-     shift a few pixels depending on which page you're on. both-edges
-     (not plain stable) matters here specifically because of how many
-     "re-center on my own midpoint, then breakout to 100vw" tricks this
-     site relies on (product-card__bar-link, the hero images, the
-     carousel frame, .product-detail__select): plain stable reserves its
-     gutter on one edge only, which — on any engine that honors it even
-     with no visible scrollbar to show (observed on Chrome for Android,
-     which uses an overlay scrollbar on touch but still reserves the
-     stable gutter per spec) — quietly shifts every one of those
-     midpoints off the true viewport center by half the gutter's width,
-     showing up as a gap on one screen edge and a same-size sliver of
-     genuinely scrollable overflow on the other. both-edges reserves the
-     same gutter on both sides instead, so it keeps the width-consistency
-     this rule exists for while keeping centering symmetric. */
-  scrollbar-gutter: stable both-edges;
   /* Categorically rules out a HORIZONTAL scrollbar ever appearing (the
      site leans on a lot of width: 100vw breakout tricks — hero images,
      full-bleed bars, the carousel frame — any one of which overflowing
      by even a sub-pixel would toggle one on/off). A horizontal scrollbar
-     eats into the same "usable viewport" .selection-bar's left:0;right:0
-     is measured against, on top of the vertical-scrollbar case above —
-     and unlike that one, there's no scrollbar-gutter equivalent for the
+     eats into the "usable viewport" .selection-bar's left:0;right:0 is
+     measured against, and there's no scrollbar-gutter equivalent for the
      horizontal axis to reserve against, so the only reliable fix is
      making sure it can never occur at all. Also protects against the
      brief mismatch a browser's back/forward cache can show for an
@@ -716,9 +694,7 @@ button, input, textarea {
    column and widens the whole page past the viewport (seen as
    product-card__bar-link's 100vw breakout sitting a few px right of
    center, with a matching hairline of genuinely scrollable overflow on
-   the right — not the scrollbar-gutter concern in the base rules, which
-   only applies to browsers/platforms that reserve scrollbar space at
-   all). */
+   the right). */
 .product-card {
   position: relative;
   display: grid;
@@ -751,9 +727,7 @@ button, input, textarea {
    scroll on the other, seen on phones specifically), check
    .product-card's own min-width: 0 first — that's what stops its
    content from ballooning .product-grid past the viewport width in the
-   first place (see the comment there); html's scrollbar-gutter rule in
-   the base rules is a secondary, desktop/Chrome-specific version of the
-   same symptom, not the one that showed up on iOS Safari. z-index: 0
+   first place (see the comment there). z-index: 0
    keeps it behind the figure/label (z-index: 1), so those still take
    priority over their own areas. */
 .product-card__bar-link {

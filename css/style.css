@@ -693,33 +693,36 @@ button, input, textarea {
   color: var(--category-col);
 }
 
-/* Two even halves, split exactly at the row's (and so the screen's, since
-   the grid itself is centered) horizontal center. The model is pinned to
-   the end of the left half — i.e. its right border sits exactly on that
-   center line — and the label starts flush at the beginning of the right
-   half, regardless of how wide either one is.
-   min-width: 0 overrides a grid item's default min-width: auto, which
-   otherwise sizes it to fit its own content's minimum — here that's
-   product-card__figure's explicit clamp() floor (210px) plus
-   product-card__label's nowrap text, which together already exceed half
-   of a narrow phone's available width before the label's text is even
-   considered. Without this, that content forces .product-card's own
-   internal 1fr 1fr tracks to grow, which (since .product-card has no
-   width of its own beyond stretching to fill .product-grid's single
-   column) bubbles up into .product-grid itself — this is what was
-   actually widening the whole page past the viewport on phones (seen
-   as product-card__bar-link's 100vw breakout sitting a few px right of
+/* Two even halves at every width, split exactly at the row's (and so the
+   screen's, since the grid itself is centered) horizontal center — model
+   centered within the left half, label starting flush at the right half.
+   minmax(0, 1fr) rather than a bare 1fr on both tracks is what keeps that
+   true regardless of how wide the model gets. A bare 1fr is shorthand for
+   minmax(auto, 1fr): its minimum track sizing function is auto, which lets
+   an oversized item's own specified size (not just its min-content)
+   inflate the track's base size past its fair 1fr share — confirmed via
+   getBoundingClientRect, a bare 1fr let column 1 grow to match
+   product-card__figure's explicit width outright, collapsing column 2
+   toward 0. minmax(0, 1fr) fixes it at the TRACK, by giving it a fixed
+   (rather than auto) minimum sizing function, instead of on the item —
+   giving the ITEM its own min-width: 0 does NOT work here, since the auto
+   minimum a bare 1fr resolves to is driven by the item's specified size
+   regardless of its own min-width.
+   Even halves only stay honest as long as the model also FITS its half —
+   see product-card__figure's phone override below for why it's sized to
+   exactly that on phones.
+   .product-card's own min-width: 0 is a separate fix one level up:
+   without it, an oversized child bubbles up into .product-grid's single
+   column and widens the whole page past the viewport (seen as
+   product-card__bar-link's 100vw breakout sitting a few px right of
    center, with a matching hairline of genuinely scrollable overflow on
-   the right), not the scrollbar-gutter concern in the base rules, which
+   the right — not the scrollbar-gutter concern in the base rules, which
    only applies to browsers/platforms that reserve scrollbar space at
-   all. With min-width: 0 here, .product-grid can no longer be forced
-   wider than the viewport; figure/label instead just overflow their own
-   (now correctly viewport-capped) row visually if they still don't fit,
-   a self-contained layout squeeze rather than a page-wide one. */
+   all). */
 .product-card {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   background: transparent;
   min-width: 0;
@@ -764,15 +767,16 @@ button, input, textarea {
   z-index: 0;
 }
 
-/* Fluid, not a desktop/mobile pair of fixed sizes — same formula at every
-   viewport width so the model shrinks smoothly and the label always stays
-   beside it (never wraps below) instead of the row breaking into a stack
-   on narrow screens.
-   height repeats the same clamp() as width (a square) rather than using
+/* Two separate formulas — one desktop, one phone (override below) —
+   rather than one continuous clamp(vw) across the whole range, since
+   the two are sized on different terms: desktop is a free-standing fluid
+   size that comfortably fits its half of the row, phone is pinned to
+   that half exactly.
+   height repeats the same value as width (a square) rather than using
    aspect-ratio: 1/1 to derive it — Safari has a documented history of
    grid row-sizing not correctly accounting for an aspect-ratio-derived
    size on a grid item, which would make .product-card's align-items:
-   center (and so .product-card__bar-link's own top: 50%, which reads
+   center (and so .product-card__bar-link's own top, which reads
    .product-card's height independently) center against a height the
    grid *thinks* the figure has rather than its real rendered height —
    visible as the model box sitting off from the white band. An explicit
@@ -792,14 +796,32 @@ button, input, textarea {
    properly removes that dependency instead of reinstating it. */
 .product-card__figure {
   grid-column: 1;
-  justify-self: end;
+  justify-self: center;
   position: relative;
   display: grid;
   grid-template: 1fr / 1fr;
-  width: clamp(210px, 45vw, 795px);
-  height: clamp(210px, 45vw, 795px);
-  padding: clamp(24px, 6vw, 110px);
+  width: clamp(168px, 36vw, 636px);
+  height: clamp(168px, 36vw, 636px);
+  padding: clamp(19px, 4.8vw, 88px);
   overflow: hidden;
+}
+/* On phones the model box is exactly its half of the row:
+   .product-grid pads the row by --edge-px on each side, so each half is
+   (100vw - 2 * --edge-px) / 2. Anything wider can't be centered in that
+   half without either running off the screen's left edge or onto
+   product-card__label (position: absolute at a fixed 75% of the card,
+   independent of the grid) — both seen on a real iPhone at the earlier
+   252px phone floor, which is wider than a half on every iPhone width.
+   padding drops to 0 so the rendered model keeps as much of that
+   narrower box as possible (the box itself is transparent, so the
+   padding was only ever shrinking the canvas inside it) — at 393px wide
+   that's a ~177px model vs the original ~162px. */
+@media (max-width: 640px) {
+  .product-card__figure {
+    width: calc(50vw - var(--edge-px));
+    height: calc(50vw - var(--edge-px));
+    padding: 0;
+  }
 }
 
 /* Same cell for both, so paint order is DOM order — the viewer is
@@ -1699,13 +1721,21 @@ body:has(.order-checkout-bar:not([hidden])) {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Smaller than photo slides on purpose — see js/product.js — so most of
-   the slide is empty space a drag can start from without landing on the
-   viewer's own TrackballControls (which rotates the model instead of
-   paging the carousel). */
+/* Smaller than the slide on purpose — js/product.js's onPointerDown bails
+   out of the carousel's own paging-drag entirely whenever the pointerdown
+   target is inside .emjive-3d-viewer, so a drag there rotates the model
+   (TrackballControls) instead of paging, and there's no arrow/dot/keyboard
+   nav to fall back on. The empty margin around the viewer is what a drag
+   or swipe can start from to page away from a model slide. */
 .product-carousel__slide--model .emjive-3d-viewer {
-  width: 55%;
-  height: 55%;
+  width: 75%;
+  height: 75%;
+}
+@media (max-width: 640px) {
+  .product-carousel__slide--model .emjive-3d-viewer {
+    width: 66%;
+    height: 66%;
+  }
 }
 /* A real product photo (product.assets.photos), unlike the model/icon
    slide above, carries its own "on display:" caption naming which

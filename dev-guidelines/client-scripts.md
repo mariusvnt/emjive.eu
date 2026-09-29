@@ -120,9 +120,9 @@ Owns **no hero logic at all** any more, and no `METAL_PRESETS` or viewer-constru
 
 **Exposes**: `window.EmjiveScrollMemory = { isRestoring(), contentReady() }`, consumed only by `main.js`.
 
-## `js/selection.js` (126 lines)
+## `js/selection.js` (143 lines)
 
-The cart/selection data layer — a thin `localStorage` wrapper. `STORAGE_KEY = "emjive_selection"`. Read/write helpers fall back to `[]` on any error (e.g. corrupted JSON). Every mutating call dispatches `new CustomEvent("emjive:selection-changed")` on `window` — the sole mechanism other scripts use to react live to a change without a page reload.
+The cart/selection data layer — a thin `localStorage` wrapper. `STORAGE_KEY = "emjive_selection"`. `readAll()` falls back to `[]` on any read error (e.g. corrupted JSON). `writeAll()` never throws: if `setItem` fails (storage blocked outright, as Safari does with all site data blocked, or over quota), the list moves into an in-memory copy (`memoryItems`) that `readAll()` serves instead, so the bar and order page still show the change and the index-based mutators below keep acting on the list that's on screen. The next successful write clears it and hands the selection back to `localStorage`. That copy lasts only as long as the page does — it can't follow the visitor to the next one. Every mutating call dispatches `new CustomEvent("emjive:selection-changed")` on `window` — the sole mechanism other scripts use to react live to a change without a page reload.
 
 Four mutators, all index-based (an item's position in the stored array, not an id): `addItem(item)` (pushes to the end), `removeItem(index)` (splices it out), `insertItem(index, item)` (splices it back in at a specific position — `launch-order.html`'s "Undo" after Unselect, so a restored item lands back where it was rather than at the end the way `addItem` would), and `updateItem(index, patch)` (`Object.assign`s `patch` onto the existing item in place — `launch-order.html`'s "Modify," changing metal/size and the price that comes with them without moving the item to the end the way remove+add would).
 

@@ -11,7 +11,19 @@
 
   var STORAGE_KEY = "emjive_selection";
 
+  // Where the selection lives once a localStorage write has failed (storage
+  // blocked outright — Safari with all site data blocked throws on any
+  // access — or over quota). Without it, a failed write would leave
+  // readAll() still returning the old stored list: the bar and order page
+  // would never show the item just added, and every index-based call below
+  // would act on a list that no longer matches what's on screen. This keeps
+  // the selection working for as long as the visitor stays on this page;
+  // it can't follow them to the next one, since memory is all there is.
+  // null while storage is working.
+  var memoryItems = null;
+
   function readAll() {
+    if (memoryItems) return memoryItems.slice();
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       var parsed = raw ? JSON.parse(raw) : [];
@@ -22,7 +34,12 @@
   }
 
   function writeAll(items) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      memoryItems = null;
+    } catch (e) {
+      memoryItems = items.slice();
+    }
   }
 
   // Lets any page-specific script (the floating selection bar especially)

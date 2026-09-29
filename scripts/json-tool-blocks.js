@@ -380,7 +380,12 @@ function renderProductBlock(p, metals) {
     perMetal,
     "      },",
     '      "hero-hand-visibility": { "visible": ' + bool(hhv.visible) + ', "x": ' + num(hhv.x) + ', "y": ' + num(hhv.y) + ', "scale": ' + num(hhv.scale) + ', "rotation": ' + num(hhv.rotation) + " },",
-    '      "3d-viewer-camera-default": { "rotation": ' + num(cam.rotation) + ', "tilt": ' + num(cam.tilt) + ', "zoom": ' + num(cam.zoom) + " },",
+    // roll is optional (three-viewer.js defaults it to 0), so it's only
+    // written when the product already carries one — a product that
+    // omits it keeps omitting it, and an authored roll survives the
+    // rewrite instead of being silently reset.
+    '      "3d-viewer-camera-default": { "rotation": ' + num(cam.rotation) + ', "tilt": ' + num(cam.tilt) + ', "zoom": ' + num(cam.zoom) +
+      (typeof cam.roll === "number" && Number.isFinite(cam.roll) ? ', "roll": ' + cam.roll : "") + " },",
     '      "assets": {',
     '        "model": "' + esc(assets.model) + '",',
     '        "icons": {',

@@ -215,6 +215,7 @@
       <label>Camera rotation <input type="number" id="camRotationInput" step="1"></label>
       <label>tilt <input type="number" id="camTiltInput" step="1"></label>
       <label>zoom <input type="number" id="camZoomInput" step="1"></label>
+      <label>roll <input type="number" id="camRollInput" step="1"></label>
     </div>
 
     <div class="folder-preview" id="folderPreview"></div>
@@ -279,7 +280,7 @@ const els = {};
   "productNameInput", "productCategorySelect", "productDescriptionInput", "productDefaultMetalSelect",
   "perMetalSpecsBody",
   "heroVisibleInput", "heroXInput", "heroYInput", "heroScaleInput", "heroRotationInput",
-  "camRotationInput", "camTiltInput", "camZoomInput",
+  "camRotationInput", "camTiltInput", "camZoomInput", "camRollInput",
   "folderPreview",
   "modelCurrentRow", "modelDropzone", "modelFileInput", "modelReplaceInput", "modelInfo",
   "xrayCurrentRow", "xrayDropzone", "xrayFileInput", "xrayReplaceInput", "xrayInfo",
@@ -912,6 +913,8 @@ function fillProductForm() {
   els.camRotationInput.value = cam.rotation;
   els.camTiltInput.value = cam.tilt;
   els.camZoomInput.value = cam.zoom;
+  // Blank (not 0) when the product omits roll, so saving doesn't add one.
+  els.camRollInput.value = typeof cam.roll === "number" ? cam.roll : "";
 
   resetDroppedFiles();
   renderModelSection(product);
@@ -1000,6 +1003,8 @@ async function onProductSave() {
     tilt: parseFloat(els.camTiltInput.value) || 0,
     zoom: parseFloat(els.camZoomInput.value) || 0
   };
+  const roll = parseFloat(els.camRollInput.value);
+  if (Number.isFinite(roll)) cameraDefault.roll = roll;
   const description = els.productDescriptionInput.value;
   const defaultMetal = els.productDefaultMetalSelect.value;
 

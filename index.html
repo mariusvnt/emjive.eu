@@ -134,7 +134,14 @@
      it, which can race ahead of the module (its fetch("data/products.json")
      can resolve before the module has finished loading "three"). -->
 <script src="js/main.js" defer></script>
+<!-- The Modify sheet (modify-modal.js) and its parts, reachable from the
+     floating bar's drawer; order-rows.js has to precede selection-bar.js,
+     which builds its drawer rows with it at load. -->
+<script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
+<script src="js/carousel.js"></script>
+<script src="js/order-rows.js"></script>
+<script src="js/modify-modal.js"></script>
 <script src="js/selection-bar.js"></script>
 </body>
 </html>

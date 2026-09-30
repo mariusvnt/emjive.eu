@@ -271,6 +271,10 @@
   // context-budget rejection already produces, and far better than the tab
   // reloading underneath the visitor.
   var MAX_LIVE_VIEWERS = 3;
+  // How many of those the grid may actually use right now: one fewer while
+  // the Modify sheet (js/modify-modal.js) is open over it, since the
+  // sheet's own 3D viewer counts against the same page-wide budget.
+  var liveViewerCeiling = MAX_LIVE_VIEWERS;
   // Reconciling costs a getBoundingClientRect per wanted card, so it's
   // throttled rather than run per scroll event. Leading-edge on the first
   // call (nothing is waiting when the page settles), trailing after that.
@@ -487,7 +491,7 @@
       return distanceFromViewportCenter(a) - distanceFromViewportCenter(b);
     });
     wanted.forEach(function (entry, i) {
-      if (i < MAX_LIVE_VIEWERS) buildViewerFor(entry);
+      if (i < liveViewerCeiling) buildViewerFor(entry);
       else evictViewer(entry);
     });
   }
@@ -823,6 +827,23 @@
       // there too.
       if (e.persisted) rebuildViewersInRange();
     });
+
+    // The Modify sheet's model borrows one of the grid's slots for as long
+    // as the sheet is open (see liveViewerCeiling). Reconciled straight
+    // away on the way in, not on the throttled schedule, so the slot is
+    // already free when the sheet builds its viewer a moment later — the
+    // sheet dispatches this before building anything. Lazy mode only: the
+    // eager fallback builds every card with no ceiling at all.
+    if (supportsLazyViewers) {
+      window.addEventListener("emjive:modify-open", function () {
+        liveViewerCeiling = MAX_LIVE_VIEWERS - 1;
+        reconcileViewers();
+      });
+      window.addEventListener("emjive:modify-close", function () {
+        liveViewerCeiling = MAX_LIVE_VIEWERS;
+        scheduleReconcile();
+      });
+    }
 
     window.EmjiveSeries.ready
       .then(function (ctx) {

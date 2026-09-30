@@ -10,8 +10,9 @@
   --black-bg: #1a1a1a;
   /* The three tokens below exist purely for the "invert band" trick used
      around the site (backdrop-filter: invert(1) strips crossing
-     .order-item, .product-detail__label-bar and .selection-bar__row —
-     see each one's own comment). Each is the 255-minus-channel inverse of
+     .order-item — in the order list and the bar's drawer alike — and
+     .product-detail__label-bar; see each one's own comment). Each is the
+     255-minus-channel inverse of
      one of the tokens above, chosen so that whatever's declared in one of
      these lands back on the plain token once the band inverts it —
      letting a color read as its normal self only where a band crosses it,
@@ -493,8 +494,8 @@ button, input, textarea {
    syncFilterButtons toggles .is-active). Same "always-rendered,
    background-toggled" dot recipe used everywhere else selection needs
    signaling on the site (.product-metals__option-wrap.is-selected,
-   .size-modal__standard-option.is-selected, .order-shipping__option
-   .is-selected) — every tag reserves the same space whether or not it
+   .order-shipping__option.is-selected) — every tag reserves the same
+   space whether or not it
    ends up filled, so nothing shifts when the dot appears. The one
    category left when a series has just one (js/main.js's
    renderHeaderFilter) is rendered with .is-active by default — inert
@@ -969,10 +970,12 @@ button, input, textarea {
    viewport edge" technique as .product-detail__select below — breaks out
    of .selection-page's own centered/padded column the same way that
    button breaks out of .product-detail's. Rows carry their own edge-px
-   inset (mirroring .selection-bar__row's alignment recipe) so their
-   content still lines up with the page column above/below them. No
-   divider between rows — generous vertical padding is the only thing
-   separating them. ---- */
+   inset (the same max-width/margin/padding recipe as
+   .selection-bar__summary) so their content still lines up with the page
+   column above/below them. No divider between rows — generous vertical
+   padding is the only thing separating them. The floating bar's drawer
+   renders these exact rows too (js/order-rows.js) — see
+   .order-item--drawer below. ---- */
 .order-items {
   width: 100vw;
   margin-left: calc(50% - 50vw);
@@ -1012,16 +1015,24 @@ button, input, textarea {
   padding-bottom: 0;
   opacity: 0;
 }
+/* The floating bar's drawer (js/selection-bar.js) uses these same rows —
+   same markup, same Modify/Unselect overlay, same Undo, same invert band —
+   via js/order-rows.js's rowClass, just tighter: a compact list sitting on
+   top of the page rather than the page itself. .order-item.is-removing
+   (two classes) still outranks this for the final collapse. */
+.order-item--drawer {
+  padding: 0.75rem var(--edge-px);
+}
 /* max-height/overflow here exist purely for the removal animation
-   (js/selection-page.js's "is-removing", added by Unselect): a real content
-   height can't be transitioned directly (it's auto), so this caps it at a
-   value comfortably above the row's actual rendered height (thumb + its
-   own padding, ~5.5rem) and animates that cap to 0 alongside .order-item's
+   (js/order-rows.js's "is-removing", once a row's undo window runs out): a
+   real content height can't be transitioned directly (it's auto), so this
+   caps it at a value comfortably above the row's actual rendered height
+   (thumb + its own padding, ~5.5rem) and animates that cap to 0 alongside .order-item's
    own padding/opacity above. Collapsing this one row's own box is what
    makes the rows below it slide up smoothly as a side effect of
    .order-items' flex layout recalculating every frame — same principle as
    the floating selection bar's icon-collapse animation, just on the
-   vertical axis. Kept on this inner wrapper (js/selection-page.js wraps
+   vertical axis. Kept on this inner wrapper (js/order-rows.js wraps
    .order-item__content/__overlay/__undo-prompt in it) rather than
    .order-item itself so this clipping never reaches ::before's own
    full-bleed band above. */
@@ -1033,17 +1044,17 @@ button, input, textarea {
 .order-item.is-removing .order-item__inner {
   max-height: 0;
 }
-/* Same inverting band technique as .selection-bar__row::before — no ::after
-   companion needed here (unlike .product-detail__label-bar's, which sits on
-   the plain page background): this row already sits directly on
-   .order-items' solid --black-bg, so backdrop-filter: invert(1) inverts
+/* Same inverting band technique as .product-detail__label-bar::before — no
+   ::after companion needed here (unlike the label bar's, which sits on the
+   plain page background): this row already sits directly on solid
+   --black-bg (.order-items, or the bar's drawer), so backdrop-filter: invert(1) inverts
    that black straight to a light band on its own. Sits above both
    .order-item__content and .order-item__overlay regardless of which is
    showing (z-index: 2 vs. their default auto).
    Base transition matches .order-item__content/__overlay/__undo-prompt's
    own 0.3s cubic-bezier crossfade exactly (no delay) — this is what
    governs the band fading back in when is-pending-undo is removed (Undo,
-   js/selection-page.js's handleUndo), so it toggles in step with the rest
+   js/order-rows.js's handleUndo), so it toggles in step with the rest
    of the row instead of lagging behind on its own separate timing. */
 .order-item::before {
   content: "";
@@ -1099,7 +1110,7 @@ button, input, textarea {
   background: transparent;
 }
 /* name + attrs sit in this one box with nothing at all between them
-   (js/selection-page.js appends them back to back) rather than as
+   (js/order-rows.js appends them back to back) rather than as
    separately gapped flex items — reads as one continuous label instead of
    two. min-width: 0 is what lets this flex item shrink below its own
    text's natural width in the first place; white-space/overflow then clip
@@ -1114,6 +1125,12 @@ button, input, textarea {
   -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
   mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
 }
+/* The drawer keeps the fade it always had: only the last 1rem, since its
+   rows carry no price column and the label runs the full width. */
+.order-item--drawer .order-item__meta {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
+}
 .order-item__name { font-family: var(--font-main); color: var(--white); }
 .order-item__attrs {
   font-size: calc(0.75rem * var(--text-scale));
@@ -1123,13 +1140,13 @@ button, input, textarea {
      inverting it needs to land back on plain --category-col. */
   color: var(--category-col-inverted);
 }
-/* Shared between .order-item__attrs here and .selection-bar__row-attrs
-   further down — both build their ".category.metal.size" trait string via
-   window.EmjiveSelection.appendSize() (js/selection.js), which wraps a
-   decimal size's fractional digits in this span instead of a literal "."
-   (that would otherwise read as one more trait-separator dot). em-sized
-   so it scales to 75% of whatever the surrounding attrs text's own
-   font-size is, inheriting color as normal. */
+/* Inside .order-item__attrs, whose ".category.metal.size" trait string is
+   built via window.EmjiveSelection.appendSize() (js/selection.js) — that
+   wraps a decimal size's fractional digits (always two: 62.5 shows as
+   "62" + a small "50") in this span instead of a literal "." (which would
+   otherwise read as one more trait-separator dot). em-sized so it scales
+   to 75% of whatever the surrounding attrs text's own font-size is,
+   inheriting color as normal. */
 .size-fraction {
   font-size: 0.75em;
 }
@@ -1139,11 +1156,12 @@ button, input, textarea {
   color: var(--white);
   white-space: nowrap;
 }
-/* ---- overlay: replaces the row's whole content on hover (mouse) or tap/
-   focus (touch, keyboard) — js/selection-page.js's openRowOverlay()/
-   closeOpenRow(). inset: 0 sizes this to exactly match .order-item__content's
-   box, so the crossfade below reads as one thing swapping for another
-   in place rather than the row resizing. ---- */
+/* ---- overlay: replaces the row's whole content when the row is tapped or
+   clicked (never on hover), or when keyboard focus lands on one of its
+   buttons — js/order-rows.js's openRowOverlay()/closeOpenRow(). inset: 0
+   sizes this to exactly match .order-item__content's box, so the
+   crossfade below reads as one thing swapping for another in place rather
+   than the row resizing. ---- */
 .order-item__overlay {
   position: absolute;
   inset: 0;
@@ -1185,7 +1203,7 @@ button, input, textarea {
    inset: 0 recipe as .order-item__overlay just above, so it swaps in
    without the row resizing — replacing content/overlay in place once
    Unselect is clicked, offering to put the just-removed item back for a
-   few seconds (js/selection-page.js's handleUnselect()/handleUndo()/
+   few seconds (js/order-rows.js's handleUnselect()/handleUndo()/
    confirmRemoval()). Each row gets its own prompt and its own undo
    window rather than one shared bar for the whole list, so unselecting
    several rows in a row never moves any row that isn't the one actually
@@ -1217,8 +1235,8 @@ button, input, textarea {
 }
 /* Declared after .is-open above so it always wins on the tied
    specificity if a row is still carrying is-open at the moment this is
-   added (js/selection-page.js deliberately leaves it be rather than
-   clearing it first — see handleUnselect's own comment). */
+   added (js/order-rows.js deliberately leaves it be rather than clearing
+   it first — see the Unselect click handler's own comment). */
 .order-item.is-pending-undo .order-item__content,
 .order-item.is-pending-undo .order-item__overlay {
   opacity: 0;
@@ -1229,10 +1247,10 @@ button, input, textarea {
   pointer-events: auto;
 }
 
-/* ---- shipping: reuses the size modal's "dot + label" pick recipe
-   (.size-modal__standard-option further down, though this one stays in
-   the site's plain main font rather than that one's Geist Mono), extended
-   with a right-aligned price. Rendered from a small array in
+/* ---- shipping: reuses the metal picker's "dot + label" pick recipe
+   (.product-metals__option-wrap.is-selected further down, though this one
+   stays in the site's plain main font rather than that one's Geist Mono),
+   extended with a right-aligned price. Rendered from a small array in
    js/selection-page.js — a third option later is a one-line addition
    there, not a restructure here. No section heading any more — the panel
    above already establishes this row is about the order. ---- */
@@ -1412,6 +1430,61 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar__button:disabled { opacity: 0.35; cursor: not-allowed; }
 .order-checkout-bar__button:disabled:hover { opacity: 0.35; }
 
+/* ---- Save mode: while the Modify sheet (js/modify-modal.js) is open with a
+   valid size, this bar stands in as its Save button — the same handoff the
+   floating selection bar does for "Add" (.selection-bar__add): the total
+   and "Proceed to checkout" fade out, a single centered "Save" fades in,
+   and the whole bar becomes its hit target (the click is handled on the
+   bar itself, js/selection-page.js). Sequenced rather than simultaneous,
+   like the floating bar's own swap, so two half-faded labels never sit on
+   top of each other mid-transition — done with transition-delay alone
+   here, since there are only ever these two states: whichever side is
+   fading out goes at once, the side fading in waits for it. Same fast
+   0.075s as the floating bar's summary slot. ---- */
+.order-checkout-bar__row {
+  transition: opacity 0.075s ease 0.075s;
+}
+.order-checkout-bar.is-save-active { cursor: pointer; }
+.order-checkout-bar.is-save-active .order-checkout-bar__row {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
+}
+/* Centered on the bar, not in the row's right-hand slot — left/transform
+   rather than an inset, for the same reason as .selection-bar__add. Text
+   only, in the bar's own black button type. */
+.order-checkout-bar__save {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--black);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.075s ease;
+}
+.order-checkout-bar.is-save-active .order-checkout-bar__save {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.075s;
+}
+.order-checkout-bar.is-save-active .order-checkout-bar__save:hover {
+  opacity: 0.6;
+  transition-delay: 0s;
+}
+
 /* ==========================================================================
    Product detail page
    ========================================================================== */
@@ -1548,11 +1621,11 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 
 /* ---- 2. carousel ----
-   A free-drag filmstrip (no snapping — see js/product.js), not a
+   A free-drag filmstrip (no snapping — see js/carousel.js), not a
    one-slide-at-a-time paginator: every image is square, and the tile size
    (--tile, used as both width and height throughout) is capped at 560px
    but shrinks on narrower containers so the viewport always exceeds one
-   tile by >= 4rem — since js/product.js rests on (and rubber-bands
+   tile by >= 4rem — since js/carousel.js rests on (and rubber-bands
    dragging past) the first/last tile CENTERED rather than flush to an
    edge, that reservation splits into a >= 2rem peek on each side, not
    just one.
@@ -1655,7 +1728,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   cursor: default;
 }
 /* Honest total width (slideCount * tile), no flex-shrink:0-overflow
-   trick — js/product.js reads it straight off getBoundingClientRect(). */
+   trick — js/carousel.js reads it straight off getBoundingClientRect(). */
 .product-carousel__track {
   display: flex;
   height: 100%;
@@ -1687,15 +1760,15 @@ body:has(.order-checkout-bar:not([hidden])) {
   object-fit: contain;
 }
 /* Belt-and-suspenders against the browser's native image-drag gesture
-   (see js/product.js's img.draggable = false and the dragstart guard in
-   wireCarouselNav, which are the real fix) — also blocks the text-select
+   (see js/carousel.js's img.draggable = false and its dragstart guard,
+   which are the real fix) — also blocks the text-select
    cursor/selection a fast drag can otherwise leave behind. */
 .product-carousel__slide > img {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
-/* Smaller than the slide on purpose — js/product.js's onPointerDown bails
+/* Smaller than the slide on purpose — js/carousel.js's onPointerDown bails
    out of the carousel's own paging-drag entirely whenever the pointerdown
    target is inside .emjive-3d-viewer, so a drag there rotates the model
    (TrackballControls) instead of paging, and there's no arrow/dot/keyboard
@@ -1979,12 +2052,12 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .size-modal.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
 
-/* ---- drawer variant: #sizeModal only ----
-   Anchors the panel+guide group (.size-modal__sheet) to rest right above the
-   selection bar instead of centering it, and slides that whole sheet the
-   rest of the way up from behind the bar rather than the base rule's 12px
-   rise. #modifyModal (launch-order.html, no selection bar) keeps the bare
-   centered behavior above untouched.
+/* ---- drawer variant: both sheets ----
+   #sizeModal (product.html's Select) and #modifyModal (the Modify sheet,
+   js/modify-modal.js, on every page) both carry this. It anchors the sheet
+   (.size-modal__sheet) to rest right above the page's bar instead of
+   centering it, and slides that whole sheet the rest of the way up from
+   the bottom rather than the base rule's 12px rise.
 
    --selection-bar-reserved is how much room is actually kept clear for the
    bar: js/selection-bar.js publishes --selection-bar-live-height (its own
@@ -1992,8 +2065,10 @@ body:has(.order-checkout-bar:not([hidden])) {
    resize, and this caps it at 50vh — if the bar's own drawer has enough
    items to want more room than that, the sheet stops getting pushed any
    further and the bar's own drawer scroll (already capped independently at
-   66vh) takes over instead. The var(--selection-bar-live-height, …) fallback
-   only matters for the instant before that script's first render() call. */
+   66vh) takes over instead. On launch-order.html, which has no floating bar
+   to publish anything, the var(--selection-bar-live-height, …) fallback is
+   the whole story: --selection-bar-height is exactly the checkout bar's own
+   height, so the Modify sheet rests right above that bar instead. */
 .size-modal--drawer {
   --selection-bar-reserved: min(var(--selection-bar-live-height, var(--selection-bar-height)), 50vh);
   justify-content: flex-end;
@@ -2013,8 +2088,8 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .size-modal--drawer .size-modal__backdrop {
   /* Stops the dim scrim exactly at the bar's top edge instead of covering
-     it — the bar has to stay visible and clickable (its own drawer and the
-     sheet's new "Add" button specifically) while the sheet is open. Same
+     it — the bar has to stay visible and clickable (its own drawer, and
+     the Add/Save button it turns into) while the sheet is open. Same
      reserved value as the padding above, and transitions in step with it
      so the scrim's lower edge follows the bar smoothly rather than
      snapping while the panel above it eases into place. */
@@ -2031,8 +2106,8 @@ body:has(.order-checkout-bar:not([hidden])) {
    clicks meant for the bar underneath — including into its own open
    drawer, which is exactly what now sits in that gap. pointer-events
    inherits, so this narrows hit-testing back down to exactly the backdrop
-   and the sheet (which in turn re-enables it for its own guide/panel
-   children through that same inheritance). */
+   and the sheet (which in turn re-enables it for its own children through
+   that same inheritance). */
 .size-modal--drawer.is-open {
   transition: opacity 0.25s ease, visibility 0s linear 0s, padding-bottom 0.3s ease;
   pointer-events: none;
@@ -2041,9 +2116,9 @@ body:has(.order-checkout-bar:not([hidden])) {
 .size-modal--drawer.is-open .size-modal__sheet {
   pointer-events: auto;
 }
-/* Guide + panel slide as one rigid unit, glued together — see
-   .size-modal__sheet below for why this has to be a shared wrapper rather
-   than each of the two animating its own transform. */
+/* Everything the sheet holds — the panel, plus the Modify sheet's carousel
+   above it — slides as one rigid unit off this single wrapper transform,
+   rather than each piece animating (and timing) its own. */
 .size-modal__sheet { width: 100%; }
 .size-modal--drawer .size-modal__sheet {
   transform: translateY(100%);
@@ -2061,7 +2136,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* The panel itself stays full-bleed (like .selection-bar) — only its
    content is capped/padded, via .size-modal__content below, mirroring
    .site-header (full-bleed) + .site-header__row (capped/padded content)
-   and .selection-bar (full-bleed) + .selection-bar__summary/__row (same). */
+   and .selection-bar (full-bleed) + .selection-bar__summary (same). */
 .size-modal__panel {
   position: relative;
   z-index: 1;
@@ -2075,20 +2150,21 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .size-modal.is-open .size-modal__panel { transform: translateY(0); }
 /* Drawer variant: the slide itself lives on .size-modal__sheet (the shared
-   wrapper around this + .size-modal__guide, above) so the two travel as one
-   rigid unit — this cancels the base rule's own 12px-rise transform instead
-   of stacking a second motion underneath the wrapper's. max-height is
-   rebudgeted against the bar's reserved height (see --selection-bar-reserved
-   above — tracks the bar's OWN drawer opening too, not just its fixed
-   summary height) so a short viewport can't push content off the top of the
-   screen (unreachable there, since the group is bottom-anchored). */
+   wrapper around this, and the Modify sheet's carousel) so everything
+   travels as one rigid unit — this cancels the base rule's own 12px-rise
+   transform instead of stacking a second motion underneath the wrapper's.
+   max-height is rebudgeted against the bar's reserved height (see
+   --selection-bar-reserved above — tracks the bar's OWN drawer opening
+   too, not just its fixed summary height) so a short viewport can't push
+   content off the top of the screen (unreachable there, since the sheet
+   is bottom-anchored). */
 .size-modal--drawer .size-modal__panel {
   transform: none;
   transition: none;
   max-height: calc(90vh - var(--selection-bar-reserved));
 }
-/* margin/padding mirror .site-header__row and .selection-bar__summary/__row
-   — same --edge-px edge padding, so the modal's rows line up with the
+/* margin/padding mirror .site-header__row and .selection-bar__summary —
+   same --edge-px edge padding, so the modal's rows line up with the
    header/bar's content at narrow/mobile widths, while .size-modal__panel
    above stays a plain full-bleed sheet. The max-width itself is
    --size-modal-max (set on .size-modal above), not --max directly — it
@@ -2099,9 +2175,8 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin: 0 auto;
   padding: 2rem var(--edge-px) 0;
 }
-/* Same gap as .size-modal__standard-row's own margin-bottom (below) — the
-   space before the size row after the metal picker matches the space
-   between the standard and custom size rows. Scoped to this container
+/* The Modify sheet's metal picker, above the size field: same gap as the
+   size row's own margin-bottom below it. Scoped to this container
    (.size-modal__content, not .product-metals directly) so product.html's
    own metal picker — inside .product-detail__intro's separate flex gap —
    isn't affected. */
@@ -2109,84 +2184,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin-bottom: 1.5rem;
 }
 
-/* ---- standard sizes: one plain-text line, no boxes ---- */
-.size-modal__standard-row {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.size-modal__standard-label {
-  flex: 0 0 auto;
-  font-family: var(--font-main);
-}
-.size-modal__standard-options {
-  display: flex;
-  gap: 1rem;
-  /* Flushes the whole options group to the row's right edge, leaving
-     .size-modal__standard-label alone at the left — same technique as
-     .product-metals__options. */
-  margin-left: auto;
-  /* Six-plus sizes staying on one line (per the design) rather than
-     wrapping to a second row — scrolls horizontally on narrow screens
-     instead, same fix already applied to the product page's metal
-     picker (.product-metals__options). */
-  overflow-x: auto;
-}
-.size-modal__standard-option {
-  flex: 0 0 auto;
-  border: none;
-  background: none;
-  padding: 0;
-  font-family: var(--font-secondary);
-  font-size: calc(0.75rem * var(--text-scale));
-  color: var(--category-col);
-  cursor: pointer;
-}
-/* Same dot used to mark the selected metal on the product page
-   (.product-metals__option-wrap.is-selected .product-metals__option-label
-   ::before) — identical dimensions, reused here for the selected size.
-   Rendered on *every* standard option, not just the selected one — only
-   its background toggles below — so the reserved space is always there
-   and the number itself never shifts horizontally when a dot appears. */
-.size-modal__standard-option::before {
-  content: "";
-  display: inline-block;
-  vertical-align: middle;
-  width: 0.25rem;
-  height: 0.25rem;
-  margin-right: 0.3rem;
-  border-radius: 50%;
-  background: transparent;
-}
-.size-modal__standard-option.is-selected::before {
-  background: var(--category-col);
-}
-/* For the custom row it sits right before the input field itself (not
-   the "Custom size" label) — .size-modal__custom-field is a flex
-   container, so this ::before renders as its first flex item, right
-   before .size-modal__custom-underline. It deliberately renders on
-   .size-modal__custom-field rather than .size-modal__custom-underline
-   itself, so the dot sits outside the underlined section instead of
-   looking underlined. Unlike the standard options above, this one only
-   exists once selected — there's no sibling text next to it that would
-   visibly shift when it appears. */
-.size-modal__custom-row.is-selected .size-modal__custom-field::before {
-  content: "";
-  display: inline-block;
-  vertical-align: middle;
-  width: 0.25rem;
-  height: 0.25rem;
-  margin-right: 0.3rem;
-  border-radius: 50%;
-  background: var(--category-col);
-}
-
-/* ---- custom size: label + underline input + unit + size guide ---- */
-/* container-type here (on the row, not a nested wrapper) is what
-   .size-modal__custom-input's cqw-based width below scales against —
-   same placement as .product-metals' own container-type: inline-size
-   for its swatches' cqw sizing. */
+/* ---- the size field: label + underlined input + unit ----
+   The only way to give a size now — no standard-size list to pick from.
+   container-type here (on the row, not a nested wrapper) is what the
+   input's cqw-based width below scales against — same placement as
+   .product-metals' own container-type: inline-size for its swatches' cqw
+   sizing. */
 .size-modal__custom-row {
   display: flex;
   align-items: center;
@@ -2194,6 +2197,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin-bottom: 1.5rem;
   container-type: inline-size;
 }
+/* A real <label for="…">, so the field has an accessible name. */
 .size-modal__custom-label {
   flex: 0 0 auto;
   font-family: var(--font-main);
@@ -2201,112 +2205,81 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* flex: 0 0 auto (not 1) — the field hugs just its own content (input +
    unit) rather than stretching the underline across empty row space;
    margin-left: auto then flushes this compact field to the row's right
-   edge, leaving .size-modal__custom-label alone at the left. The border-bottom
-   "underline" itself lives on .size-modal__custom-underline (input+unit
-   only), not here — this outer wrapper is where the ::before dot below
-   renders, so it sits just before the underlined section instead of
-   appearing to be underlined itself. */
+   edge, leaving the label alone at the left. The border-bottom "underline"
+   itself lives on .size-modal__custom-underline (input + unit only). */
 .size-modal__custom-field {
   flex: 0 0 auto;
   margin-left: auto;
   display: flex;
   align-items: baseline;
 }
+/* flex-end, not baseline — see .size-modal__custom-input just below: its
+   text is laid out at 16px and scaled down, and baseline alignment would
+   place it by that unscaled 16px layout. Bottom-aligned instead, with the
+   same line-height and the same (visual) bottom padding as the unit, the
+   two share one baseline by construction. */
 .size-modal__custom-underline {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 0.4rem;
   border-bottom: 1px solid var(--category-col);
 }
+/* iOS Safari zooms the whole page in on any focused field whose computed
+   font-size is under 16px — and this one's design size is 0.75rem (12px on
+   phones, 14.4px from 641px up). So the input is laid out at a real 16px
+   and scaled back down to that design size (--size-input-scale), and it
+   looks exactly as it did — without touching the viewport meta tag, whose
+   maximum-scale=1 would also stop the zoom but blocks pinch-zoom on
+   Android.
+   A transform doesn't shrink the layout box, so the box is compensated to
+   take exactly its scaled footprint: width is the design width over the
+   scale, with a negative margin-right giving the difference back (the
+   underline keeps its length and the unit stays put); padding-bottom is
+   the design 0.3rem over the scale (so it too lands at 0.3rem visually,
+   matching the unit's); and a negative margin-top cancels the extra
+   unscaled height, keeping the underline where it was. The design width
+   floors at 2.5rem so a pre-filled "62.50" fits on a phone (it was 8cqw,
+   ~28px there, too narrow for five characters).
+   No outline while typing: see the focus section at the end of the file. */
 .size-modal__custom-input {
+  --size-input-scale: calc(0.75 * var(--text-scale));
+  --size-input-width: clamp(2.5rem, 8cqw, 3rem);
   flex: 0 0 auto;
-  /* Floors at 1rem, caps at 3rem — reaches the cap once the row (itself
-     capped at --max) is roughly 600px wide. */
-  width: clamp(1rem, 8cqw, 3rem);
+  width: calc(var(--size-input-width) / var(--size-input-scale));
+  margin-top: calc((var(--size-input-scale) - 1) * (0.6rem / var(--size-input-scale) + 1.4em));
+  margin-right: calc(var(--size-input-width) - var(--size-input-width) / var(--size-input-scale));
+  padding: calc(0.3rem / var(--size-input-scale)) 0;
   border: none;
-  /* No `outline: none` here. It used to sit alongside `border: none` as part
-     of the same "strip the browser's chrome off this field" intent, but the
-     two aren't equivalent: the border is decoration, the outline is the
-     ONLY thing telling a keyboard visitor where they are — on the one field
-     on the site that exists to be typed into. The focus ring is styled
-     properly at the bottom of this file instead. */
+  border-radius: 0;
   background: none;
-  padding: 0.3rem 0;
   font-family: var(--font-secondary);
-  font-size: calc(0.75rem * var(--text-scale));
+  font-size: 16px;
+  line-height: 1.4;
   color: var(--category-col);
+  transform: scale(var(--size-input-scale));
+  transform-origin: left bottom;
 }
+/* line-height: 1.4 is the unit's own "normal" line-height for this font
+   (16.8px at 12px), stated explicitly so the input can share it — see the
+   underline's comment above. */
 .size-modal__custom-unit {
   flex: 0 0 auto;
   padding-bottom: 0.3rem;
   font-family: var(--font-secondary);
   font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1.4;
   color: var(--category-col);
 }
-/* ---- confirm: full-bleed breakout to the true viewport edge, same
-   technique as .product-detail__select. margin-top replaces the gap the
-   old guide-row's margin-bottom used to supply, now that the guide has
-   moved out of .size-modal__content entirely (see .size-modal__guide
-   below). ---- */
-.size-modal__confirm {
-  position: relative;
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  margin-top: 1.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: var(--black-bg);
-  color: var(--white);
-  border: none;
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.size-modal__confirm:hover { background: var(--black); }
-/* #modifyModal's "Save" only now — #sizeModal's own "Add" confirm was
-   removed; that action lives in .selection-bar__add instead (see the
-   floating selection bar section below). No :disabled visual here —
-   "Save" toggles the real attribute but is never actually disabled in
-   normal use (a pre-filled item always has some size going in). */
 
-/* ---- size guide: a separate helper band, always a sibling of
-   .size-modal__panel rather than nested inside .size-modal__content — full-
-   bleed like the panel itself, at full opacity so it reads as clearly as
-   the modal above it. On #modifyModal it's still appended directly under
-   the panel's bottom edge (unchanged); on #sizeModal it's moved ahead of
-   the panel in markup instead, so it sits at the top of the sliding sheet
-   (see .size-modal--drawer above) — this rule itself doesn't care which
-   side, it's pure sibling styling either way.
-   position: relative + z-index: 1 mirrors .size-modal__panel exactly —
-   both need to outrank .size-modal__backdrop (position: absolute,
-   z-index: auto, full-bleed over the whole modal) in paint order, or the
-   backdrop's dark tint sits on top of and intercepts clicks on whatever's
-   underneath. (Previously this fell out "for free": opacity < 1 implicitly
-   creates its own stacking context, which happened to promote this above
-   the backdrop the same way — an accidental side effect of the old 0.75
-   opacity, not a deliberate choice, and one that silently broke once
-   opacity went to 1.) Toggle reveal is the same 0fr/1fr technique
+/* ---- size guide: its own full-bleed row under the size field, inside the
+   panel — the guide itself first and its toggle last (see both sheets'
+   markup), so it opens between the field and the button: the sheet grows
+   upward while the button stays put, right above the bar, where it can be
+   tapped again to close. The reveal is the same 0fr/1fr technique
    .site-header__menu uses. ---- */
 .size-modal__guide {
-  position: relative;
-  z-index: 1;
   width: 100%;
-  background: var(--bg);
-  opacity: 1;
 }
-/* On #sizeModal this no longer fades in on its own — it's inside
-   .size-modal__sheet along with .size-modal__panel, so the wrapper's single
-   slide transform (see .size-modal--drawer .size-modal__sheet above) carries
-   both together, and the guide reads as physically attached to the panel's
-   top edge throughout the motion instead of arriving separately after it. */
 .size-modal__guide-toggle {
   display: flex;
   align-items: center;
@@ -2338,6 +2311,61 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-family: var(--font-main);
   font-size: calc(0.75rem * var(--text-scale));
   color: var(--category-col);
+}
+
+/* ---- the Modify sheet's small carousel ----
+   js/modify-modal.js puts product.html's own carousel markup at the top of
+   the sheet, ahead of the panel, so js/carousel.js and the slide rules
+   (.product-carousel__slide, the model's 75%/66% sizing) apply unchanged.
+   --mini-tile is its tile size (product.html's caps at 560px), declared on
+   the modal so the panel's height budget below can subtract it too. */
+.size-modal--modify {
+  --mini-tile: min(240px, 50vw);
+}
+/* The top half of the carousel sticks out above the sheet: the frame
+   itself is transparent, and only its lower half is painted the panel's
+   color (::after, behind the slides) — so the sheet's surface visibly
+   starts at the carousel's midline, with the model or a photo straddling
+   that edge. width: 100% rather than the frame's usual 100vw breakout,
+   since the sheet is already full-bleed. The doubled class outranks
+   .product-carousel-frame.product-carousel--single's own --tile override,
+   which would otherwise blow a one-slide carousel up to full width.
+   isolation keeps the ::after's z-index: -1 inside the frame. */
+.size-modal__carousel.size-modal__carousel {
+  width: 100%;
+  --tile: var(--mini-tile);
+  isolation: isolate;
+}
+.size-modal__carousel::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+  z-index: -1;
+  background: var(--bg);
+}
+/* The transparent band beside the slides must still close the sheet when
+   tapped, like the rest of the backdrop it sits over — so the sheet and the
+   frame drop out of hit-testing, and only the filmstrip itself (the track,
+   which is exactly the slides), the painted lower half and the panel opt
+   back in. Declared after .size-modal--drawer.is-open's own sheet rule,
+   which it ties with. js/carousel.js captures a drag's pointer on the track
+   for this reason. */
+.size-modal--modify.is-open .size-modal__sheet,
+.size-modal__carousel {
+  pointer-events: none;
+}
+.size-modal__carousel .product-carousel__track,
+.size-modal__carousel::after,
+.size-modal--modify.is-open .size-modal__panel {
+  pointer-events: auto;
+}
+/* The carousel comes out of the same height budget the panel works
+   within, or a short viewport would push it off the top of the screen. */
+.size-modal--modify .size-modal__panel {
+  max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
 }
 
 body.is-modal-open { overflow: hidden; }
@@ -2510,7 +2538,8 @@ body.has-series-hero .selection-bar {
 .selection-bar__icons[hidden] { display: none; }
 /* Recedes so the centered .selection-bar__add button — which would
    otherwise sit right on top of a wide icon strip — has the bar to itself
-   while a size is picked (.is-add-active, toggled alongside the
+   while a sheet has something to confirm, "Add" or "Save"
+   (.is-add-active, toggled alongside the
    summary-slot mode in js/selection-bar.js's updateSummaryState()). */
 .selection-bar.is-add-active .selection-bar__icons {
   opacity: 0;
@@ -2690,110 +2719,22 @@ body.has-series-hero .selection-bar {
   overflow: hidden auto;
 }
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
-/* No background of its own — shows the drawer's ambient var(--black-bg)
-   (inherited straight through .selection-bar__drawer/-inner/rows, none of
-   which set one) — and no divider border between rows either; the row's
-   own vertical padding is the only separation. Same alignment recipe as
-   .selection-bar__summary (see its own comment for why width: 100% is
-   required alongside max-width/margin: auto here — same flex-item
-   auto-margin subtlety applies). */
-.selection-bar__row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  width: 100%;
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 0.75rem var(--edge-px);
-}
-/* Full-viewport-width inverting band, vertically centered on the row —
-   same left:50%+translate(-50%,-50%) breakout and backdrop-filter:invert(1)
-   technique as .product-detail__label-bar::before/.reveal__frontier
-   elsewhere on the site. left:50% is relative to the row itself (its
-   nearest positioned ancestor, via position:relative above), but since
-   the row is centered on the page (margin:0 auto), that's the same point
-   as the true viewport center — so this reaches the actual screen edges
-   correctly whether the row is at its --max cap or full-bleed. z-index:2
-   paints it above the row's own content (thumb/text/button), inverting
-   whatever it overlaps; pointer-events:none keeps that content clickable
-   underneath it. */
-.selection-bar__row::before {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  top: 50%;
-  left: 50%;
-  width: 100vw;
-  height: 1.2rem;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  -webkit-backdrop-filter: invert(1);
-  backdrop-filter: invert(1);
-}
-.selection-bar__row-thumb {
-  flex: 0 0 auto;
-  width: 3rem;
-  height: 3rem;
-  object-fit: contain;
-  background: transparent;
-}
-/* Same recipe as .order-item__meta (name + attrs, one continuous label, no
-   gap between them): white-space/overflow clip a long name+attrs combo to
-   one line instead of wrapping to a second, masked to fade to transparent
-   over the last 1rem of the box rather than an ellipsis or a mid-letter
-   hard cut. A short label, nowhere near that last 1rem, renders exactly as
-   before either way. */
-.selection-bar__row-text {
-  flex: 1;
-  min-width: 0;
-  color: var(--white);
-  white-space: nowrap;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
-}
-.selection-bar__row-name { font-family: var(--font-main); }
-.selection-bar__row-attrs {
-  font-family: var(--font-secondary);
-  font-size: calc(0.75rem * var(--text-scale));
-  /* --category-col-inverted, not --category-col — same reasoning as
-     .order-item__attrs: this sits under .selection-bar__row::before's
-     invert band, so inverting it needs to land back on plain
-     --category-col. */
-  color: var(--category-col-inverted);
-}
-/* color: var(--black-bg-inverted), not var(--category-col) — same trick
-   as .order-item__overlay-btn (see its comment): this row sits on the
-   drawer's ambient var(--black-bg), and .selection-bar__row::before's
-   invert band crosses right through this button, so inverting it lands
-   exactly on var(--black-bg) wherever the band overlaps it. */
-.selection-bar__row-unselect {
-  flex: 0 0 auto;
-  border: none;
-  background: none;
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  color: var(--black-bg-inverted);
-  cursor: pointer;
-}
-.selection-bar__row-unselect:hover { color: var(--white); }
-.selection-bar__row-unselect:disabled { opacity: 0.4; cursor: not-allowed; }
+/* The rows themselves are .order-item.order-item--drawer — the order page's
+   own row component, Modify/Unselect overlay and Undo included (see the
+   order page section and js/order-rows.js), so the two lists can't drift
+   apart. No background of their own: they show the drawer's ambient
+   var(--black-bg), inherited straight through .selection-bar__drawer/
+   -inner/rows, none of which set one — which is exactly the solid black
+   .order-item's invert band is tuned against on the order page too. */
 
 
 /* ==========================================================================
    Focus visibility
 
    The site had no :focus/:focus-visible rule of any kind, so every control
-   fell back to whatever ring the UA draws — which on a black bar or a dark
-   modal panel is frequently a black outline on black. One control was worse
-   than that: .size-modal__custom-input carried the file's only
-   `outline: none` and therefore had no focus indicator at all, on the
-   single most keyboard-dependent control on the site (you type a ring size
-   into it).
+   fell back to whatever ring the UA draws — which on a black bar is
+   frequently a black outline on black. The one control that deliberately
+   opts back out is the size field — see the last rule of this section.
 
    :focus-visible rather than :focus, so a mouse click on a button doesn't
    leave a ring behind it — that heuristic is exactly what the pseudo-class
@@ -2801,10 +2742,11 @@ body.has-series-hero .selection-bar {
 
    Two colours, because this site is half light-on-light and half
    dark-on-dark and a single ring colour cannot read on both. The default is
-   --black for the page background; anything sitting on a black surface
-   (the floating selection bar, the order rows, the size modal's panel and
-   its confirm button) opts into --white below. Both are re-stated as a
-   token so a theme change moves them together.
+   --black for the page background (and the size sheets' --bg panel);
+   anything sitting on a black surface (the floating selection bar, the
+   order rows in the order list and the bar's drawer) opts into --white
+   below. Both are re-stated as a token so a theme change moves them
+   together.
 
    outline-offset is what keeps the ring legible against a control that has
    its own background — without it the ring hugs the border box and reads as
@@ -2831,7 +2773,7 @@ input:focus-visible,
   outline-offset: var(--focus-ring-offset);
   /* The ring must never be the thing that's clipped. Several of these sit
      inside overflow: hidden / auto scrollers (.product-metals__options,
-     .size-modal__standard-options, .selection-bar__drawer-inner). */
+     .size-modal__panel, .selection-bar__drawer-inner). */
   position: relative;
   z-index: 1;
 }
@@ -2839,13 +2781,13 @@ input:focus-visible,
 /* Controls on a black surface. Kept as one list rather than scattered
    next to each component so the inverted set stays reviewable at a glance —
    if a new control lands on black, it belongs here and nowhere else. */
+/* (.size-modal__panel used to be on this list, from when the size sheet
+   still had a black confirm button inside it; the panel itself is
+   --bg, where a white ring is invisible — its controls take the default.) */
 .selection-bar a:focus-visible,
 .selection-bar button:focus-visible,
 .order-item button:focus-visible,
 .order-checkout-bar button:focus-visible,
-.size-modal__panel a:focus-visible,
-.size-modal__panel button:focus-visible,
-.size-modal__panel input:focus-visible,
 .product-detail__select:focus-visible {
   outline: var(--focus-ring-inverted);
 }
@@ -2858,12 +2800,15 @@ input:focus-visible,
   outline-offset: -2px;
 }
 
-/* The size input has no border and no background of its own — it's a bare
-   caret sitting on an underline — so a ring at the standard offset floats
-   unattached to anything. Tight to the box, which reads as the field
-   lighting up. */
+/* The size field shows no outline while it's being typed into — a
+   deliberate design call: it's a bare value on an underline, and the
+   blinking caret already marks it as the field in use. Covers :focus too,
+   not just :focus-visible, since browsers treat a text field as
+   keyboard-focused however it was reached. Two classes' specificity beats
+   the site-wide input:focus-visible rule above regardless of order. */
+.size-modal__custom-input:focus,
 .size-modal__custom-input:focus-visible {
-  outline-offset: 1px;
+  outline: none;
 }
 
 /* ==========================================================================
@@ -2872,7 +2817,7 @@ input:focus-visible,
    Site-wide motion kill switch, deliberately the LAST thing in this file
    and the only place !important appears anywhere in it: it has to beat the
    inline `style.transition` strings that js/selection-bar.js,
-   js/selection-page.js and js/product.js assign per-element, and an
+   js/selection-page.js and js/carousel.js assign per-element, and an
    !important declaration in a stylesheet is the only author-origin
    declaration that outranks the style attribute (which wins on specificity
    WITHIN its origin, not against !important).
@@ -2890,9 +2835,8 @@ input:focus-visible,
    so it fires no transitionend at all — and three pieces of real logic hang
    off transitionend here:
 
-     js/selection-bar.js  width      -> removes the item from localStorage
-                                        and re-enables every Unselect button
-     js/selection-page.js max-height -> li.remove()
+     js/selection-bar.js  width      -> removes a collapsed icon from the strip
+     js/order-rows.js     max-height -> li.remove()
      js/selection-page.js opacity    -> swaps the order list to the empty state
 
    All three have setTimeout fallbacks, but those are the SLOW path (350 /

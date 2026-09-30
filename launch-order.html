@@ -47,6 +47,11 @@
 <!-- Series resolution (which series this page shows, and its data).
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
+
+<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) — for the
+     Modify sheet's carousel (js/modify-modal.js), which only reads it once a
+     Modify is clicked, so nothing below needs to wait for it. -->
+<script type="module" src="js/three-viewer.js"></script>
 </head>
 <body id="top">
 
@@ -110,67 +115,30 @@
 
 <!-- Checkout bar: page-specific, not the site-wide js/selection-bar.js
      (this page has never carried that — see pages.md). Liquid-glass style,
-     same height as the standard bar, single "Proceed to checkout" CTA. -->
+     same height as the standard bar, single "Proceed to checkout" CTA.
+     While the Modify sheet is open it crossfades to a single centered
+     "Save" (.is-save-active), the way the floating bar does for "Add" —
+     js/selection-page.js flips that, and the whole bar is Save's hit
+     target, so the button itself has no listener of its own. -->
 <div class="order-checkout-bar" id="orderCheckoutBar" hidden>
   <div class="order-checkout-bar__row">
     <span class="order-checkout-bar__total" id="orderCheckoutTotal"></span>
     <button type="button" class="order-checkout-bar__button" id="orderCheckoutButton" disabled>Proceed to checkout</button>
   </div>
+  <button type="button" class="order-checkout-bar__save" id="orderCheckoutSave" aria-hidden="true" tabindex="-1">Save</button>
 </div>
 
-<!-- "Modify" popup, opened from an item row's overlay — same size-modal
-     pattern product.html's Select button uses, with a metal picker added
-     above the size row. Static/empty here; js/selection-page.js
-     repopulates both per item each time it opens, since different rows
-     can be different products (even different series).
-
-     role/aria-modal/aria-label sit on THIS element rather than on
-     .size-modal__panel, for the reason product.html's own size modal
-     documents: the "Size guide" toggle is a sibling of the panel, and
-     aria-modal hides everything outside the declared dialog. -->
-<div class="size-modal" id="modifyModal" aria-hidden="true"
-     role="dialog" aria-modal="true" aria-label="Modify selection" tabindex="-1">
-  <div class="size-modal__backdrop" id="modifyModalBackdrop"></div>
-  <div class="size-modal__panel">
-    <div class="size-modal__content">
-      <div class="product-metals">
-        <span class="product-metals__label">Metal</span>
-        <div class="product-metals__options" id="modifyModalMetalOptions"></div>
-      </div>
-
-      <div class="size-modal__standard-row" id="modifyModalStandardRow">
-        <span class="size-modal__standard-label">Standard sizes</span>
-        <div class="size-modal__standard-options" id="modifyModalStandardOptions"></div>
-      </div>
-
-      <div class="size-modal__custom-row" id="modifyModalCustomRow">
-        <span class="size-modal__custom-label">Custom size</span>
-        <div class="size-modal__custom-field">
-          <span class="size-modal__custom-underline">
-            <input class="size-modal__custom-input" id="modifyModalCustomInput" type="text" inputmode="decimal" />
-            <span class="size-modal__custom-unit" id="modifyModalCustomUnit"></span>
-          </span>
-        </div>
-      </div>
-
-      <button class="size-modal__confirm" id="modifyModalConfirm" type="button" disabled>Save</button>
-    </div>
-  </div>
-  <div class="size-modal__guide">
-    <button class="size-modal__guide-toggle" id="modifyModalGuideToggle" type="button">Size guide</button>
-    <div class="size-modal__guide-panel" id="modifyModalGuide">
-      <div class="size-modal__guide-panel-inner">
-        <div class="size-modal__guide-content" id="modifyModalGuideContent"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
+<!-- No Modify markup here: the sheet (#modifyModal) is built by
+     js/modify-modal.js, the same one every other page uses from the
+     floating bar's drawer. -->
 <script src="js/main.js"></script>
-<!-- Before js/selection-page.js, which uses window.EmjiveFocusTrap. Only
-     loaded on the two pages that have a modal. -->
+<!-- Before js/selection-page.js, which uses window.EmjiveFocusTrap,
+     window.EmjiveOrderRows and window.EmjiveModifyModal. -->
 <script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
+<script src="js/carousel.js"></script>
+<script src="js/order-rows.js"></script>
+<script src="js/modify-modal.js"></script>
 <script src="js/selection-page.js"></script>
 </body>
 </html>

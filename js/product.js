@@ -13,15 +13,16 @@
   var loadingEl = document.getElementById("productDetailLoading");
   var contentEl = document.getElementById("productDetailContent");
 
+  // The drag/paging/tap-to-center behaviour lives in js/carousel.js, shared
+  // with the Modify sheet's small carousel — wired once here, since the
+  // viewport/track are static markup in product.html and only the slides
+  // inside the track change per product.
+  var carousel = window.EmjiveCarousel(document.getElementById("productCarousel"));
+
   var state = {
     product: null,
     metals: [],
-    sizesByCategory: {},
-    sizeUnits: {},
     selectedMetal: null,
-    selectedSize: null,
-    slideCount: 0,
-    scrollOffset: 0,
     modelHandle: null,
     iconFallbackImg: null
   };
@@ -108,12 +109,12 @@
     loadingEl.hidden = true;
     contentEl.hidden = false;
 
-    // Carousel geometry (computeBounds' getBoundingClientRect calls) can
+    // Carousel geometry (js/carousel.js's getBoundingClientRect calls) can
     // only be measured once #productDetailContent is actually visible —
     // while it's [hidden], every element in it has a zero-size box, which
-    // would make computeBounds see a zero-width tile/carousel and rest at
-    // offset 0 instead of centering the first tile.
-    syncCarouselBounds(true);
+    // would read as a zero-width tile/carousel and rest at offset 0
+    // instead of centering the first tile.
+    carousel.sync(true);
   }
 
   /* ---- 1. label ------------------------------------------------------- */
@@ -215,7 +216,7 @@
     } else {
       var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
       if (fallbackIconSrc) {
-        var iconSlide = buildImageSlide(fallbackIconSrc, product.name);
+        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name);
         // Kept so onMetalSelect can swap its src on a metal switch — this
         // slide isn't rebuilt then, only the 3D viewer path re-tints live,
         // so a static image needs its own explicit update.
@@ -227,8 +228,8 @@
 
     // Swaps a failed model slide's contents for the same icon fallback a
     // model-less product gets, IN PLACE — the slide itself (its position in
-    // slideSources/state.slideCount and therefore the carousel's own
-    // bounds/offset math) never changes, only what's rendered inside it,
+    // the track and therefore the carousel's own bounds/offset math) never
+    // changes, only what's rendered inside it,
     // so a failure arriving well after the carousel has already been
     // measured/scrolled can't desync its geometry. Reuses
     // state.iconFallbackImg (not a separate field) so onMetalSelect's
@@ -300,8 +301,7 @@
       slideSources.push(photo.src);
     });
 
-    state.slideCount = slideSources.length;
-    carouselFrame.classList.toggle("product-carousel--single", state.slideCount <= 1);
+    carouselFrame.classList.toggle("product-carousel--single", slideSources.length <= 1);
     // Reserves extra room below --tile for the photo slides' caption
     // band — see css/style.css — rather than shrinking the photo slide
     // itself to fit a caption inside it, which would letterbox every
@@ -314,376 +314,26 @@
     // Bounds aren't synced here — #productDetailContent is still [hidden]
     // at this point (render() calls this before unhiding it), so every
     // element would measure as zero-size. render() does the initial
-    // syncCarouselBounds(true) itself, right after unhiding.
-  }
-
-  function buildImageSlide(src, alt) {
-    var slide = el("div", "product-carousel__slide");
-    var img = document.createElement("img");
-    img.src = src;
-    img.alt = alt || "";
-    img.loading = "lazy";
-    // Otherwise dragging a photo on desktop kicks off the browser's native
-    // image-drag-and-drop gesture instead of (or fighting with) our own
-    // custom pointer-drag scrolling — see the dragstart guard in
-    // wireCarouselNav for the rest of this fix.
-    img.draggable = false;
-    slide.appendChild(img);
-    return slide;
+    // carousel.sync(true) itself, right after unhiding.
   }
 
   // Real product photos (product.assets.photos), unlike the model/icon
-  // slide buildImageSlide handles above, carry their own "on display:"
-  // legend — which finish/context that specific shot is showing. The
-  // <img> itself stays a plain full-bleed slide child (same rules as
-  // buildImageSlide's), so it still fills --tile edge-to-edge and tiles
-  // flush against its neighbors; the caption is a separately-positioned
-  // sibling anchored to the slide's own bottom-right corner in the extra
-  // band css/style.css's .product-carousel--has-photos reserves below
-  // --tile — a real child of product-carousel__slide either way, so it
-  // rides the carousel drag/transform as one unit with its photo. Falls
-  // back to an em-dash for an empty description, same convention
-  // appendSpecRow's weight/composition rows already use.
+  // slide, carry their own "on display:" legend — which finish/context
+  // that specific shot is showing. The <img> itself stays a plain
+  // full-bleed slide child (js/carousel.js's imageSlide), so it still fills
+  // --tile edge-to-edge and tiles flush against its neighbors; the caption
+  // is a separately-positioned sibling anchored to the slide's own
+  // bottom-right corner in the extra band css/style.css's
+  // .product-carousel--has-photos reserves below --tile — a real child of
+  // product-carousel__slide either way, so it rides the carousel
+  // drag/transform as one unit with its photo. Falls back to an em-dash for
+  // an empty description, same convention appendSpecRow's
+  // weight/composition rows already use.
   function buildPhotoSlide(photo, alt) {
-    var slide = el("div", "product-carousel__slide product-carousel__slide--photo");
-    var img = document.createElement("img");
-    img.src = photo.src;
-    img.alt = alt || "";
-    img.loading = "lazy";
-    img.draggable = false;
-    slide.appendChild(img);
+    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt);
+    slide.classList.add("product-carousel__slide--photo");
     slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
     return slide;
-  }
-
-  function measureTileWidth() {
-    var track = document.getElementById("productCarouselTrack");
-    var first = track.firstElementChild;
-    return first ? first.getBoundingClientRect().width : 0;
-  }
-
-  // Bounds are expressed as "the first/last tile centered in the
-  // carousel", not "flush to an edge" or "hug to fit" — offset decreases
-  // as later tiles get centered, so max (least scrolled) centers the
-  // first tile and min (most scrolled) centers the last one. This holds
-  // even when the whole filmstrip would technically fit within the
-  // available width (max > min: still a real, non-zero scroll range) —
-  // the carousel always rests on the first tile centered and stays
-  // scrollable through the rest, rather than collapsing to a static
-  // "show everything" layout once there's enough room.
-  function computeBounds() {
-    var carousel = document.getElementById("productCarousel");
-    var availableWidth = carousel.getBoundingClientRect().width;
-    var tile = measureTileWidth();
-    var max = (availableWidth - tile) / 2;
-    var min = max - (state.slideCount - 1) * tile;
-    return { min: min, max: max, width: availableWidth };
-  }
-
-  // transition, when given, overrides the default snap — see
-  // CENTER_TRANSITION below, the sole caller that does.
-  function applyOffset(offsetPx, animate, transition) {
-    var track = document.getElementById("productCarouselTrack");
-    track.style.transition = animate ? (transition || "transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)") : "none";
-    track.style.transform = "translateX(" + offsetPx + "px)";
-    state.scrollOffset = offsetPx;
-  }
-
-  // Shared by every way a slide gets centered — tapping it directly, or a
-  // phone-style paging drag settling onto it (see wireCarouselNav) — so
-  // both read as the same gesture language rather than two different
-  // animation feels. Same perfectly symmetric ease-in-out curve as
-  // applyOffset's own default above (control points mirrored around the
-  // curve's own center: (0.4, 0) and its point-reflection (0.6, 1)) — a
-  // real zero-velocity start easing into an equally gentle, symmetric
-  // stop, rather than a front-loaded curve that reads as an abrupt jump
-  // once it's covering a full tile's width.
-  var CENTER_TRANSITION = "transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)";
-  // Same symmetric curve, shorter — used only when a phone drag cancels
-  // a slide change (doesn't commit, so it settles back on the slide it
-  // started on) rather than actually landing on a different one; see
-  // settleDrag in wireCarouselNav.
-  var CANCEL_TRANSITION = "transform 0.2s cubic-bezier(0.4, 0, 0.6, 1)";
-
-  // reset (true right after a product's slides are (re)built) snaps to the
-  // starting position (first tile centered). Otherwise (on resize) the
-  // current position is re-clamped into the new bounds instead — resizing
-  // changes tile size (and thus the scroll range) without any product
-  // re-render.
-  function syncCarouselBounds(reset) {
-    if (state.slideCount === 0) return;
-    var bounds = computeBounds();
-    var target = reset ? bounds.max : Math.max(bounds.min, Math.min(bounds.max, state.scrollOffset));
-    applyOffset(target, false);
-  }
-
-  // Centers a given slide — either a direct tap on it, or where a phone's
-  // paging drag settles (see wireCarouselNav) — jumping straight there
-  // however far from center it started, not a step-by-one-tile page.
-  // index 0 centers the first tile (offset bounds.max), the last index
-  // centers the last tile (bounds.min), same mapping computeBounds' own
-  // comment describes. CENTER_TRANSITION by default, so every way a
-  // slide gets centered moves identically — transition overrides that
-  // (see CANCEL_TRANSITION's use in settleDrag, the sole caller that
-  // does).
-  function centerOnSlide(index, transition) {
-    if (state.slideCount <= 1) return;
-    var bounds = computeBounds();
-    var tile = measureTileWidth();
-    var target = Math.max(bounds.min, Math.min(bounds.max, bounds.max - index * tile));
-    applyOffset(target, true, transition || CENTER_TRANSITION);
-  }
-
-  // WebKit-style rubber-band damping for drag-past-the-bounds overshoot,
-  // at either end — the further past a bound you drag, the harder it gets
-  // to pull further, rather than tracking the pointer 1:1.
-  function rubberBand(overshoot, dimension) {
-    var c = 0.55;
-    return (overshoot * dimension * c) / (dimension + c * overshoot);
-  }
-
-  // Same breakpoint css/style.css's .product-grid rule uses for its own
-  // phone-vs-wide-screen switch — the only responsive threshold anywhere
-  // on the site, reused here rather than inventing a second one.
-  function isMobileCarousel() {
-    return window.matchMedia("(max-width: 640px)").matches;
-  }
-
-  // No visible arrows: navigation is either a tap on a slide, which jumps
-  // straight to centering that slide — however far from center it
-  // started, not a step-by-one-tile page — or a real drag. A real drag's
-  // release behaves differently by screen size: on a wide screen it lands
-  // exactly wherever the drag left it, free, clamped back into bounds; on
-  // a phone (see isMobileCarousel above) it always pages exactly one
-  // slide forward/backward in the drag's direction and centers it, since
-  // free positioning there mostly just leaves the filmstrip resting
-  // between two slides. Wired once here, since the viewport/track
-  // elements are static markup in product.html — only the slides inside
-  // the track change per product.
-  function wireCarouselNav() {
-    var viewport = document.querySelector(".product-carousel__viewport");
-    var track = document.getElementById("productCarouselTrack");
-
-    // Otherwise a mouse drag starting on a photo kicks off the browser's
-    // own native image-drag-and-drop gesture (desktop only — touch drags
-    // don't trigger it), which fights with the custom pointer-drag scroll
-    // below. img.draggable = false (set in buildImageSlide) covers real
-    // <img> slides; this covers anything else a browser might still try
-    // to drag (e.g. the 3D viewer's poster image while it's loading).
-    viewport.addEventListener("dragstart", function (e) { e.preventDefault(); });
-
-    var dragging = false;
-    var dragStartX = 0;
-    var dragStartY = 0;
-    var dragStartOffset = 0;
-    var dragBounds = null;
-    // The slide the pointer actually landed on at dragStart (from that
-    // event's own target, before pointer capture below starts pinning
-    // every subsequent event's target to the viewport) — used by endDrag
-    // to know which slide to center on a tap.
-    var dragStartSlide = null;
-    // Below this much pointer movement, a release counts as a tap (center
-    // whichever slide it started on) rather than a drag — same threshold
-    // js/main.js's wireModelClickNavigation uses for the equivalent
-    // click-vs-drag problem on the 3D models. Doubles as the axis-lock
-    // slop below, so there's a single "did this actually move" threshold
-    // rather than two competing ones.
-    var TAP_THRESHOLD = 6;
-    // Which pointer (if any) is currently being tracked from pointerdown
-    // through its eventual pointerup/cancel — including the ambiguous
-    // window right after pointerdown, before axisLocked below is decided.
-    var trackedPointerId = null;
-    // Set the moment a tracked pointer's movement first exceeds
-    // TAP_THRESHOLD on either axis: true if it turned out horizontal
-    // (dragging becomes true, the carousel takes over), false if vertical
-    // (handed off untouched to the browser's own touch-action: pan-y
-    // scroll — see .product-carousel__viewport). Stays null while still
-    // ambiguous, so a real tap (which never crosses the slop at all)
-    // never has to pick an axis.
-    var axisLocked = null;
-    // Recent drag speed (px/ms), exponentially smoothed frame to frame so
-    // a single jittery pointermove right before release doesn't dominate
-    // it — used to give the release a small momentum coast in endDrag.
-    var dragLastX = 0;
-    var dragLastT = 0;
-    var dragVelocity = 0;
-
-    function onPointerDown(e) {
-      // A drag that starts on the 3D model slide should rotate the model
-      // (the viewer's own TrackballControls, js/three-viewer.js), not page
-      // the carousel.
-      if (state.slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
-      dragBounds = computeBounds();
-      trackedPointerId = e.pointerId;
-      axisLocked = null;
-      dragStartSlide = e.target.closest(".product-carousel__slide");
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-      dragStartOffset = state.scrollOffset;
-      dragLastX = e.clientX;
-      dragLastT = e.timeStamp;
-      dragVelocity = 0;
-      // Deliberately no setPointerCapture/dragging=true/applyOffset here
-      // yet — which axis this gesture is on isn't known until it clears
-      // TAP_THRESHOLD in onPointerMove below. Committing to the carousel
-      // this early used to mean a touch that turned out to be a vertical
-      // scroll still nudged the filmstrip sideways on its natural
-      // diagonal wobble before the browser recognized the scroll,
-      // fighting the page's own touch-action: pan-y the whole time.
-    }
-
-    function onPointerMove(e) {
-      if (e.pointerId !== trackedPointerId) return;
-      var dx = e.clientX - dragStartX;
-      var dy = e.clientY - dragStartY;
-
-      if (axisLocked === null) {
-        if (Math.abs(dx) < TAP_THRESHOLD && Math.abs(dy) < TAP_THRESHOLD) return; // still ambiguous
-        axisLocked = Math.abs(dx) > Math.abs(dy);
-        if (!axisLocked) {
-          // Vertical — hand off to the browser's native pan-y scroll and
-          // stop tracking this pointer entirely; nothing here has
-          // touched the carousel yet, so there's nothing to undo.
-          trackedPointerId = null;
-          return;
-        }
-        dragging = true;
-        applyOffset(state.scrollOffset, false); // kill any in-flight transition
-        viewport.setPointerCapture(e.pointerId);
-      }
-      if (!dragging) return;
-
-      var raw = dragStartOffset + dx;
-      var next;
-      if (raw > dragBounds.max) {
-        var startOvershoot = raw - dragBounds.max;
-        next = dragBounds.max + rubberBand(startOvershoot, dragBounds.width);
-      } else if (raw < dragBounds.min) {
-        var endOvershoot = dragBounds.min - raw;
-        next = dragBounds.min - rubberBand(endOvershoot, dragBounds.width);
-      } else {
-        next = raw;
-      }
-      applyOffset(next, false);
-
-      var dt = e.timeStamp - dragLastT;
-      if (dt > 0) {
-        var instantVelocity = (e.clientX - dragLastX) / dt;
-        dragVelocity = dragVelocity * 0.7 + instantVelocity * 0.3;
-      }
-      dragLastX = e.clientX;
-      dragLastT = e.timeStamp;
-    }
-
-    function endDrag(e) {
-      if (e.pointerId !== trackedPointerId) return;
-      trackedPointerId = null;
-      var wasDragging = dragging;
-      dragging = false;
-      if (!wasDragging) {
-        // Never crossed the axis-lock slop in onPointerMove — a tap, not
-        // a drag. (If it turned out vertical instead, onPointerMove
-        // already cleared trackedPointerId itself and this function
-        // returned above before ever reaching here — nothing to do,
-        // since the carousel never touched the track for that gesture.)
-        // Any sub-threshold jitter was never applied in the first place
-        // (onPointerMove returns early until the slop is cleared), so
-        // there's nothing to snap back from — just center whichever
-        // slide it landed on.
-        if (dragStartSlide) centerOnSlide(Array.prototype.indexOf.call(track.children, dragStartSlide));
-        return;
-      }
-      settleDrag(e);
-    }
-
-    // A pointercancel means the browser interrupted this pointer's normal
-    // processing itself — most commonly a vertical scroll on a phone:
-    // touch-action: pan-y lets the browser take that over natively, and
-    // it can send the cancel before our own onPointerMove ever sees
-    // enough movement to axis-lock (a fast vertical swipe is recognized
-    // and handed to native scrolling almost immediately). That used to
-    // reach endDrag with dragging still false, which read as "a tap" and
-    // centered whatever slide the touch started on — including jumping
-    // to it from wherever the strip currently was, if that slide wasn't
-    // the one already centered. A cancel should never be read as a tap:
-    // it's specifically the "this wasn't a deliberate pointer gesture on
-    // this element" signal, so an unresolved one is a pure no-op here.
-    function onPointerCancel(e) {
-      if (e.pointerId !== trackedPointerId) return;
-      trackedPointerId = null;
-      var wasDragging = dragging;
-      dragging = false;
-      if (!wasDragging) return;
-      // Did commit to a horizontal drag before being interrupted — settle
-      // it same as a real release, except by the strip's own current
-      // (already live-updated) position rather than this event's
-      // coordinates, which a cancel doesn't reliably carry.
-      settleDrag(null);
-    }
-
-    // Shared release-settling for a real horizontal drag, whether it
-    // ended in a clean pointerup (e is that event, used for the mobile
-    // page's direction/distance) or was interrupted mid-drag (e is null —
-    // see onPointerCancel above, which settles by position instead).
-    function settleDrag(e) {
-      if (isMobileCarousel()) {
-        var tile = measureTileWidth();
-        var startIndex = Math.round((dragBounds.max - dragStartOffset) / tile);
-        var direction = 0;
-        if (e) {
-          // A real drag on a phone always resolves to exactly one slide
-          // step, centered — never free-floating between two slides the
-          // way a wide-screen drag can. Commits to the next/previous
-          // slide (whichever direction it was dragged) only past a real
-          // distance or a fast-enough flick; short/slow drags spring
-          // back to the slide they started on, same as a cancelled swipe
-          // would.
-          var dx = e.clientX - dragStartX;
-          var absDx = Math.abs(dx);
-          var COMMIT_FRACTION = 0.15; // of a tile's width
-          // A short drag can still smooth out to a spuriously high
-          // velocity from raw touch-event jitter (coalesced touchmove
-          // samples a few sub-16ms apart) — MIN_FLICK_DISTANCE stops
-          // that noise from reading as a deliberate flick on what's
-          // really just a tiny, unsteady scroll, which was paging a full
-          // slide on barely any movement.
-          var MIN_FLICK_DISTANCE = 18; // px
-          var FLICK_VELOCITY = 0.6; // px/ms
-          var committed = absDx > tile * COMMIT_FRACTION || (absDx > MIN_FLICK_DISTANCE && Math.abs(dragVelocity) > FLICK_VELOCITY);
-          direction = committed ? (dx < 0 ? 1 : -1) : 0;
-        }
-        // No event to read a direction from (an interruption) — nearest
-        // slide by the strip's own current position instead.
-        var index = e ? startIndex + direction : Math.round((dragBounds.max - state.scrollOffset) / tile);
-        index = Math.max(0, Math.min(state.slideCount - 1, index));
-        // Landing back on the same slide it started on means the drag
-        // cancelled the slide change rather than committing to one —
-        // shorter transition for that spring-back than an actual change
-        // to a different slide gets.
-        centerOnSlide(index, index === startIndex ? CANCEL_TRANSITION : undefined);
-      } else {
-        // Free positioning: lands exactly where the drag left it, no
-        // momentum coast — just clamped back into bounds, which also
-        // springs it back if it was rubber-banded past either end.
-        var target = Math.max(dragBounds.min, Math.min(dragBounds.max, state.scrollOffset));
-        applyOffset(target, true);
-      }
-    }
-
-    viewport.addEventListener("pointerdown", onPointerDown);
-    viewport.addEventListener("pointermove", onPointerMove);
-    viewport.addEventListener("pointerup", endDrag);
-    viewport.addEventListener("pointercancel", onPointerCancel);
-
-    var resizeTicking = false;
-    window.addEventListener("resize", function () {
-      if (resizeTicking) return;
-      resizeTicking = true;
-      requestAnimationFrame(function () {
-        resizeTicking = false;
-        syncCarouselBounds(false);
-      });
-    });
   }
 
   /* ---- 3. metal selection ------------------------------------------------ */
@@ -760,110 +410,77 @@
 
   function wireSelectButton(product) {
     var selectBtn = document.getElementById("selectButton");
-    // Sizes are a property of the category (all rings share one size run,
-    // all necklaces would share another, etc.), not of the individual
+    // The unit is a property of the category (all rings are measured the
+    // same way, all necklaces would share another), not of the individual
     // product — and the category vocabulary is global rather than
     // per-series, so this resolves identically whichever series the product
-    // lives in. See data/series.json's top-level "categories".
+    // lives in. See data/series.json's top-level "categories". Its "sizes"
+    // run isn't read any more: the size field below is the only way to
+    // give a size.
     var info = window.EmjiveSeries.categoryInfo(product.category);
-    var sizes = info.sizes || [];
     var unit = info.unit || "";
 
-    var standardRow = document.getElementById("sizeModalStandardRow");
-    var standardWrap = document.getElementById("sizeModalStandardOptions");
-    var customRow = document.getElementById("sizeModalCustomRow");
     var customInput = document.getElementById("sizeModalCustomInput");
     var customUnit = document.getElementById("sizeModalCustomUnit");
     var guideToggle = document.getElementById("sizeModalGuideToggle");
     var guidePanel = document.getElementById("sizeModalGuide");
 
-    // Nothing sizeable about this category at all yet — same disabled
-    // fallback as before, now gated on sizes AND a unit rather than just
-    // sizes (a category could have only a custom-size unit and no
-    // standard run, or vice versa).
-    if (!sizes.length && !unit) {
+    // A category with no unit has nothing to measure yet (neck and wrist,
+    // today) — the Select button stays disabled rather than opening a
+    // field nobody knows how to fill in.
+    if (!unit) {
       selectBtn.disabled = true;
       selectBtn.textContent = "No sizes available";
       return;
     }
 
     customUnit.textContent = unit;
-    standardRow.hidden = sizes.length === 0;
 
     var modal = document.getElementById("sizeModal");
 
-    // Same reasoning as the metal picker's aria-pressed (see
-    // renderMetalOptions): which size is chosen was a CSS class and nothing
-    // else. Funnelled through one helper because three separate paths
-    // change it — picking a standard size, typing a custom one, and
-    // clearing — and they were already drifting into three near-identical
-    // querySelectorAll loops.
-    function markStandardSelected(selectedBtn) {
-      standardWrap.querySelectorAll(".size-modal__standard-option").forEach(function (b) {
-        var on = b === selectedBtn;
-        b.classList.toggle("is-selected", on);
-        b.setAttribute("aria-pressed", String(on));
-      });
+    // The bar's Add button (js/selection-bar.js) is the only way to
+    // confirm, and it only exists while the field holds a size that can
+    // actually be ordered — an empty field, a lone "." or a zero keeps the
+    // bar showing its normal summary instead. See isValidSize in
+    // js/selection.js.
+    function syncAddAction() {
+      if (!window.EmjiveSelectionBar) return;
+      if (window.EmjiveSelection.isValidSize(customInput.value)) {
+        window.EmjiveSelectionBar.showAction("Add", confirmAdd);
+      } else {
+        window.EmjiveSelectionBar.hideAction();
+      }
     }
 
-    function clearSelection() {
-      state.selectedSize = null;
-      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAddAction();
-      markStandardSelected(null);
-      customRow.classList.remove("is-selected");
-    }
-
-    function selectStandard(size, btn) {
-      state.selectedSize = size;
-      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.showAddAction(confirmAdd);
-      markStandardSelected(btn);
-      customRow.classList.remove("is-selected");
-      customInput.value = "";
-    }
-
-    standardWrap.innerHTML = "";
-    sizes.forEach(function (size) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "size-modal__standard-option";
-      btn.textContent = size;
-      btn.setAttribute("aria-pressed", "false");
-      btn.addEventListener("click", function () { selectStandard(size, btn); });
-      standardWrap.appendChild(btn);
+    // Filtered down to digits and one decimal point (js/selection.js's
+    // sanitizeSizeInput, shared with the Modify sheet). Only written back
+    // when the filter actually changed something — reassigning an
+    // unchanged value would throw the caret to the end on every keystroke.
+    customInput.addEventListener("input", function () {
+      var cleaned = window.EmjiveSelection.sanitizeSizeInput(customInput.value);
+      if (cleaned !== customInput.value) customInput.value = cleaned;
+      syncAddAction();
     });
 
-    // Digits and at most one decimal point, capped at two decimal places
-    // (e.g. "59.43") — inputmode="decimal" on the element itself is what
-    // actually triggers the numeric-only keypad on mobile; this just
-    // backstops desktop typing/paste. The comma-to-dot swap up front is
-    // for French (and other comma-decimal) mobile keypads, whose decimal
-    // key sends "," — without it, that keypress would just get stripped
-    // by the digits-and-dot filter below instead of registering as one.
-    customInput.addEventListener("input", function () {
-      var cleaned = customInput.value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
-      var firstDot = cleaned.indexOf(".");
-      if (firstDot !== -1) {
-        cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
-      }
-      customInput.value = cleaned;
-      if (cleaned) {
-        state.selectedSize = cleaned;
-        if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.showAddAction(confirmAdd);
-        customRow.classList.add("is-selected");
-        markStandardSelected(null);
-      } else {
-        clearSelection();
-      }
+    // Enter confirms. Not just a convenience: the Add button lives in the
+    // bar, outside the focus trap, so without this a keyboard visitor
+    // could type a size and have no way to add it.
+    customInput.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd();
     });
 
     guideToggle.addEventListener("click", function () {
-      guidePanel.classList.toggle("is-open");
+      var isOpen = guidePanel.classList.toggle("is-open");
+      guideToggle.setAttribute("aria-expanded", String(isOpen));
     });
 
     function openModal() {
-      clearSelection();
       customInput.value = "";
+      syncAddAction();
       guidePanel.classList.remove("is-open");
+      guideToggle.setAttribute("aria-expanded", "false");
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       document.body.classList.add("is-modal-open");
@@ -871,7 +488,7 @@
       // that class lands, and focus() on a hidden element is a no-op.
       // selectBtn is resolved once at wireSelectButton() time and is never
       // re-rendered, so a plain element reference is enough here — unlike
-      // js/selection-page.js's per-row trigger.
+      // the order page's per-row trigger.
       window.EmjiveFocusTrap.activate(modal, {
         returnFocus: selectBtn,
         onEscape: closeModal
@@ -887,15 +504,14 @@
       // calls this after adding) and an abandoned pick via backdrop/Escape
       // — either way, the bar's Add button shouldn't linger once the sheet
       // is gone.
-      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAddAction();
+      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAction();
     }
 
-    // The actual "add to cart" action — reachable only via the selection
-    // bar's own Add button (js/selection-bar.js), which by construction
-    // only shows up once state.selectedSize is truthy (see selectStandard/
-    // the custom-input listener above), so there's no "nothing picked yet"
-    // guard needed here the way the old in-panel confirm button had.
+    // The actual "add to cart" action — reached via the bar's Add button or
+    // Enter in the field, both of which only fire for a valid size; the
+    // guard below is belt and braces against a stale callback.
     function confirmAdd() {
+      if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
       var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
         // Which series this came from — product ids are only unique within
@@ -905,7 +521,8 @@
         name: product.name,
         category: product.category,
         metal: state.selectedMetal,
-        size: state.selectedSize,
+        // Stored in its one canonical form ("62.5" -> "62.50", "62." -> "62").
+        size: window.EmjiveSelection.normalizeSize(customInput.value),
         price: details.price || 0,
         image: (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || ""
       });
@@ -920,8 +537,16 @@
     // folding Escape into it means the two can't disagree about whether the
     // modal is open — the old handler gated on .is-open, a second source of
     // truth for exactly that.
+
+    // The bar's drawer can still be opened over this sheet (its height is
+    // what pushes the sheet up — see --selection-bar-live-height), and a
+    // drawer row's Modify opens a sheet of its own (js/modify-modal.js).
+    // Two sheets stacked on one backdrop is never right, so this one steps
+    // aside for it.
+    window.addEventListener("emjive:modify-open", function () {
+      if (modal.classList.contains("is-open")) closeModal();
+    });
   }
 
-  wireCarouselNav();
   init();
 })();

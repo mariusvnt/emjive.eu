@@ -47,6 +47,12 @@
 <!-- Series resolution (which series this page shows, and its data).
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
+
+<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) — for the
+     Modify sheet's carousel (js/modify-modal.js), reachable from the
+     floating bar's drawer. It only reads the viewer once a Modify is
+     clicked, so nothing below needs to wait for this module. -->
+<script type="module" src="js/three-viewer.js"></script>
 </head>
 <body id="top">
 
@@ -106,7 +112,14 @@
 
 <script src="js/main.js"></script>
 <script src="js/series-page.js"></script>
+<!-- The Modify sheet (modify-modal.js) and its parts, reachable from the
+     floating bar's drawer; order-rows.js has to precede selection-bar.js,
+     which builds its drawer rows with it at load. -->
+<script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
+<script src="js/carousel.js"></script>
+<script src="js/order-rows.js"></script>
+<script src="js/modify-modal.js"></script>
 <script src="js/selection-bar.js"></script>
 </body>
 </html>

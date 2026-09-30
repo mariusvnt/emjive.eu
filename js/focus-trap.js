@@ -1,11 +1,13 @@
 /* ==========================================================================
    em·ji·ve — modal focus trap
 
-   Shared by the site's two dialogs, which are the same component twice:
-   #sizeModal (product.html, opened by the Select button) and #modifyModal
-   (launch-order.html, opened by an item row's Modify button). Loaded only on
-   those two pages — every other page has no modal, and js/series.js (the
-   obvious alternative home) is a blocking <head> script on all seven.
+   Shared by the site's two dialogs, which are the same bottom-sheet
+   component twice: #sizeModal (product.html, opened by the Select button)
+   and #modifyModal (built by js/modify-modal.js on every page, opened by a
+   row's Modify button — in launch-order.html's order list or the floating
+   bar's drawer). Loaded on all seven pages now that the Modify sheet is,
+   and still not folded into js/series.js (the obvious alternative home):
+   that one is a blocking <head> script, and nothing here needs to be.
 
    What was missing before this: both dialogs were already marked up
    correctly and already closed on Escape and on a backdrop click, but focus
@@ -15,14 +17,13 @@
    buttons, and could tab back out of an "aria-modal" dialog while it was
    still open.
 
-   THE TRAP ROOT IS .size-modal, NEVER .size-modal__panel. The "Size guide"
-   toggle lives in .size-modal__guide, which is a SIBLING of the panel, not a
-   child — a trap scoped to the panel would leave a reachable control outside
-   itself, which is the one thing a trap must not do. Both pages carry
-   role="dialog"/aria-modal/aria-label on .size-modal for the same reason:
-   a screen reader honouring aria-modal hides everything outside the declared
-   dialog, so declaring the panel while trapping the modal would have made
-   that toggle tabbable but unreadable.
+   THE TRAP ROOT IS .size-modal, NEVER .size-modal__panel. The panel is only
+   part of the dialog: on #modifyModal the carousel (a draggable 3D model and
+   its photos) is a SIBLING of the panel, not a child, and a trap scoped to
+   the panel would leave part of the dialog outside itself. Both dialogs
+   carry role="dialog"/aria-modal/aria-label on .size-modal for the same
+   reason: a screen reader honouring aria-modal hides everything outside the
+   declared dialog.
 
    A closed modal needs no handling here: .size-modal is visibility: hidden
    when closed (css/style.css), visibility inherits, and an element whose
@@ -48,11 +49,9 @@
   var onEscape = null;
 
   // Recomputed on every Tab rather than cached at activate() time, because
-  // both dialogs genuinely change shape while open: the standard-size
-  // buttons are rebuilt per open (and the whole row is [hidden] for a
-  // category with no standard run), the modify modal rebuilds its metal
-  // buttons too, and both confirm buttons toggle `disabled` live as a size
-  // is picked or cleared. A cached list would go stale within one keystroke.
+  // the dialogs change shape: the Modify sheet rebuilds its metal buttons
+  // and carousel slides for every item it opens on, and either sheet's
+  // contents can change under an open trap. A cached list goes stale.
   function focusable(root) {
     var all = root.querySelectorAll(FOCUSABLE);
     var out = [];
@@ -128,9 +127,10 @@
     activate: function (root, options) {
       if (!root) return;
       options = options || {};
-      // Defensive: two modals can never be open at once on this site (they
-      // live on different pages), but a stacked activate() would otherwise
-      // silently orphan the first trap's listeners.
+      // Defensive: two modals are never open at once (product.html's size
+      // sheet closes itself when the Modify sheet opens — the
+      // "emjive:modify-open" event), but a stacked activate() would
+      // otherwise silently orphan the first trap's listeners.
       if (activeRoot) this.release();
 
       activeRoot = root;
@@ -146,10 +146,10 @@
       // anchored on <body>, where onFocusIn would then fight every move.
       if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
 
-      // preventScroll: the panel is a centred fixed overlay over a body
-      // already locked by .is-modal-open, so any scrolling this provoked
-      // could only shift .size-modal__panel's own overflow-y box off its
-      // top for no reason.
+      // preventScroll: the sheet is a fixed overlay over a body already
+      // locked by .is-modal-open, so any scrolling this provoked could only
+      // shift .size-modal__panel's own overflow-y box off its top for no
+      // reason.
       //
       // Callers MUST call this AFTER adding .is-open — focus() on a
       // visibility: hidden element is a no-op, and the modal is hidden

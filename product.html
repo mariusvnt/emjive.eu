@@ -156,55 +156,44 @@
 
 <!-- Size-selection modal, opened by the Select button — slides up as a
      bottom sheet resting right above the floating selection bar (see
-     .size-modal--drawer in css/style.css), rather than the centered dialog
-     #modifyModal (launch-order.html) still uses. Confirming a size is done
-     from the bar's own "Add" button (js/selection-bar.js), not from a
-     button in here — this panel is a pure picker.
+     .size-modal--drawer in css/style.css), the same component as the
+     Modify sheet (#modifyModal, built by js/modify-modal.js). Confirming a
+     size is done from the bar's own "Add" button (js/selection-bar.js),
+     not from a button in here — this panel is a pure picker, and the size
+     field is the only way to give a size.
 
-     role/aria-modal/aria-label sit on THIS element, not on
-     .size-modal__panel where they used to: the "Size guide" toggle below is
-     a sibling of the panel rather than a child, and aria-modal hides
-     everything outside the declared dialog from a screen reader. Declaring
-     the panel while js/focus-trap.js (correctly) traps the whole modal
-     would have made that toggle tabbable but unannounced. tabindex="-1" is
-     what lets the trap focus this element on open so the aria-label is read
-     before the first control. -->
+     role/aria-modal/aria-label sit on THIS element rather than on
+     .size-modal__panel, because js/focus-trap.js traps the whole modal —
+     see its header comment. tabindex="-1" is what lets the trap focus this
+     element on open so the aria-label is read before the first control. -->
 <div class="size-modal size-modal--drawer" id="sizeModal" aria-hidden="true"
      role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
-  <!-- Guide + panel share one wrapper (.size-modal__sheet) so a single slide
-       transform drives both as one rigid unit — the guide reads as physically
-       attached to the panel's top edge throughout the motion instead of
-       fading in separately once the panel's own slide has already finished
-       (see .size-modal--drawer .size-modal__sheet in css/style.css). Guide
-       sits ahead of the picker panel in markup (unlike #modifyModal) so it's
-       the top of that sliding sheet, with the size picker itself resting at
-       the bottom, right above the selection bar. -->
+  <!-- .size-modal__sheet carries the slide transform (see
+       .size-modal--drawer .size-modal__sheet in css/style.css). The size
+       guide is its own row under the size field, with the guide itself
+       ahead of its toggle: it opens between the two, so the sheet grows
+       upward while the button stays put right above the bar. -->
   <div class="size-modal__sheet">
-    <div class="size-modal__guide">
-      <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button">Size guide</button>
-      <div class="size-modal__guide-panel" id="sizeModalGuide">
-        <div class="size-modal__guide-panel-inner">
-          <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
-        </div>
-      </div>
-    </div>
     <div class="size-modal__panel">
       <div class="size-modal__content">
-        <div class="size-modal__standard-row" id="sizeModalStandardRow">
-          <span class="size-modal__standard-label">Standard sizes</span>
-          <div class="size-modal__standard-options" id="sizeModalStandardOptions"></div>
-        </div>
-
-        <div class="size-modal__custom-row" id="sizeModalCustomRow">
-          <span class="size-modal__custom-label">Custom size</span>
+        <div class="size-modal__custom-row">
+          <label class="size-modal__custom-label" for="sizeModalCustomInput">Specify the size you need</label>
           <div class="size-modal__custom-field">
             <span class="size-modal__custom-underline">
-              <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" />
+              <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />
               <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
             </span>
           </div>
         </div>
+      </div>
+      <div class="size-modal__guide">
+        <div class="size-modal__guide-panel" id="sizeModalGuide">
+          <div class="size-modal__guide-panel-inner">
+            <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
+          </div>
+        </div>
+        <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-expanded="false" aria-controls="sizeModalGuide">Size guide</button>
       </div>
     </div>
   </div>
@@ -217,16 +206,23 @@
      these run. Without defer, these would run inline as soon as the
      parser reached them, which can race ahead of the module (its own
      fetch("data/products.json") can resolve before the module has
-     finished loading "three"). selection.js/selection-bar.js don't touch
-     window.EmjiveModelViewer, so they're left as plain synchronous
-     scripts — selection.js still runs (and sets window.EmjiveSelection)
-     before the deferred pair below, same as today. -->
+     finished loading "three"). The plain synchronous scripts below don't
+     touch window.EmjiveModelViewer at load — modify-modal.js only reads it
+     once a Modify is clicked, long after the module has run — so they're
+     left undeferred; selection.js still runs (and sets
+     window.EmjiveSelection) before the deferred pair, same as today. -->
 <script src="js/main.js" defer></script>
-<!-- Plain (non-deferred) so window.EmjiveFocusTrap exists before the whole
-     deferred queue runs — js/product.js, which uses it, is deferred. Only
-     loaded on the two pages that have a modal. -->
+<!-- Plain (non-deferred) so window.EmjiveFocusTrap and window.EmjiveCarousel
+     exist before the whole deferred queue runs — js/product.js, which uses
+     both, is deferred. carousel.js/order-rows.js/modify-modal.js are the
+     Modify sheet and its parts, reachable from the bar's drawer on every
+     page; order-rows.js has to precede selection-bar.js, which builds its
+     drawer rows with it at load. -->
 <script src="js/focus-trap.js"></script>
 <script src="js/selection.js"></script>
+<script src="js/carousel.js"></script>
+<script src="js/order-rows.js"></script>
+<script src="js/modify-modal.js"></script>
 <script src="js/product.js" defer></script>
 <script src="js/selection-bar.js"></script>
 </body>

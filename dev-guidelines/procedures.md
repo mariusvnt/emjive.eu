@@ -148,10 +148,12 @@ these four and reloading, the same trial-and-error
 products can have `"visible": true` at once — each gets its own
 independently-positioned overlay.
 
-Sizes offered in the "Choose a size" popup aren't set per-product, and
-aren't per-series either — they're a property of the *category*, declared
-once in `data/series.json`'s global `"categories"` vocabulary. A ring is
-52-62mm in every collection:
+Sizing isn't set per-product, and isn't per-series either — it's a
+property of the *category*, declared once in `data/series.json`'s global
+`"categories"` vocabulary. The "Choose a size" popup is a single typed
+field ("Custom size") labelled with the category's `unit`; the `sizes`
+list is still in the schema but nothing on the site reads it any more
+(the standard-size row it used to fill was removed):
 
 ```json
 "categories": {
@@ -161,11 +163,12 @@ once in `data/series.json`'s global `"categories"` vocabulary. A ring is
 }
 ```
 
-Leave a category with both an empty size list and an empty unit and the
-"Select" button disables itself ("No sizes available") instead of opening
-an empty popup, for any product in that category — a category with just a
-unit set (and no standard sizes) still opens the popup with only the
-custom-size field available.
+Leave a category's unit empty and the "Select" button disables itself
+("No sizes available") instead of opening a field nobody knows how to
+fill in, for any product in that category — whatever its `sizes` list
+says. With a unit set, the popup opens on the typed field; "Add" only
+appears (in the floating bar) once that field holds a size that can
+actually be ordered.
 
 ## Adding a category
 
@@ -174,8 +177,8 @@ edit an existing category's sizes/unit or remove one outright (blocked if
 any series/product still declares it — see "Removing things" further down).
 
 1. Add it to `data/series.json`'s **global** `"categories"` map, with its
-   `sizes` and `unit` (both can start empty — see just above for what that
-   does to the Select button).
+   `sizes` and `unit` (both can start empty — see just above for what an
+   empty `unit` does to the Select button; `sizes` is currently unused).
 2. Add its key to the `"categories"` array of each series that should offer
    it. That array is a subset of the global map's keys, in the order the
    header's filter row shows them — a series that doesn't sell the category
@@ -550,14 +553,18 @@ page can react live without a reload.
 Two things read it back:
 - The floating selection bar (`js/selection-bar.js`), present on every page
   except `launch-order.html` — always visible, shows a thumbnail strip (or
-  "No selected item") and an "Order ›" link, with a drawer for removing
-  individual items.
+  "No selected item") and an "Order ›" link, with a drawer listing the
+  items. Tapping a row there opens the Modify sheet (below).
 - `launch-order.html` (`js/selection-page.js`) — the full checkout review:
-  item rows you can modify (metal/size, in a popup reusing the product
-  page's own size-selection modal) or unselect (with a "Undo" bar for a few
-  seconds), a shipping pick, a terms toggle, and a "Proceed to checkout" bar
-  gated on both — falling back to a centered "No selected item" state once
-  it's empty again. See `client-scripts.md` for the mechanics.
+  item rows (tapping one opens the Modify sheet), a shipping pick, a terms
+  toggle, and a "Proceed to checkout" bar gated on both — falling back to a
+  centered "No selected item" state once it's empty again.
+
+Both lists open the same **Modify sheet** (`js/modify-modal.js`): metal and
+size, with the item's own carousel, resting on the tapped row. While it's
+up, the page's bar turns into its **Unselect | Save** strip; Unselect
+removes the item and offers **Undo** in the bar for a few seconds. See
+`client-scripts.md` for the mechanics.
 
 "Proceed to checkout" is still a stub — no Stripe session, no backend to
 hand off to yet. Clicking it (once shipping + terms are filled in) just

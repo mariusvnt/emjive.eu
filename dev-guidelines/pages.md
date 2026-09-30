@@ -79,7 +79,9 @@ Hero slots (above), then `#productGrid`, empty in the markup and populated by `j
 
 Driven by `?id=...`, optionally with `?series=...`. Product ids are only unique within a series now, so a bare `?id=` resolves against the active series first, then scans the rest (see `client-scripts.md`).
 
-Sections, in order (numbered in the HTML's own comments): label bar → carousel (3D model or photo slides; drag to scroll freely, or tap a slide to center it — no visible arrows, no rim click zones) → metal picker → select button → description → characteristics (metal-dependent specs) → shipping/returns (static text) → the size-selection modal (a sibling of `<main>`, opened by the select button).
+Sections, in order (numbered in the HTML's own comments): label bar → carousel (3D model or photo slides; drag to scroll freely, or tap a slide to center it — no visible arrows, no rim click zones) → metal picker → select button → description → characteristics (metal-dependent specs) → shipping/returns (static text) → the size-selection modal (`#sizeModal`, a sibling of `<main>`, opened by the select button).
+
+`#sizeModal` is a bottom sheet resting on the floating selection bar. It holds one typed field — `<label>` "Custom size", the input, the category's unit — and, as its own row under it, the "Size guide" toggle, whose panel sits *above* the toggle so the sheet grows upward. There's no confirm button in it: the bar turns into "Add" once the field holds an orderable size, and Enter in the field adds too (see `client-scripts.md`).
 
 Everything text/image-related starts empty or `hidden` and gets filled in by `js/product.js`.
 
@@ -87,11 +89,15 @@ Everything text/image-related starts empty or `hidden` and gets filled in by `js
 
 No title, no footer — straight from the header into the full selection, in `js/selection-page.js`. Toggles between `#selectionEmpty` (now "No selected item" plus a plain-text "Back to gallery" link, both centered) and `#selectionList`, in order:
 
-1. **Item rows** (`#selectionItems`, a `<ul class="order-items">`) — a full-bleed dark panel breaking out to the true viewport edge (same `100vw`/`calc(50% - 50vw)` technique `.product-detail__select` uses), padded top and bottom by the same amount so the panel bookends itself. Each row shows thumb + name.category.metal.size (one continuous label, ellipsis-free — it fade-masks instead when it overflows) + price at rest; hovering (mouse), tapping, or focusing swaps the whole row to a Modify/Unselect overlay (a click anywhere else on that same row while it's open reverts it). Unselect crossfades the row *in place* into its own "Undo" prompt — no collapse, no reflow, same `inset: 0` recipe the Modify/Unselect overlay itself uses — rather than a single shared bar, so several rows can be independently mid-undo at once, each labeled with its own item. Only if that row's own window runs out unused does it actually collapse (reflowing the rows below it, same principle as the floating selection bar's icon-collapse) — or, if it was the last row standing, the whole list crossfades straight into the empty state instead of collapsing first. Modify opens a second modal (`#modifyModal`) built from the **same** `.size-modal`/`.product-metals` classes and wiring `product.html`'s own Select button uses — a metal picker plus the standard/custom size picker, pre-filled to the item's current choice, saving via `window.EmjiveSelection.updateItem()` instead of `addItem()`.
+1. **Item rows** (`#selectionItems`, a `<ul class="order-items">`) — a full-bleed dark panel breaking out to the true viewport edge (same `100vw`/`calc(50% - 50vw)` technique `.product-detail__select` uses), padded top and bottom by the same amount so the panel bookends itself. Each row (built by `js/order-rows.js`, the same component as the floating bar's drawer) is one `<button>` showing thumb + name.category.metal.size (one continuous label, ellipsis-free — it fade-masks instead when it overflows) + price. **Tapping a row opens the Modify sheet** (`#modifyModal`, built by `js/modify-modal.js` — no markup for it here) straight away; there's no hover state and no in-row overlay. While the sheet is up:
+   - a **drawer opens over the checkout bar** holding a copy of the tapped row, and the sheet rests on it — this page's version of the floating bar's drawer shrinking to the tapped row;
+   - the checkout bar turns into the sheet's **Unselect | Save** strip. Unselect removes the item (its row collapses), slides the sheet away and leaves **Undo** in the bar for 4 s; Undo puts the item back where it was and its row expands back open.
+
+   A Save crossfades just the parts of the row that changed. The last item leaving crossfades the whole list into the empty state (the bar stays up while Undo is on offer), and an Undo crossfades it back.
 2. **Shipping** (`.order-shipping`) — a plain, unlabeled pick list (`.order-shipping__option`, dot-indicator style borrowed from the size modal) between a couple of placeholder carriers; no real rates wired up yet.
 3. **Terms** (`.order-terms`) — a sentence with a real link to `terms.html`, and a square tick-box (opacity-toggled, no border) at the row's right edge.
 
-No running total on the page itself any more — it lives only in the fixed **checkout bar** (`#orderCheckoutBar`, a sibling of `<main>`, not `js/selection-bar.js` — this page has never carried that): a "liquid glass" strip (translucent, blurred, no black-bg chrome) at `--selection-bar-height`, showing the total and a plain-text "Proceed to checkout" button, disabled until a shipping option is picked and terms are ticked. It's a stub — see `client-scripts.md`.
+No running total on the page itself any more — it lives only in the fixed **checkout bar** (`#orderCheckoutBar`, a sibling of `<main>`, not `js/selection-bar.js` — this page has never carried that): a "liquid glass" strip (translucent, blurred, no black-bg chrome) at `--selection-bar-height`, showing the total and a plain-text "Proceed to checkout" button, disabled until a shipping option is picked and terms are ticked. It's a stub — see `client-scripts.md`. The Modify sheet's strip and the drawer over the bar are both added by script (`js/modify-modal.js`, `js/selection-page.js`), not markup.
 
 It's still the **only** page **without** the floating selection bar (`selection-bar.js` isn't in its script list — showing the full list *and* a floating summary of the same thing would be redundant) — but no longer the only one with a footer; that's gone entirely now.
 
@@ -107,23 +113,25 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | | ✓ | | ✓ | | |
-| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ (defer) | ✓ | | |
-| `launch-order.html` | | ✓ | | ✓ | ✓ | ✓ | | | ✓ | |
-| `archives.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
-| `creation-process.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
-| `terms.html` | | ✓ | | ✓ | | ✓ | | ✓ | | |
-| `series.html` | | ✓ | | ✓ | | ✓ | | ✓ | | ✓ |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `modify-modal.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | |
+| `launch-order.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | |
+| `archives.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `creation-process.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `terms.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `series.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
 
-`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. Only `index.html`/`product.html` load `three-viewer.js`; nothing else has 3D content.
+Body scripts run in the column order shown, with two exceptions: `selection-bar.js` is always last, and `series.html` loads `series-page.js` straight after `main.js`. `carousel.js` → `order-rows.js` → `modify-modal.js` must stay in that order and ahead of the page script and `selection-bar.js`, which build on them.
+
+`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. **Every page loads `three-viewer.js` and the Modify sheet's three scripts**, because every page can open the Modify sheet — from the floating bar's drawer, or from the order list — and the sheet's carousel shows the item's live 3D model. `focus-trap.js` is everywhere for the same reason.
 
 **Why `js/series.js` is blocking in `<head>`** (no `defer`, not a module): it has to define `window.EmjiveSeries` before `main.js` runs, and `launch-order.html` loads `main.js` as a plain synchronous body script — a deferred `series.js` would run *after* it. Blocking also starts the `series.json` fetch at head-parse time, which is what the hero's anti-flash story depends on. It doesn't disturb the `defer` contract below: a blocking `<head>` script runs before the entire deferred queue.
 
 **Why `js/scroll-memory.js` is blocking too, and first** (`index.html` only — it's the one page whose height is built asynchronously): it reserves the previous visit's document height as a `min-height` on `body`, and that has to be in place before `<body>` is parsed, which rules out `defer`. It sits immediately after `<link rel="stylesheet">` so the `.emjive-restoring-scroll` rules it relies on are already parsed when it adds the class, and ahead of `series.js` because nothing it does depends on series data. Two extra requests' worth of head-blocking is the cost; both are tiny and cached. See `client-scripts.md`.
 
-**Why `main.js`/`product.js` specifically carry `defer`**: module scripts (`three-viewer.js`) always execute after the document finishes parsing; plain classic scripts without `defer` execute immediately, inline, as the parser reaches them — which on these two pages is *before* the deferred module, even though the module's tag sits earlier in `<head>`. Both call `window.EmjiveModelViewer` (set by `three-viewer.js`) inside async callbacks that can resolve fast enough to race it. `defer` puts them on the same ordered, post-parse queue as the module, which — since the module's tag comes first — guarantees it runs first.
+**Why `main.js`/`product.js` specifically carry `defer`**: module scripts (`three-viewer.js`) always execute after the document finishes parsing; plain classic scripts without `defer` execute immediately, inline, as the parser reaches them — which on these two pages is *before* the deferred module, even though the module's tag sits earlier in `<head>`. Both call `window.EmjiveModelViewer` (set by `three-viewer.js`) inside async callbacks that can resolve fast enough to race it. `defer` puts them on the same ordered, post-parse queue as the module, which — since the module's tag comes first — guarantees it runs first. `modify-modal.js` needs no `defer` despite also calling it: it only reads `window.EmjiveModelViewer` once a row has been tapped and the sheet has slid in, long after the module has run.
 
 ## Pointers
 

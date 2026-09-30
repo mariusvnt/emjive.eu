@@ -154,13 +154,14 @@
   </div>
 </main>
 
-<!-- Size-selection modal, opened by the Select button — slides up as a
-     bottom sheet resting right above the floating selection bar (see
-     .size-modal--drawer in css/style.css), the same component as the
-     Modify sheet (#modifyModal, built by js/modify-modal.js). Confirming a
-     size is done from the bar's own "Add" button (js/selection-bar.js),
-     not from a button in here — this panel is a pure picker, and the size
-     field is the only way to give a size.
+<!-- Size-selection modal, opened by the Select button — slides up from
+     behind the floating selection bar as a bottom sheet resting right
+     above it (see .size-modal--drawer in css/style.css), the same
+     component as the Modify sheet (#modifyModal, built by
+     js/modify-modal.js). Confirming a size is done from the bar's own
+     "Add" button (js/selection-bar.js), not from a button in here — this
+     panel is a pure picker, and the "Custom size" field is the only way to
+     give a size.
 
      role/aria-modal/aria-label sit on THIS element rather than on
      .size-modal__panel, because js/focus-trap.js traps the whole modal —
@@ -178,7 +179,7 @@
     <div class="size-modal__panel">
       <div class="size-modal__content">
         <div class="size-modal__custom-row">
-          <label class="size-modal__custom-label" for="sizeModalCustomInput">Specify the size you need</label>
+          <label class="size-modal__custom-label" for="sizeModalCustomInput">Custom size</label>
           <div class="size-modal__custom-field">
             <span class="size-modal__custom-underline">
               <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />

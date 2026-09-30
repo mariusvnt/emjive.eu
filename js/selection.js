@@ -43,9 +43,16 @@
   }
 
   // Lets any page-specific script (the floating selection bar especially)
-  // react live to a change instead of needing a reload.
-  function notify() {
-    global.dispatchEvent(new CustomEvent("emjive:selection-changed"));
+  // react live to a change instead of needing a reload. Dispatched
+  // synchronously, from inside the call that changed storage. detail says
+  // which change it was — { action: "add" | "remove" | "insert" | "update" |
+  // "clear", index } — for the listeners that animate the one item that
+  // moved: an "insert" is only ever an Undo (see insertItem), which puts an
+  // item back the way it left rather than arriving like a new one.
+  function notify(action, index) {
+    global.dispatchEvent(new CustomEvent("emjive:selection-changed", {
+      detail: { action: action, index: index }
+    }));
   }
 
   function getSelection() {
@@ -59,13 +66,13 @@
   // `series` is what makes productId meaningful: ids are only unique within
   // one series' catalog. Selections saved before it existed simply have no
   // series field, which is fine — nothing here reads it, and the one
-  // consumer that keys off productId tolerates it being absent (see
-  // itemKey() in js/selection-bar.js).
+  // place that keys off productId tolerates it being absent (see itemKey()
+  // below).
   function addItem(item) {
     var items = readAll();
     items.push(item);
     writeAll(items);
-    notify();
+    notify("add", items.length - 1);
     return items;
   }
 
@@ -73,18 +80,18 @@
     var items = readAll();
     items.splice(index, 1);
     writeAll(items);
-    notify();
+    notify("remove", index);
     return items;
   }
 
-  // Reinserts an item at a specific position — "Undo" after Unselect (the
-  // order list and the bar's drawer, js/order-rows.js), so the item lands
+  // Reinserts an item at a specific position — the bar's "Undo" after an
+  // Unselect in the Modify sheet (js/modify-modal.js), so the item lands
   // back where it was rather than at the end the way addItem would.
   function insertItem(index, item) {
     var items = readAll();
     items.splice(index, 0, item);
     writeAll(items);
-    notify();
+    notify("insert", index);
     return items;
   }
 
@@ -96,13 +103,44 @@
     if (!items[index]) return items;
     items[index] = Object.assign({}, items[index], patch);
     writeAll(items);
-    notify();
+    notify("update", index);
     return items;
   }
 
   function clear() {
     writeAll([]);
-    notify();
+    notify("clear");
+  }
+
+  /* ---- telling one change from another ------------------------------------
+     Both lists that show the selection — the floating bar's icon strip and
+     the item rows (js/selection-bar.js, js/order-rows.js) — animate only the
+     one item a change touched rather than rebuilding, and both work out
+     which item that was the same way, from these two. */
+
+  // productId is only unique within a series, hence the series prefix. The
+  // `|| ""` covers selections saved before that field existed: it keeps
+  // their key stable across renders, so an existing cart doesn't read as
+  // all-new and replay every entrance animation.
+  function itemKey(item) {
+    return (item.series || "") + "|" + item.productId + "|" + item.metal + "|" + item.size;
+  }
+
+  // Which single change turns oldKeys into keys: one item inserted at
+  // `index` (an Add pushes at the end, an Undo puts one back where it was),
+  // one removed from `index`, or — same length — items updated in place (a
+  // Modify changes a key without moving it). null for anything else.
+  function singleChange(oldKeys, keys) {
+    if (keys.length === oldKeys.length) return { type: "update" };
+    if (Math.abs(keys.length - oldKeys.length) !== 1) return null;
+    var longer = keys.length > oldKeys.length ? keys : oldKeys;
+    var shorter = longer === keys ? oldKeys : keys;
+    var i = 0;
+    while (i < shorter.length && shorter[i] === longer[i]) i++;
+    for (var j = i; j < shorter.length; j++) {
+      if (shorter[j] !== longer[j + 1]) return null;
+    }
+    return { type: longer === keys ? "insert" : "remove", index: i };
   }
 
   function formatPrice(price) {
@@ -190,6 +228,8 @@
     sanitizeSizeInput: sanitizeSizeInput,
     normalizeSize: normalizeSize,
     isValidSize: isValidSize,
-    appendSize: appendSize
+    appendSize: appendSize,
+    itemKey: itemKey,
+    singleChange: singleChange
   };
 })(window);

@@ -116,16 +116,15 @@
 <!-- Checkout bar: page-specific, not the site-wide js/selection-bar.js
      (this page has never carried that — see pages.md). Liquid-glass style,
      same height as the standard bar, single "Proceed to checkout" CTA.
-     While the Modify sheet is open it crossfades to a single centered
-     "Save" (.is-save-active), the way the floating bar does for "Add" —
-     js/selection-page.js flips that, and the whole bar is Save's hit
-     target, so the button itself has no listener of its own. -->
+     While the Modify sheet is open, that sheet's Unselect | Save strip —
+     and, after an Unselect, its "Undo" — covers the bar
+     (.is-strip-active): js/modify-modal.js builds the strip and appends it
+     in here, js/selection-page.js shows and hides it. -->
 <div class="order-checkout-bar" id="orderCheckoutBar" hidden>
   <div class="order-checkout-bar__row">
     <span class="order-checkout-bar__total" id="orderCheckoutTotal"></span>
     <button type="button" class="order-checkout-bar__button" id="orderCheckoutButton" disabled>Proceed to checkout</button>
   </div>
-  <button type="button" class="order-checkout-bar__save" id="orderCheckoutSave" aria-hidden="true" tabindex="-1">Save</button>
 </div>
 
 <!-- No Modify markup here: the sheet (#modifyModal) is built by

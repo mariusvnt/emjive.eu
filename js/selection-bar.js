@@ -7,8 +7,10 @@
    window.EmjiveSelection, plus an "Order ›" link straight to
    launch-order.html. Clicking the bar itself (not the Order link) opens a
    drawer listing the selected items — the very same rows as the order page
-   (js/order-rows.js): tap one for Modify/Unselect, and Unselect leaves an
-   Undo behind for a few seconds.
+   (js/order-rows.js). Tapping one opens the Modify sheet
+   (js/modify-modal.js) right above the drawer, which shrinks to a third of
+   the screen to make room while the bar itself turns into the sheet's
+   Unselect | Save — and, after an Unselect, into "Undo" for a few seconds.
 
    Always visible here in the DOM/JS sense — the one exception (sliding
    in as a direct continuation of the homepage hero's own scroll-driven
@@ -27,14 +29,6 @@
     var node = document.createElement(tag);
     if (className) node.className = className;
     return node;
-  }
-
-  // productId is only unique within a series, hence the series prefix. The
-  // `|| ""` covers selections saved before that field existed: it keeps
-  // their key stable across renders, so an existing cart doesn't read as
-  // all-new and replay the entrance animation on every row.
-  function itemKey(item) {
-    return (item.series || "") + "|" + item.productId + "|" + item.metal + "|" + item.size;
   }
 
   /* ---- build the DOM once ------------------------------------------------ */
@@ -71,15 +65,18 @@
   // real starting state; without an explicit starting class here, the two
   // NOT chosen would have nothing telling them to stay hidden, since
   // classList.remove("is-hidden") on the chosen one is a no-op against an
-  // element that never had the class to begin with.
+  // element that never had the class to begin with. Hidden also means
+  // inert, so an invisible label can't be tabbed to.
   var emptyLabelEl = el("span", "selection-bar__empty-label is-hidden");
   emptyLabelEl.textContent = "No selected item";
   emptyLabelEl.setAttribute("aria-hidden", "true");
+  emptyLabelEl.inert = true;
 
   var orderLink = document.createElement("a");
   orderLink.className = "selection-bar__order is-hidden";
   orderLink.href = "launch-order.html";
   orderLink.setAttribute("aria-hidden", "true");
+  orderLink.inert = true;
   var orderCountEl = el("span", "selection-bar__order-count");
   var orderChevronEl = el("span", "selection-bar__order-chevron");
   orderChevronEl.textContent = "›"; // ›
@@ -87,10 +84,9 @@
   orderLink.appendChild(orderChevronEl);
 
   // Occupies the same reserved slot as emptyLabelEl/orderLink (see
-  // updateSummaryState() below) — shown only while a sheet has something
-  // to confirm, replacing whichever of the other two would otherwise be
-  // showing: js/product.js's size sheet ("Add") or the Modify sheet
-  // (js/modify-modal.js, "Save"). pendingConfirm is the callback that
+  // updateSummaryState() below) — shown only while js/product.js's size
+  // sheet holds a size that can be added, replacing whichever of the other
+  // two would otherwise be showing. pendingConfirm is the callback that
   // actually performs it, pendingLabel what the button says, both supplied
   // by whoever called showAction().
   var addActionBtn = document.createElement("button");
@@ -98,6 +94,7 @@
   addActionBtn.className = "selection-bar__add is-hidden";
   addActionBtn.textContent = "Add";
   addActionBtn.setAttribute("aria-hidden", "true");
+  addActionBtn.inert = true;
   var pendingConfirm = null;
   var pendingLabel = "Add";
   // No click listener of its own — while it's showing, the whole bar acts
@@ -119,59 +116,96 @@
   document.body.appendChild(bar);
 
   // The drawer's rows: the order page's own row component, not a lookalike.
-  // A click away from the bar closes the whole drawer (window.EmjiveMenus,
-  // below), so an open row doesn't register a click-away of its own — the
-  // drawer closes it on the way instead (setDrawerOpen).
   var rows = window.EmjiveOrderRows.create({
     listEl: rowsEl,
     rowClass: "order-item--drawer",
     showPrice: false,
-    closeOnOutsideClick: false,
     onModify: openModify,
-    onRowRemoved: syncDrawerHeight,
-    onEmptied: function () { setDrawerOpen(false); }
+    onResize: syncDrawerHeight
   });
 
-  // Measures .selection-bar__drawer-inner's own real rendered height (its
-  // own max-height: 66vh + overflow already caps that, independent of
-  // this) and transitions the outer drawer's max-height to match — used
-  // both for the open/close toggle and, from render() below, whenever
-  // the row count changes while the drawer is already open, so removing
-  // an item shrinks the drawer smoothly instead of snapping to the new
-  // height instantly.
+  /* ---- drawer height --------------------------------------------------------
+     Measured and set in px — on the drawer AND on its inner scroll box,
+     both carrying the same 0.3s max-height transition (css/style.css) —
+     rather than the grid-template-rows 0fr/1fr trick .site-header__menu
+     uses: that only animates between two fixed states, and this drawer
+     moves between several — closed, open, open with a row coming or going,
+     and shrunk to make room for the Modify sheet. Setting the inner box's
+     cap alongside is what keeps the list scrollable at whatever height the
+     drawer is at, the shrunk one included; closed, the inner box keeps the
+     list's own height, so nothing reflows while the drawer slides shut. */
+
+  // As it always was: two thirds of the screen, past which the rows scroll.
+  var LIST_CAP = 0.66;
+  // While the Modify sheet is up: the whole bar (drawer + summary row) is
+  // held to a third of the screen, and the sheet rests right on top of it.
+  var drawerReduced = false;
+
   function syncDrawerHeight() {
     var isOpen = drawer.classList.contains("is-open");
-    var drawerContentHeight = isOpen ? drawerInner.offsetHeight : 0;
-    drawer.style.maxHeight = isOpen ? drawerContentHeight + "px" : "0px";
-    // Published so a concurrently-open sheet (js/product.js's #sizeModal,
-    // js/modify-modal.js's #modifyModal) can reserve exactly this much
-    // space above the bar instead of a fixed summary-only height — see
-    // .size-modal--drawer's --selection-bar-reserved in css/style.css,
-    // which reads this and caps it at 50vh. Harmless to set even when
-    // nothing reads it (every other page/context on the site just never
-    // references this custom property).
-    var liveHeight = summary.getBoundingClientRect().height + drawerContentHeight;
-    document.documentElement.style.setProperty("--selection-bar-live-height", liveHeight + "px");
+    var summaryHeight = summary.getBoundingClientRect().height;
+    var listHeight = Math.min(rowsEl.offsetHeight, window.innerHeight * LIST_CAP);
+    var target = listHeight;
+    if (!isOpen) target = 0;
+    else if (drawerReduced) target = Math.min(listHeight, Math.max(0, window.innerHeight / 3 - summaryHeight));
+    drawer.style.maxHeight = target + "px";
+    drawerInner.style.maxHeight = (isOpen ? target : listHeight) + "px";
+    // Published so a sheet (js/product.js's #sizeModal, js/modify-modal.js's
+    // #modifyModal) can rest exactly this far above the bar — see
+    // .size-modal--drawer's --selection-bar-reserved in css/style.css. It's
+    // the height the drawer is heading to, and the sheet's own 0.3s
+    // padding-bottom transition then moves it in step with the drawer.
+    document.documentElement.style.setProperty("--selection-bar-live-height", summaryHeight + target + "px");
+  }
+
+  // While the drawer shrinks under the opening Modify sheet, the row being
+  // modified stays in view: whenever the shrinking list would cut it off at
+  // the bottom, the list scrolls just enough to keep it — a row near the
+  // top needs nothing, and one near the bottom stays put while the rows
+  // above it scroll away. Frame by frame, for the length of the shrink.
+  function keepRowInView(rowEl) {
+    var startTop = drawerInner.scrollTop;
+    var rowBottom = rowEl.getBoundingClientRect().bottom - drawerInner.getBoundingClientRect().top + startTop;
+    var until = performance.now() + 400;
+    function step() {
+      var want = Math.max(startTop, rowBottom - drawerInner.clientHeight);
+      if (drawerInner.scrollTop < want) drawerInner.scrollTop = want;
+      if (drawerReduced && performance.now() < until) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setDrawerReduced(on, rowEl) {
+    if (drawerReduced === on) return;
+    drawerReduced = on;
+    syncDrawerHeight();
+    if (on && rowEl) keepRowInView(rowEl);
   }
 
   // Registered with window.EmjiveMenus (js/series.js) so a click away from
-  // the bar closes the drawer — root is the whole bar (toggle/summary row
-  // included), not just the drawer, so clicking the toggle itself is never
-  // mistaken for "away" by that shared listener.
-  var barMenuPanel = { root: bar, close: function () { setDrawerOpen(false); } };
+  // the bar closes the drawer — root spans the whole bar (toggle/summary
+  // row included), not just the drawer, so clicking the toggle itself is
+  // never mistaken for "away" by that shared listener. The Modify sheet
+  // counts as part of the bar too: tapping its backdrop dismisses the
+  // sheet, and the drawer it was opened from stays open.
+  var barMenuPanel = {
+    root: {
+      contains: function (node) {
+        return bar.contains(node) || !!(node && node.closest && node.closest("#modifyModal"));
+      }
+    },
+    close: function () { setDrawerOpen(false); }
+  };
 
   function setDrawerOpen(isOpen) {
     var wasOpen = drawer.classList.contains("is-open");
-    // Rebuilt fresh on the way open — unless a row is mid-undo, whose
-    // prompt should still be there if the drawer is reopened within its
-    // window. That also sweeps away the last row of a cart that emptied
-    // while the drawer was closing: onEmptied closes the drawer with that
-    // row still in place (so it leaves with the drawer instead of
-    // collapsing on its own first), and nothing rebuilds it until now.
-    if (isOpen && !wasOpen && !rows.hasPending()) {
-      rows.render(window.EmjiveSelection.getSelection());
+    // Rebuilt fresh on the way open. That also sweeps away the last row of
+    // a cart that emptied while the drawer was open: render() stops
+    // updating the rows once the cart is empty, so that row leaves with
+    // the closing drawer instead of collapsing on its own first.
+    if (isOpen && !wasOpen) {
+      rows.render(window.EmjiveSelection.getSelection(), { animate: false });
     }
-    if (!isOpen) rows.closeOpenRow();
     drawer.classList.toggle("is-open", isOpen);
     toggleBtn.setAttribute("aria-expanded", String(isOpen));
     syncDrawerHeight();
@@ -183,13 +217,11 @@
 
   function toggleDrawer() {
     // The bar's own "pop up" (its drawer) sits out entirely while the bar
-    // itself is acting as one big Add/Save button (see .is-add-active
-    // below) — the whole point of that mode is a single, unambiguous hit
-    // target.
+    // itself is acting as one big Add button (see .is-add-active below) —
+    // the whole point of that mode is a single, unambiguous hit target.
     if (bar.classList.contains("is-add-active")) return;
-    // Likewise while the Modify sheet is up, even with Save hidden (an
-    // emptied size field): a second row's Modify from under the first
-    // would stack two edits of the cart on one backdrop.
+    // Likewise while the Modify sheet is up. The strip covers the toggle
+    // then anyway (and the summary row is inert); this is the backstop.
     if (window.EmjiveModifyModal && window.EmjiveModifyModal.isOpen()) return;
     setDrawerOpen(!drawer.classList.contains("is-open"));
   }
@@ -199,34 +231,58 @@
   // drawer when clicked.
   emptyLabelEl.addEventListener("click", toggleDrawer);
 
-  // While a sheet has something to confirm, the ENTIRE bar becomes
+  // While the size sheet has a size to add, the ENTIRE bar becomes
   // addActionBtn's hit box rather than just its own small centered label —
   // bubbling catches a click anywhere in the bar, including a keyboard
   // Enter/Space activation of addActionBtn itself (which also dispatches a
   // real, bubbling click). Guarded on is-add-active so this is a complete
-  // no-op the rest of the time.
-  // Never for a click from inside the drawer, though. The drawer is always
-  // closed while the bar is in this mode, so no real Save/Add click can
-  // come from there — but a drawer row's Modify click can still be
-  // bubbling through here when the bar enters it: the Modify sheet opens
-  // off an already-resolved promise, whose callbacks run in the microtask
-  // checkpoint between two listeners of that same click, so by the time it
-  // reaches this one, Save is showing and would fire on the spot.
+  // no-op the rest of the time. The Modify strip's buttons (appended to the
+  // bar while that sheet is up) handle their own clicks.
+  // Never for a click from inside the drawer, though: a row tap there opens
+  // the Modify sheet off an already-resolved promise, whose callbacks run in
+  // the microtask checkpoint between two listeners of that same click — so
+  // by the time the click reaches this one, the bar may already have
+  // changed mode under it.
   bar.addEventListener("click", function (e) {
     if (drawer.contains(e.target)) return;
     if (bar.classList.contains("is-add-active") && pendingConfirm) pendingConfirm();
   });
 
-  // Three-way slot for the summary row's right-hand side: emptyLabelEl/
-  // orderLink normally split it based on hasItems (as before), but a
-  // pendingConfirm from one of the sheets overrides both of them, showing
-  // addActionBtn instead regardless of hasItems — even an empty cart shows
-  // "Add" once a size is picked.
+  /* ---- the summary row's one slot ------------------------------------------
+     Whatever the bar has to say, it says in one place, one thing at a time:
+       add    js/product.js's size sheet has a size to add — "Add"
+       strip  the Modify sheet is up (or its "Undo" is on offer) — its strip,
+              laid over the whole row (js/modify-modal.js builds it; this
+              bar only shows and hides it — stripHost below)
+       order  items selected — "Order (N) ›"
+       empty  nothing selected — "No selected item"
+     in that order of precedence: even an empty cart shows "Add" once a size
+     is picked, and a size typed while "Undo" is on offer takes the bar
+     over. */
+  var stripEl = null;
+  var stripShown = false;
+
+  var stripHost = {
+    el: bar,
+    show: function (strip) {
+      stripEl = strip;
+      stripShown = true;
+      updateSummaryState();
+    },
+    hide: function () {
+      stripShown = false;
+      updateSummaryState();
+    }
+  };
+
   function summaryElFor(mode) {
-    return mode === "add" ? addActionBtn : mode === "order" ? orderLink : emptyLabelEl;
+    if (mode === "add") return addActionBtn;
+    if (mode === "strip") return stripEl;
+    return mode === "order" ? orderLink : emptyLabelEl;
   }
   function computeSummaryMode() {
     if (pendingConfirm) return "add";
+    if (stripShown) return "strip";
     return window.EmjiveSelection.getSelection().length > 0 ? "order" : "empty";
   }
 
@@ -254,27 +310,42 @@
       summaryHideListenerEl = null;
     }
     var el = summaryElFor(visibleSummaryMode);
-    // Relabelled only here, while it's still fully transparent — the one
-    // button hosts both "Add" and "Save", and a label changing in plain
-    // sight would read as a flicker.
+    // Relabelled only here, while it's still fully transparent — a label
+    // changing in plain sight would read as a flicker.
     if (visibleSummaryMode === "add") addActionBtn.textContent = pendingLabel;
     el.classList.remove("is-hidden");
     el.setAttribute("aria-hidden", "false");
+    el.inert = false;
   }
 
   function updateSummaryState() {
     var mode = computeSummaryMode();
-    // Ahead of the early return below (which only fires once nothing about
-    // the visible label actually needs to change) so this stays correct
-    // even on a redundant call — cheap, and classList.toggle/setDrawerOpen
-    // are already idempotent besides. Entering add mode also closes the
-    // drawer if it happened to be open — that "pop up" behavior sits out
-    // entirely while the bar is one big Add/Save button (see
-    // toggleDrawer()'s own guard above, which is what keeps it closed for
-    // the duration).
+    // Ahead of the early returns below (which only fire once nothing about
+    // the visible label needs to change) so these stay correct even on a
+    // redundant call — cheap, and all idempotent. Entering add mode also
+    // closes the drawer if it happened to be open — that "pop up" sits out
+    // entirely while the bar is one big Add button (see toggleDrawer()'s
+    // own guard above, which is what keeps it closed for the duration). The
+    // strip leaves the drawer be: the Modify sheet is opened from it. The
+    // strip covers the whole summary row, so nothing under it should be
+    // reachable while it's up.
     bar.classList.toggle("is-add-active", mode === "add");
+    bar.classList.toggle("is-strip-active", mode === "strip");
+    summary.inert = mode === "strip";
     if (mode === "add") setDrawerOpen(false);
     if (mode === visibleSummaryMode) return;
+
+    // A handoff already under way — its outgoing label still fading out:
+    // retarget it rather than start a second one on top (its reveal reads
+    // visibleSummaryMode when it fires). If the label now wanted is the
+    // very one fading out, it comes straight back instead. Saving and at
+    // once tapping another row, say, or a size typed while "Undo" shows.
+    if (summaryHideListenerEl) {
+      var fading = summaryHideListenerEl;
+      visibleSummaryMode = mode;
+      if (summaryElFor(mode) === fading) revealCurrentSummaryMode();
+      return;
+    }
 
     var outgoingEl = visibleSummaryMode ? summaryElFor(visibleSummaryMode) : null;
     visibleSummaryMode = mode;
@@ -286,6 +357,7 @@
 
     outgoingEl.classList.add("is-hidden");
     outgoingEl.setAttribute("aria-hidden", "true");
+    outgoingEl.inert = true;
     // Forces layout before the transitionend listener below is attached —
     // Safari has a known history of coalescing/dropping a transition
     // that's triggered by a class change with nothing reading layout in
@@ -294,16 +366,14 @@
     void outgoingEl.offsetWidth;
 
     clearTimeout(summaryRevealTimer);
-    if (summaryHideListenerEl) summaryHideListenerEl.removeEventListener("transitionend", onSummaryHideEnd);
     summaryHideListenerEl = outgoingEl;
     outgoingEl.addEventListener("transitionend", onSummaryHideEnd);
     // Fallback in case transitionend never fires (e.g. a backgrounded tab),
-    // matching the 0.3s opacity transition these three share plus a buffer.
+    // matching the 0.075s opacity transition these share plus a buffer.
     summaryRevealTimer = setTimeout(revealCurrentSummaryMode, 350);
   }
 
-  // label: "Add" (js/product.js) or "Save" (the Modify sheet, via
-  // openModify below).
+  // label: "Add" (js/product.js).
   window.EmjiveSelectionBar = {
     showAction: function (label, onConfirm) {
       pendingLabel = label;
@@ -316,18 +386,25 @@
     }
   };
 
-  // A drawer row's Modify: the drawer steps out of the way and the Modify
-  // sheet (js/modify-modal.js) slides up from behind the bar, which turns
-  // into its Save button. Focus comes back to the toggle — the row that
-  // was clicked is inside a drawer that's closed by then.
+  // A drawer row's tap: the Modify sheet (js/modify-modal.js) slides up
+  // from behind the bar, which turns into its strip, while the drawer stays
+  // open but shrinks to make room — and grows back once the sheet is gone.
+  // Focus comes back to the row (still there: rows are updated in place),
+  // or, if the drawer closed meanwhile (its last item unselected), to the
+  // toggle. modifyIndex is read late, since a tap on another row while the
+  // sheet is up switches the sheet to that one.
+  var modifyIndex = null;
+
   function openModify(binding) {
-    setDrawerOpen(false);
+    modifyIndex = binding.index;
     window.EmjiveModifyModal.open(binding.item, binding.index, {
-      saveAction: {
-        show: function (onConfirm) { window.EmjiveSelectionBar.showAction("Save", onConfirm); },
-        hide: function () { window.EmjiveSelectionBar.hideAction(); }
+      bar: stripHost,
+      onOpen: function () { setDrawerReduced(true, binding.li); },
+      onClose: function () { setDrawerReduced(false); },
+      returnFocus: function () {
+        return drawer.classList.contains("is-open") ? rows.buttonAt(modifyIndex) : null;
       },
-      returnFocus: toggleBtn
+      fallbackFocus: toggleBtn
     });
   }
 
@@ -338,12 +415,13 @@
      item joins to its left instead of displacing it.
 
      Every change the site makes to the selection is a single one — an Add,
-     an Unselect, an Undo, a Modify — so render() works out which of those
-     just happened and animates exactly that one icon, rather than
-     rebuilding the strip. iconEls holds the live icons in array order
-     (oldest first), which is what maps a storage index to its element; an
-     icon playing its exit animation has already left iconEls, so it can
-     never throw that mapping off while it collapses. */
+     an Unselect, an Undo, a Modify — so renderIcons() works out which of
+     those just happened (EmjiveSelection.singleChange, the same diff the
+     rows use) and animates exactly that one icon, rather than rebuilding
+     the strip. iconEls holds the live icons in array order (oldest first),
+     which is what maps a storage index to its element; an icon playing its
+     exit animation has already left iconEls, so it can never throw that
+     mapping off while it collapses. */
 
   // null (rather than []) specifically marks "haven't rendered yet" —
   // distinguishes the very first render on a fresh page load/navigation
@@ -415,21 +493,20 @@
     setTimeout(finish, 400);
   }
 
-  // Which single change turns oldKeys into keys: one item inserted at
-  // `index` (an Add pushes at the end, an Undo puts one back where it was),
-  // one removed from `index`, or — same length — items updated in place (a
-  // Modify changes a key without moving it). null for anything else.
-  function singleChange(oldKeys, keys) {
-    if (keys.length === oldKeys.length) return { type: "update" };
-    if (Math.abs(keys.length - oldKeys.length) !== 1) return null;
-    var longer = keys.length > oldKeys.length ? keys : oldKeys;
-    var shorter = longer === keys ? oldKeys : keys;
-    var i = 0;
-    while (i < shorter.length && shorter[i] === longer[i]) i++;
-    for (var j = i; j < shorter.length; j++) {
-      if (shorter[j] !== longer[j + 1]) return null;
-    }
-    return { type: longer === keys ? "insert" : "remove", index: i };
+  // playExitAnimation in reverse, for an Undo: the icon goes in as the
+  // collapsed sliver its exit ends on (.selection-bar__icon--exit — width,
+  // margin, opacity and scale), snapped there without a transition, and
+  // eases back open on its own transitions on the next frame, easing its
+  // neighbours apart as it grows. Back where it was, the way it left —
+  // not the long slide in from the screen's edge an Add plays.
+  function playRestoreAnimation(iconEl) {
+    iconEl.style.transition = "none";
+    iconEl.classList.add("selection-bar__icon--exit");
+    void iconEl.offsetWidth;
+    iconEl.style.transition = "";
+    requestAnimationFrame(function () {
+      iconEl.classList.remove("selection-bar__icon--exit");
+    });
   }
 
   // The first render on a page, or a change that isn't a single one: build
@@ -465,11 +542,15 @@
     newIconEls.forEach(playEnterAnimation);
   }
 
-  function renderIcons(items) {
-    var keys = items.map(itemKey);
+  // detail: the change event's own account of what happened (see notify()
+  // in js/selection.js) — only needed to tell an Undo's insert from an
+  // Add's.
+  function renderIcons(items, detail) {
+    var sel = window.EmjiveSelection;
+    var keys = items.map(sel.itemKey);
     var oldKeys = lastKeys;
     lastKeys = keys;
-    var change = oldKeys && singleChange(oldKeys, keys);
+    var change = oldKeys && sel.singleChange(oldKeys, keys);
     if (!change) {
       rebuildIcons(items, keys, oldKeys);
       return;
@@ -484,7 +565,8 @@
       // Unhidden before measuring: playEnterAnimation reads where the icon
       // actually landed, and a [hidden] strip has no layout at all.
       iconsEl.hidden = false;
-      playEnterAnimation(icon);
+      if (detail && detail.action === "insert") playRestoreAnimation(icon);
+      else playEnterAnimation(icon);
     } else if (change.type === "remove") {
       playExitAnimation(iconEls.splice(change.index, 1)[0]);
     } else {
@@ -498,11 +580,11 @@
 
   /* ---- render ------------------------------------------------------------- */
 
-  function render() {
+  function render(e) {
     var items = window.EmjiveSelection.getSelection();
     var hasItems = items.length > 0;
 
-    renderIcons(items);
+    renderIcons(items, e && e.detail);
 
     // Both stay in the layout (no [hidden]) and crossfade via opacity —
     // see the .is-hidden rules in css/style.css — rather than popping
@@ -518,21 +600,17 @@
     }
 
     // Oldest first (top of the drawer), newest at the bottom — plain array
-    // order, same order items were actually picked in. Skipped when the
-    // change came from the drawer's own Unselect/Undo, which fire this
-    // very event mid-click: a rebuild then would replace the row showing
-    // its Undo prompt with a fresh list that no longer has it.
-    if (!rows.isMutating()) rows.render(items);
-
-    // An empty cart closes the drawer — except while a row is still
-    // offering its Undo (unselecting the last item empties the cart
-    // immediately; the drawer closes once that row's window runs out).
-    if (!hasItems && !rows.hasPending()) {
+    // order, same order items were actually picked in. The rows follow
+    // every change, animated only while the drawer is open for anyone to
+    // see — except the one that empties the cart: then the drawer simply
+    // closes, its last row still in it (see setDrawerOpen()).
+    if (hasItems) {
+      rows.render(items, { animate: drawer.classList.contains("is-open") });
+    } else {
       setDrawerOpen(false);
     }
-    // Re-measures against the just-rebuilt rows — if the drawer is open,
-    // this is what makes it shrink/grow smoothly as items are removed or
-    // added instead of snapping to the new height instantly.
+    // Re-measures against the updated rows — if the drawer is open, this
+    // is what makes it grow/shrink smoothly with them.
     syncDrawerHeight();
   }
 

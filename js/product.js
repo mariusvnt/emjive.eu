@@ -539,8 +539,8 @@
     // truth for exactly that.
 
     // The bar's drawer can still be opened over this sheet (its height is
-    // what pushes the sheet up — see --selection-bar-live-height), and a
-    // drawer row's Modify opens a sheet of its own (js/modify-modal.js).
+    // what pushes the sheet up — see --selection-bar-live-height), and
+    // tapping a drawer row opens a sheet of its own (js/modify-modal.js).
     // Two sheets stacked on one backdrop is never right, so this one steps
     // aside for it.
     window.addEventListener("emjive:modify-open", function () {

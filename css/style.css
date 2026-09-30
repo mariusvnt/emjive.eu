@@ -992,12 +992,14 @@ button, input, textarea {
 /* position: relative + isolation: isolate for the same reason as
    .product-detail__label-bar above it in this file: ::before below needs
    its own stacking context so its z-index is scoped to this row's own
-   content instead of the page's root stacking context. Also what
-   .order-item__overlay's inset: 0 below positions/sizes itself against.
-   No overflow: hidden here (moved to .order-item__inner below) — this row
+   content instead of the page's root stacking context.
+   No overflow: hidden here (see .order-item__inner below) — this row
    narrows to max-width on screens past --max, and if this element clipped
    too, ::before's own full-bleed breakout (further down) would get cut
-   off at this now-inset box instead of reaching the true viewport edges. */
+   off at this now-inset box instead of reaching the true viewport edges.
+   The whole row is the tap target for its Modify sheet (js/order-rows.js
+   listens on the <li>, padding included) — hence the cursor here rather
+   than only on the button inside. No hover state, deliberately. */
 .order-item {
   position: relative;
   isolation: isolate;
@@ -1005,57 +1007,64 @@ button, input, textarea {
   max-width: var(--max);
   margin: 0 auto;
   padding: 1.25rem var(--edge-px);
+  cursor: pointer;
   transition:
     padding-top 0.3s ease,
     padding-bottom 0.3s ease,
     opacity 0.25s ease;
 }
+/* Collapsed: a row on its way out (an Unselect), or the starting point of
+   one coming back (an Undo plays the same collapse in reverse — see
+   js/order-rows.js's expand()). Its item is already gone from storage, so
+   a tap on it mid-collapse must not open anything. */
 .order-item.is-removing {
   padding-top: 0;
   padding-bottom: 0;
   opacity: 0;
+  pointer-events: none;
 }
 /* The floating bar's drawer (js/selection-bar.js) uses these same rows —
-   same markup, same Modify/Unselect overlay, same Undo, same invert band —
-   via js/order-rows.js's rowClass, just tighter: a compact list sitting on
+   same markup, same tap-to-Modify, same invert band — via
+   js/order-rows.js's rowClass, just tighter: a compact list sitting on
    top of the page rather than the page itself. .order-item.is-removing
-   (two classes) still outranks this for the final collapse. */
+   (two classes) still outranks this for the collapse. */
 .order-item--drawer {
   padding: 0.75rem var(--edge-px);
 }
-/* max-height/overflow here exist purely for the removal animation
-   (js/order-rows.js's "is-removing", once a row's undo window runs out): a
-   real content height can't be transitioned directly (it's auto), so this
-   caps it at a value comfortably above the row's actual rendered height
-   (thumb + its own padding, ~5.5rem) and animates that cap to 0 alongside .order-item's
-   own padding/opacity above. Collapsing this one row's own box is what
-   makes the rows below it slide up smoothly as a side effect of
-   .order-items' flex layout recalculating every frame — same principle as
-   the floating selection bar's icon-collapse animation, just on the
-   vertical axis. Kept on this inner wrapper (js/order-rows.js wraps
-   .order-item__content/__overlay/__undo-prompt in it) rather than
-   .order-item itself so this clipping never reaches ::before's own
-   full-bleed band above. */
+/* max-height here exists purely for the collapse/expand motion
+   (js/order-rows.js's "is-removing"): a real content height can't be
+   transitioned directly (it's auto), so this caps it at a value
+   comfortably above the row's actual rendered height (thumb + its own
+   padding, ~5.5rem) and animates that cap to 0 alongside .order-item's own
+   padding/opacity above — and back up again for an Undo. Collapsing this
+   one row's own box is what makes the rows below it slide up smoothly as
+   a side effect of .order-items' flex layout recalculating every frame —
+   same principle as the floating selection bar's icon-collapse animation,
+   just on the vertical axis. Kept on this inner wrapper (js/order-rows.js
+   wraps .order-item__content in it) rather than .order-item itself so it
+   never clips ::before's own full-bleed band above.
+   It only clips while that motion plays (.is-removing, and .is-expanding
+   on the way back): at rest the row's button draws its focus ring outside
+   its own box, and a clipping wrapper would cut it off. */
 .order-item__inner {
   max-height: 6.5rem;
-  overflow: hidden;
   transition: max-height 0.3s ease;
 }
 .order-item.is-removing .order-item__inner {
   max-height: 0;
 }
+.order-item.is-removing .order-item__inner,
+.order-item.is-expanding .order-item__inner {
+  overflow: hidden;
+}
 /* Same inverting band technique as .product-detail__label-bar::before — no
    ::after companion needed here (unlike the label bar's, which sits on the
    plain page background): this row already sits directly on solid
    --black-bg (.order-items, or the bar's drawer), so backdrop-filter: invert(1) inverts
-   that black straight to a light band on its own. Sits above both
-   .order-item__content and .order-item__overlay regardless of which is
-   showing (z-index: 2 vs. their default auto).
-   Base transition matches .order-item__content/__overlay/__undo-prompt's
-   own 0.3s cubic-bezier crossfade exactly (no delay) — this is what
-   governs the band fading back in when is-pending-undo is removed (Undo,
-   js/order-rows.js's handleUndo), so it toggles in step with the rest
-   of the row instead of lagging behind on its own separate timing. */
+   that black straight to a light band on its own. Sits above
+   .order-item__content (z-index: 2 vs. its default auto).
+   Base transition: what the band fades back in on when a row expands back
+   for an Undo — the same 0.3s the row itself takes to reopen. */
 .order-item::before {
   content: "";
   position: absolute;
@@ -1071,36 +1080,39 @@ button, input, textarea {
   opacity: 1;
   transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
 }
-/* Its own faster, undelayed fade for the row's final collapse-and-discard
-   (confirmRemoval) — unrelated to the crossfade family above, so kept
-   distinct rather than reused. */
+/* Its own faster, undelayed fade for the row's collapse — gone well before
+   the row has finished closing. */
 .order-item.is-removing::before {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-/* Nothing left to invert to anything meaningful once a row's showing its
-   undo prompt instead — the prompt is a single plain var(--bg) button, no
-   invert-tuned pairing needed the way Modify/Unselect's text is (see
-   .order-item__overlay-btn's own comment), so the band is faded out
-   rather than crossing it for no reason. opacity, not content: none —
-   unlike is-removing's own transition above (tuned for the row's
-   height/padding animating alongside it), this crossfades in step with
-   .order-item__content/__overlay/__undo-prompt's own 0.3s swap below,
-   since nothing about the row's size is changing here at all. */
-.order-item.is-pending-undo::before {
-  opacity: 0;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+/* An Undo's row snaps shut here before opening (see expand() in
+   js/order-rows.js) — no transition on the way in, or it would be seen
+   collapsing first. After the ::before rules above, which it ties with on
+   specificity: its band has to start from nothing too. */
+.order-item.is-instant,
+.order-item.is-instant::before,
+.order-item.is-instant .order-item__inner {
+  transition: none;
 }
+/* The row's one control (js/order-rows.js): a <button> wrapping the whole
+   row's content, so it's reachable by keyboard and announced as a button —
+   stripped of every UA button style, so it lays out exactly as the plain
+   row it replaced. */
 .order-item__content {
   display: flex;
   align-items: center;
   gap: 1rem;
-  /* Same symmetric ease-in-out curve product.js's carousel centering uses
-     (CENTER_TRANSITION) — a real zero-velocity start easing into an
-     equally gentle stop — rather than the generic "ease" keyword, plus a
-     touch longer so the crossfade with .order-item__overlay below reads
-     as smoother, less snapped. */
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .order-item__thumb {
   flex: 0 0 auto;
@@ -1108,6 +1120,21 @@ button, input, textarea {
   height: 3rem;
   object-fit: contain;
   background: transparent;
+}
+/* After a Modify, each part of a row whose value changed crossfades to it
+   (js/order-rows.js's fadeSwap()): out in 0.12s (.is-swapping), the new
+   value goes in while nothing's showing, back in over 0.18s — quick and
+   quiet, one label never showing through another. Each state's own
+   duration is the one its transition runs on. */
+.order-item__thumb,
+.order-item__name,
+.order-item__attrs,
+.order-item__price {
+  transition: opacity 0.18s ease;
+}
+.order-item .is-swapping {
+  opacity: 0;
+  transition-duration: 0.12s;
 }
 /* name + attrs sit in this one box with nothing at all between them
    (js/order-rows.js appends them back to back) rather than as
@@ -1155,96 +1182,6 @@ button, input, textarea {
   font-family: var(--font-main);
   color: var(--white);
   white-space: nowrap;
-}
-/* ---- overlay: replaces the row's whole content when the row is tapped or
-   clicked (never on hover), or when keyboard focus lands on one of its
-   buttons — js/order-rows.js's openRowOverlay()/closeOpenRow(). inset: 0
-   sizes this to exactly match .order-item__content's box, so the
-   crossfade below reads as one thing swapping for another in place rather
-   than the row resizing. ---- */
-.order-item__overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2.5rem;
-  opacity: 0;
-  pointer-events: none;
-  /* Matches .order-item__content's own transition exactly (see its
-     comment) — the two are crossfading against each other, so they need
-     identical timing for a clean simultaneous swap. */
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
-}
-.order-item.is-open .order-item__content { opacity: 0; pointer-events: none; }
-.order-item.is-open .order-item__overlay { opacity: 1; pointer-events: auto; }
-/* Both the same static color, no hover/tap shift — .order-item::before's
-   invert band (z-index: 2, crossing right through this centered row) is
-   what reads them as dark wherever it overlaps, rather than a color rule
-   here doing it directly. var(--black-bg-inverted), not white — same
-   trick .product-detail__label-bar::after uses: inverting it lands
-   exactly on var(--black-bg), so the band reads as a seamless
-   --black-bg patch over the text rather than snapping to pure black.
-   Still effectively white against the row's own --black-bg everywhere
-   the band isn't crossing it. */
-.order-item__overlay-btn {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--black-bg-inverted);
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-}
-
-/* ---- undo prompt: a third state a row can crossfade into — same
-   inset: 0 recipe as .order-item__overlay just above, so it swaps in
-   without the row resizing — replacing content/overlay in place once
-   Unselect is clicked, offering to put the just-removed item back for a
-   few seconds (js/order-rows.js's handleUnselect()/handleUndo()/
-   confirmRemoval()). Each row gets its own prompt and its own undo
-   window rather than one shared bar for the whole list, so unselecting
-   several rows in a row never moves any row that isn't the one actually
-   being acted on. Deliberately bare — just the button, nothing else — and
-   .order-item::before's own band is dropped entirely for this state (see
-   its own is-pending-undo rule above), so var(--bg) is a plain, un-tuned
-   color here rather than the invert-paired var(--black-bg-inverted)
-   Modify/Unselect use. ---- */
-.order-item__undo-prompt {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.6, 1);
-}
-.order-item__undo-btn {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--bg);
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-}
-/* Declared after .is-open above so it always wins on the tied
-   specificity if a row is still carrying is-open at the moment this is
-   added (js/order-rows.js deliberately leaves it be rather than clearing
-   it first — see the Unselect click handler's own comment). */
-.order-item.is-pending-undo .order-item__content,
-.order-item.is-pending-undo .order-item__overlay {
-  opacity: 0;
-  pointer-events: none;
-}
-.order-item.is-pending-undo .order-item__undo-prompt {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* ---- shipping: reuses the metal picker's "dot + label" pick recipe
@@ -1430,59 +1367,27 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar__button:disabled { opacity: 0.35; cursor: not-allowed; }
 .order-checkout-bar__button:disabled:hover { opacity: 0.35; }
 
-/* ---- Save mode: while the Modify sheet (js/modify-modal.js) is open with a
-   valid size, this bar stands in as its Save button — the same handoff the
-   floating selection bar does for "Add" (.selection-bar__add): the total
-   and "Proceed to checkout" fade out, a single centered "Save" fades in,
-   and the whole bar becomes its hit target (the click is handled on the
-   bar itself, js/selection-page.js). Sequenced rather than simultaneous,
-   like the floating bar's own swap, so two half-faded labels never sit on
-   top of each other mid-transition — done with transition-delay alone
-   here, since there are only ever these two states: whichever side is
-   fading out goes at once, the side fading in waits for it. Same fast
-   0.075s as the floating bar's summary slot. ---- */
+/* ---- strip mode: while the Modify sheet (js/modify-modal.js) is open,
+   its Unselect | Save strip (.modify-strip, see its own section further
+   down) is appended into this bar and covers it — and stays on as "Undo"
+   after an Unselect. js/selection-page.js flips .is-strip-active and the
+   strip's own .is-hidden together. Sequenced rather than simultaneous,
+   like the floating bar's own label swaps, so the glass bar's total and
+   "Proceed to checkout" are gone before the strip arrives (and back only
+   once it has left) — done with transition-delay alone here, since there
+   are only ever these two states: whichever side is fading out goes at
+   once, the side fading in waits for it. Same fast 0.075s as the floating
+   bar's summary slot. ---- */
 .order-checkout-bar__row {
   transition: opacity 0.075s ease 0.075s;
 }
-.order-checkout-bar.is-save-active { cursor: pointer; }
-.order-checkout-bar.is-save-active .order-checkout-bar__row {
+.order-checkout-bar.is-strip-active .order-checkout-bar__row {
   opacity: 0;
   pointer-events: none;
   transition-delay: 0s;
 }
-/* Centered on the bar, not in the row's right-hand slot — left/transform
-   rather than an inset, for the same reason as .selection-bar__add. Text
-   only, in the bar's own black button type. */
-.order-checkout-bar__save {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--black);
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.075s ease;
-}
-.order-checkout-bar.is-save-active .order-checkout-bar__save {
-  opacity: 1;
-  pointer-events: auto;
+.order-checkout-bar .modify-strip:not(.is-hidden) {
   transition-delay: 0.075s;
-}
-.order-checkout-bar.is-save-active .order-checkout-bar__save:hover {
-  opacity: 0.6;
-  transition-delay: 0s;
 }
 
 /* ==========================================================================
@@ -2019,11 +1924,17 @@ body:has(.order-checkout-bar:not([hidden])) {
 
 /* ---- size-selection modal ---- */
 /* Simple opacity/transform cross-fade — no keyframes, matching the file's
-   transition-only motion language elsewhere. */
+   transition-only motion language elsewhere.
+   z-index 85: above the header (80), which the backdrop dims like the rest
+   of the page, but below the bottom bars (90 — .selection-bar,
+   .order-checkout-bar). Both sheets rest right on top of their page's bar
+   and never overlap it at rest, so this only shows while they slide: they
+   come up from behind the bar (and the drawer above it, when that's open)
+   rather than sweeping over it. */
 .size-modal {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: 85;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2060,14 +1971,17 @@ body:has(.order-checkout-bar:not([hidden])) {
    the bottom rather than the base rule's 12px rise.
 
    --selection-bar-reserved is how much room is actually kept clear for the
-   bar: js/selection-bar.js publishes --selection-bar-live-height (its own
-   real rendered height, summary + open drawer) on every drawer open/close/
-   resize, and this caps it at 50vh — if the bar's own drawer has enough
-   items to want more room than that, the sheet stops getting pushed any
-   further and the bar's own drawer scroll (already capped independently at
-   66vh) takes over instead. On launch-order.html, which has no floating bar
-   to publish anything, the var(--selection-bar-live-height, …) fallback is
-   the whole story: --selection-bar-height is exactly the checkout bar's own
+   bar: js/selection-bar.js publishes --selection-bar-live-height (summary
+   row + the height its drawer is heading to) whenever that drawer moves,
+   and this caps it at 50vh — if the bar's own drawer has enough items to
+   want more room than that, the sheet stops getting pushed any further and
+   the bar's own drawer scroll (capped independently at two thirds of the
+   screen) takes over instead. The Modify sheet never gets near that cap:
+   while it's up, the bar holds its drawer to a third of the screen and the
+   sheet rests right on top of it, the two moving in step (same 0.3s ease
+   as this padding). On launch-order.html, which has no floating bar to
+   publish anything, the var(--selection-bar-live-height, …) fallback is the
+   whole story: --selection-bar-height is exactly the checkout bar's own
    height, so the Modify sheet rests right above that bar instead. */
 .size-modal--drawer {
   --selection-bar-reserved: min(var(--selection-bar-live-height, var(--selection-bar-height)), 50vh);
@@ -2089,7 +2003,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .size-modal--drawer .size-modal__backdrop {
   /* Stops the dim scrim exactly at the bar's top edge instead of covering
      it — the bar has to stay visible and clickable (its own drawer, and
-     the Add/Save button it turns into) while the sheet is open. Same
+     the Add button or Modify strip it turns into) while the sheet is open. Same
      reserved value as the padding above, and transitions in step with it
      so the scrim's lower edge follows the bar smoothly rather than
      snapping while the panel above it eases into place. */
@@ -2174,6 +2088,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   max-width: var(--size-modal-max);
   margin: 0 auto;
   padding: 2rem var(--edge-px) 0;
+}
+/* The Modify sheet's pickers start 1.5rem under its carousel — the same
+   1.5rem as every other gap in this sheet (metal picker to size field,
+   size field to the guide, guide to the bar). */
+.size-modal--modify .size-modal__content {
+  padding-top: 1.5rem;
 }
 /* The Modify sheet's metal picker, above the size field: same gap as the
    size row's own margin-bottom below it. Scoped to this container
@@ -2280,13 +2200,16 @@ body:has(.order-checkout-bar:not([hidden])) {
 .size-modal__guide {
   width: 100%;
 }
+/* The label sits 1.5rem above the bar — the sheets' one gap (the size row
+   above keeps the same 1.5rem to it). That gap is the button's own bottom
+   padding rather than space outside it, so a tap anywhere between the
+   label and the bar still reaches it. */
 .size-modal__guide-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 1.5rem;
-  padding: 0 var(--edge-px);
+  padding: 0 var(--edge-px) 1.5rem;
   border: none;
   background: none;
   font-family: var(--font-main);
@@ -2538,10 +2461,12 @@ body.has-series-hero .selection-bar {
 .selection-bar__icons[hidden] { display: none; }
 /* Recedes so the centered .selection-bar__add button — which would
    otherwise sit right on top of a wide icon strip — has the bar to itself
-   while a sheet has something to confirm, "Add" or "Save"
-   (.is-add-active, toggled alongside the
-   summary-slot mode in js/selection-bar.js's updateSummaryState()). */
-.selection-bar.is-add-active .selection-bar__icons {
+   while the size sheet has a size to add (.is-add-active), and so nothing
+   shows through the Modify sheet's strip while it fades in or out over the
+   row (.is-strip-active). Both toggled alongside the summary-slot mode in
+   js/selection-bar.js's updateSummaryState(). */
+.selection-bar.is-add-active .selection-bar__icons,
+.selection-bar.is-strip-active .selection-bar__icons {
   opacity: 0;
   pointer-events: none;
 }
@@ -2697,35 +2622,148 @@ body.has-series-hero .selection-bar {
 .selection-bar__add:hover { opacity: 0.6; }
 
 /* ---- drawer: item list. Height is driven by js/selection-bar.js setting
-   max-height inline (in px, measured off .selection-bar__drawer-inner's
-   own rendered height) rather than the grid-template-rows 0fr/1fr trick
-   used for .site-header__menu — that trick only animates between two
-   fixed states (open/closed), not between two different *open* heights,
-   so removing a row while the drawer is already open wouldn't animate
-   the drawer shrinking to match. Measuring real pixel heights and
-   transitioning max-height between them covers both cases with one
-   mechanism. Capped at two-thirds of the viewport height with its own
-   scroll once the selection gets long — .selection-bar__drawer-inner's
-   own max-height below still enforces that regardless of what this
-   outer element's inline max-height is set to. ---- */
+   max-height inline in px — on this drawer and on its inner scroll box
+   alike (see syncDrawerHeight() there) — rather than the
+   grid-template-rows 0fr/1fr trick used for .site-header__menu: that trick
+   only animates between two fixed states (open/closed), and this drawer
+   also moves between different *open* heights — a row collapsing or
+   coming back, and the drawer shrinking to a third of the screen to make
+   room for the Modify sheet above it (and growing back after). Measuring
+   real pixel heights and transitioning max-height between them covers
+   every case with one mechanism. The inner box's cap moving with the
+   drawer's is what keeps the list scrollable at any of those heights,
+   the shrunk one included. ---- */
 .selection-bar__drawer {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease;
 }
+/* 66vh (two thirds of the screen, past which the rows scroll) is only the
+   starting value — js/selection-bar.js takes over in px on its first
+   render, with the same two-thirds cap. The transition matches the
+   drawer's own exactly, so the two always move as one. */
 .selection-bar__drawer-inner {
   min-height: 0;
   max-height: 66vh;
   overflow: hidden auto;
+  transition: max-height 0.3s ease;
 }
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
 /* The rows themselves are .order-item.order-item--drawer — the order page's
-   own row component, Modify/Unselect overlay and Undo included (see the
-   order page section and js/order-rows.js), so the two lists can't drift
-   apart. No background of their own: they show the drawer's ambient
-   var(--black-bg), inherited straight through .selection-bar__drawer/
-   -inner/rows, none of which set one — which is exactly the solid black
-   .order-item's invert band is tuned against on the order page too. */
+   own row component, tap-to-Modify included (see the order page section
+   and js/order-rows.js), so the two lists can't drift apart. No background
+   of their own: they show the drawer's ambient var(--black-bg), inherited
+   straight through .selection-bar__drawer/-inner/rows, none of which set
+   one — which is exactly the solid black .order-item's invert band is
+   tuned against on the order page too. */
+
+/* ==========================================================================
+   Modify strip
+   What the page's bottom bar turns into while the Modify sheet is open —
+   built by js/modify-modal.js, appended into the floating selection bar or
+   launch-order.html's checkout bar, and shown/hidden by that bar (its own
+   summary-slot handoff, or .order-checkout-bar.is-strip-active). A
+   full-bleed layer over the bar's bottom row holding three buttons, in
+   reading (and Tab) order:
+     Unselect  the left quarter, inverted: --black on --bg
+     Save      the right three quarters: --white on the dark bar, inactive
+               (dimmed) while the size field holds nothing orderable
+     Undo      the whole strip, once Unselect has been tapped
+   Unselect's light surface is also what widens across the whole bar when
+   the strip turns into "Undo" (.is-undo), its own label fading out as
+   Undo's fades in over it — so the bar reads as the light quarter taking
+   the bar over. Save paints after it but has no background of its own, so
+   that surface shows straight through it. Opaque as a whole, so the glass
+   checkout bar reads exactly like the dark floating one underneath it.
+   ========================================================================== */
+.modify-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: var(--selection-bar-height);
+  background: var(--black-bg);
+  opacity: 1;
+  /* Same fast 0.075s as the summary slot's other labels, and its own
+     compositor layer for the same WebKit repaint reason — see
+     .selection-bar__order's comment. */
+  transition: opacity 0.075s ease;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+.modify-strip.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.modify-strip__save,
+.modify-strip__unselect,
+.modify-strip__undo {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  white-space: nowrap;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.modify-strip__label {
+  transition: opacity 0.1s ease;
+}
+.modify-strip__save {
+  left: 25%;
+  right: 0;
+  color: var(--white);
+}
+.modify-strip__save:disabled { cursor: default; }
+.modify-strip__save:disabled .modify-strip__label { opacity: 0.35; }
+.modify-strip__unselect {
+  left: 0;
+  width: 25%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--black);
+  transition: width 0.3s ease;
+}
+.modify-strip__undo {
+  left: 0;
+  right: 0;
+  color: var(--black);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.modify-strip.is-undo .modify-strip__unselect {
+  width: 100%;
+  pointer-events: none;
+}
+.modify-strip.is-undo .modify-strip__unselect .modify-strip__label,
+.modify-strip.is-undo .modify-strip__save .modify-strip__label {
+  opacity: 0;
+}
+/* Undo's label arrives once the light surface has mostly crossed the bar. */
+.modify-strip.is-undo .modify-strip__undo {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.15s;
+}
+/* A mode switch made while the strip is out of sight (js/modify-modal.js's
+   setStripMode()) — nothing to watch, so nothing plays. */
+.modify-strip.is-instant,
+.modify-strip.is-instant * {
+  transition: none;
+}
 
 
 /* ==========================================================================
@@ -2733,8 +2771,9 @@ body.has-series-hero .selection-bar {
 
    The site had no :focus/:focus-visible rule of any kind, so every control
    fell back to whatever ring the UA draws — which on a black bar is
-   frequently a black outline on black. The one control that deliberately
-   opts back out is the size field — see the last rule of this section.
+   frequently a black outline on black. Two deliberate opt-outs, both at
+   the end of this section: the size field, and focus a sheet hands back
+   after a tap or click.
 
    :focus-visible rather than :focus, so a mouse click on a button doesn't
    leave a ring behind it — that heuristic is exactly what the pseudo-class
@@ -2800,6 +2839,22 @@ input:focus-visible,
   outline-offset: -2px;
 }
 
+/* The Modify strip's buttons (see its section) span the bar edge to edge,
+   so each draws its ring inside its own box — dark on the light
+   Unselect/Undo surface, light on the dark Save — and keeps its own place
+   in the strip: the site-wide rule's position: relative would pull it out.
+   Three classes outrank both lists above. */
+.modify-strip .modify-strip__save:focus-visible,
+.modify-strip .modify-strip__unselect:focus-visible,
+.modify-strip .modify-strip__undo:focus-visible {
+  position: absolute;
+  outline: var(--focus-ring);
+  outline-offset: -4px;
+}
+.modify-strip .modify-strip__save:focus-visible {
+  outline: var(--focus-ring-inverted);
+}
+
 /* The size field shows no outline while it's being typed into — a
    deliberate design call: it's a bare value on an underline, and the
    blinking caret already marks it as the field in use. Covers :focus too,
@@ -2808,6 +2863,16 @@ input:focus-visible,
    the site-wide input:focus-visible rule above regardless of order. */
 .size-modal__custom-input:focus,
 .size-modal__custom-input:focus-visible {
+  outline: none;
+}
+
+/* Focus a sheet hands back after a tap or click — to the row it was opened
+   from, the Select button, the bar's Undo — draws no ring: programmatic
+   focus inherits :focus-visible from the size field it left, and a ring
+   appearing around a row after a tap reads as a glitch. js/focus-trap.js
+   sets .is-focus-quiet only then, and drops it on the next key press, when
+   the ring is right again. Doubled to beat every ring above. */
+.is-focus-quiet.is-focus-quiet:focus-visible {
   outline: none;
 }
 
@@ -2825,22 +2890,26 @@ input:focus-visible,
    Only the transition-duration longhand is overridden. transition-property
    from those inline shorthands survives, which is what keeps transitionend
    firing for the right propertyName — see below. The `transition: none`
-   writes in selection-bar.js's playEnterAnimation and selection-page.js's
-   crossfadeToEmpty also survive (they set transition-property: none, which
-   no duration override can resurrect), so both "force a starting position
-   before animating" tricks still behave.
+   writes (selection-bar.js's playEnterAnimation/playRestoreAnimation,
+   selection-page.js's crossfade) and the `.is-instant` classes (a row
+   snapping shut before an Undo reopens it, the Modify strip switching
+   modes out of sight) also survive — they set transition-property: none,
+   which no duration override can resurrect — so every "force a starting
+   position before animating" trick still behaves.
 
    0.01ms, NOT 0s, and this is load-bearing rather than copied from a
    boilerplate: a transition whose combined duration is 0s is never STARTED,
-   so it fires no transitionend at all — and three pieces of real logic hang
-   off transitionend here:
+   so it fires no transitionend at all — and real logic hangs off
+   transitionend here:
 
      js/selection-bar.js  width      -> removes a collapsed icon from the strip
-     js/order-rows.js     max-height -> li.remove()
-     js/selection-page.js opacity    -> swaps the order list to the empty state
+     js/selection-bar.js  opacity    -> reveals the summary slot's next label
+     js/order-rows.js     max-height -> li.remove(), and ends a row's expand
+     js/order-rows.js     opacity    -> swaps a crossfading part of a row
+     js/selection-page.js opacity    -> swaps the order list and empty state
 
-   All three have setTimeout fallbacks, but those are the SLOW path (350 /
-   400ms). At 0.01ms the transition still runs, completes sub-frame, and
+   All of them have setTimeout fallbacks, but those are the SLOW path (170
+   to 400ms). At 0.01ms the transition still runs, completes sub-frame, and
    still fires — so a reduced-motion visitor gets the fast path, not a
    third of a second of apparent lag on every Unselect. Keep the fallbacks
    regardless: they also cover a transitionend lost to a backgrounded tab.

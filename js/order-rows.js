@@ -241,7 +241,16 @@
     function collapse(binding) {
       collapsing.push(binding);
       binding.li.classList.add("is-removing");
-      transitionDone(binding.inner, "max-height", ROW_MOTION_MS).then(function () {
+      // Waits for both: .order-item__inner's max-height (the layout
+      // collapse) and .order-item::before's own opacity — the invert band,
+      // which now outlives it (css/style.css's .order-item.is-removing
+      // ::before delays the band so it's the last thing left visible).
+      // transitionend on a pseudo-element reports its host as e.target, so
+      // listening on binding.li for "opacity" catches ::before's own finish.
+      Promise.all([
+        transitionDone(binding.inner, "max-height", ROW_MOTION_MS),
+        transitionDone(binding.li, "opacity", ROW_MOTION_MS)
+      ]).then(function () {
         forget(collapsing, binding);
         binding.li.remove();
         resize();

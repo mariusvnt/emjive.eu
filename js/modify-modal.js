@@ -174,6 +174,14 @@
      back into the right edge it's pinned to, crossfading into "Undo" as it
      goes; once that offer is over, "Undo" simply fades out in turn
      (leaveStrip) — nothing left to slide, the band having already gone.
+     The strip's own outer show/hide (options.bar showing/hiding it) fades
+     its dark surface (css/style.css's .modify-strip::before, grouped with
+     the band) and its three buttons on two separately-delayed timings —
+     surface first in, buttons first out — rather than one shared opacity,
+     per the sitewide rule that a bar with text on it appears first and
+     disappears last. No JS change needed for that split: is-hidden is
+     still just added/removed here on the strip's own class list, same as
+     always.
      Appended into the page's bar as soon as that bar exists (attach) — not
      on the first open, so opening never has to add it — then shown and
      hidden by that bar (options.bar), since only the bar knows how it hands
@@ -316,22 +324,32 @@
   // to wait to move: until then the rest of the bar (the drawer toggle,
   // say) is inert under the strip.
   var LEAVE_MS = 400;
+  // .is-saved's own real transition is longer than LEAVE_MS: the band's
+  // width (var(--fade-standard)) doubles as the opacity leg's own delay,
+  // plus the opacity leg itself (var(--fade-quick)) — 0.5s total (see
+  // .modify-strip.is-saved .modify-strip__band in css/style.css).
+  // LEAVE_MS's 400ms used to be less than that, so afterTransition()'s
+  // fallback timer won the race before the band had actually finished
+  // fading — handBack() fired early, visibly truncating it. Sized with
+  // the same buffer convention as LEAVE_MS.
+  var SAVE_LEAVE_MS = 600;
 
   function leaveStrip(bar, onDone) {
-    exitStrip(bar, "leaving", undoBtn, "opacity", onDone);
+    exitStrip(bar, "leaving", undoBtn, "opacity", LEAVE_MS, onDone);
   }
 
   // Saved: nothing more to show, so the band that grew to fill the bar
   // (css/style.css's .is-saved rule) fades out before the bar takes its own
   // content back.
   function leaveAfterSave(bar) {
-    exitStrip(bar, "saved", saveBand, "opacity");
+    exitStrip(bar, "saved", saveBand, "opacity", SAVE_LEAVE_MS);
   }
 
   // mode's own exit animation plays (css/style.css), and the bar gets its
   // content back once `property` finishes transitioning on `node` —
-  // whichever is the last thing left moving.
-  function exitStrip(bar, mode, node, property, onDone) {
+  // whichever is the last thing left moving. `ms` is that transition's own
+  // fallback timeout, sized per caller since it isn't the same for both.
+  function exitStrip(bar, mode, node, property, ms, onDone) {
     function handBack() {
       if (bar) bar.hide(strip);
       if (onDone) onDone();
@@ -341,7 +359,7 @@
       return;
     }
     setStripMode(mode);
-    state.cancelLeave = afterTransition(node, property, LEAVE_MS, function () {
+    state.cancelLeave = afterTransition(node, property, ms, function () {
       state.cancelLeave = null;
       handBack();
     });

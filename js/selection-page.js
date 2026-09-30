@@ -176,6 +176,11 @@
 
   /* ---- list <-> empty state ------------------------------------------------ */
 
+  // Mirrors --fade-standard in css/style.css — written directly into an
+  // inline transition string below rather than read from the CSS custom
+  // property, matching this file's own existing convention for JS-side
+  // fallback timers (js/order-rows.js's ROW_MOTION_MS/SWAP_OUT_MS,
+  // js/modify-modal.js's LEAVE_MS).
   var CROSSFADE_MS = 300;
   var fadeToken = 0;
 

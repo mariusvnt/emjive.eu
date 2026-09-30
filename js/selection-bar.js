@@ -342,7 +342,14 @@
   var summaryHideListenerEl = null;
 
   function onSummaryHideEnd(e) {
-    if (e.propertyName !== "opacity") return;
+    // Target check matters now that the strip (one of the things this can
+    // watch) fades on more than one element — its surface and its three
+    // buttons, separately delayed (css/style.css's .modify-strip::before).
+    // Without it, a button's own faster opacity transition bubbling up
+    // through this listener would reveal the next label before the
+    // strip's surface has actually finished. Same pattern as
+    // js/selection-page.js's crossfade(), which already filters this way.
+    if (e.propertyName !== "opacity" || e.target !== summaryHideListenerEl) return;
     revealCurrentSummaryMode();
   }
 
@@ -359,6 +366,14 @@
     el.classList.remove("is-hidden");
     el.setAttribute("aria-hidden", "false");
     el.inert = false;
+    // Icons only ever share the bar with Order/the empty label — never
+    // with Add or the strip — and reveal at the exact same instant those
+    // do, here, rather than the moment is-add-active/is-strip-active
+    // clears (updateSummaryState()'s own hide, above): everything fades
+    // in together instead of icons arriving a beat early.
+    if (visibleSummaryMode === "order" || visibleSummaryMode === "empty") {
+      iconsEl.classList.remove("is-hidden");
+    }
   }
 
   function updateSummaryState() {
@@ -374,6 +389,10 @@
     // reachable while it's up.
     bar.classList.toggle("is-add-active", mode === "add");
     bar.classList.toggle("is-strip-active", mode === "strip");
+    // Hidden at once, same as always — only its REVEAL moves, to
+    // revealCurrentSummaryMode() below, so it fades back in alongside
+    // Order/the empty label instead of a beat ahead of them.
+    if (mode === "add" || mode === "strip") iconsEl.classList.add("is-hidden");
     summary.inert = mode === "strip";
     if (mode === "add") setDrawerOpen(false);
     if (mode === visibleSummaryMode) return;

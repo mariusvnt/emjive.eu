@@ -165,13 +165,15 @@
      .modify-strip): one dark, full-bleed layer over the bar holding three
      buttons, in reading (and Tab) order — Unselect (the left quarter), Save
      (the rest) and Undo (the whole strip, once Unselect has been tapped) —
-     plus two invert bands (.modify-strip__band), the same backdrop-filter
-     band the drawer rows carry, mirroring each other: one from the screen's
-     left edge to just past "Unselect", one from its right edge to just past
-     "Save". Unselect stretches its band across the whole bar (Save's
-     drawing back into its edge) under the "Undo" it offers, then slides it
-     back out to the left once that's over; Save sends both straight out
-     through their own edges.
+     each a plain --white label on the strip's own --black-bg, plus one
+     invert band (.modify-strip__band), the same backdrop-filter band the
+     drawer rows carry, sized to Save's own right three quarters at rest so
+     Save's label alone reads dark on a light band. Tapping Save grows the
+     band to the full bar width, then fades it out, before the bar takes its
+     own content back (leaveAfterSave). Tapping Unselect shrinks the band
+     back into the right edge it's pinned to, crossfading into "Undo" as it
+     goes; once that offer is over, "Undo" simply fades out in turn
+     (leaveStrip) — nothing left to slide, the band having already gone.
      Appended into the page's bar as soon as that bar exists (attach) — not
      on the first open, so opening never has to add it — then shown and
      hidden by that bar (options.bar), since only the bar knows how it hands
@@ -184,8 +186,8 @@
     return btn;
   }
 
-  function stripBand(side) {
-    var node = el("span", "modify-strip__band modify-strip__band--" + side);
+  function stripBand() {
+    var node = el("span", "modify-strip__band");
     node.setAttribute("aria-hidden", "true");
     return node;
   }
@@ -196,16 +198,12 @@
   var unselectBtn = stripButton("modify-strip__unselect", "Unselect");
   var saveBtn = stripButton("modify-strip__save", "Save");
   var undoBtn = stripButton("modify-strip__undo", "Undo");
-  // After the buttons, so they paint over the labels they invert.
-  var unselectBand = stripBand("unselect");
-  var saveBand = stripBand("save");
+  // After the buttons, so it paints over the label it inverts.
+  var saveBand = stripBand();
   strip.appendChild(unselectBtn);
   strip.appendChild(saveBtn);
   strip.appendChild(undoBtn);
-  strip.appendChild(unselectBand);
   strip.appendChild(saveBand);
-  var unselectLabel = unselectBtn.firstChild;
-  var saveLabel = saveBtn.firstChild;
 
   var carousel = window.EmjiveCarousel(carouselEl);
 
@@ -275,24 +273,6 @@
     return cancel;
   }
 
-  // Each band runs from its own edge of the strip to this far past its
-  // label — "Unselect" on the left, "Save" on the right (css/style.css reads
-  // them as --unselect-band and --save-band). Measured, since the labels'
-  // widths are the font's to decide; re-measured every time the strip goes
-  // back to Unselect | Save, which also covers a font that finished loading
-  // since, and on resize.
-  var BAND_OVERHANG_PX = 6;
-
-  function measureBands() {
-    if (!strip.parentNode) return;
-    var box = strip.getBoundingClientRect();
-    var unselectEnd = unselectLabel.getBoundingClientRect().right - box.left;
-    var saveStart = box.right - saveLabel.getBoundingClientRect().left;
-    strip.style.setProperty("--unselect-band", Math.round(unselectEnd + BAND_OVERHANG_PX) + "px");
-    strip.style.setProperty("--save-band", Math.round(saveStart + BAND_OVERHANG_PX) + "px");
-  }
-  window.addEventListener("resize", measureBands);
-
   // "modify" (Unselect | Save, each band at rest), "undo" (Unselect's band
   // across the whole bar, under "Undo", Save's drawn back into its edge),
   // "leaving" (that stretched band sliding back out to the left once the
@@ -313,7 +293,6 @@
     unselectBtn.inert = mode !== "modify";
     saveBtn.inert = mode !== "modify";
     undoBtn.inert = mode !== "undo";
-    if (mode === "modify") measureBands();
     if (instant) {
       void strip.offsetWidth;
       strip.classList.remove("is-instant");
@@ -328,29 +307,31 @@
     void strip.offsetWidth;
   }
 
-  // The "Undo" offer is over, taken or run out: Unselect's band, across the
-  // bar, slides back out to the left, the way it came, and only once it's
-  // gone does the bar take its own content back. At once if the strip isn't
-  // even showing (on product.html a size typed during the offer takes the
-  // bar over as "Add"). onDone runs once the bar has its content back —
-  // where focus has to wait to move: until then the rest of the bar (the
-  // drawer toggle, say) is inert under the strip.
+  // The "Undo" offer is over, taken or run out: its label fades out (the
+  // band having already regressed into the right edge it's pinned to, back
+  // when Unselect was tapped) and only once it's gone does the bar take its
+  // own content back. At once if the strip isn't even showing (on
+  // product.html a size typed during the offer takes the bar over as
+  // "Add"). onDone runs once the bar has its content back — where focus has
+  // to wait to move: until then the rest of the bar (the drawer toggle,
+  // say) is inert under the strip.
   var LEAVE_MS = 400;
 
   function leaveStrip(bar, onDone) {
-    exitStrip(bar, "leaving", unselectBand, onDone);
+    exitStrip(bar, "leaving", undoBtn, "opacity", onDone);
   }
 
-  // Saved: nothing more to show, so both bands slide straight out through
-  // their own edges — Unselect's to the left, Save's to the right — before
-  // the bar takes its own content back.
+  // Saved: nothing more to show, so the band that grew to fill the bar
+  // (css/style.css's .is-saved rule) fades out before the bar takes its own
+  // content back.
   function leaveAfterSave(bar) {
-    exitStrip(bar, "saved", saveBand);
+    exitStrip(bar, "saved", saveBand, "opacity");
   }
 
-  // mode's bands slide out (css/style.css), and the bar gets its content
-  // back once `band` — the one with the furthest to go — is gone.
-  function exitStrip(bar, mode, band, onDone) {
+  // mode's own exit animation plays (css/style.css), and the bar gets its
+  // content back once `property` finishes transitioning on `node` —
+  // whichever is the last thing left moving.
+  function exitStrip(bar, mode, node, property, onDone) {
     function handBack() {
       if (bar) bar.hide(strip);
       if (onDone) onDone();
@@ -360,7 +341,7 @@
       return;
     }
     setStripMode(mode);
-    state.cancelLeave = afterTransition(band, "transform", LEAVE_MS, function () {
+    state.cancelLeave = afterTransition(node, property, LEAVE_MS, function () {
       state.cancelLeave = null;
       handBack();
     });
@@ -554,8 +535,8 @@
       price: details.price || 0,
       image: iconSrc(state.selectedMetal)
     });
-    // The strip stays up while both bands slide out; the bar gets its own
-    // content back after that (leaveAfterSave).
+    // The strip stays up while the band grows to fill it and fades; the bar
+    // gets its own content back after that (leaveAfterSave).
     var bar = state.options.bar;
     close({ keepStrip: true });
     leaveAfterSave(bar);
@@ -688,7 +669,8 @@
     guideToggle.setAttribute("aria-expanded", "false");
     buildSlides();
     // Normally already in place (attach); mounted before the mode is set
-    // either way, so the bands can be measured.
+    // either way, so it's laid out (see mountStrip) before anything on it
+    // starts to move.
     mountStrip(options.bar);
     setStripMode("modify", cutLeaveShort);
     syncSave();

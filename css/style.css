@@ -2135,11 +2135,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   margin: 0 auto;
   padding: 2rem var(--edge-px) 0;
 }
-/* The Modify sheet's pickers start 1.5rem under its carousel — the same
-   1.5rem as every other gap in this sheet (metal picker to size field,
-   size field to the guide, guide to the bar). */
+/* The Modify sheet's pickers start 3rem under its carousel — double every
+   other gap in this sheet (metal picker to size field, size field to the
+   guide), so the carousel reads as its own section instead of crowding the
+   picker right under it. */
 .size-modal--modify .size-modal__content {
-  padding-top: 1.5rem;
+  padding-top: 3rem;
 }
 /* The Modify sheet's metal picker, above the size field: same gap as the
    size row's own margin-bottom below it. Scoped to this container
@@ -2772,24 +2773,23 @@ body.has-series-hero .selection-bar {
    summary-slot handoff, or .order-checkout-bar.is-strip-active). A
    dark, full-bleed layer over the bar's bottom row holding three buttons,
    in reading (and Tab) order, on the bar's --black-bg:
-     Unselect  the left quarter, its --white label centered in it
+     Unselect  the left quarter, its --white label plain against the bar
      Save      the right three quarters, its --white label centered on the
                whole bar, inactive (dimmed) while the size field holds
                nothing orderable
-     Undo      the whole strip, once Unselect has been tapped — a --black
-               label over the band (see its own rule)
-   plus two invert bands (.modify-strip__band) — the drawer rows' band
-   (.order-item::before), laid over the strip instead — mirroring each
-   other: one from the screen's left edge to just past "Unselect", one from
-   its right edge to just past "Save" (js/modify-modal.js measures where),
-   so each label reads dark on a light band. After an Unselect (.is-undo)
-   its band stretches across the whole bar, over "Undo" (Save's drawing
-   back into its edge), and slides back out to the left once that offer is
-   over (.is-leaving); after a Save (.is-saved) both slide straight out
-   through their own edges. Only then does the bar take its own content
-   back. Opaque
-   as a whole, so the glass checkout bar reads exactly like the dark
-   floating one underneath it.
+     Undo      the whole strip, once Unselect has been tapped — its own
+               --white label, same treatment as Unselect's
+   plus one invert band (.modify-strip__band) — the drawer rows' band
+   (.order-item::before), laid over the strip instead — sized to Save's own
+   right three quarters at rest, so only Save's label reads dark on a light
+   band; Unselect and Undo never sit under it. Tapping Save grows the band
+   to the strip's full width, then fades it out, before the bar takes its
+   own content back (.is-saved). Tapping Unselect shrinks the band back
+   into the right edge it's pinned to, crossfading into "Undo" as it goes
+   (.is-undo); once that offer is over (.is-leaving), "Undo"'s label simply
+   fades out in turn — nothing left to animate, the band having already
+   gone. Opaque as a whole, so the glass checkout bar reads exactly like
+   the dark floating one underneath it.
    ========================================================================== */
 .modify-strip {
   position: absolute;
@@ -2848,67 +2848,59 @@ body.has-series-hero .selection-bar {
 }
 .modify-strip__save:disabled { cursor: default; }
 .modify-strip__save:disabled .modify-strip__label { opacity: 0.35; }
+/* No band ever sits under this one (unlike Save) — its --white label just
+   shows plain against the strip's own --black-bg. */
 .modify-strip__unselect {
   left: 0;
   width: 25%;
   color: var(--white);
 }
-/* Unlike Unselect, "Undo" doesn't rely on the band to turn it dark: it's
-   painted above the band (z-index) in the dark the band would have turned
-   it into. It fades in and out, and a label with a running opacity
-   animation gets its own compositing layer, which WebKit's backdrop-filter
-   doesn't reliably see — so there it stayed white on the light band. It
-   only ever shows while the band is behind it (see the delays below). */
+/* Same plain --white-on-black-bg treatment as Unselect — except while it's
+   crossfading in, the band (painted after it in the markup) is still
+   mid-regression and would otherwise sit on top, its invert(1) flipping the
+   label wherever the two still overlap. z-index keeps it above the band
+   throughout, so that invert only ever touches the bar behind it. */
 .modify-strip__undo {
   left: 0;
   right: 0;
   z-index: 1;
-  color: var(--black);
+  color: var(--white);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
 }
 /* Same recipe as .order-item::before: a 1.2rem backdrop-filter: invert(1)
    strip, vertically centered — so the dark bar under it reads light and
-   the white label under it reads dark. Two of them, mirroring each other:
-   Unselect's from the left edge, Save's from the right, each reaching just
-   past its own label (js/modify-modal.js measures where). Painted last in
-   the strip, over the labels; never in the way of a tap. */
+   the white label under it reads dark. Sized to Save's own button exactly
+   (same right/width as .modify-strip__save above) — the strip's only band,
+   since Unselect and Undo have none of their own. Painted last in the
+   strip, over the labels; never in the way of a tap. */
 .modify-strip__band {
   position: absolute;
   top: 50%;
+  right: 0;
+  width: 75%;
   height: 1.2rem;
   transform: translate(0, -50%);
+  opacity: 1;
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
-  transition: width 0.3s ease, transform 0.3s ease;
+  transition: width 0.3s ease;
 }
-.modify-strip__band--unselect {
-  left: 0;
-  width: var(--unselect-band, 25%);
-}
-.modify-strip__band--save {
-  right: 0;
-  width: var(--save-band, 25%);
-}
-/* After an Unselect, its band stretches across the whole bar while Save's
-   draws back into its own edge. Two inverts on the same spot would cancel
-   out, but the two can't meet: the one stretching reaches the other's edge
-   only as that one finishes drawing back into it. */
-.modify-strip.is-undo .modify-strip__band--unselect {
-  width: 100%;
-}
-.modify-strip.is-undo .modify-strip__band--save {
+/* Tapping Unselect: the band regresses into the right edge it's pinned to
+   before "Undo" crossfades in over the plain dark bar left behind (see its
+   own transition-delay, timed to land partway through this). */
+.modify-strip.is-undo .modify-strip__band {
   width: 0;
 }
-/* After a Save, both simply slide straight out through their own edges —
-   Unselect's to the left, Save's to the right. */
-.modify-strip.is-saved .modify-strip__band--unselect {
-  transform: translate(-100%, -50%);
-}
-.modify-strip.is-saved .modify-strip__band--save {
-  transform: translate(100%, -50%);
+/* Tapping Save: the band grows to cover the whole strip first, then fades
+   out — the width transition's own duration doubles as the opacity one's
+   delay, so the fade never starts until the growth has finished. */
+.modify-strip.is-saved .modify-strip__band {
+  width: 100%;
+  opacity: 0;
+  transition: width 0.3s ease, opacity 0.2s ease 0.3s;
 }
 .modify-strip.is-undo .modify-strip__unselect,
 .modify-strip.is-undo .modify-strip__save,
@@ -2922,20 +2914,16 @@ body.has-series-hero .selection-bar {
 .modify-strip.is-saved .modify-strip__save .modify-strip__label {
   opacity: 0;
 }
-/* Undo's label arrives once the band has mostly crossed the bar — already
-   over it, so the dark label never shows on the dark bar. */
+/* Its label crossfades in partway through the band's regression into the
+   right edge, rather than waiting for it to fully clear. */
 .modify-strip.is-undo .modify-strip__undo {
   opacity: 1;
   pointer-events: auto;
   transition-delay: 0.15s;
 }
-/* The "Undo" offer is over: the band across the bar slides back out to
-   the left, the way it came, taking "Undo" with it — the label fades out
-   at once rather than being left behind, dark on the dark bar, as the band
-   passes. Tie-broken with the .is-undo rule above by coming after it. */
-.modify-strip.is-leaving.is-undo .modify-strip__band--unselect {
-  transform: translate(-100%, -50%);
-}
+/* The "Undo" offer is over: its label fades out on its own — the band's
+   already gone (width: 0 since Unselect was tapped), nothing left under it
+   to animate. Tie-broken with the .is-undo rule above by coming after it. */
 .modify-strip.is-leaving .modify-strip__undo {
   opacity: 0;
   pointer-events: none;

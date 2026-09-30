@@ -7,10 +7,10 @@
    window.EmjiveSelection, plus an "Order ›" link straight to
    launch-order.html. Clicking the bar itself (not the Order link) opens a
    drawer listing the selected items — the very same rows as the order page
-   (js/order-rows.js). Tapping one opens the Modify sheet
-   (js/modify-modal.js) right above the drawer, which shrinks to a third of
-   the screen to make room while the bar itself turns into the sheet's
-   Unselect | Save — and, after an Unselect, into "Undo" for a few seconds.
+   (js/order-rows.js). Tapping one shrinks the drawer down to just that row
+   and opens the Modify sheet (js/modify-modal.js) right on top of it, while
+   the bar itself turns into the sheet's Unselect | Save — and, after an
+   Unselect, into "Undo" for a few seconds.
 
    Always visible here in the DOM/JS sense — the one exception (sliding
    in as a direct continuation of the homepage hero's own scroll-driven
@@ -130,24 +130,27 @@
      rather than the grid-template-rows 0fr/1fr trick .site-header__menu
      uses: that only animates between two fixed states, and this drawer
      moves between several — closed, open, open with a row coming or going,
-     and shrunk to make room for the Modify sheet. Setting the inner box's
-     cap alongside is what keeps the list scrollable at whatever height the
-     drawer is at, the shrunk one included; closed, the inner box keeps the
-     list's own height, so nothing reflows while the drawer slides shut. */
+     and shrunk down to the one row the Modify sheet was opened from.
+     Setting the inner box's cap alongside is what keeps the list scrolled
+     right at whatever height the drawer is at; closed, the inner box keeps
+     the list's own height, so nothing reflows while the drawer slides shut.
+     The list's height is the one it's heading to (rows.settledHeight()), so
+     a row collapsing or coming back doesn't send the drawer somewhere else
+     first. */
 
   // As it always was: two thirds of the screen, past which the rows scroll.
   var LIST_CAP = 0.66;
-  // While the Modify sheet is up: the whole bar (drawer + summary row) is
-  // held to a third of the screen, and the sheet rests right on top of it.
-  var drawerReduced = false;
+  // While the Modify sheet is up, the drawer shows nothing but the row it
+  // was opened from: this is that row's height (null the rest of the time),
+  // and the sheet rests right on top of it.
+  var reducedHeight = null;
 
+  // Returns the height the drawer is now heading to.
   function syncDrawerHeight() {
     var isOpen = drawer.classList.contains("is-open");
     var summaryHeight = summary.getBoundingClientRect().height;
-    var listHeight = Math.min(rowsEl.offsetHeight, window.innerHeight * LIST_CAP);
-    var target = listHeight;
-    if (!isOpen) target = 0;
-    else if (drawerReduced) target = Math.min(listHeight, Math.max(0, window.innerHeight / 3 - summaryHeight));
+    var listHeight = Math.min(rows.settledHeight(), window.innerHeight * LIST_CAP);
+    var target = !isOpen ? 0 : reducedHeight !== null ? reducedHeight : listHeight;
     drawer.style.maxHeight = target + "px";
     drawerInner.style.maxHeight = (isOpen ? target : listHeight) + "px";
     // Published so a sheet (js/product.js's #sizeModal, js/modify-modal.js's
@@ -156,30 +159,67 @@
     // the height the drawer is heading to, and the sheet's own 0.3s
     // padding-bottom transition then moves it in step with the drawer.
     document.documentElement.style.setProperty("--selection-bar-live-height", summaryHeight + target + "px");
+    return target;
   }
 
-  // While the drawer shrinks under the opening Modify sheet, the row being
-  // modified stays in view: whenever the shrinking list would cut it off at
-  // the bottom, the list scrolls just enough to keep it — a row near the
-  // top needs nothing, and one near the bottom stays put while the rows
-  // above it scroll away. Frame by frame, for the length of the shrink.
-  function keepRowInView(rowEl) {
-    var startTop = drawerInner.scrollTop;
-    var rowBottom = rowEl.getBoundingClientRect().bottom - drawerInner.getBoundingClientRect().top + startTop;
-    var until = performance.now() + 400;
+  // Scrolls the list to `to` in step with the drawer's height transition,
+  // which syncDrawerHeight() has just set off: each frame the scroll covers
+  // the same share of its distance as the drawer has of its own. On the way
+  // in, the tapped row glides straight into place right above the bar while
+  // the rows around it scroll or clip away — and on the way out, the list
+  // opens back up around it. Set from here only: while reduced the list is
+  // overflow: hidden, which stops the visitor's scrolling, not this.
+  var scrollRun = 0;
+
+  function animateDrawerScroll(to, fromHeight, toHeight) {
+    var run = ++scrollRun;
+    var from = drawerInner.scrollTop;
+    var span = toHeight - fromHeight;
+    // Past the 0.3s transition, in case it never runs (a background tab).
+    var until = performance.now() + 450;
     function step() {
-      var want = Math.max(startTop, rowBottom - drawerInner.clientHeight);
-      if (drawerInner.scrollTop < want) drawerInner.scrollTop = want;
-      if (drawerReduced && performance.now() < until) requestAnimationFrame(step);
+      if (run !== scrollRun) return;
+      var height = drawer.getBoundingClientRect().height;
+      var p = span ? Math.max(0, Math.min(1, (height - fromHeight) / span)) : 1;
+      if (p >= 1 || performance.now() > until) {
+        drawerInner.scrollTop = to;
+        return;
+      }
+      drawerInner.scrollTop = from + (to - from) * p;
+      requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
   }
 
+  // Where the list was scrolled before it was reduced, to go back to.
+  var restoreScroll = 0;
+
   function setDrawerReduced(on, rowEl) {
-    if (drawerReduced === on) return;
-    drawerReduced = on;
-    syncDrawerHeight();
-    if (on && rowEl) keepRowInView(rowEl);
+    if ((reducedHeight !== null) === on) return;
+    if (on && (!rowEl || !drawer.classList.contains("is-open"))) return;
+    var fromHeight = drawer.getBoundingClientRect().height;
+    var to;
+    if (on) {
+      restoreScroll = drawerInner.scrollTop;
+      reducedHeight = rowEl.offsetHeight;
+      to = rowEl.getBoundingClientRect().top - rowsEl.getBoundingClientRect().top;
+      // No scrolling by hand while the sheet is up (the CSS makes the list
+      // overflow: hidden). That also takes away a scrollbar that takes up
+      // room (Windows), so its width goes back on as padding: the rows keep
+      // their exact width.
+      var scrollbar = drawerInner.offsetWidth - drawerInner.clientWidth;
+      bar.classList.add("is-drawer-reduced");
+      drawerInner.style.paddingRight = scrollbar > 0 ? scrollbar + "px" : "";
+    } else {
+      reducedHeight = null;
+      bar.classList.remove("is-drawer-reduced");
+      drawerInner.style.paddingRight = "";
+    }
+    var toHeight = syncDrawerHeight();
+    // Back where it was — as far as the list, a row shorter after an
+    // Unselect, still lets it be.
+    if (!on) to = Math.min(restoreScroll, Math.max(0, rows.settledHeight() - toHeight));
+    animateDrawerScroll(to, fromHeight, toHeight);
   }
 
   // Registered with window.EmjiveMenus (js/series.js) so a click away from
@@ -274,6 +314,9 @@
       updateSummaryState();
     }
   };
+  // The strip goes into the bar now, hidden, rather than in the middle of
+  // the first Modify.
+  if (window.EmjiveModifyModal) window.EmjiveModifyModal.attach(stripHost);
 
   function summaryElFor(mode) {
     if (mode === "add") return addActionBtn;
@@ -386,23 +429,19 @@
     }
   };
 
-  // A drawer row's tap: the Modify sheet (js/modify-modal.js) slides up
-  // from behind the bar, which turns into its strip, while the drawer stays
-  // open but shrinks to make room — and grows back once the sheet is gone.
-  // Focus comes back to the row (still there: rows are updated in place),
-  // or, if the drawer closed meanwhile (its last item unselected), to the
-  // toggle. modifyIndex is read late, since a tap on another row while the
-  // sheet is up switches the sheet to that one.
-  var modifyIndex = null;
-
+  // A drawer row's tap: the drawer stays open but shrinks down to just that
+  // row, and the Modify sheet (js/modify-modal.js) slides up from behind the
+  // bar to rest right on top of it, the bar turning into its strip. The
+  // drawer grows back — height and scroll — once the sheet is gone. Focus
+  // comes back to the row (still there: rows are updated in place), or, if
+  // the drawer closed meanwhile (its last item unselected), to the toggle.
   function openModify(binding) {
-    modifyIndex = binding.index;
     window.EmjiveModifyModal.open(binding.item, binding.index, {
       bar: stripHost,
       onOpen: function () { setDrawerReduced(true, binding.li); },
       onClose: function () { setDrawerReduced(false); },
       returnFocus: function () {
-        return drawer.classList.contains("is-open") ? rows.buttonAt(modifyIndex) : null;
+        return drawer.classList.contains("is-open") ? rows.buttonAt(binding.index) : null;
       },
       fallbackFocus: toggleBtn
     });

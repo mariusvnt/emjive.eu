@@ -6,7 +6,9 @@
    shipping-option pick, a terms-acceptance toggle, and a fixed "Proceed to
    checkout" bar gated on both of those. While the Modify sheet
    (js/modify-modal.js) is open that bar turns into its Unselect | Save
-   strip — and, after an Unselect, into "Undo" for a few seconds. Falls
+   strip — and, after an Unselect, into "Undo" for a few seconds — with a
+   drawer opened over it showing the row that was tapped, the sheet resting
+   right on top of it. Falls
    back to the static .selection-empty block when there's nothing selected.
    ========================================================================== */
 
@@ -87,6 +89,67 @@
       updateCheckoutSummary();
     }
   };
+  // The strip goes into the bar now, hidden, rather than in the middle of
+  // the first Modify.
+  window.EmjiveModifyModal.attach(stripHost);
+
+  /* ---- the drawer over the checkout bar ---------------------------------------
+     The floating bar on every other page opens the Modify sheet from its
+     drawer, which then shrinks down to the one row tapped, with the sheet
+     resting right on it. This page's list is the page itself, so its bar
+     has no drawer to shrink — instead one opens, between the bar and the
+     sheet, holding a copy of the row that was tapped: the same row
+     component, the same drawer look, the same result. Built here, once;
+     opened as the sheet slides up and closed as it slides away, both on the
+     drawer's own 0.3s max-height transition — in step with the sheet, which
+     rests on top of it through --selection-bar-live-height (the property
+     the floating bar publishes for the same purpose). A copy for the eye
+     only: inert, and hidden from assistive tech, which already has the
+     real row. */
+  var rowDrawer = document.createElement("div");
+  rowDrawer.className = "order-checkout-drawer";
+  rowDrawer.setAttribute("aria-hidden", "true");
+  rowDrawer.inert = true;
+  var rowDrawerList = document.createElement("ul");
+  rowDrawerList.className = "order-checkout-drawer__rows";
+  rowDrawer.appendChild(rowDrawerList);
+  checkoutBar.parentNode.insertBefore(rowDrawer, checkoutBar);
+
+  var drawerRows = window.EmjiveOrderRows.create({
+    listEl: rowDrawerList,
+    rowClass: "order-item--drawer",
+    showPrice: false,
+    onModify: function () {}
+  });
+  // The index of the item the drawer is showing, while it's open.
+  var drawerIndex = null;
+
+  function setLiveHeight(drawerHeight) {
+    var root = document.documentElement;
+    if (drawerHeight === null) {
+      root.style.removeProperty("--selection-bar-live-height");
+      return;
+    }
+    root.style.setProperty("--selection-bar-live-height", checkoutRow.getBoundingClientRect().height + drawerHeight + "px");
+  }
+
+  function openRowDrawer(index) {
+    var item = window.EmjiveSelection.getSelection()[index];
+    if (!item) return;
+    drawerIndex = index;
+    drawerRows.render([item], { animate: false });
+    // Laid out even while the drawer is shut (max-height, not display), so
+    // it measures at its real size.
+    var height = rowDrawerList.offsetHeight;
+    rowDrawer.style.maxHeight = height + "px";
+    setLiveHeight(height);
+  }
+
+  function closeRowDrawer() {
+    drawerIndex = null;
+    rowDrawer.style.maxHeight = "0px";
+    setLiveHeight(null);
+  }
 
   // Keeps the checkout total/visibility in sync with storage — cheap
   // enough to just recompute from scratch rather than tracking a running
@@ -191,13 +254,16 @@
   // two is showing (or on its way in).
   var listState = null;
 
-  // Where focus goes back to — the row, which is updated in place on a
-  // Save and put back in place by an Undo — looked up when it's needed,
-  // since rows come and go. Nothing while the empty state is showing; the
-  // fallback then is the empty state's "Back to gallery" link.
+  // The drawer over the bar opens with the sheet and closes with it (see
+  // above). Focus goes back to the row — updated in place on a Save and put
+  // back in place by an Undo — looked up when it's needed, since rows come
+  // and go. Nothing while the empty state is showing; the fallback then is
+  // the empty state's "Back to gallery" link.
   function openModify(binding) {
     window.EmjiveModifyModal.open(binding.item, binding.index, {
       bar: stripHost,
+      onOpen: function () { openRowDrawer(binding.index); },
+      onClose: closeRowDrawer,
       returnFocus: function () {
         return listState === "list" ? rows.buttonAt(binding.index) : null;
       },
@@ -279,9 +345,17 @@
      the call that made them. The rows animate just the one row a change
      touched (js/order-rows.js); the list and the empty state crossfade when
      the last item leaves, and back when an Undo returns it — the rows kept
-     as they were meanwhile, so the returning one is simply still there. */
-  function render() {
+     as they were meanwhile, so the returning one is simply still there.
+     A Save also crossfades the copy in the drawer over the bar, the way the
+     floating bar's drawer row does; an Unselect leaves that copy alone — the
+     drawer is closing with the sheet anyway, and takes it along. */
+  function render(e) {
     var items = window.EmjiveSelection.getSelection();
+
+    var change = e && e.detail;
+    if (drawerIndex !== null && change && change.action === "update" && items[drawerIndex]) {
+      drawerRows.render([items[drawerIndex]], { animate: true });
+    }
 
     if (items.length) {
       if (listState === "empty") {

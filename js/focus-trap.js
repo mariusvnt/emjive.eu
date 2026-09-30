@@ -30,6 +30,10 @@
    passes the strip as `include` — its buttons join the Tab cycle after the
    sheet's own controls, and focus landing on them isn't pulled back.
 
+   A modal also freezes the page behind it, so that's done here too, on
+   activate() and release(): every dialog on the site goes through both —
+   see lockPage() below.
+
    A closed modal needs no handling here: .size-modal is visibility: hidden
    when closed (css/style.css), visibility inherits, and an element whose
    computed visibility isn't `visible` is excluded from sequential focus
@@ -87,6 +91,35 @@
     // be quiet about, and a class left behind would silence a later,
     // genuinely keyboard-driven focus.
     if (document.activeElement !== el) el.classList.remove("is-focus-quiet");
+  }
+
+  /* ---- the page behind a modal stays put ------------------------------------
+     On <html>, not <body>: html carries overflow-x: hidden (css/style.css),
+     and once html's overflow isn't `visible`, body's own overflow stops
+     applying to the viewport — a body-level overflow: hidden then only
+     clips body's own box, and the page behind the sheet went on scrolling
+     exactly as before. html.is-modal-open (css/style.css) stops the viewport
+     itself. Its scroll position doesn't move, so nothing driven by it (the
+     homepage bar's scroll-linked reveal) does either.
+     Where scrollbars take up room (Windows, mostly), hiding the page's would
+     widen everything behind the backdrop by its width for as long as the
+     sheet is up. So its width is published as --page-scrollbar, which
+     css/style.css gives back as padding — on <html> for the page, and on the
+     fixed bars and header, which size themselves to the viewport rather
+     than to the page. (scrollbar-gutter: stable would be the tidy way, but
+     Chrome doesn't keep the root's gutter once its overflow is hidden.)
+     Zero wherever scrollbars float over the page instead (phones, macOS). */
+  function lockPage() {
+    var root = document.documentElement;
+    var scrollbar = Math.max(0, global.innerWidth - root.clientWidth);
+    root.style.setProperty("--page-scrollbar", scrollbar + "px");
+    root.classList.add("is-modal-open");
+  }
+
+  function unlockPage() {
+    var root = document.documentElement;
+    root.classList.remove("is-modal-open");
+    root.style.removeProperty("--page-scrollbar");
   }
 
   // Recomputed on every Tab rather than cached at activate() time, because
@@ -203,16 +236,16 @@
 
       document.addEventListener("keydown", onKeydown);
       document.addEventListener("focusin", onFocusIn);
+      lockPage();
 
       // Belt and braces — both modals carry tabindex="-1", but a root
       // without it would silently swallow focus() and leave the trap
       // anchored on <body>, where onFocusIn would then fight every move.
       if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
 
-      // preventScroll: the sheet is a fixed overlay over a body already
-      // locked by .is-modal-open, so any scrolling this provoked could only
-      // shift .size-modal__panel's own overflow-y box off its top for no
-      // reason.
+      // preventScroll: the sheet is a fixed overlay over a page just locked
+      // above, so any scrolling this provoked could only shift
+      // .size-modal__panel's own overflow-y box off its top for no reason.
       //
       // Callers MUST call this AFTER adding .is-open — focus() on a
       // visibility: hidden element is a no-op, and the modal is hidden
@@ -228,6 +261,9 @@
       document.removeEventListener("focusin", onFocusIn);
       activeRoot = null;
       includeEls = [];
+      // Before focus moves below, so a target that's off-screen can still be
+      // scrolled into view.
+      unlockPage();
 
       // Resolved HERE, not at activate() time, and that is the whole reason
       // returnFocus accepts a function: the element that opened a sheet can

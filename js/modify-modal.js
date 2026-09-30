@@ -6,21 +6,28 @@
    lives on all seven pages and builds its own DOM, the way the bar does.
 
    A bottom sheet (.size-modal--drawer, same as product.html's size sheet)
-   resting just above whichever bar the page has, holding:
+   resting just above whichever bar the page has — right on top of the
+   tapped row, when that's in the bar's drawer — holding:
      - a small, working copy of the product carousel, its top half sticking
        out above the sheet: the live 3D model (drag rotates it) plus the
        product's photos, paged by the same code as product.html's carousel
-       (js/carousel.js);
+       (js/carousel.js). The sheet never waits for the model: it opens on
+       the model's poster image, and the viewer is built once it has slid
+       in (scheduleViewer);
      - the metal picker, which re-tints that model in place;
      - the size field, pre-filled with the item's current size;
      - the size guide, which opens above its own button.
 
    Its buttons aren't in it: while it's open, the page's bar turns into
    them — the "strip" built below, handed to the bar through options.bar:
-   Unselect on the bar's left quarter (light), Save on the rest (dark,
-   inactive while the size field holds nothing orderable). Unselect removes
-   the item, the sheet slides away and the whole strip turns into "Undo"
-   for a few seconds; tapping the bar then puts the item back where it was.
+   Unselect on the bar's left quarter and Save on the rest (inactive while
+   the size field holds nothing orderable), each marked by an invert band
+   like the drawer rows', coming in from its own edge of the screen.
+   Unselect removes the item, the sheet slides away and its band stretches
+   across the whole bar, over "Undo", for a few seconds; tapping the bar
+   then puts the item back where it was. Either way the band slides back
+   out to the left once the offer is over. On Save, both bands simply slide
+   out through their own edges.
 
    window.EmjiveModifyModal = { open(item, index, options), isOpen() }.
    options:
@@ -28,7 +35,7 @@
                     the strip is appended into el, and show/hide swap it
                     with the bar's own content however that bar sequences
                     its labels
-     onOpen()       each time the sheet shows an item (the drawer shrinks)
+     onOpen()       once the sheet is up (the drawer shrinks to the row)
      onClose()      once the sheet has closed — saved, unselected or just
                     dismissed (the drawer grows back)
      returnFocus    element (or function returning one) focus goes back to:
@@ -155,21 +162,32 @@
 
   /* ---- the bar strip -------------------------------------------------------
      What the page's bar turns into while this sheet is open (css/style.css's
-     .modify-strip): one full-bleed layer over the bar holding three buttons,
-     in reading (and Tab) order — Unselect (the light quarter on the left),
-     Save (the dark three quarters on the right) and Undo (the whole strip).
-     Unselect is also the light surface that widens across the bar when the
-     strip turns into "Undo"; Save, painted after it, has no background of
-     its own, so that surface shows straight through; Undo is just the label
-     over it all. Appended into the page's bar on the first open
-     (mountStrip), shown and hidden by that bar (options.bar), since only
-     the bar knows how it hands its own content over. Hidden, it's inert, so
-     nothing in it can be tabbed to. */
+     .modify-strip): one dark, full-bleed layer over the bar holding three
+     buttons, in reading (and Tab) order — Unselect (the left quarter), Save
+     (the rest) and Undo (the whole strip, once Unselect has been tapped) —
+     plus two invert bands (.modify-strip__band), the same backdrop-filter
+     band the drawer rows carry, mirroring each other: one from the screen's
+     left edge to just past "Unselect", one from its right edge to just past
+     "Save". Unselect stretches its band across the whole bar (Save's
+     drawing back into its edge) under the "Undo" it offers, then slides it
+     back out to the left once that's over; Save sends both straight out
+     through their own edges.
+     Appended into the page's bar as soon as that bar exists (attach) — not
+     on the first open, so opening never has to add it — then shown and
+     hidden by that bar (options.bar), since only the bar knows how it hands
+     its own content over. Hidden, it's inert, so nothing in it can be
+     tabbed to. */
   function stripButton(className, label) {
     var btn = el("button", className);
     btn.type = "button";
     btn.appendChild(el("span", "modify-strip__label", label));
     return btn;
+  }
+
+  function stripBand(side) {
+    var node = el("span", "modify-strip__band modify-strip__band--" + side);
+    node.setAttribute("aria-hidden", "true");
+    return node;
   }
 
   var strip = el("div", "modify-strip is-hidden");
@@ -178,9 +196,16 @@
   var unselectBtn = stripButton("modify-strip__unselect", "Unselect");
   var saveBtn = stripButton("modify-strip__save", "Save");
   var undoBtn = stripButton("modify-strip__undo", "Undo");
+  // After the buttons, so they paint over the labels they invert.
+  var unselectBand = stripBand("unselect");
+  var saveBand = stripBand("save");
   strip.appendChild(unselectBtn);
   strip.appendChild(saveBtn);
   strip.appendChild(undoBtn);
+  strip.appendChild(unselectBand);
+  strip.appendChild(saveBand);
+  var unselectLabel = unselectBtn.firstChild;
+  var saveLabel = saveBtn.firstChild;
 
   var carousel = window.EmjiveCarousel(carouselEl);
 
@@ -196,30 +221,99 @@
     selectedMetal: null,
     options: {},
     modelHandle: null,
+    // The model's slide, and the image standing in for the model in it —
+    // until the viewer is built, or for good if it can't be. iconImg is the
+    // image of a product with no model at all.
+    modelSlide: null,
+    posterImg: null,
     iconImg: null,
+    // Cancels a viewer build still waiting on the slide-in.
+    cancelViewerBuild: null,
     cleanupTimer: null,
     // While the bar offers "Undo": { item, index, options, timer }.
-    undo: null
+    undo: null,
+    // Cancels the bands' exit, while it's playing.
+    cancelLeave: null
   };
 
-  function iconSrc(metal) {
-    var product = state.product;
-    return (product && product.assets && product.assets.icons && product.assets.icons[metal]) || "";
+  function assetFor(kind, metal) {
+    var assets = state.product && state.product.assets;
+    return (assets && assets[kind] && assets[kind][metal]) || "";
   }
 
-  // "modify" (Unselect | Save) or "undo". Whichever buttons aren't part of
-  // the mode are inert, so a hidden one can never take a click or a Tab.
-  // With the strip out of sight there's no motion worth showing, so the
-  // switch is instant (.is-instant) — the next open starts on the modify
-  // layout rather than playing the Undo widening backwards.
-  function setStripMode(mode) {
-    var undoing = mode === "undo";
-    var instant = strip.classList.contains("is-hidden");
+  function iconSrc(metal) {
+    return assetFor("icons", metal);
+  }
+
+  // What stands in for the model: its own default-pose capture — the very
+  // image the viewer shows as its poster until the model has loaded, so
+  // swapping one for the other doesn't move a pixel. The icon (framed
+  // differently) only for a product without one.
+  function posterSrc(metal) {
+    return assetFor("fallback-img", metal) || iconSrc(metal);
+  }
+
+  // Calls fn once el's own `prop` transition ends — or after ms, if it never
+  // does (a backgrounded tab). Returns a function that cancels it.
+  function afterTransition(el, prop, ms, fn) {
+    var done = false;
+    var timer = setTimeout(finish, ms);
+    function onEnd(e) {
+      if (e.target === el && e.propertyName === prop) finish();
+    }
+    function cancel() {
+      done = true;
+      el.removeEventListener("transitionend", onEnd);
+      clearTimeout(timer);
+    }
+    function finish() {
+      if (done) return;
+      cancel();
+      fn();
+    }
+    el.addEventListener("transitionend", onEnd);
+    return cancel;
+  }
+
+  // Each band runs from its own edge of the strip to this far past its
+  // label — "Unselect" on the left, "Save" on the right (css/style.css reads
+  // them as --unselect-band and --save-band). Measured, since the labels'
+  // widths are the font's to decide; re-measured every time the strip goes
+  // back to Unselect | Save, which also covers a font that finished loading
+  // since, and on resize.
+  var BAND_OVERHANG_PX = 6;
+
+  function measureBands() {
+    if (!strip.parentNode) return;
+    var box = strip.getBoundingClientRect();
+    var unselectEnd = unselectLabel.getBoundingClientRect().right - box.left;
+    var saveStart = box.right - saveLabel.getBoundingClientRect().left;
+    strip.style.setProperty("--unselect-band", Math.round(unselectEnd + BAND_OVERHANG_PX) + "px");
+    strip.style.setProperty("--save-band", Math.round(saveStart + BAND_OVERHANG_PX) + "px");
+  }
+  window.addEventListener("resize", measureBands);
+
+  // "modify" (Unselect | Save, each band at rest), "undo" (Unselect's band
+  // across the whole bar, under "Undo", Save's drawn back into its edge),
+  // "leaving" (that stretched band sliding back out to the left once the
+  // offer is over — see leaveStrip) or "saved" (both bands sliding straight
+  // out through their own edges — see leaveAfterSave).
+  // Whichever buttons aren't part of the mode are inert, so a hidden one
+  // can never take a click or a Tab. instant — or a strip that's out of
+  // sight anyway — skips the motion: the next open starts on the modify
+  // layout rather than playing a stretch backwards.
+  function setStripMode(mode, instant) {
+    instant = instant || strip.classList.contains("is-hidden");
     if (instant) strip.classList.add("is-instant");
-    strip.classList.toggle("is-undo", undoing);
-    saveBtn.inert = undoing;
-    unselectBtn.inert = undoing;
-    undoBtn.inert = !undoing;
+    if (mode !== "leaving") {
+      strip.classList.toggle("is-undo", mode === "undo");
+      strip.classList.toggle("is-saved", mode === "saved");
+    }
+    strip.classList.toggle("is-leaving", mode === "leaving");
+    unselectBtn.inert = mode !== "modify";
+    saveBtn.inert = mode !== "modify";
+    undoBtn.inert = mode !== "undo";
+    if (mode === "modify") measureBands();
     if (instant) {
       void strip.offsetWidth;
       strip.classList.remove("is-instant");
@@ -232,6 +326,44 @@
     // Laid out once while still hidden, so the bar's first reveal fades it
     // in instead of popping it straight to visible.
     void strip.offsetWidth;
+  }
+
+  // The "Undo" offer is over, taken or run out: Unselect's band, across the
+  // bar, slides back out to the left, the way it came, and only once it's
+  // gone does the bar take its own content back. At once if the strip isn't
+  // even showing (on product.html a size typed during the offer takes the
+  // bar over as "Add"). onDone runs once the bar has its content back —
+  // where focus has to wait to move: until then the rest of the bar (the
+  // drawer toggle, say) is inert under the strip.
+  var LEAVE_MS = 400;
+
+  function leaveStrip(bar, onDone) {
+    exitStrip(bar, "leaving", unselectBand, onDone);
+  }
+
+  // Saved: nothing more to show, so both bands slide straight out through
+  // their own edges — Unselect's to the left, Save's to the right — before
+  // the bar takes its own content back.
+  function leaveAfterSave(bar) {
+    exitStrip(bar, "saved", saveBand);
+  }
+
+  // mode's bands slide out (css/style.css), and the bar gets its content
+  // back once `band` — the one with the furthest to go — is gone.
+  function exitStrip(bar, mode, band, onDone) {
+    function handBack() {
+      if (bar) bar.hide(strip);
+      if (onDone) onDone();
+    }
+    if (!bar || strip.classList.contains("is-hidden")) {
+      handBack();
+      return;
+    }
+    setStripMode(mode);
+    state.cancelLeave = afterTransition(band, "transform", LEAVE_MS, function () {
+      state.cancelLeave = null;
+      handBack();
+    });
   }
 
   /* ---- metal picker ------------------------------------------------------
@@ -269,16 +401,17 @@
       optionWrap.classList.toggle("is-selected", on);
       btn.setAttribute("aria-pressed", String(on));
     });
-    // Re-tints the live model in place (no reload, no camera reset); a
-    // model-less or failed slide shows the icon, which needs its own swap.
+    // Re-tints the live model in place (no reload, no camera reset); the
+    // images standing in for it need their own swap.
     if (state.modelHandle) state.modelHandle.applyMetal(metal);
+    if (state.posterImg) state.posterImg.src = posterSrc(metal);
     if (state.iconImg) state.iconImg.src = iconSrc(metal);
   }
 
   /* ---- carousel slides ---------------------------------------------------
-     Slide 1 is the model — or its icon, when the product has no model, the
-     page has no viewer, or the browser refuses another WebGL context — then
-     the photos. No captions and no x-ray backdrop at this size. */
+     Slide 1 is the model — its poster image to begin with (see
+     scheduleViewer), or the icon for a product with no model — then the
+     photos. No captions and no x-ray backdrop at this size. */
   function iconSlide() {
     var src = iconSrc(state.selectedMetal);
     if (!src) return null;
@@ -287,30 +420,35 @@
     return slide;
   }
 
+  // Sized exactly like the viewer that later takes its place (css/style.css,
+  // .size-modal__model-poster), its image placed like the viewer's own
+  // poster.
+  function posterBox() {
+    var box = el("div", "size-modal__model-poster");
+    var img = el("img");
+    img.src = posterSrc(state.selectedMetal);
+    img.alt = state.product.name || "";
+    img.draggable = false;
+    box.appendChild(img);
+    state.posterImg = img;
+    return box;
+  }
+
   function buildSlides() {
     var product = state.product;
     track.innerHTML = "";
+    state.modelSlide = null;
+    state.posterImg = null;
     state.iconImg = null;
 
-    var handle = null;
-    if (product.assets && product.assets.model && window.EmjiveModelViewer) {
-      handle = window.EmjiveModelViewer(product, state.selectedMetal, {
-        hdri: window.EmjiveSeries.hdriPath(state.slug),
-        // Same cap the homepage grid uses: iOS Safari budgets canvas memory
-        // for the page as a whole, and this sheet can open over the grid.
-        maxPixelRatio: 1.5,
-        onError: function () { replaceModelWithIcon(handle); }
-      });
-    }
-
-    if (handle) {
-      state.modelHandle = handle;
+    if (product.assets && product.assets.model) {
       // Smaller than the slide (css/style.css's --model rule), which leaves
       // room around the model to page the carousel from — a drag that
       // starts on the model itself rotates it instead.
       var modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
-      modelSlide.appendChild(handle.el);
+      modelSlide.appendChild(posterBox());
       track.appendChild(modelSlide);
+      state.modelSlide = modelSlide;
     } else {
       var fallback = iconSlide();
       if (fallback) track.appendChild(fallback);
@@ -323,31 +461,63 @@
     carouselFrame.classList.toggle("product-carousel--single", track.children.length <= 1);
   }
 
+  // The sheet goes up first and the model follows. Building a viewer means a
+  // fresh WebGL context and a synchronous shader compile (js/three-viewer.js),
+  // which can hold a phone's main thread long enough that a sheet waiting on
+  // it looks like a tap that did nothing. So the model's slide shows its
+  // poster image while the sheet slides in, and the viewer is only built
+  // once it has — the viewer's own poster is that same image in that same
+  // box, so nothing moves, and the model then fades in over it the way it
+  // always has (the viewer's own crossfade).
+  var SLIDE_IN_MS = 400;
+
+  function scheduleViewer() {
+    if (!state.modelSlide || !window.EmjiveModelViewer) return;
+    state.cancelViewerBuild = afterTransition(sheet, "transform", SLIDE_IN_MS, function () {
+      state.cancelViewerBuild = null;
+      buildViewer();
+    });
+  }
+
+  function buildViewer() {
+    var slide = state.modelSlide;
+    if (!state.isOpen || !slide || state.modelHandle) return;
+    var handle = window.EmjiveModelViewer(state.product, state.selectedMetal, {
+      hdri: window.EmjiveSeries.hdriPath(state.slug),
+      // Same cap the homepage grid uses: iOS Safari budgets canvas memory
+      // for the page as a whole, and this sheet can open over the grid.
+      maxPixelRatio: 1.5,
+      onError: function () { restorePoster(handle); }
+    });
+    // No WebGL context to be had: the poster simply stays.
+    if (!handle) return;
+    state.modelHandle = handle;
+    state.posterImg = null;
+    slide.innerHTML = "";
+    slide.appendChild(handle.el);
+  }
+
   // A load failure or a lost WebGL context, possibly well after the model
-  // was on screen. The slide stays where it is (its place in the track is
-  // what the carousel's geometry is built on); only its contents become
-  // the icon. Ignores a handle that's no longer the live one.
-  function replaceModelWithIcon(handle) {
+  // was on screen: the poster takes the model's place again — same slide,
+  // same box (the slide's place in the track is what the carousel's
+  // geometry is built on). Ignores a handle that's no longer the live one.
+  function restorePoster(handle) {
     if (!handle || handle !== state.modelHandle) return;
-    var slide = handle.el.parentNode;
     handle.dispose();
     state.modelHandle = null;
+    var slide = state.modelSlide;
     if (!slide) return;
-    slide.classList.remove("product-carousel__slide--model");
     slide.innerHTML = "";
-    var src = iconSrc(state.selectedMetal);
-    if (!src) return;
-    var img = el("img");
-    img.src = src;
-    img.alt = state.product.name || "";
-    img.draggable = false;
-    slide.appendChild(img);
-    state.iconImg = img;
+    slide.appendChild(posterBox());
   }
 
   function disposeViewer() {
     clearTimeout(state.cleanupTimer);
     state.cleanupTimer = null;
+    if (state.cancelViewerBuild) {
+      state.cancelViewerBuild();
+      state.cancelViewerBuild = null;
+    }
     if (!state.modelHandle) return;
     state.modelHandle.dispose();
     state.modelHandle = null;
@@ -359,6 +529,8 @@
   function cleanup() {
     disposeViewer();
     track.innerHTML = "";
+    state.modelSlide = null;
+    state.posterImg = null;
     state.iconImg = null;
     window.dispatchEvent(new CustomEvent("emjive:modify-close"));
   }
@@ -382,7 +554,11 @@
       price: details.price || 0,
       image: iconSrc(state.selectedMetal)
     });
-    close();
+    // The strip stays up while both bands slide out; the bar gets its own
+    // content back after that (leaveAfterSave).
+    var bar = state.options.bar;
+    close({ keepStrip: true });
+    leaveAfterSave(bar);
   }
 
   // Removed from storage right away — the lists collapse the row on the
@@ -419,22 +595,31 @@
     state.undo = null;
     var sel = window.EmjiveSelection;
     sel.insertItem(Math.min(pending.index, sel.getSelection().length), pending.item);
-    if (pending.options.bar) pending.options.bar.hide(strip);
-    window.EmjiveFocusTrap.focus(function () {
-      return resolve(pending.options.returnFocus) || resolve(pending.options.fallbackFocus);
+    leaveStrip(pending.options.bar, function () {
+      window.EmjiveFocusTrap.focus(function () {
+        return resolve(pending.options.returnFocus) || resolve(pending.options.fallbackFocus);
+      });
     });
   }
 
-  // The offer ran out (or the page is going away): the removal stands.
-  function expireUndo() {
+  // The offer ran out (or, immediate, the page is going away): the removal
+  // stands.
+  function expireUndo(immediate) {
     var pending = state.undo;
     if (!pending) return;
     clearTimeout(pending.timer);
     state.undo = null;
+    // Read before the strip goes inert, which drops focus off it.
     var hadFocus = strip.contains(document.activeElement);
-    if (pending.options.bar) pending.options.bar.hide(strip);
-    if (hadFocus) {
+    function refocus() {
+      if (!hadFocus) return;
       window.EmjiveFocusTrap.focus(function () { return resolve(pending.options.fallbackFocus); });
+    }
+    if (immediate === true) {
+      if (pending.options.bar) pending.options.bar.hide(strip);
+      refocus();
+    } else {
+      leaveStrip(pending.options.bar, refocus);
     }
   }
 
@@ -474,17 +659,19 @@
 
   /* ---- open / close ------------------------------------------------------- */
   function show(item, index, product, slug, options) {
-    // Tapping another row in the drawer while the sheet is up: it just
-    // switches to that item — no slide out and back in, and the bar, the
-    // focus trap and the shrunken drawer all stay as they are.
-    var switching = state.isOpen;
     commitUndo();
+    // Bands still sliding out after the last Save or Undo: the strip is
+    // about to be needed again, so it snaps straight back to Unselect | Save.
+    var cutLeaveShort = !!state.cancelLeave;
+    if (cutLeaveShort) {
+      state.cancelLeave();
+      state.cancelLeave = null;
+    }
     // Before building anything — js/main.js drops a grid viewer to free the
-    // WebGL slot the model below is about to take.
+    // WebGL slot the model is about to take.
     window.dispatchEvent(new CustomEvent("emjive:modify-open"));
-    // A reopen inside the previous close's slide-out, or a switch: tear the
-    // old viewer down now rather than letting a timer do it (and signal a
-    // close) later.
+    // A reopen inside the previous close's slide-out: tear that viewer down
+    // now rather than letting a timer do it (and signal a close) later.
     disposeViewer();
 
     state.item = item;
@@ -500,32 +687,29 @@
     guidePanel.classList.remove("is-open");
     guideToggle.setAttribute("aria-expanded", "false");
     buildSlides();
-    setStripMode("modify");
+    // Normally already in place (attach); mounted before the mode is set
+    // either way, so the bands can be measured.
+    mountStrip(options.bar);
+    setStripMode("modify", cutLeaveShort);
     syncSave();
 
-    if (!switching) {
-      mountStrip(options.bar);
-      modal.classList.add("is-open");
-      modal.setAttribute("aria-hidden", "false");
-      document.body.classList.add("is-modal-open");
-      state.isOpen = true;
-    }
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+    state.isOpen = true;
     carousel.sync(true);
 
-    if (!switching) {
-      // After .is-open — the modal is visibility: hidden until then, and
-      // focus() on a hidden element is a no-op. Both focus targets are
-      // looked up in whatever session is current when they're needed, so
-      // a switch to another row retargets them.
-      window.EmjiveFocusTrap.activate(modal, {
-        include: strip,
-        returnFocus: function () { return resolve(state.options.returnFocus); },
-        fallbackFocus: function () { return resolve(state.options.fallbackFocus); },
-        onEscape: function () { close(); }
-      });
-      if (options.bar) options.bar.show(strip);
-    }
+    // After .is-open — the modal is visibility: hidden until then, and
+    // focus() on a hidden element is a no-op. The trap also freezes the
+    // page behind the sheet until release().
+    window.EmjiveFocusTrap.activate(modal, {
+      include: strip,
+      returnFocus: function () { return resolve(state.options.returnFocus); },
+      fallbackFocus: function () { return resolve(state.options.fallbackFocus); },
+      onEscape: function () { close(); }
+    });
+    if (options.bar) options.bar.show(strip);
     if (options.onOpen) options.onOpen();
+    scheduleViewer();
   }
 
   // keepStrip: the strip stays up (an Unselect, turning it into "Undo").
@@ -537,9 +721,14 @@
     var options = state.options;
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
-    document.body.classList.remove("is-modal-open");
     if (!opts.keepStrip && options.bar) options.bar.hide(strip);
     window.EmjiveFocusTrap.release(opts.focus);
+    // A viewer not built yet never will be now; one that was goes with the
+    // rest after the slide-out.
+    if (state.cancelViewerBuild) {
+      state.cancelViewerBuild();
+      state.cancelViewerBuild = null;
+    }
     clearTimeout(state.cleanupTimer);
     state.cleanupTimer = setTimeout(cleanup, SLIDE_OUT_MS);
     if (options.onClose) options.onClose();
@@ -552,9 +741,9 @@
   // same "can't do that right now" alert() convention the checkout button
   // stub uses.
   function open(item, index, options) {
-    // The row already up: nothing to do — reopening it would throw away
-    // picks not saved yet.
-    if (state.isOpen && state.index === index) return;
+    // Already up: the only row still in view (or reachable) is the one it's
+    // showing, and reopening would throw away picks not saved yet.
+    if (state.isOpen) return;
     var token = ++state.openToken;
     window.EmjiveSeries.ready
       .then(function () {
@@ -581,6 +770,26 @@
       });
   }
 
+  // The products behind everything already selected, fetched once the page
+  // has loaded, so opening the sheet — which needs the product for its
+  // photos, its model and its per-metal prices — doesn't have to wait on the
+  // network. The pages that list products have them already; this is for
+  // the order page and the pages that don't, where the first Modify used to
+  // wait for products.json. A failure is left for open() to report.
+  function prefetchProducts() {
+    window.EmjiveSeries.ready.then(function () {
+      var seen = {};
+      window.EmjiveSelection.getSelection().forEach(function (item) {
+        var slug = item.series || window.EmjiveSeries.slug;
+        if (!slug || seen[slug]) return;
+        seen[slug] = true;
+        window.EmjiveSeries.loadProducts(slug).catch(function () {});
+      });
+    }).catch(function () {});
+  }
+  if (document.readyState === "complete") prefetchProducts();
+  else window.addEventListener("load", prefetchProducts);
+
   // Leaving the page with the sheet up (Back, say): close it, and free the
   // viewer right away rather than after the slide-out — a page kept in the
   // back/forward cache is still alive, and would otherwise hold its WebGL
@@ -590,11 +799,16 @@
   window.addEventListener("pagehide", function () {
     if (state.isOpen) close();
     if (state.cleanupTimer) cleanup();
-    expireUndo();
+    expireUndo(true);
   });
 
   window.EmjiveModifyModal = {
     open: open,
-    isOpen: function () { return state.isOpen; }
+    isOpen: function () { return state.isOpen; },
+    // Called by each page's bar as soon as it exists (js/selection-bar.js,
+    // js/selection-page.js), with the same { el, show, hide } it later
+    // passes to open(): the strip goes into that bar right away, hidden,
+    // instead of in the middle of the first open.
+    attach: mountStrip
   };
 })();

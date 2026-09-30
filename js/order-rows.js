@@ -14,7 +14,7 @@
    reverse.
 
    window.EmjiveOrderRows.create(options) returns
-   { render(items, { animate }), buttonAt(index) }.
+   { render(items, { animate }), settledHeight(), buttonAt(index) }.
    options:
      listEl             the <ul> the rows are rendered into
      rowClass           an extra class on every <li> (the drawer's
@@ -226,9 +226,23 @@
     // Collapsing this one row's box is what slides the rows below it up —
     // .order-items' flex layout recalculating every frame. Its item is
     // already gone from storage; this only touches the DOM.
+    // Rows mid-motion, for settledHeight(): collapsing ones (already out of
+    // bindings) and expanding ones, each with the height it's heading to.
+    var collapsing = [];
+    var expanding = [];
+
+    // A rebuild may have cleared the list out from under a motion still
+    // finishing, so the entry isn't necessarily there any more.
+    function forget(list, binding) {
+      var i = list.indexOf(binding);
+      if (i !== -1) list.splice(i, 1);
+    }
+
     function collapse(binding) {
+      collapsing.push(binding);
       binding.li.classList.add("is-removing");
       transitionDone(binding.inner, "max-height", ROW_MOTION_MS).then(function () {
+        forget(collapsing, binding);
         binding.li.remove();
         resize();
       });
@@ -241,6 +255,8 @@
     // grows, the way .is-removing does while it shrinks.
     function expand(binding) {
       var li = binding.li;
+      binding.fullHeight = li.offsetHeight;
+      expanding.push(binding);
       resize();
       li.classList.add("is-instant", "is-removing", "is-expanding");
       void li.offsetHeight;
@@ -248,10 +264,22 @@
       requestAnimationFrame(function () {
         li.classList.remove("is-removing");
         transitionDone(binding.inner, "max-height", ROW_MOTION_MS).then(function () {
+          forget(expanding, binding);
           li.classList.remove("is-expanding");
           resize();
         });
       });
+    }
+
+    // The list's height once every row now collapsing or expanding has
+    // finished — what a container sizing itself to the list (the bar's
+    // drawer) should head for, rather than whatever the list happens to
+    // measure mid-motion.
+    function settledHeight() {
+      var height = listEl.offsetHeight;
+      collapsing.forEach(function (binding) { height -= binding.li.offsetHeight; });
+      expanding.forEach(function (binding) { height += binding.fullHeight - binding.li.offsetHeight; });
+      return height;
     }
 
     function syncBindings(items) {
@@ -263,6 +291,8 @@
 
     function rebuild(items) {
       listEl.innerHTML = "";
+      collapsing = [];
+      expanding = [];
       bindings = items.map(function (item) {
         var binding = buildRow(item);
         listEl.appendChild(binding.li);
@@ -311,6 +341,7 @@
       render: render,
       // The row now at `index` — where focus goes back to when the Modify
       // sheet closes, looked up late because rows come and go.
+      settledHeight: settledHeight,
       buttonAt: function (index) {
         var binding = bindings[index];
         return binding ? binding.button : null;

@@ -1389,6 +1389,42 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar .modify-strip:not(.is-hidden) {
   transition-delay: 0.075s;
 }
+/* The strip's invert band is a backdrop-filter of its own, and WebKit
+   doesn't reliably render one nested inside another — this bar's glass.
+   The strip is opaque and covers the whole bar, so the glass has nothing to
+   show while it's up anyway: it goes once the strip has fully faded in
+   (0.075s delay + 0.075s fade), and comes straight back the moment the strip
+   starts to leave, while it's still covered. */
+.order-checkout-bar {
+  transition: -webkit-backdrop-filter 0s, backdrop-filter 0s;
+}
+.order-checkout-bar.is-strip-active {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transition-delay: 0.15s;
+}
+
+/* ---- the drawer over the checkout bar: while the Modify sheet is open, a
+   copy of the tapped row sits here, between the bar and the sheet — this
+   page's version of the floating bar's drawer shrinking down to the tapped
+   row (see js/selection-page.js). Its own fixed element rather than part of
+   the glass bar, so the row's invert band never sits inside the bar's own
+   backdrop-filter. Same dark ground and same row
+   (.order-item.order-item--drawer) as the floating bar's drawer; opened and
+   closed on the same 0.3s max-height transition, in step with the sheet
+   resting on it. Same stacking level as the bar, so the sheet slides out
+   from behind both. ---- */
+.order-checkout-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--selection-bar-height);
+  z-index: 90;
+  max-height: 0;
+  overflow: hidden;
+  background: var(--black-bg);
+  transition: max-height 0.3s ease;
+}
 
 /* ==========================================================================
    Product detail page
@@ -1977,12 +2013,15 @@ body:has(.order-checkout-bar:not([hidden])) {
    want more room than that, the sheet stops getting pushed any further and
    the bar's own drawer scroll (capped independently at two thirds of the
    screen) takes over instead. The Modify sheet never gets near that cap:
-   while it's up, the bar holds its drawer to a third of the screen and the
-   sheet rests right on top of it, the two moving in step (same 0.3s ease
-   as this padding). On launch-order.html, which has no floating bar to
-   publish anything, the var(--selection-bar-live-height, …) fallback is the
-   whole story: --selection-bar-height is exactly the checkout bar's own
-   height, so the Modify sheet rests right above that bar instead. */
+   while it's up, the bar shrinks its drawer down to the one row the sheet
+   was opened from and the sheet rests right on top of it, the two moving
+   in step (same 0.3s ease as this padding). launch-order.html has no
+   floating bar, but opens a drawer of its own over its checkout bar while
+   the Modify sheet is up (.order-checkout-drawer) and publishes the same
+   property for it, so the sheet rests on that drawer the same way. The
+   rest of the time the var(--selection-bar-live-height, …) fallback is the
+   whole story there: --selection-bar-height is exactly the checkout bar's
+   own height. */
 .size-modal--drawer {
   --selection-bar-reserved: min(var(--selection-bar-live-height, var(--selection-bar-height)), 50vh);
   justify-content: flex-end;
@@ -1991,13 +2030,12 @@ body:has(.order-checkout-bar:not([hidden])) {
      is the odd one out — it isn't itself continuously animatable, it just
      snaps at whatever point its transition-delay places it — so closed
      (the end state when .is-open is removed) delays the snap-to-hidden
-     until AFTER the sheet's own 0.3s slide-down has actually finished;
-     .is-open below re-zeroes that delay so opening shows the sheet
-     immediately rather than waiting on the same delay in reverse. Without
-     this, .size-modal's own visibility (not covered by prefers-reduced-
-     motion's transition-duration override, since it's a separate
+     until AFTER the sheet's own 0.3s slide-down has actually finished.
+     Without this, .size-modal's own visibility (not covered by prefers-
+     reduced-motion's transition-duration override, since it's a separate
      longhand) would cut the slide-down off mid-flight, which is exactly
-     the "abrupt disappearing" this replaces. */
+     the "abrupt disappearing" this replaces. On the way in, visibility
+     isn't transitioned at all — see .is-open below. */
   transition: opacity 0.25s ease, visibility 0s linear 0.3s, padding-bottom 0.3s ease;
 }
 .size-modal--drawer .size-modal__backdrop {
@@ -2021,9 +2059,17 @@ body:has(.order-checkout-bar:not([hidden])) {
    drawer, which is exactly what now sits in that gap. pointer-events
    inherits, so this narrows hit-testing back down to exactly the backdrop
    and the sheet (which in turn re-enables it for its own children through
-   that same inheritance). */
+   that same inheritance).
+   visibility is deliberately left out of this transition list: opening
+   shows the sheet the instant .is-open lands, with no transition involved
+   at all. It used to be listed here as "visibility 0s linear 0s" — which
+   per spec starts no transition, but iOS Safari would sometimes hold the
+   old `hidden` until the next touch: on the first open after a page load,
+   the sheet slid and faded in unseen and untouchable, a tap anywhere then
+   went through it to the page (closing the bar's drawer on the way), and
+   only then did it appear, already in place. */
 .size-modal--drawer.is-open {
-  transition: opacity 0.25s ease, visibility 0s linear 0s, padding-bottom 0.3s ease;
+  transition: opacity 0.25s ease, padding-bottom 0.3s ease;
   pointer-events: none;
 }
 .size-modal--drawer.is-open .size-modal__backdrop,
@@ -2290,8 +2336,62 @@ body:has(.order-checkout-bar:not([hidden])) {
 .size-modal--modify .size-modal__panel {
   max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
 }
+/* The model's stand-in while the sheet slides in (js/modify-modal.js builds
+   the viewer only once it has): its poster image, in a box sized exactly
+   like the viewer that replaces it (.product-carousel__slide--model
+   .emjive-3d-viewer, above) with the image placed exactly like the
+   viewer's own poster (.emjive-3d-viewer__poster) — so the swap doesn't
+   move a pixel. Not a .emjive-3d-viewer itself: that would make a drag on
+   it try to rotate a model that isn't there instead of paging. */
+.product-carousel__slide--model .size-modal__model-poster {
+  position: relative;
+  width: 75%;
+  height: 75%;
+}
+@media (max-width: 640px) {
+  .product-carousel__slide--model .size-modal__model-poster {
+    width: 66%;
+    height: 66%;
+  }
+}
+.size-modal__model-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 
-body.is-modal-open { overflow: hidden; }
+/* ---- the page behind an open sheet stays put ----
+   js/focus-trap.js sets this on <html> for as long as either sheet is up.
+   On <html>, because html's own overflow-x: hidden (see its rule near the
+   top of this file) means body's overflow no longer reaches the viewport:
+   the body.is-modal-open this replaces only ever clipped body's own box,
+   and the page went on scrolling behind the sheet.
+   Hiding the page's overflow also hides a scrollbar that took up room
+   (Windows), which would widen everything by its width while the sheet is
+   up. js/focus-trap.js publishes that width as --page-scrollbar (0 where
+   scrollbars float over the page), and it goes back on as padding: on
+   <html> for everything in the page, and on the fixed bars and header,
+   which size themselves to the viewport instead — so nothing behind the
+   backdrop moves, and neither does the bar the sheet rests on.
+   The sheet's panel scrolls on its own when its content is taller than it —
+   overscroll-behavior keeps that scroll from running on into the page, or
+   bouncing it, at either end. */
+html.is-modal-open {
+  overflow: hidden;
+  padding-right: var(--page-scrollbar, 0px);
+}
+html.is-modal-open .site-header,
+html.is-modal-open .selection-bar,
+html.is-modal-open .order-checkout-bar,
+html.is-modal-open .order-checkout-drawer {
+  padding-right: var(--page-scrollbar, 0px);
+}
+.size-modal__panel { overscroll-behavior: contain; }
 
 /* ==========================================================================
    Floating selection bar
@@ -2627,12 +2727,11 @@ body.has-series-hero .selection-bar {
    grid-template-rows 0fr/1fr trick used for .site-header__menu: that trick
    only animates between two fixed states (open/closed), and this drawer
    also moves between different *open* heights — a row collapsing or
-   coming back, and the drawer shrinking to a third of the screen to make
-   room for the Modify sheet above it (and growing back after). Measuring
-   real pixel heights and transitioning max-height between them covers
-   every case with one mechanism. The inner box's cap moving with the
-   drawer's is what keeps the list scrollable at any of those heights,
-   the shrunk one included. ---- */
+   coming back, and the drawer shrinking down to the one row the Modify
+   sheet was opened from (and growing back after). Measuring real pixel
+   heights and transitioning max-height between them covers every case
+   with one mechanism. The inner box's cap moving with the drawer's is what
+   keeps the list scrolled right at any of those heights. ---- */
 .selection-bar__drawer {
   max-height: 0;
   overflow: hidden;
@@ -2647,6 +2746,14 @@ body.has-series-hero .selection-bar {
   max-height: 66vh;
   overflow: hidden auto;
   transition: max-height 0.3s ease;
+}
+/* While the Modify sheet is up, the drawer shows only the row it was opened
+   from, and the visitor can't scroll it away from there — js/selection-bar.js
+   still scrolls it itself, on the way in and back out (overflow: hidden
+   stops only the visitor). A scrollbar that took up room goes with it; the
+   script puts its width back as padding, so the rows keep their width. */
+.selection-bar.is-drawer-reduced .selection-bar__drawer-inner {
+  overflow: hidden;
 }
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
 /* The rows themselves are .order-item.order-item--drawer — the order page's
@@ -2663,18 +2770,26 @@ body.has-series-hero .selection-bar {
    built by js/modify-modal.js, appended into the floating selection bar or
    launch-order.html's checkout bar, and shown/hidden by that bar (its own
    summary-slot handoff, or .order-checkout-bar.is-strip-active). A
-   full-bleed layer over the bar's bottom row holding three buttons, in
-   reading (and Tab) order:
-     Unselect  the left quarter, inverted: --black on --bg
-     Save      the right three quarters: --white on the dark bar, inactive
-               (dimmed) while the size field holds nothing orderable
-     Undo      the whole strip, once Unselect has been tapped
-   Unselect's light surface is also what widens across the whole bar when
-   the strip turns into "Undo" (.is-undo), its own label fading out as
-   Undo's fades in over it — so the bar reads as the light quarter taking
-   the bar over. Save paints after it but has no background of its own, so
-   that surface shows straight through it. Opaque as a whole, so the glass
-   checkout bar reads exactly like the dark floating one underneath it.
+   dark, full-bleed layer over the bar's bottom row holding three buttons,
+   in reading (and Tab) order, on the bar's --black-bg:
+     Unselect  the left quarter, its --white label centered in it
+     Save      the right three quarters, its --white label centered on the
+               whole bar, inactive (dimmed) while the size field holds
+               nothing orderable
+     Undo      the whole strip, once Unselect has been tapped — a --black
+               label over the band (see its own rule)
+   plus two invert bands (.modify-strip__band) — the drawer rows' band
+   (.order-item::before), laid over the strip instead — mirroring each
+   other: one from the screen's left edge to just past "Unselect", one from
+   its right edge to just past "Save" (js/modify-modal.js measures where),
+   so each label reads dark on a light band. After an Unselect (.is-undo)
+   its band stretches across the whole bar, over "Undo" (Save's drawing
+   back into its edge), and slides back out to the left once that offer is
+   over (.is-leaving); after a Save (.is-saved) both slide straight out
+   through their own edges. Only then does the bar take its own content
+   back. Opaque
+   as a whole, so the glass checkout bar reads exactly like the dark
+   floating one underneath it.
    ========================================================================== */
 .modify-strip {
   position: absolute;
@@ -2721,9 +2836,14 @@ body.has-series-hero .selection-bar {
 .modify-strip__label {
   transition: opacity 0.1s ease;
 }
+/* Its tap area is the right three quarters, but its label sits in the
+   middle of the whole bar: padding-right (a percentage of the strip's
+   width) takes the button's content box to exactly 25%–75% of the strip,
+   and the label centers in that. */
 .modify-strip__save {
   left: 25%;
   right: 0;
+  padding-right: 25%;
   color: var(--white);
 }
 .modify-strip__save:disabled { cursor: default; }
@@ -2731,32 +2851,96 @@ body.has-series-hero .selection-bar {
 .modify-strip__unselect {
   left: 0;
   width: 25%;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--black);
-  transition: width 0.3s ease;
+  color: var(--white);
 }
+/* Unlike Unselect, "Undo" doesn't rely on the band to turn it dark: it's
+   painted above the band (z-index) in the dark the band would have turned
+   it into. It fades in and out, and a label with a running opacity
+   animation gets its own compositing layer, which WebKit's backdrop-filter
+   doesn't reliably see — so there it stayed white on the light band. It
+   only ever shows while the band is behind it (see the delays below). */
 .modify-strip__undo {
   left: 0;
   right: 0;
+  z-index: 1;
   color: var(--black);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
 }
-.modify-strip.is-undo .modify-strip__unselect {
+/* Same recipe as .order-item::before: a 1.2rem backdrop-filter: invert(1)
+   strip, vertically centered — so the dark bar under it reads light and
+   the white label under it reads dark. Two of them, mirroring each other:
+   Unselect's from the left edge, Save's from the right, each reaching just
+   past its own label (js/modify-modal.js measures where). Painted last in
+   the strip, over the labels; never in the way of a tap. */
+.modify-strip__band {
+  position: absolute;
+  top: 50%;
+  height: 1.2rem;
+  transform: translate(0, -50%);
+  pointer-events: none;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+  transition: width 0.3s ease, transform 0.3s ease;
+}
+.modify-strip__band--unselect {
+  left: 0;
+  width: var(--unselect-band, 25%);
+}
+.modify-strip__band--save {
+  right: 0;
+  width: var(--save-band, 25%);
+}
+/* After an Unselect, its band stretches across the whole bar while Save's
+   draws back into its own edge. Two inverts on the same spot would cancel
+   out, but the two can't meet: the one stretching reaches the other's edge
+   only as that one finishes drawing back into it. */
+.modify-strip.is-undo .modify-strip__band--unselect {
   width: 100%;
+}
+.modify-strip.is-undo .modify-strip__band--save {
+  width: 0;
+}
+/* After a Save, both simply slide straight out through their own edges —
+   Unselect's to the left, Save's to the right. */
+.modify-strip.is-saved .modify-strip__band--unselect {
+  transform: translate(-100%, -50%);
+}
+.modify-strip.is-saved .modify-strip__band--save {
+  transform: translate(100%, -50%);
+}
+.modify-strip.is-undo .modify-strip__unselect,
+.modify-strip.is-undo .modify-strip__save,
+.modify-strip.is-saved .modify-strip__unselect,
+.modify-strip.is-saved .modify-strip__save {
   pointer-events: none;
 }
 .modify-strip.is-undo .modify-strip__unselect .modify-strip__label,
-.modify-strip.is-undo .modify-strip__save .modify-strip__label {
+.modify-strip.is-undo .modify-strip__save .modify-strip__label,
+.modify-strip.is-saved .modify-strip__unselect .modify-strip__label,
+.modify-strip.is-saved .modify-strip__save .modify-strip__label {
   opacity: 0;
 }
-/* Undo's label arrives once the light surface has mostly crossed the bar. */
+/* Undo's label arrives once the band has mostly crossed the bar — already
+   over it, so the dark label never shows on the dark bar. */
 .modify-strip.is-undo .modify-strip__undo {
   opacity: 1;
   pointer-events: auto;
   transition-delay: 0.15s;
+}
+/* The "Undo" offer is over: the band across the bar slides back out to
+   the left, the way it came, taking "Undo" with it — the label fades out
+   at once rather than being left behind, dark on the dark bar, as the band
+   passes. Tie-broken with the .is-undo rule above by coming after it. */
+.modify-strip.is-leaving.is-undo .modify-strip__band--unselect {
+  transform: translate(-100%, -50%);
+}
+.modify-strip.is-leaving .modify-strip__undo {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: 0.1s;
+  transition-delay: 0s;
 }
 /* A mode switch made while the strip is out of sight (js/modify-modal.js's
    setStripMode()) — nothing to watch, so nothing plays. */
@@ -2771,9 +2955,10 @@ body.has-series-hero .selection-bar {
 
    The site had no :focus/:focus-visible rule of any kind, so every control
    fell back to whatever ring the UA draws — which on a black bar is
-   frequently a black outline on black. Two deliberate opt-outs, both at
-   the end of this section: the size field, and focus a sheet hands back
-   after a tap or click.
+   frequently a black outline on black. Deliberate opt-outs: the sheets'
+   dialog roots (right after the site-wide rule), and, at the end of this
+   section, the size field and focus a sheet hands back after a tap or
+   click.
 
    :focus-visible rather than :focus, so a mouse click on a button doesn't
    leave a ring behind it — that heuristic is exactly what the pseudo-class
@@ -2803,18 +2988,34 @@ body.has-series-hero .selection-bar {
    real <button>/<a href>/<input> in page markup or one built by js/ — the
    one deliberate exception is .product-card__bar-link, which carries
    tabindex="-1" + aria-hidden (js/main.js) precisely because it duplicates
-   .product-card__label, and so can never match :focus-visible anyway. */
+   .product-card__label, and so can never match :focus-visible anyway.
+   tabindex="-1" is left out on purpose: that's how the two sheets'
+   dialog roots (.size-modal) take focus — from script, only so a screen
+   reader announces them — and they aren't controls to ring. Worse, this
+   rule's position: relative used to reach them: whenever the browser
+   decided that focus was "visible" (iOS Safari does, for the first
+   scripted focus after a page load), the fixed sheet turned relative,
+   dropped into the page's flow at the very end of the page — far below
+   the screen, out of reach of taps — and only came back once a tap took
+   its focus away. */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-[tabindex]:focus-visible {
+[tabindex]:not([tabindex="-1"]):focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
   /* The ring must never be the thing that's clipped. Several of these sit
      inside overflow: hidden / auto scrollers (.product-metals__options,
-     .size-modal__panel, .selection-bar__drawer-inner). */
+     .size-modal__panel, .selection-bar__drawer-inner). Controls that are
+     positioned already keep their own position — see the rule after the
+     next one. */
   position: relative;
   z-index: 1;
+}
+/* The dialog roots draw no ring of their own either — not even the
+   browser's default one, which would outline the whole screen. */
+.size-modal:focus {
+  outline: none;
 }
 
 /* Controls on a black surface. Kept as one list rather than scattered
@@ -2840,19 +3041,24 @@ input:focus-visible,
 }
 
 /* The Modify strip's buttons (see its section) span the bar edge to edge,
-   so each draws its ring inside its own box — dark on the light
-   Unselect/Undo surface, light on the dark Save — and keeps its own place
-   in the strip: the site-wide rule's position: relative would pull it out.
-   Three classes outrank both lists above. */
+   so each draws its ring inside its own box — light, the strip being dark
+   throughout — and keeps its own place in the strip: the site-wide rule's
+   position: relative would pull it out. Three classes outrank both lists
+   above. */
 .modify-strip .modify-strip__save:focus-visible,
 .modify-strip .modify-strip__unselect:focus-visible,
 .modify-strip .modify-strip__undo:focus-visible {
   position: absolute;
-  outline: var(--focus-ring);
+  outline: var(--focus-ring-inverted);
   outline-offset: -4px;
 }
-.modify-strip .modify-strip__save:focus-visible {
-  outline: var(--focus-ring-inverted);
+/* The other controls that are positioned already keep their own place too
+   when a keyboard focuses them: the site-wide rule's position: relative
+   would drop the bar's "Add" into the summary row's flow, and pull a
+   product card's name out of its spot over the card. */
+.selection-bar .selection-bar__add:focus-visible,
+.product-card .product-card__label:focus-visible {
+  position: absolute;
 }
 
 /* The size field shows no outline while it's being typed into — a

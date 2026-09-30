@@ -483,9 +483,10 @@
       guideToggle.setAttribute("aria-expanded", "false");
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
-      document.body.classList.add("is-modal-open");
       // AFTER .is-open, not before: the modal is visibility: hidden until
-      // that class lands, and focus() on a hidden element is a no-op.
+      // that class lands, and focus() on a hidden element is a no-op. The
+      // trap also freezes the page behind the sheet (and frees it again on
+      // release()).
       // selectBtn is resolved once at wireSelectButton() time and is never
       // re-rendered, so a plain element reference is enough here — unlike
       // the order page's per-row trigger.
@@ -498,7 +499,6 @@
     function closeModal() {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
-      document.body.classList.remove("is-modal-open");
       window.EmjiveFocusTrap.release();
       // Covers both paths that reach here: a successful confirmAdd() (which
       // calls this after adding) and an abandoned pick via backdrop/Escape

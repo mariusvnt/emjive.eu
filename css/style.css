@@ -3195,6 +3195,71 @@ input:focus-visible,
 }
 
 /* ==========================================================================
+   Loader
+
+   The compact logo (assets/logo_compact.svg — two dots and a V) as a
+   centred loading mark. Each of its three parts crosses the screen from the
+   right edge to the left edge, fading in on the way in and out on the way
+   out, slowing right down as it passes the middle; the parts start one
+   --loader-stagger apart, left to right, so the mark reads as a cascade.
+   Only transform and opacity animate.
+
+   The animation itself is js/loader.js (Web Animations): the phase
+   durations are independent, and keyframe percentages can't be computed
+   from custom properties. This section holds the tokens it reads and the
+   static look. Without JS, or under prefers-reduced-motion, the loader
+   shows the finished mark, still.
+
+   The markup is three stacked inline SVGs, one per part, rather than one
+   SVG whose children animate: the animated thing is the <svg> element itself
+   (an ordinary replaced box) because Safari/iOS handles CSS transform and
+   opacity animations on SVG child elements unreliably — the glide ran at the
+   wrong pace and the fade did not show. See loader-test.html for the
+   reference markup.
+   ========================================================================== */
+.loader {
+  /* js/loader.js reads these. The cycle is the only value in seconds;
+     everything else is a share of it. One crossing = in + slow + out, and
+     the gap is the blank time before the loop restarts, so the four should
+     add up to 100%. If they don't, the gap is kept as written and in/slow/out
+     are scaled together to fill the rest. */
+  --loader-cycle: 4s;
+  --loader-in: 20%;     /* right edge to the slow stretch: fade in, ease in */
+  --loader-slow: 6%;    /* the slow stretch through the middle */
+  --loader-out: 20%;    /* slow stretch to the left edge: ease out, fade out */
+  --loader-gap: 54%;    /* nothing on screen, before the loop restarts */
+  --loader-stagger: 2%; /* start offset between neighbouring parts */
+  /* How fast a part moves through the slow stretch, as a share of the
+     average speed of the whole crossing (in + slow + out): 100% would be
+     no slower than average, 10% is a near-crawl. Together with --loader-slow
+     this sets how far the slow stretch reaches: speed x duration. */
+  --loader-slow-speed: 60%;
+  --loader-mark: clamp(4.5rem, 15vw, 7.5rem); /* the mark's rendered width */
+
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* The mark: one grid cell the three SVGs are stacked in. */
+.loader__mark {
+  display: grid;
+  width: var(--loader-mark);
+}
+
+.loader__part {
+  grid-area: 1 / 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--black);
+  will-change: transform, opacity;
+}
+
+/* ==========================================================================
    Reduced motion
 
    Site-wide motion kill switch, deliberately the LAST thing in this file
@@ -3242,7 +3307,9 @@ input:focus-visible,
    The animation-* lines are inert today — there is not one @keyframes or
    `animation:` property in this file or in any series' hero.css. They're
    here so the first keyframes anyone adds is covered without them having to
-   discover this block first.
+   discover this block first. (The Loader's animation is Web Animations in
+   js/loader.js, which this block cannot reach; that script checks the same
+   media query itself and leaves the mark still.)
 
    scroll-behavior covers html's `smooth` (see the html rule near the top).
    js/scroll-memory.js already forces `auto` inline plus behavior: "instant"

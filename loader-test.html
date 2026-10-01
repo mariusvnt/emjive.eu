@@ -1,0 +1,34 @@
+<!--
+  loader-test.html — standalone dev page: the logo loading animation running
+  on a continuous loop, for reviewing its timing, easing and size. Open it
+  under `npm run dev` at /loader-test.html.
+
+  Not part of the built site — never added to vite.config.js's
+  rollupOptions.input, so `npm run build` never ships it. The animation's
+  styles live in css/style.css (Loader section); the markup below is the
+  reference for wherever a real loader gets mounted.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>Loader test</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="loader" role="status" aria-label="Loading">
+  <!-- Same geometry as assets/logo_compact.svg, cropped to the artwork:
+       one SVG per part, all with the same viewBox so they stack into the
+       full mark. In left-to-right order, which is also the cascade order. -->
+  <div class="loader__mark">
+    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><circle cx="156.1" cy="750" r="108.1" /></svg>
+    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><circle cx="566.3" cy="750" r="108.1" /></svg>
+    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><path d="M793.9 411.1 L938.2 411.1 L1124.9 789.1 L1306.1 411.1 L1452.1 411.1 L1122.5 1089.2 Z" /></svg>
+  </div>
+</div>
+<script src="js/loader.js"></script>
+</body>
+</html>

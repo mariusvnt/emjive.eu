@@ -8,7 +8,7 @@
 
 A series' `hero.js` loads later still — injected at runtime by `series.js` — which is why it's written to be inert until called.
 
-## `js/three-viewer.js` (~1440 lines) — the 3D viewer, and the largest file here
+## `js/three-viewer.js` (~1450 lines) — the 3D viewer, and the largest file here
 
 The single shared construction path for every 3D product view on the site (homepage grid cards, the product-detail carousel, the Modify sheet's small carousel) and for `scripts/auto-render.js`'s render pipeline — see `tooling.md`. A raw three.js scene per instance, driven by the `TrackballControls` addon (free, pole-crossing rotation — unlike the polar-angle-limited orbit a `<model-viewer>`-based approach would have), with a substantial amount of hand-tuned polish layered on top. Exports (all module-internal except the one exposed global):
 
@@ -184,7 +184,7 @@ The drag's pointer is captured on the **track**, not the viewport: in the Modify
 
 **Notable gotchas** (from the file's own comments): `img.draggable = false` + `dragstart` prevention stops the browser's native image-drag gesture from fighting the custom pointer-drag scroll; a `pointercancel` doesn't reliably carry the pointer's final coordinates, so settling a drag interrupted mid-gesture falls back to the strip's own live position instead of the event's `clientX`; a drag that starts inside `.emjive-3d-viewer` is left alone entirely (no `pointerdown` tracking at all) so it rotates the model via `TrackballControls` instead of paging the carousel.
 
-## `js/order-rows.js` (~355 lines) — the item rows, in every list
+## `js/order-rows.js` (~360 lines) — the item rows, in every list
 
 The rows `launch-order.html`'s order list and the floating bar's drawer share (`selection-page.js`, `selection-bar.js`) — and the copy in the order page's drawer over its checkout bar — so they can't drift apart. **Exposes** `window.EmjiveOrderRows.create({ listEl, rowClass, showPrice, onModify, onResize })` → `{ render(items, { animate }), settledHeight(), buttonAt(index) }`.
 
@@ -206,7 +206,7 @@ The one "Modify" popup on the site, opened by tapping a row in either list — s
 - **Events** — dispatches `emjive:modify-open` before building anything (`product.js` closes its size sheet; `main.js` frees a WebGL slot) and `emjive:modify-close` once its viewer is actually disposed, after the slide-out.
 - **`pagehide`** — closes the sheet, disposes the viewer at once rather than after the slide-out (a bfcached page is still live, context and all), and ends any Undo offer, so a restored page doesn't come back offering one.
 
-## `js/selection-bar.js` (~685 lines)
+## `js/selection-bar.js` (~700 lines)
 
 The floating bar, on every page except `launch-order.html` (that page isn't in its script list at all, plus it self-guards with `if (!window.EmjiveSelection) return;`). Builds its whole DOM programmatically and appends to `<body>`.
 
@@ -222,7 +222,7 @@ This file has no notion of **which page it's on**, which was always the point. I
 
 Listens for `emjive:selection-changed` (`render(e)`) — this is how it stays in sync with adds from `product.js` and every change the Modify sheet makes.
 
-## `js/selection-page.js` (~390 lines) — `launch-order.html`'s checkout review
+## `js/selection-page.js` (~395 lines) — `launch-order.html`'s checkout review
 
 The order page's logic — see `pages.md`'s `launch-order.html` section for what it all looks like.
 

@@ -41,7 +41,7 @@ Both typefaces are self-hosted now — neither is pulled from Google Fonts at ru
 
 ## Section map
 
-`css/style.css` is ~3270 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
+`css/style.css` is ~3340 lines and holds only what's shared across pages. **The homepage hero's styling is no longer here** — it moved wholesale into the featured series' own bundle at `series/<slug>/hero.css`, along with the `--reveal-pin-height` and `--reveal-xray-opacity` tokens it owns (see `pages.md`).
 
 | Lines | Section |
 |---|---|
@@ -92,7 +92,7 @@ No more standalone Footer section — `<footer class="site-footer">` (and its CS
 
 **`.series-hero` must stay a plain box.** `.reveal__pin` inside it is `position: sticky`, which silently stops working if any ancestor picks up `overflow` (other than `visible`), `transform`, `filter`, `contain` or `will-change`. Its `min-height: 100svh` exists to reserve the above-the-fold box before the hero bundle lands, so the grid never flashes into the viewport. `.series-hero-backdrop` is `display: contents` so the injected backdrop keeps `.products` as its containing block and every `.reveal__extension-crop` rule applies with no geometry change.
 
-## `series/bones/hero.css` (207 lines) — the Bones hero
+## `series/bones/hero.css` (219 lines) — the Bones hero
 
 Not part of `css/style.css` at all: it's injected as a `<link>` at runtime by `js/series.js`, so it lands *after* the shared stylesheet and wins on ties. It carries the whole "Entry reveal" block plus the two `:root` tokens only it needs (`--reveal-pin-height`, `--reveal-xray-opacity`). The DOM/CSS "SCROLL TO SCAN" hint that used to live here — `.reveal__scan-hint` — is gone; that text is baked into `hand-rings-under-flesh_3k.webp` itself now (see `assets.md`).
 

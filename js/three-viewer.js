@@ -589,6 +589,30 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       wrapper.appendChild(posterEl);
     }
 
+    // The loader gate (js/loader.js). While the model and environment load,
+    // a loader sits over the poster (or over the caller's own fallback image
+    // behind this viewer); the viewer is held back until that loader has
+    // finished its cycle and left, then pops in instantly. Three cases:
+    //   options.loader = a hold   the caller already mounted the loader on a
+    //                             host of its own (js/main.js's grid cards,
+    //                             whose figure also holds the icon) — used as
+    //                             the gate, and released by the caller too
+    //   options.loader = false    no gate: the viewer reveals the moment it
+    //                             is ready, as it always did
+    //   otherwise                 mount one inside this viewer's own box;
+    //                             options.loaderBleed lets its parts travel
+    //                             past that box to the edges of the clipping
+    //                             ancestor, for a box whose own edges aren't
+    //                             visible (the carousels' model slides)
+    // Never for the render harness (static) or any page that doesn't load
+    // js/loader.js (scene-tool.html, scripts/auto-render.js's page).
+    var loadGate = null;
+    if (!isStatic && options.loader !== false && window.EmjiveLoader) {
+      loadGate = options.loader && typeof options.loader.done === "function"
+        ? options.loader
+        : window.EmjiveLoader.mount(wrapper, { bleed: !!options.loaderBleed });
+    }
+
     // A <div>, not an <img> — its visible pixels come entirely from the
     // backdrop-filter invert clipped to the SVG's mask shape (see the CSS
     // rule), not from any fill/stroke painted by the element itself.
@@ -617,6 +641,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     function reportError() {
       if (isDisposed || hasErrored) return;
       hasErrored = true;
+      // Whatever the loader was waiting for isn't coming; let it go (the
+      // poster, or the caller's icon, is what stays on screen).
+      if (loadGate) loadGate.done();
       if (options.onError) options.onError();
     }
 
@@ -954,12 +981,24 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // already killed, which is what filled the console with repeating
         // "THREE.WebGLRenderer: Context Lost" on every fast scroll.
         if (isDisposed) return;
+        // Held until the loader has finished its cycle and left (see
+        // loadGate above). Nothing has been drawn into the canvas yet, so
+        // the viewer stays exactly as invisible as the loader needs it to.
+        return loadGate ? loadGate.done() : undefined;
+      })
+      .then(function () {
+        // Re-checked: the wait for the loader's safe window can be long
+        // enough for a card to have scrolled away and been disposed.
+        if (isDisposed) return;
 
         frameCamera(defaultOrbit);
         modelLoaded = true;
 
         renderer.render(scene, camera);
         if (posterEl) {
+          // Instant when a loader was involved: the viewer pops in, it does
+          // not crossfade with its own poster.
+          if (loadGate) posterEl.style.transition = "none";
           posterEl.style.opacity = "0";
           posterEl.style.pointerEvents = "none";
         }
@@ -1142,6 +1181,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       dispose: function () {
         if (isDisposed) return;
         isDisposed = true;
+        // A loader still waiting on this viewer has nothing left to wait for.
+        if (loadGate) loadGate.done();
         cancelReturnToPose();
         clearIdleTimer();
         // The one piece of teardown that isn't about GPU resources, and

@@ -268,6 +268,12 @@
     });
   }
 
+  // Lets the page's arrival loader (js/loader.js; a no-op on a page that
+  // didn't opt in) go. Safe to call more than once.
+  function pageReady() {
+    if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
+  }
+
   function heroFailed(slot, err) {
     console.error("Hero bundle failed to load: " + (err && err.message ? err.message : err));
     // Without this the .has-series-hero rule keeps the floating selection
@@ -294,14 +300,25 @@
     if (slot && activeSeries) {
       loadHero(slot, activeSeries)
         .then(function (loaded) {
-          if (!loaded) return;
+          if (!loaded) { pageReady(); return; }
+          // The page's arrival loader (js/loader.js) waits for the hero's
+          // main image — by convention the first <img> in the slot — and
+          // NOT for the products below, which only feed the rings.
+          var heroImg = slot.querySelector("img");
+          if (heroImg && window.EmjiveLoader) {
+            window.EmjiveLoader.imageReady(heroImg).then(pageReady);
+          } else {
+            pageReady();
+          }
           return loadProducts(activeSlug).then(function (products) {
             if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.onProducts) {
               window.EmjiveSeriesHero.onProducts(products);
             }
           });
         })
-        .catch(function (err) { heroFailed(slot, err); });
+        .catch(function (err) { heroFailed(slot, err); pageReady(); });
+    } else if (slot) {
+      pageReady();
     }
 
     return { index: index, slug: activeSlug, series: activeSeries };

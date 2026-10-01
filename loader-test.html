@@ -1,12 +1,20 @@
 <!--
-  loader-test.html — standalone dev page: the logo loading animation running
-  on a continuous loop, for reviewing its timing, easing and size. Open it
-  under `npm run dev` at /loader-test.html.
+  loader-test.html — standalone dev page: the logo loader running on an
+  endless loop, for reviewing its timing, easing and size. Open it under
+  `npm run dev` at /loader-test.html (boxes, one loader per container) or
+  /loader-test.html?page (the full-page arrival loader).
+
+  Each loader is mounted and not released until you ask, so the loop is the
+  point. A box's outline is the container: parts enter from its right border
+  and leave through its left. Each box also has a "Finish" button, which
+  releases the loader the way a real asset does: it waits for the cycle in
+  progress to finish (the guardrail in js/loader.js) before the loader goes,
+  then the box shows its "loaded" content.
 
   Not part of the built site — never added to vite.config.js's
-  rollupOptions.input, so `npm run build` never ships it. The animation's
-  styles live in css/style.css (Loader section); the markup below is the
-  reference for wherever a real loader gets mounted.
+  rollupOptions.input, so `npm run build` never ships it. The loader's
+  styles live in css/style.css (Loader section); the behaviour is
+  js/loader.js.
 -->
 <!doctype html>
 <html lang="en">
@@ -17,18 +25,76 @@
 <title>Loader test</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 <link rel="stylesheet" href="css/style.css" />
+<style>
+  .test-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: flex-start;
+    padding: 2rem var(--edge-px);
+  }
+  .test-cell { display: grid; gap: 0.5rem; justify-items: start; }
+  .test-box {
+    position: relative;
+    outline: 1px dashed var(--category-col);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-secondary);
+    font-size: 0.75rem;
+    color: var(--category-col);
+  }
+  .test-box__loaded { opacity: 0; transition: opacity var(--fade-quick) ease; }
+  .test-box.is-loaded .test-box__loaded { opacity: 1; }
+  .test-cell button { font-family: var(--font-secondary); font-size: 0.75rem; }
+</style>
 </head>
 <body>
-<div class="loader" role="status" aria-label="Loading">
-  <!-- Same geometry as assets/logo_compact.svg, cropped to the artwork:
-       one SVG per part, all with the same viewBox so they stack into the
-       full mark. In left-to-right order, which is also the cascade order. -->
-  <div class="loader__mark">
-    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><circle cx="156.1" cy="750" r="108.1" /></svg>
-    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><circle cx="566.3" cy="750" r="108.1" /></svg>
-    <svg class="loader__part" viewBox="48 411 1405 678" aria-hidden="true"><path d="M793.9 411.1 L938.2 411.1 L1124.9 789.1 L1306.1 411.1 L1452.1 411.1 L1122.5 1089.2 Z" /></svg>
-  </div>
-</div>
+<div class="test-grid" id="grid"></div>
 <script src="js/loader.js"></script>
+<script>
+(function () {
+  "use strict";
+  if (location.search.indexOf("page") !== -1) {
+    window.EmjiveLoader.mount(document.body, { page: true, watchdog: false });
+    return;
+  }
+  // Container sizes the real site uses: a phone grid card, a desktop grid
+  // card, a product carousel tile, a Modify-sheet poster on a phone.
+  var sizes = [
+    ["phone card", 170, 170],
+    ["desktop card", 460, 460],
+    ["carousel tile", 330, 330],
+    ["modify poster (phone)", 130, 130],
+    ["wide strip", 700, 160]
+  ];
+  var grid = document.getElementById("grid");
+  sizes.forEach(function (s) {
+    var cell = document.createElement("div");
+    cell.className = "test-cell";
+    var box = document.createElement("div");
+    box.className = "test-box";
+    box.style.width = s[1] + "px";
+    box.style.height = s[2] + "px";
+    box.innerHTML = '<span class="test-box__loaded">loaded</span>';
+    var btn = document.createElement("button");
+    btn.textContent = "Finish (" + s[0] + ", " + s[1] + "×" + s[2] + ")";
+    var hold = window.EmjiveLoader.mount(box, { watchdog: false });
+    var done = false;
+    btn.addEventListener("click", function () {
+      if (done) return;
+      done = true;
+      btn.disabled = true;
+      btn.textContent = "finishing…";
+      hold.done().then(function () {
+        box.classList.add("is-loaded");
+        btn.textContent = "finished";
+      });
+    });
+    cell.appendChild(box);
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  });
+})();
+</script>
 </body>
 </html>

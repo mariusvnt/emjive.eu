@@ -44,6 +44,12 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
+<!-- Loader (see js/loader.js). Blocking, and ahead of series.js: pages that
+     wait on something opt into an arrival loader with data-page-loader on
+     <html>, and that cover has to be up before <body> is parsed; every
+     page's scripts also use window.EmjiveLoader for their own assets. -->
+<script src="js/loader.js"></script>
+
 <!-- Series resolution (which series this page shows, and its data).
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>

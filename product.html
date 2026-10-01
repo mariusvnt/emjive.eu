@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-page-loader>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -44,6 +44,12 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
+<!-- Loader (see js/loader.js). Blocking, and ahead of series.js: pages that
+     wait on something opt into an arrival loader with data-page-loader on
+     <html>, and that cover has to be up before <body> is parsed; every
+     page's scripts also use window.EmjiveLoader for their own assets. -->
+<script src="js/loader.js"></script>
+
 <!-- Series resolution (which series this page shows, and its data).
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
@@ -86,7 +92,9 @@
 
 <main class="product-detail" id="productDetail">
 
-  <p class="product-detail__loading" id="productDetailLoading">Loading…</p>
+  <!-- Only ever holds the not-found message now (js/product.js showNotFound);
+       the wait itself is the page's arrival loader (js/loader.js). -->
+  <p class="product-detail__loading" id="productDetailLoading" hidden></p>
 
   <div class="product-detail__content" id="productDetailContent" hidden>
 

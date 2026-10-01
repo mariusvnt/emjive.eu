@@ -3198,25 +3198,44 @@ input:focus-visible,
    Loader
 
    The compact logo (assets/logo_compact.svg — two dots and a V) as a
-   centred loading mark. Each of its three parts crosses the screen from the
-   right edge to the left edge, fading in on the way in and out on the way
-   out, slowing right down as it passes the middle; the parts start one
-   --loader-stagger apart, left to right, so the mark reads as a cascade.
-   Only transform and opacity animate.
+   loading mark that lives INSIDE the container of the asset it covers: each
+   of its three parts crosses that container from its right border to its
+   left border, fading in on the way in and out on the way out, slowing right
+   down as it passes the middle; the parts start one --loader-stagger apart,
+   left to right, so the mark reads as a cascade. Only transform and opacity
+   animate.
 
-   The animation itself is js/loader.js (Web Animations): the phase
-   durations are independent, and keyframe percentages can't be computed
-   from custom properties. This section holds the tokens it reads and the
-   static look. Without JS, or under prefers-reduced-motion, the loader
-   shows the finished mark, still.
+   The animation and the show/hide rules (never disappear mid-crossing, only
+   show if the asset is still loading after --loader-delay) are js/loader.js
+   (Web Animations): the phase durations are independent, and keyframe
+   percentages can't be computed from custom properties. This section holds
+   the tokens it reads and the static look. Under prefers-reduced-motion no
+   loader is mounted at all.
 
-   The markup is three stacked inline SVGs, one per part, rather than one
-   SVG whose children animate: the animated thing is the <svg> element itself
-   (an ordinary replaced box) because Safari/iOS handles CSS transform and
-   opacity animations on SVG child elements unreliably — the glide ran at the
-   wrong pace and the fade did not show. See loader-test.html for the
-   reference markup.
+   The markup (built by that script) is three stacked boxes, one per part,
+   rather than one SVG whose children animate: Safari/iOS handles CSS
+   transform and opacity animations on SVG child elements unreliably — the
+   glide ran at the wrong pace and the fade did not show. Each box is shaped
+   by a mask and inverts what is underneath it (see .loader__part) instead of
+   filling black.
+
+   Three kinds of host:
+   - Any positioned container (a card's figure, a carousel slide, a 3D
+     viewer's box): .loader is an absolute overlay, transparent so whatever
+     is already showing (a 3D viewer's fallback image) stays visible under
+     it, and click-through so carousel drags and viewer controls still work.
+   - A host whose <img> child is the asset (js/loader.js's cover()): the
+     image hides while the loader runs and fades in over --fade-quick once
+     the loader has left (.loader-host / .is-loader-pending).
+   - The page itself (.loader--page, on <body>): fixed, opaque, above every
+     bar and sheet; see the html.emjive-page-loading cover below.
    ========================================================================== */
+:root {
+  /* How long an asset may take before its loader bothers to appear. A load
+     that finishes inside this never shows one. */
+  --loader-delay: 150ms;
+}
+
 .loader {
   /* js/loader.js reads these. The cycle is the only value in seconds;
      everything else is a share of it. One crossing = in + slow + out, and
@@ -3224,39 +3243,115 @@ input:focus-visible,
      add up to 100%. If they don't, the gap is kept as written and in/slow/out
      are scaled together to fill the rest. */
   --loader-cycle: 4s;
-  --loader-in: 20%;     /* right edge to the slow stretch: fade in, ease in */
+  --loader-in: 20%;     /* right border to the slow stretch: fade in, ease in */
   --loader-slow: 6%;    /* the slow stretch through the middle */
-  --loader-out: 20%;    /* slow stretch to the left edge: ease out, fade out */
-  --loader-gap: 54%;    /* nothing on screen, before the loop restarts */
+  --loader-out: 20%;    /* slow stretch to the left border: ease out, fade out */
+  --loader-gap: 56%;    /* nothing visible, before the loop restarts */
   --loader-stagger: 2%; /* start offset between neighbouring parts */
   /* How fast a part moves through the slow stretch, as a share of the
      average speed of the whole crossing (in + slow + out): 100% would be
      no slower than average, 10% is a near-crawl. Together with --loader-slow
      this sets how far the slow stretch reaches: speed x duration. */
   --loader-slow-speed: 60%;
-  --loader-mark: clamp(4.5rem, 15vw, 7.5rem); /* the mark's rendered width */
+  /* The mark's rendered width, relative to the loader's own box (cqw), so
+     it scales with whatever container it sits in. */
+  --loader-mark: clamp(3rem, 22cqw, 7.5rem);
 
-  position: fixed;
+  position: absolute;
   inset: 0;
+  z-index: 2;
+  /* The host's size is what the mark and the travel distance read. */
+  container-type: size;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--bg);
+  pointer-events: none;
 }
 
-/* The mark: one grid cell the three SVGs are stacked in. */
+/* Created at mount, shown only after --loader-delay. */
+.loader.is-waiting {
+  visibility: hidden;
+}
+
+.loader--page {
+  position: fixed;
+  z-index: 100;
+  background: var(--bg);
+  pointer-events: auto;
+  --loader-mark: clamp(4.5rem, 15cqw, 7.5rem);
+}
+
+/* A host whose own edges aren't visible (a 3D viewer's box in a carousel
+   slide) lets the parts run past it; js/loader.js sizes their travel to the
+   nearest clipping ancestor instead. */
+.loader--bleed {
+  overflow: visible;
+}
+
+/* The mark: one grid cell the three parts are stacked in. Explicit height,
+   not aspect-ratio (the logo crop is 1405 x 678): the same Safari grid
+   caution the product cards' figure notes. */
 .loader__mark {
   display: grid;
   width: var(--loader-mark);
+  height: calc(var(--loader-mark) * 0.4826);
 }
 
+/* A part paints nothing of its own: its shape comes from a mask (the logo's
+   dot, dot and V, cropped to the artwork) and a backdrop-filter inverts
+   whatever sits underneath it through that shape — the page, a fallback
+   image, a 3D model — the same technique as the viewer's nudge hand. They
+   are boxes rather than SVG nodes both for that and because iOS Safari
+   handles animations on SVG child elements unreliably. */
 .loader__part {
   grid-area: 1 / 1;
-  display: block;
   width: 100%;
-  height: auto;
-  fill: var(--black);
+  height: 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
   will-change: transform, opacity;
+}
+.loader__part:nth-child(1) {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Ccircle cx='156.1' cy='750' r='108.1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Ccircle cx='156.1' cy='750' r='108.1'/%3E%3C/svg%3E");
+}
+.loader__part:nth-child(2) {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Ccircle cx='566.3' cy='750' r='108.1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Ccircle cx='566.3' cy='750' r='108.1'/%3E%3C/svg%3E");
+}
+.loader__part:nth-child(3) {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Cpath d='M793.9 411.1 L938.2 411.1 L1124.9 789.1 L1306.1 411.1 L1452.1 411.1 L1122.5 1089.2 Z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='48 411 1405 678'%3E%3Cpath d='M793.9 411.1 L938.2 411.1 L1124.9 789.1 L1306.1 411.1 L1452.1 411.1 L1122.5 1089.2 Z'/%3E%3C/svg%3E");
+}
+
+/* cover(): the asset waits out its loader, then fades in. */
+.loader-host > img {
+  transition: opacity var(--fade-quick) ease;
+}
+.loader-host.is-loader-pending > img {
+  opacity: 0;
+}
+
+/* The page's arrival cover. <html> carries it from the first paint (set by
+   js/loader.js in <head>, only on pages that opt in with data-page-loader)
+   so half-built content never flashes; the loader proper sits one layer
+   above it on <body>. Removing the loader starts the reveal: the cover
+   fades out and the page fades in under it. */
+html.emjive-page-loading::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: var(--bg);
+}
+html.emjive-page-loading.emjive-page-revealing::before {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-quick) ease;
 }
 
 /* ==========================================================================
@@ -3309,7 +3404,7 @@ input:focus-visible,
    here so the first keyframes anyone adds is covered without them having to
    discover this block first. (The Loader's animation is Web Animations in
    js/loader.js, which this block cannot reach; that script checks the same
-   media query itself and leaves the mark still.)
+   media query itself and mounts no loader at all.)
 
    scroll-behavior covers html's `smooth` (see the html rule near the top).
    js/scroll-memory.js already forces `auto` inline plus behavior: "instant"

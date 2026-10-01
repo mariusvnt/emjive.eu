@@ -360,6 +360,12 @@
     img.loading = "lazy";
     img.draggable = false;
     slide.appendChild(img);
+    // A loader over the slide until the photo has loaded, then the photo
+    // fades in (js/loader.js). Every slide is a fixed square, so this
+    // crosses exactly the slide's own box.
+    if (global.EmjiveLoader) {
+      global.EmjiveLoader.cover(slide, global.EmjiveLoader.imageReady(img));
+    }
     return slide;
   }
 

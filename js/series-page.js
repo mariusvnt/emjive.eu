@@ -15,7 +15,15 @@
   var contentEl = document.getElementById("seriesManifestContent");
   if (!loadingEl || !contentEl) return;
 
+  // The page's arrival loader (js/loader.js) covers the page until this is
+  // called — on success once the manifest is in, on failure once the
+  // not-found message is in place.
+  function pageReady() {
+    if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
+  }
+
   function showNotFound(slug) {
+    loadingEl.hidden = false;
     loadingEl.textContent = slug
       ? "No series called “" + slug + "” — "
       : "No series specified — ";
@@ -24,6 +32,7 @@
     link.href = "archives.html";
     link.textContent = "Browse the archives";
     loadingEl.appendChild(link);
+    pageReady();
   }
 
   window.EmjiveSeries.ready
@@ -49,6 +58,7 @@
 
         loadingEl.hidden = true;
         contentEl.hidden = false;
+        pageReady();
       });
     })
     .catch(function () {

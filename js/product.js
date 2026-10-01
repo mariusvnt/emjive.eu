@@ -38,7 +38,15 @@
     return new URLSearchParams(window.location.search).get("id");
   }
 
+  // The page's arrival loader (js/loader.js) covers the page until this is
+  // called — on success once the product is built, on failure once the
+  // not-found message is in place.
+  function pageReady() {
+    if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
+  }
+
   function showNotFound() {
+    loadingEl.hidden = false;
     loadingEl.textContent = "Product not found — ";
     var link = el("a", "btn", "Browse the collection");
     // Back to whichever series was being browsed, not always the featured
@@ -46,6 +54,7 @@
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
     link.href = (slug ? window.EmjiveSeries.mainHref(slug) : "index.html") + "#products";
     loadingEl.appendChild(link);
+    pageReady();
   }
 
   // Product ids are only unique WITHIN a series now, so a bare ?id= (an old
@@ -115,6 +124,8 @@
     // would read as a zero-width tile/carousel and rest at offset 0
     // instead of centering the first tile.
     carousel.sync(true);
+
+    pageReady();
   }
 
   /* ---- 1. label ------------------------------------------------------- */
@@ -190,6 +201,10 @@
     function buildModelViewer() {
       return window.EmjiveModelViewer(product, state.selectedMetal, {
         hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
+        // The viewer's box is smaller than its slide and has no visible
+        // edge, so its loader runs the carousel's full width rather than
+        // vanishing at an invisible line (see mount()'s bleed in js/loader.js).
+        loaderBleed: true,
         // Fires for an initial load/HDRI failure OR — since
         // three-viewer.js also treats a WebGL context loss as a failure
         // — for a model that HAD already loaded and was on screen: iOS

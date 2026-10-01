@@ -466,8 +466,9 @@
   // it looks like a tap that did nothing. So the model's slide shows its
   // poster image while the sheet slides in, and the viewer is only built
   // once it has — the viewer's own poster is that same image in that same
-  // box, so nothing moves, and the model then fades in over it the way it
-  // always has (the viewer's own crossfade).
+  // box, so nothing moves. The viewer then puts a loader over that poster
+  // while the model loads and pops in once the loader has finished its cycle
+  // and left (js/loader.js; options.loader in js/three-viewer.js).
   var SLIDE_IN_MS = 400;
 
   function scheduleViewer() {
@@ -486,6 +487,8 @@
       // Same cap the homepage grid uses: iOS Safari budgets canvas memory
       // for the page as a whole, and this sheet can open over the grid.
       maxPixelRatio: 1.5,
+      // Same reason as product.js: the viewer's box has no visible edge.
+      loaderBleed: true,
       onError: function () { restorePoster(handle); }
     });
     // No WebGL context to be had: the poster simply stays.

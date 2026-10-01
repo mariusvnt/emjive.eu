@@ -346,6 +346,14 @@
     // entry is what lets teardownViewer close that path.
     entry.releaseSlot = releaseSlot;
 
+    // The model's own wait gets a loader too, in the card's figure, sitting
+    // over the icon (the fallback image). The viewer holds its reveal until
+    // that loader has finished its cycle and left, then pops in — see
+    // options.loader in js/three-viewer.js. If the icon's own loader is
+    // still running when this starts, they are the same loader.
+    var loadHold = window.EmjiveLoader ? window.EmjiveLoader.mount(entry.figure) : null;
+    entry.loadHold = loadHold;
+
     var handle = window.EmjiveModelViewer(
       entry.product,
       entry.product["default-metal"],
@@ -356,6 +364,7 @@
         // a second, differently-cropped copy of the same ring fading over
         // the first. See options.poster in js/three-viewer.js.
         poster: false,
+        loader: loadHold || false,
         // Several of these can be alive at once, and iOS Safari's canvas
         // budget is a page-wide total — see maxPixelRatio's comment in
         // js/three-viewer.js. product.html's single carousel viewer keeps
@@ -382,6 +391,8 @@
     );
     if (!handle) {
       releaseSlot();
+      if (loadHold) loadHold.done();
+      entry.loadHold = null;
       return;
     }
     entry.modelHandle = handle;
@@ -442,6 +453,13 @@
   // re-fires, same as a WebGL-context-budget rejection already does.
   function teardownViewer(entry) {
     if (!entry.modelHandle) return;
+    // Idempotent, and a no-op once the viewer has been revealed: this is
+    // for a viewer torn down while its loader is still up (a card scrolled
+    // past mid-load, or a load that failed).
+    if (entry.loadHold) {
+      entry.loadHold.done();
+      entry.loadHold = null;
+    }
     entry.modelHandle.dispose();
     entry.figure.removeChild(entry.modelHandle.el);
     entry.modelHandle = null;
@@ -594,6 +612,13 @@
       // trying to parse its own model.
       iconEl.decoding = "async";
       figure.appendChild(iconEl);
+      // The icon hides behind a loader until it has loaded, then fades in
+      // (js/loader.js). The loader lives in the figure, so it crosses
+      // exactly the card's own box, and the viewer's load later shares it
+      // (startViewerLoad) rather than stacking a second one.
+      if (window.EmjiveLoader) {
+        window.EmjiveLoader.cover(figure, window.EmjiveLoader.imageReady(iconEl));
+      }
     }
 
     // The white divider bar itself IS the link (not a separate decorative

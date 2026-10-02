@@ -14,7 +14,10 @@
    reverse.
 
    window.EmjiveOrderRows.create(options) returns
-   { render(items, { animate }), settledHeight(), buttonAt(index) }.
+   { render(items, { animate }), preview(index, values), settledHeight(),
+   buttonAt(index) } — preview() is the Modify sheet's live draft: the row's
+   changed parts switch to the draft at once, no fade (null: back to the
+   stored item), without touching storage.
    options:
      listEl             the <ul> the rows are rendered into
      rowClass           an extra class on every <li> (the drawer's
@@ -99,6 +102,50 @@
     });
   }
 
+  // Fetches and decodes images ahead of a swap, so a metal pick that changes
+  // an icon with no fade shows the new one at once instead of the old one
+  // lingering while the new loads (most noticeable on a phone). Kept in a
+  // map so they stay in memory for the swap.
+  var preloaded = {};
+
+  function preload(srcs) {
+    srcs.forEach(function (src) {
+      if (!src || preloaded[src]) return;
+      var img = new Image();
+      img.src = src;
+      if (img.decode) img.decode().catch(function () {});
+      preloaded[src] = img;
+    });
+  }
+
+  // Safari's backdrop-filter re-samples what's behind it late when that
+  // changes in place: text or an icon under an invert band (.order-item::before,
+  // .product-detail__label-bar::before) showed its old value for a moment
+  // after the new one was in the DOM. Nudging the band's own filter (an
+  // imperceptible invert(0.99), see .is-resampling in css/style.css) for a
+  // couple of frames makes it sample again at once. Used wherever a value
+  // under a band changes with no fade to cover it.
+  var resampleTokens = new WeakMap();
+
+  function resampleBand(el) {
+    var token = (resampleTokens.get(el) || 0) + 1;
+    resampleTokens.set(el, token);
+    el.classList.add("is-resampling");
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (resampleTokens.get(el) === token) el.classList.remove("is-resampling");
+      });
+    });
+  }
+
+  // The same change with no fade, for a live preview: any fadeSwap still
+  // under way on `el` is cancelled, so it can't land over this value.
+  function setNow(el, apply) {
+    swapTokens.set(el, (swapTokens.get(el) || 0) + 1);
+    el.classList.remove("is-swapping");
+    apply();
+  }
+
   function create(options) {
     var listEl = options.listEl;
     var rowClass = options.rowClass || "";
@@ -128,7 +175,9 @@
     }
 
     function buildRow(item) {
-      var binding = { item: item, index: -1 };
+      // shown: the values the row currently displays — the stored item,
+      // unless a Modify sheet is previewing a draft over it (see preview()).
+      var binding = { item: item, shown: item, index: -1 };
 
       var li = document.createElement("li");
       li.className = "order-item" + (rowClass ? " " + rowClass : "");
@@ -145,6 +194,9 @@
       thumb.className = "order-item__thumb";
       if (item.image) thumb.src = item.image;
       thumb.alt = "";
+      // A picture arriving under the invert band is its own change in
+      // place — see resampleBand().
+      thumb.addEventListener("load", function () { resampleBand(li); });
 
       var meta = document.createElement("span");
       meta.className = "order-item__meta";
@@ -200,24 +252,28 @@
 
     // A Modify just saved: each part whose value changed crossfades to it
     // in place — the icon, the ".category.metal.size" label, the price —
-    // and nothing else about the row moves.
-    function crossfadeRow(binding, item) {
-      var old = binding.item;
+    // and nothing else about the row moves. instant (the sheet's live
+    // preview) skips the fade. Compared against what the row shows, not
+    // what's stored, so a Save after a preview finds nothing left to swap.
+    function crossfadeRow(binding, item, instant) {
+      var old = binding.shown;
+      var swap = instant ? setNow : fadeSwap;
+      binding.shown = item;
       binding.button.setAttribute("aria-label", spokenLabel(item));
       if ((old.image || "") !== (item.image || "")) {
-        fadeSwap(binding.thumb, function () {
+        swap(binding.thumb, function () {
           if (item.image) binding.thumb.src = item.image;
           else binding.thumb.removeAttribute("src");
-        }, decoded(item.image));
+        }, instant ? null : decoded(item.image));
       }
       if (old.name !== item.name) {
-        fadeSwap(binding.name, function () { binding.name.textContent = item.name; });
+        swap(binding.name, function () { binding.name.textContent = item.name; });
       }
       if (old.category !== item.category || old.metal !== item.metal || String(old.size) !== String(item.size)) {
-        fadeSwap(binding.attrs, function () { fillAttrs(binding.attrs, item); });
+        swap(binding.attrs, function () { fillAttrs(binding.attrs, item); });
       }
       if (binding.price && old.price !== item.price) {
-        fadeSwap(binding.price, function () {
+        swap(binding.price, function () {
           binding.price.textContent = global.EmjiveSelection.formatPrice(item.price);
         });
       }
@@ -346,8 +402,26 @@
       syncBindings(items);
     }
 
+    // Live preview for the Modify sheet: the row at `index` switches at once
+    // to its item with `values` (any of metal, size, price, image) laid over it, or
+    // back to the stored item when `values` is null. Storage is untouched;
+    // a row that has left the list is ignored.
+    function preview(index, values) {
+      var binding = bindings[index];
+      if (!binding) return;
+      var item = binding.item;
+      if (values) {
+        item = {};
+        Object.keys(binding.item).forEach(function (key) { item[key] = binding.item[key]; });
+        Object.keys(values).forEach(function (key) { item[key] = values[key]; });
+      }
+      crossfadeRow(binding, item, true);
+      resampleBand(binding.li);
+    }
+
     return {
       render: render,
+      preview: preview,
       // The row now at `index` — where focus goes back to when the Modify
       // sheet closes, looked up late because rows come and go.
       settledHeight: settledHeight,
@@ -358,5 +432,7 @@
     };
   }
 
-  global.EmjiveOrderRows = { create: create };
+  // preload and resampleBand are shared with js/product.js's label bar and
+  // js/modify-modal.js, which swap icons the same way.
+  global.EmjiveOrderRows = { create: create, preload: preload, resampleBand: resampleBand };
 })(window);

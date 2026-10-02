@@ -267,6 +267,12 @@
   function openModify(binding) {
     window.EmjiveModifyModal.open(binding.item, binding.index, {
       bar: stripHost,
+      // Both copies of the row: the list's, and the drawer's (which holds
+      // just that one item, at index 0).
+      onPreview: function (index, values) {
+        rows.preview(index, values);
+        if (drawerIndex !== null) drawerRows.preview(0, values);
+      },
       onOpen: function () { openRowDrawer(binding.index); },
       onClose: closeRowDrawer,
       returnFocus: function () {

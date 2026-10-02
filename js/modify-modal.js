@@ -35,6 +35,11 @@
                     the strip is appended into el, and show/hide swap it
                     with the bar's own content however that bar sequences
                     its labels
+     onPreview(index, values)
+                    the sheet's draft changed: the list(s) switch that row,
+                    at once, to { metal, size, price, image } without storing
+                    anything — and values is null when the sheet is dismissed
+                    unsaved, putting the row back
      onOpen()       once the sheet is up (the drawer shrinks to the row)
      onClose()      once the sheet has closed — saved, unselected or just
                     dismissed (the drawer grows back)
@@ -374,14 +379,52 @@
     });
   }
 
+  // The item as the sheet would save it right now. The size is the field's
+  // when that's orderable, else the item's own — a half-typed or emptied
+  // field mustn't blank the row's label under the sheet.
+  function draftValues() {
+    var sel = window.EmjiveSelection;
+    var details = (state.product["per-metal-specs"] && state.product["per-metal-specs"][state.selectedMetal]) || {};
+    return {
+      metal: state.selectedMetal,
+      size: sel.isValidSize(sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size,
+      price: details.price || 0,
+      image: iconSrc(state.selectedMetal)
+    };
+  }
+
+  // The row under the sheet follows the draft live (options.onPreview);
+  // nothing is stored until Save.
+  function previewDraft() {
+    if (state.options.onPreview) state.options.onPreview(state.index, draftValues());
+  }
+
+  // Re-tints the live model in place (no reload, no camera reset) — after
+  // the row's new label has been painted, not before: a re-tint is a fresh
+  // material per mesh and a re-render, heavy enough on an iPhone to hold the
+  // next frame (and the label with it). rAF runs ahead of that frame's
+  // paint, the timeout right after it; picks made meanwhile just retint to
+  // whichever metal is current.
+  var tintQueued = false;
+  function tintAfterPaint() {
+    if (tintQueued) return;
+    tintQueued = true;
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        tintQueued = false;
+        if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
+      }, 0);
+    });
+  }
+
   function selectMetal(metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
-    // Re-tints the live model in place (no reload, no camera reset); the
-    // images standing in for it need their own swap.
-    if (state.modelHandle) state.modelHandle.applyMetal(metal);
+    previewDraft();
+    // The images standing in for the model need their own swap.
     if (state.posterImg) state.posterImg.src = posterSrc(metal);
     if (state.iconImg) state.iconImg.src = iconSrc(metal);
+    tintAfterPaint();
   }
 
   /* ---- carousel slides ---------------------------------------------------
@@ -525,18 +568,12 @@
 
   function save() {
     if (!state.isOpen || !window.EmjiveSelection.isValidSize(sizeInput.value)) return;
-    var product = state.product;
-    var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
-    window.EmjiveSelection.updateItem(state.index, {
-      metal: state.selectedMetal,
-      size: window.EmjiveSelection.normalizeSize(sizeInput.value),
-      price: details.price || 0,
-      image: iconSrc(state.selectedMetal)
-    });
+    window.EmjiveSelection.updateItem(state.index, draftValues());
     // The strip stays up while the band grows to fill it and fades; the bar
-    // gets its own content back after that (leaveAfterSave).
+    // gets its own content back after that (leaveAfterSave). The row already
+    // shows what was saved (previewDraft), so it isn't put back.
     var bar = state.options.bar;
-    close({ keepStrip: true });
+    close({ keepStrip: true, keepPreview: true });
     leaveAfterSave(bar);
   }
 
@@ -557,7 +594,7 @@
     var options = state.options;
     window.EmjiveSelection.removeItem(index);
     setStripMode("undo");
-    close({ keepStrip: true, focus: undoBtn });
+    close({ keepStrip: true, keepPreview: true, focus: undoBtn });
     state.undo = {
       item: removed,
       index: index,
@@ -620,6 +657,7 @@
     var cleaned = window.EmjiveSelection.sanitizeSizeInput(sizeInput.value);
     if (cleaned !== sizeInput.value) sizeInput.value = cleaned;
     syncSave();
+    previewDraft();
   });
 
   // Enter saves — the same as the bar's Save, one Tab stop further away.
@@ -660,6 +698,13 @@
     state.selectedMetal = item.metal;
     state.options = options;
 
+    // Every metal's icon and poster fetched and decoded now, so a pick
+    // swaps the row's icon and the carousel's stand-in at once.
+    var assets = product.assets || {};
+    window.EmjiveOrderRows.preload(
+      Object.keys(assets.icons || {}).map(function (m) { return assets.icons[m]; })
+        .concat(Object.keys(assets["fallback-img"] || {}).map(function (m) { return assets["fallback-img"][m]; }))
+    );
     renderMetalOptions();
     sizeUnit.textContent = window.EmjiveSeries.categoryInfo(item.category).unit || "";
     sizeInput.value = window.EmjiveSelection.normalizeSize(item.size);
@@ -693,12 +738,16 @@
   }
 
   // keepStrip: the strip stays up (an Unselect, turning it into "Undo").
+  // keepPreview: the row keeps showing the draft — a Save, which stores it,
+  // or an Unselect, whose row is leaving; otherwise the row goes back
+  // to what's stored.
   // focus: where focus goes instead of returnFocus.
   function close(opts) {
     if (!state.isOpen) return;
     opts = opts || {};
     state.isOpen = false;
     var options = state.options;
+    if (!opts.keepPreview && options.onPreview) options.onPreview(state.index, null);
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
     if (!opts.keepStrip && options.bar) options.bar.hide(strip);

@@ -457,6 +457,7 @@
   function openModify(binding) {
     window.EmjiveModifyModal.open(binding.item, binding.index, {
       bar: stripHost,
+      onPreview: function (index, values) { rows.preview(index, values); },
       onOpen: function () { setDrawerReduced(true, binding.li); },
       onClose: function () { setDrawerReduced(false); },
       returnFocus: function () {

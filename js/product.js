@@ -107,6 +107,11 @@
     document.title = (product.name || "Product") + " — em·ji·ve";
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
 
+    // Every metal's icon fetched and decoded up front, so a pick swaps the
+    // label thumbnail (and a model-less product's slide) at once.
+    var icons = (product.assets && product.assets.icons) || {};
+    window.EmjiveOrderRows.preload(Object.keys(icons).map(function (m) { return icons[m]; }));
+
     renderLabel(product);
     renderCarousel(product);
     renderMetalOptions(product);
@@ -132,11 +137,16 @@
 
   function renderLabel(product) {
     document.getElementById("productLabelName").textContent = product.name || "";
-    document.getElementById("productLabelType").textContent =
-      product.category ? "." + product.category.toLowerCase() : "";
+    document.getElementById("productLabelType").textContent = labelTypeText(product);
 
     renderLabelThumb(product);
     renderLabelPrice(product);
+  }
+
+  // ".category.metal", like the rows' label in the selection lists.
+  function labelTypeText(product) {
+    return (product.category ? "." + product.category.toLowerCase() : "") +
+      (state.selectedMetal ? "." + state.selectedMetal : "");
   }
 
   // Always the icon (not a photos[0] fallback) — this thumbnail sits right
@@ -148,6 +158,15 @@
   // the thumbnail always matches whichever finish is currently selected.
   function renderLabelThumb(product) {
     var thumb = document.getElementById("productLabelThumb");
+    // A picture arriving under the label bar's invert band is a change in
+    // place the band has to re-sample — see resampleBand() in
+    // js/order-rows.js. Wired once.
+    if (!thumb.dataset.resample) {
+      thumb.dataset.resample = "1";
+      thumb.addEventListener("load", function () {
+        window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+      });
+    }
     var thumbSrc = (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || "";
     if (thumbSrc) {
       thumb.src = thumbSrc;
@@ -363,20 +382,41 @@
     });
   }
 
+  // Re-tints the existing model in place (no reload, no camera reset) — but
+  // only once the text changes below have been painted: re-tinting means a
+  // fresh material per mesh and a re-render, heavy enough on an iPhone to
+  // hold the next frame for a noticeable moment, and the label waited on it.
+  // rAF runs ahead of that frame's paint, the timeout right after it; picks
+  // made meanwhile just retint to whichever metal is current.
+  var tintQueued = false;
+  function tintAfterPaint() {
+    if (tintQueued) return;
+    tintQueued = true;
+    requestAnimationFrame(function () {
+      setTimeout(function () {
+        tintQueued = false;
+        if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
+      }, 0);
+    });
+  }
+
   function onMetalSelect(product, metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
-    // Re-tints the existing model in place (no reload, no camera reset).
-    if (state.modelHandle) state.modelHandle.applyMetal(metal);
-    // The model re-tints itself live above, but the label thumbnail (and,
-    // for model-less products, the carousel's fallback slide) are static
-    // images — each needs its own explicit swap to the new metal's icon.
+    document.getElementById("productLabelType").textContent = labelTypeText(product);
+    renderLabelPrice(product);
+    // The text and thumbnail under the label bar's invert band would show
+    // their old value a moment longer in Safari otherwise.
+    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+    // The label thumbnail (and, for model-less products, the carousel's
+    // fallback slide) are static images — each needs its own explicit swap
+    // to the new metal's icon.
     renderLabelThumb(product);
     if (state.iconFallbackImg) {
       state.iconFallbackImg.src = (product.assets && product.assets.icons && product.assets.icons[metal]) || "";
     }
     renderSpecs(product);
-    renderLabelPrice(product);
+    tintAfterPaint();
   }
 
   /* ---- 6. characteristics (metal-dependent) ------------------------------ */

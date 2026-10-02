@@ -1575,6 +1575,15 @@ body:has(.order-checkout-bar:not([hidden])) {
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
 }
+/* A value under either invert band (here, and .order-item::before) changed
+   with no fade: js/order-rows.js's resampleBand() holds this for a couple of
+   frames so Safari's backdrop-filter re-samples at once instead of showing
+   the old value under the band for a moment. */
+.product-detail__label-bar.is-resampling::before,
+.order-item.is-resampling::before {
+  -webkit-backdrop-filter: invert(0.99);
+  backdrop-filter: invert(0.99);
+}
 .product-detail__label-bar::after {
   content: "";
   position: absolute;

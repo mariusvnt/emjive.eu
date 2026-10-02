@@ -15,9 +15,8 @@
     "white-room":     "assets/hdri/white-room_2k.hdr"
   },
 
-  "swatch-primitive": "cylinder",
   "swatch-hdri": "studio",
-  "swatch-camera": { "rotation": -95, "tilt": 96, "zoom": 20, "roll": 4 },
+  "swatch-rotation": 180,
 
   "series": [
     {

@@ -2,7 +2,7 @@
 /* ==========================================================================
    scene-tool-server — bare static/API server for scene-tool.html, a
    standalone dev page for tuning a product's camera angle, a series'/the
-   swatch renderer's HDRI, the swatch-scene primitive+camera, and a metal's
+   swatch renderer's HDRI, the swatch's rotation, and a metal's
    shader — all as a live preview through the site's real
    window.EmjiveModelViewer (js/three-viewer.js), with a Save action that
    text-patches the relevant source file in place.
@@ -47,8 +47,6 @@ const MIME = {
   ".json": "application/json",
   ".css": "text/css"
 };
-
-const KNOWN_PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
 
 // ---- small shared helpers ----
 
@@ -131,32 +129,23 @@ function updateSeriesHdriInText(text, seriesSlug, hdriKey) {
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// Top-level fields only ("swatch-primitive"/"swatch-hdri"/"swatch-camera"),
-// no id/slug-anchoring needed — each is a single, unique key in
-// data/series.json. `updates` may carry any subset of the three; only the
-// keys present get patched, applied to the same text in sequence. Returns
+// Top-level fields only ("swatch-hdri"/"swatch-rotation"), no
+// id/slug-anchoring needed — each is a single, unique key in
+// data/series.json. `updates` may carry either or both; only the keys
+// present get patched, applied to the same text in sequence. Returns
 // null (without writing anything from `updates` at all) if ANY requested
 // key's field isn't found, so a partial patch never lands silently.
 function updateSwatchSceneInText(text, updates) {
   var result = text;
-  if (updates["swatch-primitive"] !== undefined) {
-    var primitivePattern = /"swatch-primitive":\s*"[^"]*"/;
-    if (!primitivePattern.test(result)) return null;
-    result = result.replace(primitivePattern, '"swatch-primitive": "' + updates["swatch-primitive"] + '"');
-  }
   if (updates["swatch-hdri"] !== undefined) {
     var hdriPattern = /"swatch-hdri":\s*"[^"]*"/;
     if (!hdriPattern.test(result)) return null;
     result = result.replace(hdriPattern, '"swatch-hdri": "' + updates["swatch-hdri"] + '"');
   }
-  if (updates["swatch-camera"] !== undefined) {
-    var cameraPattern = /"swatch-camera":\s*\{[^}]*\}/;
-    if (!cameraPattern.test(result)) return null;
-    var c = updates["swatch-camera"];
-    var newCameraText =
-      '"swatch-camera": { "rotation": ' + c.rotation + ', "tilt": ' + c.tilt + ', "zoom": ' + c.zoom +
-      ', "roll": ' + c.roll + ' }';
-    result = result.replace(cameraPattern, newCameraText);
+  if (updates["swatch-rotation"] !== undefined) {
+    var rotationPattern = /"swatch-rotation":\s*-?[0-9.]+/;
+    if (!rotationPattern.test(result)) return null;
+    result = result.replace(rotationPattern, '"swatch-rotation": ' + updates["swatch-rotation"]);
   }
   return result;
 }
@@ -247,30 +236,24 @@ async function handleSaveSeriesHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
 }
 
-async function handleSaveSwatchCamera(req, res) {
+// The swatch's rotation is the only camera value anyone gets to set — tilt,
+// roll and zoom are solved from the tube's geometry (see swatchOrbit in
+// js/three-viewer.js), so there's nothing else to accept or write.
+async function handleSaveSwatchRotation(req, res) {
   var body = await readJsonBody(req);
-  var primitive = body.primitive;
-  if (!KNOWN_PRIMITIVES.includes(primitive)) {
-    return sendJson(res, 400, { error: "primitive must be one of: " + KNOWN_PRIMITIVES.join(", ") });
-  }
-  if (![body.rotation, body.tilt, body.zoom, body.roll].every(isFiniteNumber)) {
-    return sendJson(res, 400, { error: "rotation/tilt/zoom/roll must be finite numbers" });
+  if (!isFiniteNumber(body.rotation)) {
+    return sendJson(res, 400, { error: "rotation must be a finite number" });
   }
 
   var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var camera = {
-    rotation: Math.round(body.rotation),
-    tilt: Math.round(body.tilt),
-    zoom: Math.round(body.zoom),
-    roll: Math.round(body.roll)
-  };
-  var patched = updateSwatchSceneInText(text, { "swatch-primitive": primitive, "swatch-camera": camera });
+  var rotation = Math.round(body.rotation);
+  var patched = updateSwatchSceneInText(text, { "swatch-rotation": rotation });
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-primitive\"/\"swatch-camera\" in data/series.json — add them by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-rotation\" in data/series.json — add it by hand first" });
   }
 
   fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { "swatch-primitive": primitive, "swatch-camera": camera } });
+  return sendJson(res, 200, { ok: true, saved: { "swatch-rotation": rotation } });
 }
 
 async function handleSaveSwatchHdri(req, res) {
@@ -327,7 +310,7 @@ async function handleSaveMetalShader(req, res) {
 const ROUTES = {
   "POST /api/save-product-camera": handleSaveProductCamera,
   "POST /api/save-series-hdri": handleSaveSeriesHdri,
-  "POST /api/save-swatch-camera": handleSaveSwatchCamera,
+  "POST /api/save-swatch-rotation": handleSaveSwatchRotation,
   "POST /api/save-swatch-hdri": handleSaveSwatchHdri,
   "POST /api/save-metal-shader": handleSaveMetalShader
 };

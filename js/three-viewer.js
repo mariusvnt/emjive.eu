@@ -150,7 +150,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       thetaRad: (theta * Math.PI) / 180,
       phiRad: (phi * Math.PI) / 180,
       radiusPercent: radiusPercent,
-      rollRad: (roll * Math.PI) / 180
+      rollRad: (roll * Math.PI) / 180,
+      // Optional [x, y, z] to orbit instead of the model's own centre —
+      // only the swatch stack uses it (swatchOrbit), to aim at one tube.
+      target: Array.isArray(cfg.target) ? new THREE.Vector3(cfg.target[0], cfg.target[1], cfg.target[2]) : null,
+      // Optional degrees to turn the HDRI about Y (same user: the swatch).
+      // null leaves scene.environmentRotation alone, as for every product.
+      envRotationRad: typeof cfg.envRotation === "number" ? (cfg.envRotation * Math.PI) / 180 : null
     };
   }
 
@@ -166,22 +172,116 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     return out.applyAxisAngle(eyeDir, rollRad);
   }
 
-  // Builds a bare primitive mesh in place of a loaded GLTF model — used
-  // when options.primitive is passed to buildThreeViewer (scene-tool.html's
-  // swatch-scene mode, and scripts/auto-render.js's swatch renderer).
+  // The metal swatches (scene-tool.html's swatch mode, and
+  // scripts/auto-render.js's swatch renderer): ONE scene holding a long tube
+  // per metal, stacked in the order of the site's metal picker (the first
+  // metal on top), in place of a loaded GLTF model. Each strip is that
+  // scene seen through a 1600x48 frame, the camera aimed at one tube at a
+  // time. The tubes are long on purpose: a perspective camera's fov is
+  // VERTICAL, so a 33:1 frame sees ~33x as much along the tube as across it
+  // — about 70 units of tube at the tube-fills-the-height framing below,
+  // against a radius of 1.
   // Deliberately no material here: applyMaterial()'s mesh traversal (below)
-  // assigns one right after, same as it does for a loaded GLTF's meshes.
-  // Sized/shaped only roughly like the old buildMaterialSwatch()'s cylinder
-  // (tall relative to its radius) — exact framing is no longer a fixed
-  // formula, it's whatever camera orbit the scene-tool/data field says, so
-  // precise proportions matter far less than they used to.
-  function buildPrimitiveMesh(name) {
-    var geometry =
-      name === "box" ? new THREE.BoxGeometry(2, 2, 2) :
-      name === "sphere" ? new THREE.SphereGeometry(1, 64, 64) :
-      name === "torus" ? new THREE.TorusGeometry(1, 0.4, 32, 100) :
-      new THREE.CylinderGeometry(1, 1, 8, 96); // "cylinder", and the default for an unrecognized name
-    return new THREE.Mesh(geometry);
+  // gives each tube its own metal (userData.swatchMetal).
+  var SWATCH_TUBE_RADIUS = 1;
+  var SWATCH_TUBE_LENGTH = 100;
+  // The swatch camera's (vertical) fov, in place of the site's 30. That 30
+  // is fine for a product, but across a 33:1 frame it's a 167-degree
+  // HORIZONTAL fov: the tube's ends are seen ~84 degrees off the
+  // perpendicular, stretched ~80x sideways, and lit by the HDRI in the
+  // direction along the tube instead of off its sides — so the strip's ends
+  // looked like a different material from its middle. A narrow fov puts the
+  // camera far back and looks at every point of the tube almost straight on
+  // (the ends are ~SWATCH_FOV * 15 degrees off: 30 at 2, 41 at 3). The
+  // solved zoom below doesn't depend on the fov, so the tube still exactly
+  // fills the height at any value.
+  var SWATCH_FOV = 2;
+  // Distance between neighbouring tube centres in the stack — only so
+  // that, whichever tube the camera is aimed at, the neighbours are well
+  // outside its 2-degree-tall frame. It does NOT decide how different the
+  // metals' reflections look; SWATCH_VIEW_STEP does.
+  var SWATCH_STACK_SPACING = 21;
+  // How much further round the tubes the camera looks at each successive
+  // metal, in degrees. This is the look knob, and it can't come from the
+  // stack's geometry. The only light is the HDRI, which depends on the
+  // direction a surface is seen from and never on where it is, so tubes
+  // that are merely moved around and filmed from one spot are lit the same.
+  // And the tubes stand upright: every surface normal is horizontal, so
+  // every reflection comes from the HDRI's horizon ring, and turning the
+  // camera by N degrees only SLIDES that pattern along the tube's width by
+  // N/2 degrees of surface angle — a real stack's ~20 degrees between
+  // neighbours moved it ~4px of the 48px strip, i.e. all the metals looked
+  // identical. A big step puts each metal on a different stretch of the
+  // ring (90 -> the first and last are 180 degrees apart, a 90-degree
+  // slide, ~17px of the strip's 48 in the middle).
+  var SWATCH_VIEW_STEP = 90;
+
+  // The tube's centre along the stack axis (world X): the first metal at the
+  // negative end, a rising index going the other way. Only the arrangement
+  // of the scene — each strip is one tube alone in its frame. The camera
+  // always looks at a tube from SWATCH_VIEW_STEP-multiples round, and for the
+  // end tubes that is from the outside of the stack (the first tube, at
+  // negative X, from the -X side), so no neighbour ever stands between the
+  // camera and its target.
+  function swatchTubeX(index, count) {
+    return (index - (count - 1) / 2) * SWATCH_STACK_SPACING;
+  }
+
+  function buildSwatchStack(metals) {
+    var group = new THREE.Group();
+    var geometry = new THREE.CylinderGeometry(SWATCH_TUBE_RADIUS, SWATCH_TUBE_RADIUS, SWATCH_TUBE_LENGTH, 96);
+    metals.forEach(function (metal, i) {
+      var tube = new THREE.Mesh(geometry);
+      tube.position.x = swatchTubeX(i, metals.length);
+      tube.userData.swatchMetal = metal;
+      group.add(tube);
+    });
+    return group;
+  }
+
+  // The camera for tube `index` of `count`, for a given rotation (the only
+  // thing anyone gets to choose — data/series.json's "swatch-rotation").
+  // The tubes run along Y, so tilt 90 (eye level) looks straight at their
+  // sides and roll 90 lays them horizontal. The rest is solved, not chosen:
+  // - Aim. Tube i is seen from SWATCH_VIEW_STEP degrees further round than
+  //   tube i-1, centred on the stack's middle (so 3 metals are seen from
+  //   -90, 0 and +90), orbiting that tube's own centre at the distance that
+  //   fills the frame (below). The first metal is the first to the left of
+  //   centre — the sign only picks which side, nothing else depends on it.
+  // - Rotation. The camera's azimuth is that aim and nothing else; the
+  //   user's `rotation` turns the HDRI instead (envRotation, which
+  //   frameCamera() applies to scene.environmentRotation), as if the stack
+  //   were turned under it. Adding it to the camera's azimuth would, for
+  //   some values, put a tube's neighbour on the line of sight. Negated so
+  //   a positive rotation reads as the camera going round, as it always
+  //   has.
+  // - Zoom. A tube seen side-on from distance d has silhouette edges at
+  //   asin(radius / d) off the view axis, and those sit exactly on the
+  //   frame's top and bottom edges (half the vertical fov) when
+  //   d = radius / sin(fov / 2). frameCamera() measures zoom against the
+  //   bounding sphere (distance = sphereRadius / sin(fov / 2) at 100%), so
+  //   the sines cancel and zoom is just radius / sphereRadius — independent
+  //   of the fov. The sphere is the whole stack's bounding box's own (half
+  //   its diagonal), the same one frameCamera() measures. Not rounded: it's
+  //   never written anywhere, so there's nothing to keep tidy, and rounding
+  //   would leave a sliver of the frame unfilled.
+  // `target` points the camera at that tube's centre rather than the
+  // stack's (see parseOrbitConfig).
+  function swatchOrbit(rotation, index, count) {
+    count = count || 1;
+    index = index || 0;
+    var x = swatchTubeX(index, count);
+    var halfWidth = ((count - 1) * SWATCH_STACK_SPACING) / 2 + SWATCH_TUBE_RADIUS;
+    var halfLength = SWATCH_TUBE_LENGTH / 2;
+    var sphereRadius = Math.sqrt(halfWidth * halfWidth + halfLength * halfLength + SWATCH_TUBE_RADIUS * SWATCH_TUBE_RADIUS);
+    return {
+      rotation: (index - (count - 1) / 2) * SWATCH_VIEW_STEP,
+      tilt: 90,
+      roll: 90,
+      zoom: (100 * SWATCH_TUBE_RADIUS) / sphereRadius,
+      target: [x, 0, 0],
+      envRotation: -(typeof rotation === "number" ? rotation : 0)
+    };
   }
 
   function parseTargetString(str) {
@@ -621,7 +721,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     wrapper.appendChild(nudgeHandEl);
 
     var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
+    var camera = new THREE.PerspectiveCamera(options.swatch ? SWATCH_FOV : 30, 1, 0.01, 1000);
 
     // Declared up here, not down by dispose(), because both async load
     // chains below have to be able to read it. js/main.js's grid disposes
@@ -824,7 +924,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       var orbit = parseOrbitConfig(orbitConfig);
       var box = new THREE.Box3().setFromObject(modelRoot);
       var sphere = box.getBoundingSphere(new THREE.Sphere());
-      var target = explicitTarget || sphere.center;
+      var target = orbit.target || explicitTarget || sphere.center;
+      if (orbit.envRotationRad !== null) scene.environmentRotation.y = orbit.envRotationRad;
       var fovRad = (camera.fov * Math.PI) / 180;
       var distance = (sphere.radius / Math.sin(fovRad / 2)) * (orbit.radiusPercent / 100);
       // Tightened from the constructor's generic 0.01/1000 now that the
@@ -904,9 +1005,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     function applyMaterial() {
       if (!modelRoot) return;
-      var params = metalToStandardMaterialParams(currentMetal);
       modelRoot.traverse(function (node) {
         if (!node.isMesh) return;
+        // A swatch stack's tubes each keep their own metal (see
+        // buildSwatchStack), whatever currentMetal says; read per mesh so
+        // the scene tool's live shader edits reach every tube.
+        var params = metalToStandardMaterialParams(node.userData.swatchMetal || currentMetal);
         // Always a fresh material, never mutating whatever the GLTF's own
         // mesh already had (GLTFLoader produces MeshStandardMaterial by
         // default, so a "reuse if already the right type" shortcut would
@@ -924,17 +1028,18 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       });
     }
 
-    // options.primitive (scene-tool.html's swatch-scene mode, and
-    // scripts/auto-render.js's swatch renderer) swaps a loaded GLTF for a
-    // bare primitive mesh — everything downstream (frameCamera's bounding-
+    // options.swatch (scene-tool.html's swatch mode, and
+    // scripts/auto-render.js's swatch renderer) is { metals: [...] }, and
+    // swaps a loaded GLTF for the swatch stack — everything downstream (frameCamera's bounding-
     // sphere measurement, applyMaterial's mesh traversal, controls, the
     // animate loop, freeOrbit, dispose) is already agnostic to how
     // modelRoot was built, so this is the only branch needed. `product` in
-    // this mode can be a minimal stub (just "3d-viewer-camera-default" and
-    // "name") — product.assets is never touched on this path.
+    // this mode can be a minimal stub (just "3d-viewer-camera-default" —
+    // swatchOrbit()'s result — and "name"); product.assets is never touched
+    // on this path.
     var modelPromise;
-    if (options.primitive) {
-      modelRoot = buildPrimitiveMesh(options.primitive);
+    if (options.swatch) {
+      modelRoot = buildSwatchStack(options.swatch.metals || []);
       applyMaterial();
       scene.add(modelRoot);
       modelPromise = Promise.resolve();
@@ -1490,4 +1595,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // separate override-parameter mechanism needed. Never read by the
   // interactive site or by scripts/auto-render.js.
   window.EmjiveModelViewer.METAL_PRESETS = METAL_PRESETS;
+  // Tool/render-only, like the above: the swatch's camera for a rotation.
+  window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
 })();

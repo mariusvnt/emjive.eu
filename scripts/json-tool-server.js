@@ -8,8 +8,8 @@
    photos) — writing the right JSON fields and dispatching dropped files
    into the right folders automatically.
 
-   Deliberately has no swatch-scene editing at all (swatch-primitive/
-   swatch-hdri/swatch-camera) — scripts/scene-tool-server.js already owns
+   Deliberately has no swatch-scene editing at all (swatch-hdri/
+   swatch-rotation) — scripts/scene-tool-server.js already owns
    that, with a live preview this file has no equivalent for. This file's
    GET /api/data still surfaces a read-only drift warning if the existing
    swatch-scene data looks broken, but nothing here can write to it.
@@ -71,7 +71,6 @@ const MIME = {
   ".css": "text/css"
 };
 
-const KNOWN_SWATCH_PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
 const MODEL_EXTS = [".glb", ".gltf"];
 const IMAGE_EXTS = [".png", ".webp", ".jpg", ".jpeg"];
 
@@ -201,9 +200,9 @@ function collectDriftWarnings(seriesIndex, seriesData) {
   if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
     warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
   }
-  const swatchPrimitive = seriesIndex["swatch-primitive"];
-  if (swatchPrimitive && !KNOWN_SWATCH_PRIMITIVES.includes(swatchPrimitive)) {
-    warnings.push('top-level "swatch-primitive" is "' + swatchPrimitive + '" which isn\'t one of: ' + KNOWN_SWATCH_PRIMITIVES.join(", "));
+  const swatchRotation = seriesIndex["swatch-rotation"];
+  if (swatchRotation !== undefined && typeof swatchRotation !== "number") {
+    warnings.push('top-level "swatch-rotation" is ' + JSON.stringify(swatchRotation) + ", not a number");
   }
   return warnings;
 }

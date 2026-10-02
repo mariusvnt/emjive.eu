@@ -9,7 +9,7 @@
    supersample-then-downscale tricks.
 
    Usage:
-     node scripts/auto-render.js [metal ...] [--series=<slug>]
+     node scripts/auto-render.js [metal ...] [--series=<slug>] [--swatches-only]
      npm run auto-render -- steel bronze
      npm run auto-render -- --series=bones
 
@@ -57,13 +57,21 @@
      composited onto a hand image. Saved as 1024x1024 WebP alongside the
      icon, indexed in the same products.json under that product's
      "assets.top-shot" object (keyed by metal), mirroring "icons".
-   - One metal sample bar: a plain primitive shape in this metal (not any
-     actual product — data/series.json's "swatch-primitive"/"swatch-hdri"/
-     "swatch-camera" fields pick which shape, which HDRI, and what camera
-     angle; scene-tool.html is how you preview and set them), saved as
-     240x240 WebP at assets/metal-sample_<metal>.webp (the small square
-     background CSS crops with background-size: cover — see
-     .product-metals__option in css/style.css).
+   - One metal sample strip per metal, saved as 1600x48 WebP at
+     assets/metal-sample_<metal>.webp — a long tube lying across the frame
+     and exactly filling its height, which .product-metals__option in
+     css/style.css lays behind each metal bar (the bars are 1rem tall, so
+     the strip's whole height is what shows). All the strips come from ONE
+     scene: a tube per metal (all of data/series.json's "metals", whichever
+     ones were asked for), stacked in the metal picker's order, with the
+     camera aimed at each tube in turn from a shared viewpoint — which is
+     what makes the metals' reflections differ (the HDRI only depends on
+     view direction; see swatchOrbit in js/three-viewer.js). Only two
+     things are chosen, both in data/series.json: "swatch-hdri" (which
+     HDRI) and "swatch-rotation" (how the stack is turned under it —
+     scene-tool.html's swatch mode is how you preview and set it). Tilt,
+     roll, zoom and the per-tube aim are solved. The swatches render after
+     every product, once, rather than once per metal.
 
    Whenever METAL_PRESETS (js/three-viewer.js) or the environment HDRI
    changes, re-run this for every metal so the icons/swatches stay
@@ -88,7 +96,11 @@ const ICON_SIZE = 512;
 // fallback-img saved at this size never needs to be scaled by the browser.
 const FALLBACK_IMG_SIZE = ICON_SIZE;
 const TOP_SHOT_SIZE = 1024;
-const SWATCH_SIZE = 240;
+// A strip, not a square: see the header. scene-tool.html's swatch-mode
+// preview mirrors this aspect (its own SWATCH_WIDTH/SWATCH_HEIGHT) — keep
+// the two in step.
+const SWATCH_WIDTH = 1600;
+const SWATCH_HEIGHT = 48;
 // Captured at 2x the final pixel size (real GPU MSAA already handles edge
 // aliasing — this is purely for retina-sharp source pixels before the
 // final downscale) then resized down with sharp.
@@ -191,12 +203,13 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = null;
   }
 
-  function mountTargetWrap(sizePx) {
+  // Square unless a height is given (the swatch is a wide strip).
+  function mountTargetWrap(widthPx, heightPx) {
     document.body.innerHTML = "";
     var wrap = document.createElement("div");
     wrap.id = "target-wrap";
-    wrap.style.width = sizePx + "px";
-    wrap.style.height = sizePx + "px";
+    wrap.style.width = widthPx + "px";
+    wrap.style.height = (heightPx === undefined ? widthPx : heightPx) + "px";
     document.body.appendChild(wrap);
     return wrap;
   }
@@ -427,49 +440,56 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // A plain primitive shape (data/series.json's "swatch-primitive" — a
-  // cylinder by default) rather than a close-up of an actual product's own
-  // curve — a torus viewed edge-on, for instance, is always a thin
-  // diagonal band in a square frame, leaving empty corners at any zoom,
-  // unlike a solid shape framed to exceed the frame on every side. Goes
-  // through the same window.EmjiveModelViewer(product, metalKey, options)
-  // every other render here uses (options.primitive swaps the loaded GLTF
-  // for a built-in primitive mesh — see js/three-viewer.js's
-  // buildPrimitiveMesh), not a separate buildMaterialSwatch — so a swatch
-  // can't drift from the site's real camera/material/HDRI construction any
-  // more than an icon or top shot can. cameraConfig is data/series.json's
-  // "swatch-camera" (a plain {rotation,tilt,zoom}, same shape as a
-  // product's "3d-viewer-camera-default"), threaded through on a minimal
-  // stub "product" object since this render has no real product/model.
-  window.__renderSwatch = function (metalKey, sizePx, primitive, hdriRelPath, cameraConfig) {
+  // The swatch stack: one tube per metal rather than a close-up of an
+  // actual product's own curve. Goes through the same
+  // window.EmjiveModelViewer(product, metalKey, options) every other render
+  // here uses (options.swatch swaps the loaded GLTF for the stack — see
+  // js/three-viewer.js's buildSwatchStack), not a separate
+  // buildMaterialSwatch — so a swatch can't drift from the site's real
+  // material/HDRI construction any more than an icon or top shot can. Built
+  // ONCE for all the metals; __aimSwatch then points the camera at one
+  // tube at a time. The camera for each is swatchOrbit(rotation, index,
+  // count) — data/series.json's "swatch-rotation" is the only input —
+  // threaded through on a minimal stub "product" object since this render
+  // has no real product/model.
+  window.__buildSwatchScene = function (widthPx, heightPx, metals, hdriRelPath, rotation) {
     window.__renderReady = false;
     disposeCurrentHandle();
-    var wrap = mountTargetWrap(sizePx);
-    var stubProduct = { name: primitive + " swatch", "3d-viewer-camera-default": cameraConfig };
-    var handle = window.EmjiveModelViewer(stubProduct, metalKey, {
+    var wrap = mountTargetWrap(widthPx, heightPx);
+    var stubProduct = {
+      name: "swatch",
+      "3d-viewer-camera-default": window.EmjiveModelViewer.swatchOrbit(rotation, 0, metals.length)
+    };
+    var handle = window.EmjiveModelViewer(stubProduct, metals[0], {
       transparentBackground: true,
       static: true,
-      primitive: primitive,
+      swatch: { metals: metals },
       hdri: hdriRelPath,
       onReady: function () {
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () {
-            window.__renderReady = true;
-          });
-        });
+        window.__renderReady = true;
       }
     });
     if (!handle) {
       // See the matching check in window.__renderTarget above for why
       // this throws instead of silently skipping or crashing on a null
       // dereference.
-      throw new Error("could not create a WebGL context while rendering the " + metalKey + " swatch");
+      throw new Error("could not create a WebGL context while rendering the swatches");
     }
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
     wrap.appendChild(handle.el);
     currentHandle = handle;
+  };
+
+  // setCameraOrbit() renders synchronously (static mode); the two rAFs are
+  // the same "let that frame actually paint" wait every other render here
+  // does before its screenshot.
+  window.__aimSwatch = function (rotation, index, count) {
+    currentHandle.setCameraOrbit(window.EmjiveModelViewer.swatchOrbit(rotation, index, count));
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+    });
   };
 </script>
 </body></html>`;
@@ -573,20 +593,31 @@ async function renderTopShot(page, product, metalKey, outPath, hdriRelPath) {
   await writeWebp(sharp(buffer).resize(TOP_SHOT_SIZE, TOP_SHOT_SIZE), outPath);
 }
 
-async function captureSwatchTarget(page, cssSizePx, metalKey, primitive, hdriRelPath, cameraConfig) {
-  await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
+// Builds the whole stack once (every metal in the series, in picker order),
+// then aims at and captures each wanted metal's tube. The stack is always
+// the full list even when only some metals were asked for: a tube's aim
+// depends on where it sits in the stack, so a partial stack would give a
+// different strip from the same metal.
+async function renderSwatches(page, allMetals, wantedMetals, hdriRelPath, rotation) {
+  await page.setViewport({ width: SWATCH_WIDTH, height: SWATCH_HEIGHT, deviceScaleFactor: CAPTURE_SCALE });
   await page.evaluate(
-    (m, s, p, h, c) => window.__renderSwatch(m, s, p, h, c),
-    metalKey, cssSizePx, primitive, hdriRelPath, cameraConfig
+    (w, h, m, hdri, r) => window.__buildSwatchScene(w, h, m, hdri, r),
+    SWATCH_WIDTH, SWATCH_HEIGHT, allMetals, hdriRelPath, rotation
   );
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
-  const handle = await page.$("#target");
-  return handle.screenshot({ omitBackground: true });
-}
 
-async function renderSwatch(page, metalKey, outPath, primitive, hdriRelPath, cameraConfig) {
-  const buffer = await captureSwatchTarget(page, SWATCH_SIZE, metalKey, primitive, hdriRelPath, cameraConfig);
-  await writeWebp(sharp(buffer).resize(SWATCH_SIZE, SWATCH_SIZE), outPath);
+  for (const metal of wantedMetals) {
+    const index = allMetals.indexOf(metal);
+    const relPath = "assets/metal-sample_" + metal + ".webp";
+    console.log("  swatch -> " + relPath + " (tube " + (index + 1) + "/" + allMetals.length + ", rotation " + rotation + ")");
+    await page.evaluate((r, i, n) => window.__aimSwatch(r, i, n), rotation, index, allMetals.length);
+    const handle = await page.$("#target");
+    const buffer = await handle.screenshot({ omitBackground: true });
+    await writeWebp(sharp(buffer).resize(SWATCH_WIDTH, SWATCH_HEIGHT), path.join(ROOT, relPath));
+    // Superseded by the naming/format above, if a product ever gets
+    // re-rendered under this tool for the first time.
+    deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));
+  }
 }
 
 function slug(name) {
@@ -685,12 +716,10 @@ function warnHdriDrift(seriesIndex) {
   }
 }
 
-const KNOWN_SWATCH_PRIMITIVES = ["cylinder", "box", "sphere", "torus"];
-
 // Same shape again, for the two swatch-scene fields scene-tool.html writes
 // (see dev-guidelines/procedures.md) — "swatch-hdri" against the same
-// "hdris" vocabulary warnHdriDrift checks, "swatch-primitive" against
-// js/three-viewer.js's buildPrimitiveMesh's own known names.
+// "hdris" vocabulary warnHdriDrift checks, "swatch-rotation" for being a
+// number at all (anything else would render as rotation 0, silently).
 function warnSwatchSceneDrift(seriesIndex) {
   const hdriVocabulary = Object.keys(seriesIndex.hdris || {});
   const swatchHdri = seriesIndex["swatch-hdri"];
@@ -700,11 +729,11 @@ function warnSwatchSceneDrift(seriesIndex) {
       "\" which isn't in data/series.json's top-level \"hdris\""
     );
   }
-  const swatchPrimitive = seriesIndex["swatch-primitive"];
-  if (swatchPrimitive && !KNOWN_SWATCH_PRIMITIVES.includes(swatchPrimitive)) {
+  const swatchRotation = seriesIndex["swatch-rotation"];
+  if (swatchRotation !== undefined && typeof swatchRotation !== "number") {
     console.warn(
-      "  warning: top-level \"swatch-primitive\" is \"" + swatchPrimitive +
-      "\" which isn't one of: " + KNOWN_SWATCH_PRIMITIVES.join(", ")
+      "  warning: top-level \"swatch-rotation\" is " + JSON.stringify(swatchRotation) +
+      ", not a number — the swatch will render at rotation 0"
     );
   }
 }
@@ -713,19 +742,22 @@ async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
   const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
+  // Just the metal-sample strips — no product icons/top shots, no
+  // products.json writes. The loop for tuning the swatch scene
+  // (scene-tool.html's swatch mode) without re-rendering the catalog.
+  const swatchesOnly = args.includes("--swatches-only");
 
   const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
   const allMetals = seriesIndex.metals || [];
   const allHdris = seriesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
 
-  // Swatch-scene config (scene-tool.html's "Camera"/"HDRI" tick boxes in
-  // primitive mode write these) — same fallbacks js/three-viewer.js's own
-  // DEFAULT_ORBIT/DEFAULT_HDRI_SRC use, so an unset field behaves the same
-  // here as it would live.
-  const swatchPrimitive = seriesIndex["swatch-primitive"] || "cylinder";
+  // Swatch-scene config (scene-tool.html's "Rotation"/"HDRI" tick boxes in
+  // swatch mode write these) — an unset rotation is 0, and an unset HDRI
+  // falls back to js/three-viewer.js's own DEFAULT_HDRI_SRC, so a missing
+  // field behaves the same here as it would live.
   const swatchHdriPath = allHdris[seriesIndex["swatch-hdri"]];
-  const swatchCameraConfig = seriesIndex["swatch-camera"] || { rotation: 0, tilt: 90, zoom: 100 };
+  const swatchRotation = typeof seriesIndex["swatch-rotation"] === "number" ? seriesIndex["swatch-rotation"] : 0;
 
   const unknown = metals.filter((m) => !allMetals.includes(m));
   if (unknown.length) {
@@ -738,8 +770,8 @@ async function main() {
   // deliberately: ids are only unique *within* a file now, so a shared
   // top-level `productsText` could have file A's text patched using file B's
   // product and still satisfy updateProductMetalFieldInText's "id" anchor.
-  const selected = seriesIndex.series.filter((s) => !seriesArg || s.slug === seriesArg);
-  if (seriesArg && !selected.length) {
+  const selected = swatchesOnly ? [] : seriesIndex.series.filter((s) => !seriesArg || s.slug === seriesArg);
+  if (seriesArg && !swatchesOnly && !selected.length) {
     throw new Error(
       "Unknown series: " + seriesArg + " — must be one of: " +
       seriesIndex.series.map((s) => s.slug).join(", ")
@@ -891,14 +923,10 @@ async function main() {
         }
       }
 
-      const sampleRelPath = "assets/metal-sample_" + metal + ".webp";
-      const sampleAbsPath = path.join(ROOT, sampleRelPath);
-      console.log("  swatch -> " + sampleRelPath + " (" + swatchPrimitive + ")");
-      await renderSwatch(page, metal, sampleAbsPath, swatchPrimitive, swatchHdriPath, swatchCameraConfig);
-      // Superseded by the naming/format above, if a product ever gets
-      // re-rendered under this tool for the first time.
-      deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));
     }
+
+    console.log("\n--- swatches ---");
+    await renderSwatches(page, allMetals, metals, swatchHdriPath, swatchRotation);
 
     for (const target of targets) {
       if (target.text !== target.raw) {

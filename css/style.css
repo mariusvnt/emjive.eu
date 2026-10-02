@@ -24,6 +24,9 @@
      body's reserved bottom padding (see the "Floating selection bar"
      section) so the two can't drift apart. */
   --selection-bar-height: 3.5rem;
+  /* The product page's glass Select / Add bar stacked on top of that bar
+     (see .product-select-bar) — the size sheet reserves room for it too. */
+  --select-bar-height: 2.5rem;
 
   /* The site's only two typefaces. font-secondary: navigation/mono
      usages, Geist Mono (loaded from Google Fonts). font-main: everything
@@ -209,6 +212,10 @@ body {
    needing every page's own bottom padding hand-adjusted. */
 body:has(.selection-bar) {
   padding-bottom: var(--selection-bar-height);
+}
+/* The product page's glass Select bar rests on top of it — room for both. */
+body:has(.product-select-bar:not([hidden])) {
+  padding-bottom: calc(var(--selection-bar-height) + var(--select-bar-height));
 }
 
 /* Landing-page scroll memory — js/scroll-memory.js adds this class (and
@@ -984,9 +991,9 @@ button, input, textarea {
 .selection-list[hidden] { display: none; }
 
 /* ---- item rows: full-bleed dark panel, same "break out to the true
-   viewport edge" technique as .product-detail__select below — breaks out
+   viewport edge" technique as .product-detail__label-bar — breaks out
    of .selection-page's own centered/padded column the same way that
-   button breaks out of .product-detail's. Rows carry their own edge-px
+   bar breaks out of .product-detail's. Rows carry their own edge-px
    inset (the same max-width/margin/padding recipe as
    .selection-bar__summary) so their content still lines up with the page
    column above/below them. No divider between rows — generous vertical
@@ -1343,6 +1350,12 @@ button, input, textarea {
   bottom: 0;
   z-index: 90;
   height: var(--selection-bar-height);
+}
+/* The glass itself is shared with the product page's Select bar
+   (.product-select-bar, further down) — one recipe, so the two can't drift
+   apart. */
+.order-checkout-bar,
+.product-select-bar {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.16) 0%,
@@ -1359,7 +1372,8 @@ button, input, textarea {
 /* Soft directional glare standing in for a specular highlight — sits
    behind .order-checkout-bar__row in DOM order, so it paints underneath
    the total/button without needing an explicit z-index. */
-.order-checkout-bar::before {
+.order-checkout-bar::before,
+.product-select-bar::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1886,6 +1900,25 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__intro .product-carousel--has-photos + .product-metals {
   margin-top: calc(4.5rem - var(--section-gap) - 2px - 0.75rem * var(--text-scale));
 }
+/* On the product page the picker is just the control, centred: no "Material"
+   label (the group's aria-label still names it), and the dot + name + stack
+   sit in the middle of the page instead of flushed right. The tag holds the
+   width of the longest metal name (Geist Mono, so six letters is six
+   characters) with the text on its right, so the stack stays put when a pick
+   changes the name. The Modify sheet keeps the labelled, flush-right layout. */
+.product-detail__intro .product-metals {
+  justify-content: center;
+}
+.product-detail__intro .product-metals__label {
+  display: none;
+}
+.product-detail__intro .product-metals__field {
+  margin-left: 0;
+}
+.product-detail__intro .product-metals__tag {
+  min-width: calc(6ch + 0.6rem);
+  text-align: right;
+}
 /* Dot + name of the selected metal (the dot's the same 0.25rem
    --category-col one the rest of the site marks a selection with). One
    element whose text js/metal-picker.js replaces on a pick — instantly, no
@@ -1977,29 +2010,69 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: url("../assets/metal-sample_bronze.webp") center / 100% 100% no-repeat;
 }
 
-/* ---- 4. select button: full-bleed black bar, same technique as the
-   label bar above. ---- */
-.product-detail__select {
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  height: 2.5rem;
+/* ---- 4. Select / Add bar: a liquid-glass strip (the glass recipe is shared
+   with .order-checkout-bar, see there) floating on top of the selection bar.
+   js/selection-bar.js publishes --selection-bar-stack-height — the summary
+   row plus wherever its drawer is heading, an Add's peek included — so this
+   rides up on an open drawer, and back down, in step with it (same 0.3s ease
+   as the drawer's own height). Before that script has run, the summary
+   row's own height is the whole story. It stays out of the way while the
+   Modify sheet is up (.is-away, js/product.js): that sheet rests on the
+   drawer's one remaining row, right where this would be. ---- */
+.product-select-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--selection-bar-stack-height, var(--selection-bar-height));
+  z-index: 90;
+  height: var(--select-bar-height);
+  /* Own compositor layer, same reasoning as .selection-bar's transform. */
+  transform: translateZ(0);
+  transition: bottom 0.3s ease, opacity var(--fade-standard) ease;
+}
+.product-select-bar.is-away,
+/* Also while an Add's peek has the newest row up out of the drawer
+   (js/selection-bar.js's .is-peek-up): gone as the row draws up, back as it
+   draws down. */
+body:has(.selection-bar.is-peek-up) .product-select-bar {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Positioned, so it paints above the glare (::before, shared above). */
+.product-select-bar__button {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--edge-px);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--black-bg);
-  color: var(--white);
+  background: none;
   border: none;
-  padding: 0 var(--edge-px);
+  color: var(--black);
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-font-size);
   letter-spacing: var(--button-letter-spacing);
   text-transform: var(--button-text-transform);
-  text-align: center;
   cursor: pointer;
+  transition: opacity var(--fade-quick) ease;
 }
-.product-detail__select:disabled { opacity: 0.5; cursor: not-allowed; }
+.product-select-bar__button:hover { opacity: 0.6; }
+/* "Add" before there's a size to add (and "No sizes available"): dimmed, as
+   .order-checkout-bar__button's disabled look. aria-disabled, not disabled,
+   so the button keeps focus across the Select -> Add swap. */
+.product-select-bar__button[aria-disabled="true"],
+.product-select-bar__button[aria-disabled="true"]:hover {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+/* The label swap (Select <-> Add) fades out, changes under js/product.js's
+   hand, and fades back in — never a label changing in plain sight. */
+.product-select-bar__label { transition: opacity var(--fade-fast) ease; }
+.product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- 5–7. expandable sections (description / characteristics / shipping) ----
    Label left, "+" right; js/product.js's wireDisclosures flips
@@ -2177,10 +2250,17 @@ body:has(.order-checkout-bar:not([hidden])) {
      isn't transitioned at all — see .is-open below. */
   transition: opacity var(--fade-standard) ease, visibility 0s linear 0.3s, padding-bottom 0.3s ease;
 }
+/* The size sheet (product.html's #sizeModal) rests on the glass Select bar,
+   which itself rides on the selection bar — so it keeps clear of that bar
+   too. Same 50vh ceiling as above, now over the two together. */
+.size-modal--select-bar {
+  --selection-bar-reserved: min(calc(var(--selection-bar-live-height, var(--selection-bar-height)) + var(--select-bar-height)), 50vh);
+}
 .size-modal--drawer .size-modal__backdrop {
   /* Stops the dim scrim exactly at the bar's top edge instead of covering
-     it — the bar has to stay visible and clickable (its own drawer, and
-     the Add button or Modify strip it turns into) while the sheet is open. Same
+     it — the bar has to stay visible and clickable (its own drawer, the
+     Modify strip it turns into, and the product page's Select / Add bar
+     riding on top of it) while the sheet is open. Same
      reserved value as the padding above, and transitions in step with it
      so the scrim's lower edge follows the bar smoothly rather than
      snapping while the panel above it eases into place. */
@@ -2527,6 +2607,7 @@ html.is-modal-open {
 }
 html.is-modal-open .site-header,
 html.is-modal-open .selection-bar,
+html.is-modal-open .product-select-bar,
 html.is-modal-open .order-checkout-bar,
 html.is-modal-open .order-checkout-drawer {
   padding-right: var(--page-scrollbar, 0px);
@@ -2685,13 +2766,12 @@ body.has-series-hero .selection-bar {
      .selection-bar__toggle's own overflow/mask (see its comment) is set up
      to clip and fade it. */
   justify-content: flex-end;
-  /* Fast, matching .selection-bar__add's own var(--fade-fast) — this is
-     the icon strip receding on entering add mode (see .is-hidden below),
-     which reads as the bar itself going dark since there's no color
-     change behind it, just the thumbnails disappearing. */
+  /* Fast, matching .selection-bar__order's own var(--fade-fast) — the icon
+     strip receding while the Modify strip takes over (see .is-hidden
+     below) fades in step with the label beside it. */
   transition: opacity var(--fade-fast) ease;
   /* Own compositor layer, same reasoning as .selection-bar__order/
-     __empty-label/__add below — see .selection-bar__order's comment. */
+     __empty-label below — see .selection-bar__order's comment. */
   transform: translateZ(0);
   will-change: opacity;
 }
@@ -2699,17 +2779,14 @@ body.has-series-hero .selection-bar {
    above — harmless today since this is always empty whenever it's
    hidden, but restated for correctness regardless. */
 .selection-bar__icons[hidden] { display: none; }
-/* Recedes so the centered .selection-bar__add button — which would
-   otherwise sit right on top of a wide icon strip — has the bar to itself
-   while the size sheet has a size to add, and so nothing shows through
-   the Modify sheet's strip while it fades in or out over the row. Its own
-   class rather than keyed off .is-add-active/.is-strip-active directly
-   (js/selection-bar.js's updateSummaryState() still hides it at that same
-   instant) so its REVEAL can instead be keyed off revealCurrentSummaryMode()
-   — the same moment Order/the empty label reveal — rather than firing the
-   moment those ancestor classes clear. Without that, icons used to start
-   fading back in a beat before Order did, instead of everything fading in
-   at once. */
+/* Recedes so nothing shows through the Modify sheet's strip while it fades
+   in or out over the row. Its own class rather than keyed off
+   .is-strip-active directly (js/selection-bar.js's updateSummaryState()
+   still hides it at that same instant) so its REVEAL can instead be keyed
+   off revealCurrentSummaryMode() — the same moment Order/the empty label
+   reveal — rather than firing the moment that ancestor class clears.
+   Without that, icons used to start fading back in a beat before Order
+   did, instead of everything fading in at once. */
 .selection-bar__icons.is-hidden {
   opacity: 0;
   pointer-events: none;
@@ -2767,8 +2844,8 @@ body.has-series-hero .selection-bar {
   color: var(--white);
   opacity: 1;
   cursor: pointer;
-  /* Matches .selection-bar__icons/.selection-bar__add's own --fade-fast —
-     on entering add mode, the icon strip and whichever of this/Order is
+  /* Matches .selection-bar__icons' own --fade-fast — while the Modify
+     strip takes over, the icon strip and whichever of this/Order is
      currently showing fade out together rather than at staggered speeds
      (icons used to be much faster than this at 0.3s, so they'd vanish
      well before this one finished, even though both start at once). */
@@ -2793,10 +2870,10 @@ body.has-series-hero .selection-bar {
   gap: 0.3rem;
   color: var(--white);
   opacity: 1;
-  /* Matches .selection-bar__icons/.selection-bar__add's own --fade-fast —
+  /* Matches .selection-bar__icons' own --fade-fast —
      see .selection-bar__empty-label's own comment on this same duration. */
   transition: opacity var(--fade-fast) ease;
-  /* Own compositor layer (also applied to __empty-label/__icons/__add) —
+  /* Own compositor layer (also applied to __empty-label/__icons) —
      mitigates a known WebKit issue where an element transitioning its own
      opacity, nested inside an ancestor that's already promoted to a layer
      via will-change/transform (.selection-bar itself has both, for the
@@ -2817,53 +2894,6 @@ body.has-series-hero .selection-bar {
   pointer-events: none;
 }
 .selection-bar__order-chevron { line-height: 1; }
-
-/* Centered on the bar itself, not tucked into .selection-bar__order's old
-   right-edge slot — it's the one control the bar's own faded-out icon
-   strip (.is-add-active, see above) is clearing the stage for, so it gets
-   the bar's visual center rather than sharing a corner with Order.
-   left/transform (not the empty-label/order inset recipe) is what centers
-   it: those two size themselves to their own
-   content and get positioned via right/top/bottom, but a translateX(-50%)
-   centering needs no width of its own to agree on. Text-only, matching
-   .selection-bar__order's type recipe rather than a filled pill: the bar
-   itself is already dark, so a black-on-black button box would read the
-   same way .order-checkout-bar__button's own comment already explains for
-   that bar. */
-.selection-bar__add {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  bottom: 0;
-  /* translateZ(0) rides along in the same transform as the centering
-     translateX (a second transform: declaration would just overwrite this
-     one, not combine with it) — own compositor layer, same reasoning as
-     .selection-bar__order's comment. */
-  transform: translateX(-50%) translateZ(0);
-  display: flex;
-  align-items: center;
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--white);
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  cursor: pointer;
-  opacity: 1;
-  will-change: opacity;
-  /* Fast in both directions — it's the moment the bar's whole "confirm
-     this" state kicks in and shouldn't lag behind the icon-strip fade it
-     appears alongside. */
-  transition: opacity var(--fade-fast) ease;
-}
-.selection-bar__add.is-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-.selection-bar__add:hover { opacity: 0.6; }
 
 /* ---- drawer: item list. Height is driven by js/selection-bar.js setting
    max-height inline in px — on this drawer and on its inner scroll box
@@ -3124,9 +3154,9 @@ body.has-series-hero .selection-bar {
    happens to be mid-flight — .modify-strip__undo in particular, whose own
    base duration is only half of --fade-standard. Placed after every
    .is-undo/.is-saved/.is-leaving rule above so it reliably wins if the
-   strip is ever hidden while still mid an internal mode (e.g. a size
-   typed during the Undo offer hands the bar to "Add" while
-   .modify-strip__undo is still at opacity: 1). */
+   strip is ever hidden while still mid an internal mode (e.g. the Undo
+   offer being cut short while .modify-strip__undo is still at
+   opacity: 1). */
 .modify-strip__unselect,
 .modify-strip__save {
   opacity: 1;
@@ -3226,16 +3256,17 @@ input:focus-visible,
 .selection-bar a:focus-visible,
 .selection-bar button:focus-visible,
 .order-item button:focus-visible,
-.order-checkout-bar button:focus-visible,
-.product-detail__select:focus-visible {
+.order-checkout-bar button:focus-visible {
   outline: var(--focus-ring-inverted);
 }
 
 /* Flush-edge cases: an outset ring would be clipped by the parent, so the
-   ring is drawn just inside the control's own box instead. */
+   ring is drawn just inside the control's own box instead. (The product
+   page's glass Select bar takes the default ring: it is light glass over
+   the light page, where the inverted one wouldn't show.) */
 .selection-bar__order:focus-visible,
 .selection-bar__toggle:focus-visible,
-.selection-bar__add:focus-visible {
+.product-select-bar__button:focus-visible {
   outline-offset: -2px;
 }
 
@@ -3253,9 +3284,7 @@ input:focus-visible,
 }
 /* The other controls that are positioned already keep their own place too
    when a keyboard focuses them: the site-wide rule's position: relative
-   would drop the bar's "Add" into the summary row's flow, and pull a
-   product card's name out of its spot over the card. */
-.selection-bar .selection-bar__add:focus-visible,
+   would pull a product card's name out of its spot over the card. */
 .product-card .product-card__label:focus-visible {
   position: absolute;
 }

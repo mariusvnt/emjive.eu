@@ -59,11 +59,11 @@
   // can reach the bar's true right edge, past the toggle button's own,
   // narrower box) — so it needs its own click handling below rather than
   // relying on being inside that button.
-  // All three of these (plus addActionBtn below) start with .is-hidden —
+  // Both of these start with .is-hidden —
   // updateSummaryState()'s first call (from the unconditional render() at
   // the bottom of this file) reveals whichever one actually matches the
-  // real starting state; without an explicit starting class here, the two
-  // NOT chosen would have nothing telling them to stay hidden, since
+  // real starting state; without an explicit starting class here, the one
+  // NOT chosen would have nothing telling it to stay hidden, since
   // classList.remove("is-hidden") on the chosen one is a no-op against an
   // element that never had the class to begin with. Hidden also means
   // inert, so an invisible label can't be tabbed to.
@@ -83,29 +83,9 @@
   orderLink.appendChild(orderCountEl);
   orderLink.appendChild(orderChevronEl);
 
-  // Occupies the same reserved slot as emptyLabelEl/orderLink (see
-  // updateSummaryState() below) — shown only while js/product.js's size
-  // sheet holds a size that can be added, replacing whichever of the other
-  // two would otherwise be showing. pendingConfirm is the callback that
-  // actually performs it, pendingLabel what the button says, both supplied
-  // by whoever called showAction().
-  var addActionBtn = document.createElement("button");
-  addActionBtn.type = "button";
-  addActionBtn.className = "selection-bar__add is-hidden";
-  addActionBtn.textContent = "Add";
-  addActionBtn.setAttribute("aria-hidden", "true");
-  addActionBtn.inert = true;
-  var pendingConfirm = null;
-  var pendingLabel = "Add";
-  // No click listener of its own — while it's showing, the whole bar acts
-  // as its hit box instead (see the bar-level listener below), which this
-  // button's own bubbling click already reaches. A listener here too would
-  // double-fire pendingConfirm() on a direct click.
-
   summary.appendChild(toggleBtn);
   summary.appendChild(emptyLabelEl);
   summary.appendChild(orderLink);
-  summary.appendChild(addActionBtn);
 
   // Drawer sits before the summary row in DOM order so it stacks visually
   // above it inside this column-flex bar — the bar's total height is
@@ -170,6 +150,10 @@
     // sheet that just added the item slides away.
     var published = !isOpen && peekHeight !== null ? 0 : target;
     document.documentElement.style.setProperty("--selection-bar-live-height", summaryHeight + published + "px");
+    // The product page's glass Select bar (.product-select-bar) rides on top
+    // of the bar and its drawer — a peek included, which comes and goes
+    // with the bar's own transition.
+    document.documentElement.style.setProperty("--selection-bar-stack-height", summaryHeight + target + "px");
     return target;
   }
 
@@ -189,6 +173,7 @@
     clearTimeout(peekTimer);
     peekHeight = null;
     peekShown = false;
+    bar.classList.remove("is-peek-up");
     bar.classList.remove("is-peeking");
   }
 
@@ -215,11 +200,13 @@
     void drawerInner.offsetHeight;
     drawerInner.scrollTop = alone ? 0 : row.getBoundingClientRect().top - rowsEl.getBoundingClientRect().top;
     drawerInner.style.transition = "";
-    bar.classList.add("is-peeking");
+    bar.classList.add("is-peeking", "is-peek-up");
     peekShown = true;
     syncDrawerHeight();
     peekTimer = setTimeout(function () {
       peekShown = false;
+      // Drawing back down: the product page's Select bar comes back with it.
+      bar.classList.remove("is-peek-up");
       syncDrawerHeight();
       peekTimer = setTimeout(endPeek, DRAWER_MS + 50);
     }, DRAWER_MS + PEEK_HOLD_MS);
@@ -320,11 +307,7 @@
   }
 
   function toggleDrawer() {
-    // The bar's own "pop up" (its drawer) sits out entirely while the bar
-    // itself is acting as one big Add button (see .is-add-active below) —
-    // the whole point of that mode is a single, unambiguous hit target.
-    if (bar.classList.contains("is-add-active")) return;
-    // Likewise while the Modify sheet is up. The strip covers the toggle
+    // Not while the Modify sheet is up. The strip covers the toggle
     // then anyway (and the summary row is inert); this is the backstop.
     if (window.EmjiveModifyModal && window.EmjiveModifyModal.isOpen()) return;
     setDrawerOpen(!drawer.classList.contains("is-open"));
@@ -335,34 +318,15 @@
   // drawer when clicked.
   emptyLabelEl.addEventListener("click", toggleDrawer);
 
-  // While the size sheet has a size to add, the ENTIRE bar becomes
-  // addActionBtn's hit box rather than just its own small centered label —
-  // bubbling catches a click anywhere in the bar, including a keyboard
-  // Enter/Space activation of addActionBtn itself (which also dispatches a
-  // real, bubbling click). Guarded on is-add-active so this is a complete
-  // no-op the rest of the time. The Modify strip's buttons (appended to the
-  // bar while that sheet is up) handle their own clicks.
-  // Never for a click from inside the drawer, though: a row tap there opens
-  // the Modify sheet off an already-resolved promise, whose callbacks run in
-  // the microtask checkpoint between two listeners of that same click — so
-  // by the time the click reaches this one, the bar may already have
-  // changed mode under it.
-  bar.addEventListener("click", function (e) {
-    if (drawer.contains(e.target)) return;
-    if (bar.classList.contains("is-add-active") && pendingConfirm) pendingConfirm();
-  });
-
   /* ---- the summary row's one slot ------------------------------------------
      Whatever the bar has to say, it says in one place, one thing at a time:
-       add    js/product.js's size sheet has a size to add — "Add"
        strip  the Modify sheet is up (or its "Undo" is on offer) — its strip,
               laid over the whole row (js/modify-modal.js builds it; this
               bar only shows and hides it — stripHost below)
        order  items selected — "Order (N) ›"
        empty  nothing selected — "No selected item"
-     in that order of precedence: even an empty cart shows "Add" once a size
-     is picked, and a size typed while "Undo" is on offer takes the bar
-     over. */
+     in that order of precedence. (The product page's "Add" is not here: it
+     lives in the glass Select bar above this one — js/product.js.) */
   var stripEl = null;
   var stripShown = false;
 
@@ -383,12 +347,10 @@
   if (window.EmjiveModifyModal) window.EmjiveModifyModal.attach(stripHost);
 
   function summaryElFor(mode) {
-    if (mode === "add") return addActionBtn;
     if (mode === "strip") return stripEl;
     return mode === "order" ? orderLink : emptyLabelEl;
   }
   function computeSummaryMode() {
-    if (pendingConfirm) return "add";
     if (stripShown) return "strip";
     return window.EmjiveSelection.getSelection().length > 0 ? "order" : "empty";
   }
@@ -424,16 +386,13 @@
       summaryHideListenerEl = null;
     }
     var el = summaryElFor(visibleSummaryMode);
-    // Relabelled only here, while it's still fully transparent — a label
-    // changing in plain sight would read as a flicker.
-    if (visibleSummaryMode === "add") addActionBtn.textContent = pendingLabel;
     el.classList.remove("is-hidden");
     el.setAttribute("aria-hidden", "false");
     el.inert = false;
     // Icons only ever share the bar with Order/the empty label — never
-    // with Add or the strip — and reveal at the exact same instant those
-    // do, here, rather than the moment is-add-active/is-strip-active
-    // clears (updateSummaryState()'s own hide, above): everything fades
+    // with the strip — and reveal at the exact same instant those
+    // do, here, rather than the moment is-strip-active clears
+    // (updateSummaryState()'s own hide, above): everything fades
     // in together instead of icons arriving a beat early.
     if (visibleSummaryMode === "order" || visibleSummaryMode === "empty") {
       iconsEl.classList.remove("is-hidden");
@@ -444,21 +403,16 @@
     var mode = computeSummaryMode();
     // Ahead of the early returns below (which only fire once nothing about
     // the visible label needs to change) so these stay correct even on a
-    // redundant call — cheap, and all idempotent. Entering add mode also
-    // closes the drawer if it happened to be open — that "pop up" sits out
-    // entirely while the bar is one big Add button (see toggleDrawer()'s
-    // own guard above, which is what keeps it closed for the duration). The
-    // strip leaves the drawer be: the Modify sheet is opened from it. The
-    // strip covers the whole summary row, so nothing under it should be
-    // reachable while it's up.
-    bar.classList.toggle("is-add-active", mode === "add");
+    // redundant call — cheap, and all idempotent. The strip leaves the
+    // drawer be: the Modify sheet is opened from it. The strip covers the
+    // whole summary row, so nothing under it should be reachable while it's
+    // up.
     bar.classList.toggle("is-strip-active", mode === "strip");
     // Hidden at once, same as always — only its REVEAL moves, to
     // revealCurrentSummaryMode() below, so it fades back in alongside
     // Order/the empty label instead of a beat ahead of them.
-    if (mode === "add" || mode === "strip") iconsEl.classList.add("is-hidden");
+    if (mode === "strip") iconsEl.classList.add("is-hidden");
     summary.inert = mode === "strip";
-    if (mode === "add") setDrawerOpen(false);
     if (mode === visibleSummaryMode) return;
 
     // A handoff already under way — its outgoing label still fading out:
@@ -498,19 +452,6 @@
     // matching the 0.075s opacity transition these share plus a buffer.
     summaryRevealTimer = setTimeout(revealCurrentSummaryMode, 350);
   }
-
-  // label: "Add" (js/product.js).
-  window.EmjiveSelectionBar = {
-    showAction: function (label, onConfirm) {
-      pendingLabel = label;
-      pendingConfirm = onConfirm;
-      updateSummaryState();
-    },
-    hideAction: function () {
-      pendingConfirm = null;
-      updateSummaryState();
-    }
-  };
 
   // A drawer row's tap: the drawer stays open but shrinks down to just that
   // row, and the Modify sheet (js/modify-modal.js) slides up from behind the

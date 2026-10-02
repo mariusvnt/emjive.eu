@@ -124,9 +124,6 @@
       <!-- 3. Metal selection: one bar per metal, built by js/metal-picker.js -->
       <div class="product-metals" id="productMetals"></div>
 
-      <!-- 4. Select button -->
-      <button class="product-detail__select" id="selectButton" type="button">Select</button>
-
     </div>
 
     <!-- 5–7. Expandable sections (collapsed by default; js/product.js's
@@ -193,20 +190,28 @@
   </div>
 </main>
 
-<!-- Size-selection modal, opened by the Select button — slides up from
-     behind the floating selection bar as a bottom sheet resting right
-     above it (see .size-modal--drawer in css/style.css), the same
-     component as the Modify sheet (#modifyModal, built by
-     js/modify-modal.js). Confirming a size is done from the bar's own
-     "Add" button (js/selection-bar.js), not from a button in here — this
-     panel is a pure picker, and the "Size" field is the only way to
-     give a size.
+<!-- Select / Add bar: a liquid-glass strip floating on top of the selection
+     bar (css/style.css, .product-select-bar), shown by js/product.js once
+     the product has rendered. It says "Select" and opens the size sheet
+     below; while the sheet is up it says "Add" instead. -->
+<div class="product-select-bar" id="productSelectBar" hidden>
+  <button class="product-select-bar__button" id="selectButton" type="button"><span class="product-select-bar__label">Select</span></button>
+</div>
+
+<!-- Size-selection modal, opened by the Select bar — slides up from
+     behind the floating bars as a bottom sheet resting right above the
+     Select bar (see .size-modal--drawer and .size-modal--select-bar in
+     css/style.css), the same component as the Modify sheet (#modifyModal,
+     built by js/modify-modal.js). Confirming a size is done from the
+     Select bar's own "Add" button (js/product.js), not from a button in
+     here — this panel is a pure picker, and the "Size" field is the only
+     way to give a size.
 
      role/aria-modal/aria-label sit on THIS element rather than on
      .size-modal__panel, because js/focus-trap.js traps the whole modal —
      see its header comment. tabindex="-1" is what lets the trap focus this
      element on open so the aria-label is read before the first control. -->
-<div class="size-modal size-modal--drawer" id="sizeModal" aria-hidden="true"
+<div class="size-modal size-modal--drawer size-modal--select-bar" id="sizeModal" aria-hidden="true"
      role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <!-- .size-modal__sheet carries the slide transform (see

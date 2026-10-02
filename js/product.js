@@ -467,8 +467,13 @@
     // .disclosure__inner is clipped to 0 while closed; its one child isn't.
     var content = panel.firstElementChild.firstElementChild;
     var fullHeight = content.offsetHeight + parseFloat(getComputedStyle(content).marginBottom);
-    var bar = document.querySelector(".selection-bar");
-    var barTop = bar ? bar.getBoundingClientRect().top : window.innerHeight;
+    // The topmost of the two stacked bars: the glass Select bar, riding on
+    // the selection bar.
+    var barTop = window.innerHeight;
+    [".product-select-bar", ".selection-bar"].forEach(function (sel) {
+      var b = document.querySelector(sel);
+      if (b && !b.hidden) barTop = Math.min(barTop, b.getBoundingClientRect().top);
+    });
     var headerBottom = document.querySelector(".site-header").getBoundingClientRect().bottom;
     var top = btn.getBoundingClientRect().top;
     var bottom = panel.getBoundingClientRect().top + fullHeight;
@@ -536,12 +541,25 @@
     var guideToggle = document.getElementById("sizeModalGuideToggle");
     var guidePanel = document.getElementById("sizeModalGuide");
 
+    var selectBar = document.getElementById("productSelectBar");
+    var selectLabel = selectBar.querySelector(".product-select-bar__label");
+    selectBar.hidden = false;
+
+    // The Select bar steps aside while the Modify sheet is up: that sheet
+    // rests on the drawer's one remaining row, right where this bar rides.
+    function setBarAway(away) {
+      selectBar.classList.toggle("is-away", away);
+      selectBar.inert = away;
+    }
+    window.addEventListener("emjive:modify-open", function () { setBarAway(true); });
+    window.addEventListener("emjive:modify-close", function () { setBarAway(false); });
+
     // A category with no unit has nothing to measure yet (neck and wrist,
-    // today) — the Select button stays disabled rather than opening a
-    // field nobody knows how to fill in.
+    // today) — the Select bar stays disabled rather than opening a field
+    // nobody knows how to fill in.
     if (!unit) {
-      selectBtn.disabled = true;
-      selectBtn.textContent = "No sizes available";
+      selectBtn.setAttribute("aria-disabled", "true");
+      selectLabel.textContent = "No sizes available";
       return;
     }
 
@@ -549,18 +567,28 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The bar's Add button (js/selection-bar.js) is the only way to
-    // confirm, and it only exists while the field holds a size that can
-    // actually be ordered — an empty field, a lone "." or a zero keeps the
-    // bar showing its normal summary instead. See isValidSize in
-    // js/selection.js.
-    function syncAddAction() {
-      if (!window.EmjiveSelectionBar) return;
-      if (window.EmjiveSelection.isValidSize(customInput.value)) {
-        window.EmjiveSelectionBar.showAction("Add", confirmAdd);
-      } else {
-        window.EmjiveSelectionBar.hideAction();
-      }
+    // The glass Select bar's one button: "Select" (opens the sheet), then
+    // "Add" while the sheet is up — the only way to confirm. Add is dimmed
+    // (aria-disabled) until the field holds a size that can actually be
+    // ordered: an empty field, a lone "." or a zero isn't one. See
+    // isValidSize in js/selection.js. The label fades out, changes, and
+    // fades back in rather than changing in plain sight.
+    var swapTimer = null;
+    function setBarLabel(text) {
+      if (selectLabel.textContent === text) return;
+      clearTimeout(swapTimer);
+      selectLabel.classList.add("is-swapping");
+      swapTimer = setTimeout(function () {
+        selectLabel.textContent = text;
+        selectLabel.classList.remove("is-swapping");
+      }, 80);
+    }
+
+    function syncBar() {
+      var isOpen = modal.classList.contains("is-open");
+      setBarLabel(isOpen ? "Add" : "Select");
+      var canAct = !isOpen || window.EmjiveSelection.isValidSize(customInput.value);
+      selectBtn.setAttribute("aria-disabled", String(!canAct));
     }
 
     // Filtered down to digits and one decimal point (js/selection.js's
@@ -570,12 +598,12 @@
     customInput.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(customInput.value);
       if (cleaned !== customInput.value) customInput.value = cleaned;
-      syncAddAction();
+      syncBar();
     });
 
     // Enter confirms. Not just a convenience: the Add button lives in the
-    // bar, outside the focus trap, so without this a keyboard visitor
-    // could type a size and have no way to add it.
+    // Select bar, outside the focus trap, so without this a keyboard
+    // visitor could type a size and have no way to add it.
     customInput.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
       e.preventDefault();
@@ -589,11 +617,11 @@
 
     function openModal() {
       customInput.value = "";
-      syncAddAction();
       guidePanel.classList.remove("is-open");
       guideToggle.setAttribute("aria-expanded", "false");
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
+      syncBar();
       // AFTER .is-open, not before: the modal is visibility: hidden until
       // that class lands, and focus() on a hidden element is a no-op. The
       // trap also freezes the page behind the sheet (and frees it again on
@@ -610,15 +638,15 @@
     function closeModal() {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
-      window.EmjiveFocusTrap.release();
       // Covers both paths that reach here: a successful confirmAdd() (which
       // calls this after adding) and an abandoned pick via backdrop/Escape
-      // — either way, the bar's Add button shouldn't linger once the sheet
-      // is gone.
-      if (window.EmjiveSelectionBar) window.EmjiveSelectionBar.hideAction();
+      // — either way, the bar goes back to "Select" once the sheet is gone.
+      // Before the trap lets go, so focus lands back on a live button.
+      syncBar();
+      window.EmjiveFocusTrap.release();
     }
 
-    // The actual "add to cart" action — reached via the bar's Add button or
+    // The actual "add to cart" action — reached via the Select bar's Add or
     // Enter in the field, both of which only fire for a valid size; the
     // guard below is belt and braces against a stale callback.
     function confirmAdd() {
@@ -640,7 +668,10 @@
       closeModal();
     }
 
-    selectBtn.addEventListener("click", openModal);
+    selectBtn.addEventListener("click", function () {
+      if (!modal.classList.contains("is-open")) openModal();
+      else if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd();
+    });
     document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
     // Escape is handled by the focus trap's own keydown listener (registered
     // on activate, removed on release) rather than by a permanent
@@ -656,8 +687,7 @@
     // aside for it.
     window.addEventListener("emjive:modify-open", function () {
       if (modal.classList.contains("is-open")) closeModal();
-    });
-  }
+    });  }
 
   init();
 })();

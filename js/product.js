@@ -353,40 +353,19 @@
 
   /* ---- 3. metal selection ------------------------------------------------ */
 
+  // The bars, their selected state and the change animation are
+  // js/metal-picker.js; this just reacts to a pick.
   function renderMetalOptions(product) {
-    var wrap = document.getElementById("productMetalOptions");
-    wrap.innerHTML = "";
-    state.metals.forEach(function (metal) {
-      var optionWrap = el("div", "product-metals__option-wrap");
-      optionWrap.classList.toggle("is-selected", metal === state.selectedMetal);
-
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "product-metals__option";
-      btn.dataset.metal = metal;
-      btn.setAttribute("aria-label", metal);
-      // Which finish is selected was conveyed only by a class on the WRAPPER
-      // plus a floating dot — both purely visual, neither reachable by a
-      // screen reader, on a control that changes the price. aria-pressed is
-      // the same pattern the terms toggle in js/selection-page.js uses.
-      btn.setAttribute("aria-pressed", String(metal === state.selectedMetal));
-      btn.addEventListener("click", function () { onMetalSelect(product, metal); });
-
-      optionWrap.appendChild(btn);
-      optionWrap.appendChild(el("span", "product-metals__option-label", metal));
-      wrap.appendChild(optionWrap);
+    window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
+      metals: state.metals,
+      selected: state.selectedMetal,
+      onSelect: function (metal) { onMetalSelect(product, metal); }
     });
   }
 
   function onMetalSelect(product, metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
-    document.querySelectorAll(".product-metals__option-wrap").forEach(function (optionWrap) {
-      var btn = optionWrap.querySelector(".product-metals__option");
-      var on = btn.dataset.metal === metal;
-      optionWrap.classList.toggle("is-selected", on);
-      btn.setAttribute("aria-pressed", String(on));
-    });
     // Re-tints the existing model in place (no reload, no camera reset).
     if (state.modelHandle) state.modelHandle.applyMetal(metal);
     // The model re-tints itself live above, but the label thumbnail (and,

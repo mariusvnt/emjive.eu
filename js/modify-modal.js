@@ -108,9 +108,6 @@
   var content = el("div", "size-modal__content");
 
   var metalsRow = el("div", "product-metals");
-  metalsRow.appendChild(el("span", "product-metals__label", "Metal"));
-  var metalOptions = el("div", "product-metals__options");
-  metalsRow.appendChild(metalOptions);
 
   var sizeRow = el("div", "size-modal__custom-row");
   var sizeLabel = el("label", "size-modal__custom-label", "Custom size");
@@ -366,40 +363,20 @@
   }
 
   /* ---- metal picker ------------------------------------------------------
-     Built per open (the metal list is global, but the selected one isn't),
-     then updated in place on each pick — rebuilding the buttons would drop
-     keyboard focus off the one just pressed. */
+     Re-mounted per open (the metal list is global, but the selected one
+     isn't); js/metal-picker.js then updates it in place on each pick, so
+     keyboard focus stays on the bar just pressed. */
   function renderMetalOptions() {
-    metalOptions.innerHTML = "";
-    (window.EmjiveSeries.metals || []).forEach(function (metal) {
-      var optionWrap = el("div", "product-metals__option-wrap");
-      optionWrap.classList.toggle("is-selected", metal === state.selectedMetal);
-
-      var btn = el("button", "product-metals__option");
-      btn.type = "button";
-      btn.dataset.metal = metal;
-      btn.setAttribute("aria-label", metal);
-      // The selected finish is otherwise conveyed only by a wrapper class
-      // and a dot, neither of which a screen reader can reach, on a control
-      // that changes the price.
-      btn.setAttribute("aria-pressed", String(metal === state.selectedMetal));
-      btn.addEventListener("click", function () { selectMetal(metal); });
-
-      optionWrap.appendChild(btn);
-      optionWrap.appendChild(el("span", "product-metals__option-label", metal));
-      metalOptions.appendChild(optionWrap);
+    window.EmjiveMetalPicker.mount(metalsRow, {
+      metals: window.EmjiveSeries.metals || [],
+      selected: state.selectedMetal,
+      onSelect: selectMetal
     });
   }
 
   function selectMetal(metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
-    metalOptions.querySelectorAll(".product-metals__option-wrap").forEach(function (optionWrap) {
-      var btn = optionWrap.querySelector(".product-metals__option");
-      var on = btn.dataset.metal === metal;
-      optionWrap.classList.toggle("is-selected", on);
-      btn.setAttribute("aria-pressed", String(on));
-    });
     // Re-tints the live model in place (no reload, no camera reset); the
     // images standing in for it need their own swap.
     if (state.modelHandle) state.modelHandle.applyMetal(metal);

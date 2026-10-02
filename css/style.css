@@ -453,7 +453,8 @@ button, input, textarea {
   transform: translate(-50%, -50%) rotate(0deg);
   transition: transform 0.3s ease;
 }
-.menu-toggle.is-open .menu-toggle__bar--v {
+.menu-toggle.is-open .menu-toggle__bar--v,
+.disclosure__toggle[aria-expanded="true"] .menu-toggle__bar--v {
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
@@ -640,10 +641,8 @@ button, input, textarea {
 }
 /* h1 OR h2: a .section-head is the page's own title on the shell pages
    (archives/terms/creation-process, and series.html's manifest title), where
-   it's an h1, and a subsection heading on product.html ("Description",
-   "Characteristics", "Shipping & Returns"), where it stays an h2 under that
-   page's product h1. Same visual treatment either way — the level is about
-   document structure, not size. */
+   it's an h1. The level is about document structure, not size, so an h2
+   gets the same treatment. */
 .section-head :is(h1, h2) {
   font-size: clamp(calc(1.8rem * var(--text-scale)), calc(3.5vw * var(--text-scale)), calc(2.4rem * var(--text-scale)));
   font-weight: 400;
@@ -1495,9 +1494,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
   min-height: 55vh;
   background: var(--bg);
-  /* Single source of truth for every vertical gap on this page (between
-     label/carousel/metals/select-button, and between the prose sections
-     below them) — was previously a mix of .product-detail__intro's own
+  /* Single source of truth for the vertical gaps between the intro's
+     label/carousel/metals/select-button (the expandable sections below
+     them sit a fixed 2rem under the button instead) — was previously a mix of .product-detail__intro's own
      1.5rem flex gap plus ad-hoc per-element "top-up" margins (2.5rem,
      6.5rem) layered on top to reach different totals (4rem, 8rem) in
      different places, plus yet another clamp() value for the gap before
@@ -1513,16 +1512,14 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
 /* Sections 1–4: centered hero cluster (label, carousel, metal picker, CTA).
-   gap spaces the four of them evenly at --section-gap each; margin-bottom
-   sets off the whole cluster from the prose sections below by that same
-   amount (was a redundant padding-bottom + margin-bottom pair set to the
-   same clamp() — just the one margin now). */
+   gap spaces the four of them evenly at --section-gap each. No margin
+   below: the expandable sections that follow sit a fixed 2rem under the
+   Select button (see .product-detail__section:first-of-type). */
 .product-detail__intro {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--section-gap);
-  margin-bottom: var(--section-gap);
 }
 
 /* ---- 1. label ---- */
@@ -1603,6 +1600,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   object-fit: contain;
   background: transparent;
 }
+/* A name too long for the row is clipped and fades to transparent over its
+   last 1.5rem (same mask recipe as .order-item__meta) rather than ending in
+   an ellipsis. The text only reaches that edge when it's actually cropped,
+   so a short name is untouched. */
 .product-detail__label-text {
   flex: 1;
   min-width: 0;
@@ -1610,8 +1611,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-weight: 400;
   font-size: calc(1rem * var(--text-scale));
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%);
 }
 .product-detail__label-name {
   font-family: var(--font-main);
@@ -1999,31 +2001,75 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-detail__select:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---- 5–7. prose sections (description / characteristics / shipping) ---- */
-.product-detail__section {
-  padding-top: 3rem;
-  margin-bottom: var(--section-gap);
+/* ---- 5–7. expandable sections (description / characteristics / shipping) ----
+   Label left, "+" right; js/product.js's wireDisclosures flips
+   aria-expanded on the button and .is-open on the panel. The "+" is the
+   header toggle's own bars (.menu-toggle__bar, rotated to a "-" by the rule
+   next to .menu-toggle above), sized to the label text. */
+.product-detail__section:first-of-type { padding-top: 2rem; }
+/* Opening a section scrolls the page itself (js/product.js's glideScroll).
+   Left to scroll anchoring, a section opening above another one in view would
+   also shift the page to keep that one still, on top of the glide. */
+.product-detail__section { overflow-anchor: none; }
+
+/* The h2 stays for document structure (see .section-head's comment); the
+   size is the button's, so it takes none of its own. */
+.disclosure__heading {
+  margin: 0;
+  font: inherit;
 }
-.product-detail__section:last-child { margin-bottom: 0; }
-/* .section-head normally adds its own max-width/auto-margin/gutter
-   padding (see .section-head above) so it can sit directly in an
-   unpadded page section — .product-detail already provides that gutter
-   itself, so left as-is here the heading would sit indented an extra
-   step past .product-detail__description/__shipping below it. Scoped to
-   the product page only, so launch-order.html's heading is unaffected. */
-.product-detail__section .section-head {
-  max-width: none;
-  margin-left: 0;
-  margin-right: 0;
-  padding-left: 0;
-  padding-right: 0;
+.disclosure__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  width: 100%;
+  padding: 0.9rem 0;
+  background: none;
+  border: none;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  color: var(--category-col);
+  text-align: left;
+  cursor: pointer;
 }
+/* Half the label's own text size (0.5em of the button's font-size), tinted
+   with its colour rather than the header's black. */
+.disclosure__icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.5em;
+  height: 0.5em;
+}
+.disclosure__icon .menu-toggle__bar { background: var(--category-col); }
+
+/* Same 0fr/1fr grid-row reveal as .site-header__menu — animates to the
+   content's height without knowing it. visibility (delayed on close) takes
+   the collapsed content out of the tab order and the accessibility tree. */
+.disclosure__panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 0.35s ease, visibility 0s linear 0.35s;
+}
+.disclosure__panel.is-open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 0.35s ease, visibility 0s;
+}
+.disclosure__inner {
+  overflow: hidden;
+  min-height: 0;
+}
+/* Spacing as a margin on the content inside the clipped box (it doesn't
+   collapse through overflow: hidden), so the closed panel is truly 0 tall. */
+.disclosure__inner > * { margin: 0 0 1.25rem; }
 
 .product-detail__description,
 .product-detail__shipping {
   max-width: 640px;
-  color: var(--category-col);
-  font-size: calc(0.95rem * var(--text-scale));
+  color: var(--black);
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.7;
   font-family: var(--font-main);
 }
@@ -2038,15 +2084,16 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-specs dt {
   font-family: var(--font-main);
-  font-size: calc(0.72rem * var(--text-scale));
+  font-size: calc(12px * var(--text-scale));
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--category-col);
+  color: var(--black);
 }
 .product-specs dd {
   font-family: var(--font-main);
   margin: 0;
-  font-size: calc(0.9rem * var(--text-scale));
+  color: var(--black);
+  font-size: calc(12px * var(--text-scale));
   padding-bottom: 0.5rem;
 }
 

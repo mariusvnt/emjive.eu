@@ -129,30 +129,64 @@
 
     </div>
 
+    <!-- 5–7. Expandable sections (collapsed by default; js/product.js's
+         wireDisclosures toggles aria-expanded on the button and .is-open on
+         its panel). The "+" reuses the header toggle's bars. -->
+
     <!-- 5. Item description -->
     <section class="product-detail__section">
-      <div class="section-head">
-        <h2>Description</h2>
+      <h2 class="disclosure__heading">
+        <button class="disclosure__toggle" type="button" id="descriptionToggle" aria-expanded="false" aria-controls="descriptionPanel">
+          <span class="disclosure__label">Description</span>
+          <span class="disclosure__icon" aria-hidden="true">
+            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+          </span>
+        </button>
+      </h2>
+      <div class="disclosure__panel" id="descriptionPanel" role="region" aria-labelledby="descriptionToggle">
+        <div class="disclosure__inner">
+          <p class="product-detail__description" id="productDescription"></p>
+        </div>
       </div>
-      <p class="product-detail__description" id="productDescription"></p>
     </section>
 
     <!-- 6. Technical characteristics (depends on the chosen metal) -->
     <section class="product-detail__section">
-      <div class="section-head">
-        <h2>Characteristics</h2>
+      <h2 class="disclosure__heading">
+        <button class="disclosure__toggle" type="button" id="specsToggle" aria-expanded="false" aria-controls="specsPanel">
+          <span class="disclosure__label">Characteristics</span>
+          <span class="disclosure__icon" aria-hidden="true">
+            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+          </span>
+        </button>
+      </h2>
+      <div class="disclosure__panel" id="specsPanel" role="region" aria-labelledby="specsToggle">
+        <div class="disclosure__inner">
+          <dl class="product-specs" id="productSpecs"></dl>
+        </div>
       </div>
-      <dl class="product-specs" id="productSpecs"></dl>
     </section>
 
     <!-- 7. Shipping & returns (static, same on every product) -->
     <section class="product-detail__section">
-      <div class="section-head">
-        <h2>Shipping &amp; Returns</h2>
-      </div>
-      <div class="product-detail__shipping">
-        <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
-        <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+      <h2 class="disclosure__heading">
+        <button class="disclosure__toggle" type="button" id="shippingToggle" aria-expanded="false" aria-controls="shippingPanel">
+          <span class="disclosure__label">Shipping &amp; Returns</span>
+          <span class="disclosure__icon" aria-hidden="true">
+            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
+            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
+          </span>
+        </button>
+      </h2>
+      <div class="disclosure__panel" id="shippingPanel" role="region" aria-labelledby="shippingToggle">
+        <div class="disclosure__inner">
+          <div class="product-detail__shipping">
+            <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
+            <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+          </div>
+        </div>
       </div>
     </section>
 

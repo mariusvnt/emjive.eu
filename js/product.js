@@ -119,6 +119,7 @@
     document.getElementById("productDescription").textContent =
       product.description || "No description yet.";
     wireSelectButton(product);
+    wireDisclosures();
 
     loadingEl.hidden = true;
     contentEl.hidden = false;
@@ -434,6 +435,82 @@
   function appendSpecRow(dl, label, value) {
     dl.appendChild(el("dt", null, label));
     dl.appendChild(el("dd", null, value));
+  }
+
+  /* ---- 5–7. expandable sections ------------------------------------------ */
+
+  // Each section is independent (opening one leaves the others alone). The
+  // button's aria-expanded drives the "+" → "-" in CSS; .is-open on its
+  // panel drives the reveal.
+  function wireDisclosures() {
+    document.querySelectorAll(".disclosure__toggle").forEach(function (btn) {
+      var panel = document.getElementById(btn.getAttribute("aria-controls"));
+      btn.addEventListener("click", function () {
+        var open = btn.getAttribute("aria-expanded") !== "true";
+        // Measured before the panel starts growing: its top doesn't move
+        // while it does, so the section's final bottom is known up front.
+        var scroll = open ? disclosureScrollPlan(btn, panel) : null;
+        btn.setAttribute("aria-expanded", String(open));
+        panel.classList.toggle("is-open", open);
+        if (scroll) glideScroll(panel, scroll);
+      });
+    });
+  }
+
+  // How far to scroll (and what height the panel will settle at) so the
+  // opened section is fully visible between the header and the selection bar:
+  // just enough to bring its bottom above the bar — plus the next section's
+  // heading, when there's room for it with this section's own heading still
+  // in view — or, when it's too tall to fit there at all, its heading right
+  // under the header. null = no scroll.
+  function disclosureScrollPlan(btn, panel) {
+    // .disclosure__inner is clipped to 0 while closed; its one child isn't.
+    var content = panel.firstElementChild.firstElementChild;
+    var fullHeight = content.offsetHeight + parseFloat(getComputedStyle(content).marginBottom);
+    var bar = document.querySelector(".selection-bar");
+    var barTop = bar ? bar.getBoundingClientRect().top : window.innerHeight;
+    var headerBottom = document.querySelector(".site-header").getBoundingClientRect().bottom;
+    var top = btn.getBoundingClientRect().top;
+    var bottom = panel.getBoundingClientRect().top + fullHeight;
+
+    var nextToggle = btn.closest("section").nextElementSibling;
+    nextToggle = nextToggle && nextToggle.querySelector(".disclosure__toggle");
+    var withNext = bottom + (nextToggle ? nextToggle.offsetHeight : 0);
+    var room = barTop - headerBottom;
+
+    var delta;
+    if (withNext - top <= room) delta = Math.max(0, withNext - barTop);
+    else if (bottom - top <= room) delta = Math.max(0, bottom - barTop);
+    else delta = top - headerBottom;
+    return delta ? { delta: delta, fullHeight: fullHeight } : null;
+  }
+
+  // Scrolls in step with the panel's growth, off its measured height rather
+  // than a timer — the page only gets tall enough to scroll that far as the
+  // panel opens, so a one-shot scrollTo would be clamped. Same approach as
+  // selection-bar.js's animateDrawerScroll.
+  var glideRun = 0;
+
+  function glideScroll(panel, plan) {
+    var run = ++glideRun;
+    var from = window.pageYOffset;
+    var until = performance.now() + 450;
+    function to(y) { window.scrollTo({ top: y, left: 0, behavior: "instant" }); }
+    function cancel() { glideRun++; }
+    // The visitor taking over the scroll ends the glide.
+    window.addEventListener("wheel", cancel, { passive: true, once: true });
+    window.addEventListener("touchstart", cancel, { passive: true, once: true });
+    function step() {
+      if (run !== glideRun) return;
+      var p = Math.min(1, panel.getBoundingClientRect().height / plan.fullHeight);
+      if (p >= 1 || performance.now() > until) {
+        to(from + plan.delta);
+        return;
+      }
+      to(from + plan.delta * p);
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
 
   function capitalize(s) {

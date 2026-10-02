@@ -28,6 +28,27 @@
      (see .product-select-bar) — the size sheet reserves room for it too. */
   --select-bar-height: 2.5rem;
 
+  /* Liquid glass (.glass, js/liquid-glass.js): every optical knob, read by
+     the script off the element — override any of them on one .glass to tune
+     it. Defaults are tuned for a full-bleed strip a couple of rem tall: no
+     dome, a rim "lip" that does the bending. strength is the peak
+     displacement as a fraction of the shorter side; depth how far in from
+     the edge the bending reaches (0..1); bend/bend-width the meniscus lip;
+     dispersion the colour split at the rim; specular/sheen/glow the
+     highlights baked into the displacement map; frost the blur (px) and
+     saturate the colour boost on what's behind the glass. */
+  --glass-strength: 0.25;
+  --glass-depth: 0.75;
+  --glass-curvature: 0;
+  --glass-bend: 0.5;
+  --glass-bend-width: 0.3;
+  --glass-dispersion: 0.5;
+  --glass-specular: 1;
+  --glass-sheen: 0.3;
+  --glass-glow: 0.12;
+  --glass-frost: 4px;
+  --glass-saturate: 1.6;
+
   /* The site's only two typefaces. font-secondary: navigation/mono
      usages, Geist Mono (loaded from Google Fonts). font-main: everything
      else, DINish (self-hosted — see @font-face below, needs the actual
@@ -1325,24 +1346,13 @@ button, input, textarea {
 }
 
 /* ==========================================================================
-   Checkout bar — "liquid glass": a translucent frosted strip over the page,
-   unlike the site's other black-bg chrome. Same height as the standard
-   floating selection bar (--selection-bar-height), but page-specific to
-   launch-order.html — built as static markup here, not js/selection-bar.js
-   (this page has never carried that bar — see pages.md).
-
-   CSS-only glass (no SVG refraction filter — true feDisplacementMap-based
-   refraction only renders via backdrop-filter: url(#filter) in Chromium
-   today, with zero fallback visual in Safari/Firefox): backdrop-filter
-   blur+saturate for the frosted base — body alpha kept low (0.05–0.16) so
-   whatever's actually scrolled underneath still reads through it, blurred
-   and saturated, rather than washing out into a near-opaque white panel —
-   a soft directional radial "glare" (::before) standing in for a real
-   specular reflection, and a stack of inset box-shadows for the rim
-   highlight — bright along the top edge where light would catch a curved
-   glass lip, dimmer along the bottom, plus a hairline all around for the
-   glass's own edge, which is what still reads as a distinct surface once
-   the body itself is this transparent. ---- */
+   Checkout bar — "liquid glass": a translucent strip over the page that
+   bends what scrolls under it, unlike the site's other black-bg chrome (the
+   glass itself is .glass, see below — js/liquid-glass.js). Same height as
+   the standard floating selection bar (--selection-bar-height), but
+   page-specific to launch-order.html — built as static markup here, not
+   js/selection-bar.js (this page has never carried that bar — see
+   pages.md). ---- */
 .order-checkout-bar {
   position: fixed;
   left: 0;
@@ -1351,38 +1361,93 @@ button, input, textarea {
   z-index: 90;
   height: var(--selection-bar-height);
 }
-/* The glass itself is shared with the product page's Select bar
-   (.product-select-bar, further down) — one recipe, so the two can't drift
-   apart. */
-.order-checkout-bar,
-.product-select-bar {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.05) 100%
-  );
+/* ==== .glass — the site's liquid glass (js/liquid-glass.js) ====
+   Shared by this bar and the product page's Select bar
+   (.product-select-bar, further down) — one recipe, so they can't drift
+   apart. Three layers of look, whatever the browser:
+
+   1. The BEND. js/liquid-glass.js adds .is-glass-backdrop (Chromium:
+      backdrop-filter: url(#filter) refracts the live page behind) or
+      .is-glass-clone (Safari / Firefox, which can't: the script puts a copy
+      of the page inside .glass__layer and filters that instead). The
+      filter's own URL arrives as --glass-url.
+   2. The FROST + TINT + RIM LIGHT. In ::before, above the bend: a soft
+      directional glare standing in for a specular reflection, a faint white
+      tint, and inset box-shadows — bright along the top edge where light
+      would catch a curved lip, dimmer along the bottom, a hairline all
+      round for the glass's own edge.
+   3. The FALLBACK. Until the script has run (and for good with
+      prefers-reduced-transparency, or if it fails): plain
+      blur(24px) saturate(200%) on the element itself, same ::before on top.
+      That is the whole look the bars had before the bend existed.
+
+   isolation: isolate makes .glass its own stacking context, which is what
+   lets .glass__layer sit at z-index: -1 — above the element's own
+   background, below its content. ---- */
+.glass {
+  isolation: isolate;
   -webkit-backdrop-filter: blur(24px) saturate(200%);
   backdrop-filter: blur(24px) saturate(200%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.15),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 -8px 30px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.08);
 }
-/* Soft directional glare standing in for a specular highlight — sits
-   behind .order-checkout-bar__row in DOM order, so it paints underneath
-   the total/button without needing an explicit z-index. */
-.order-checkout-bar::before,
-.product-select-bar::before {
+.glass.is-glass-backdrop {
+  -webkit-backdrop-filter: blur(var(--glass-frost)) var(--glass-url) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-frost)) var(--glass-url) saturate(var(--glass-saturate));
+}
+.glass.is-glass-clone {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.glass::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    140% 120% at 12% 0%,
-    rgba(255, 255, 255, 0.35),
-    rgba(255, 255, 255, 0) 55%
-  );
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      140% 120% at 12% 0%,
+      rgba(255, 255, 255, 0.35),
+      rgba(255, 255, 255, 0) 55%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.05) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
   pointer-events: none;
+}
+/* Clone mode's layers (built by the script): the layer is the glass's own
+   size and shape and carries the bend; the pane inside it is the same plus a
+   bleed all round (set inline) and carries the frost, so the blur has real
+   pixels to sample at the rim; the stage is the page copy, moved into place
+   with a transform (also inline). Nothing here is ever interactive. */
+.glass__layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  filter: var(--glass-url);
+  transition: opacity 0s;
+}
+.glass__pane {
+  position: absolute;
+  overflow: hidden;
+  filter: blur(var(--glass-frost)) saturate(var(--glass-saturate));
+}
+.glass__stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 /* Reserves the same bottom space body:has(.selection-bar) does elsewhere —
    this page has just never needed it before now. */
@@ -1390,6 +1455,8 @@ body:has(.order-checkout-bar:not([hidden])) {
   padding-bottom: var(--selection-bar-height);
 }
 .order-checkout-bar__row {
+  /* Positioned, so it paints above the glass's ::before (rim, glare). */
+  position: relative;
   height: 100%;
   width: 100%;
   max-width: var(--max);
@@ -1470,9 +1537,17 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar {
   transition: -webkit-backdrop-filter 0s, backdrop-filter 0s;
 }
-.order-checkout-bar.is-strip-active {
+.order-checkout-bar.is-strip-active,
+.order-checkout-bar.is-glass-backdrop.is-strip-active {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+  transition-delay: calc(var(--fade-fast) * 3);
+}
+/* Clone mode has no backdrop-filter to drop, but the same beat applies to
+   its page copy: it goes once the strip has fully faded in, and is back the
+   moment the strip starts to leave. */
+.order-checkout-bar.is-strip-active .glass__layer {
+  opacity: 0;
   transition-delay: calc(var(--fade-fast) * 3);
 }
 

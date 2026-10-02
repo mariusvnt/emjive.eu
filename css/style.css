@@ -2899,6 +2899,12 @@ body.has-series-hero .selection-bar {
 .selection-bar.is-drawer-reduced .selection-bar__drawer-inner {
   overflow: hidden;
 }
+/* While an Add's peek has the newest row drawn up out of the closed drawer
+   (js/selection-bar.js's peekNewest()) it is only a glimpse: not tappable —
+   there's no drawer open for a row's Modify sheet to be opened from. */
+.selection-bar.is-peeking .selection-bar__drawer {
+  pointer-events: none;
+}
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
 /* The rows themselves are .order-item.order-item--drawer — the order page's
    own row component, tap-to-Modify included (see the order page section

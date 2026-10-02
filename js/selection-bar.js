@@ -144,22 +144,85 @@
   // was opened from: this is that row's height (null the rest of the time),
   // and the sheet rests right on top of it.
   var reducedHeight = null;
+  // While a just-added item's row is peeking up out of the closed drawer
+  // (see peekNewest()): the height the peek shows (null the rest of the
+  // time), and whether it is currently up rather than on its way back down.
+  var peekHeight = null;
+  var peekShown = false;
 
   // Returns the height the drawer is now heading to.
   function syncDrawerHeight() {
     var isOpen = drawer.classList.contains("is-open");
     var summaryHeight = summary.getBoundingClientRect().height;
     var listHeight = Math.min(rows.settledHeight(), window.innerHeight * LIST_CAP);
-    var target = !isOpen ? 0 : reducedHeight !== null ? reducedHeight : listHeight;
+    var target = !isOpen ? (peekShown ? peekHeight : 0) : reducedHeight !== null ? reducedHeight : listHeight;
     drawer.style.maxHeight = target + "px";
-    drawerInner.style.maxHeight = (isOpen ? target : listHeight) + "px";
+    // A peeking drawer's inner box keeps the peek's height all the way down,
+    // for the same reason a closed one keeps the list's: so nothing reflows
+    // while the drawer slides shut.
+    drawerInner.style.maxHeight = (isOpen ? target : peekHeight !== null ? peekHeight : listHeight) + "px";
     // Published so a sheet (js/product.js's #sizeModal, js/modify-modal.js's
     // #modifyModal) can rest exactly this far above the bar — see
     // .size-modal--drawer's --selection-bar-reserved in css/style.css. It's
     // the height the drawer is heading to, and the sheet's own 0.3s
     // padding-bottom transition then moves it in step with the drawer.
-    document.documentElement.style.setProperty("--selection-bar-live-height", summaryHeight + target + "px");
+    // A peek isn't part of it: it comes and goes on its own, as the size
+    // sheet that just added the item slides away.
+    var published = !isOpen && peekHeight !== null ? 0 : target;
+    document.documentElement.style.setProperty("--selection-bar-live-height", summaryHeight + published + "px");
     return target;
+  }
+
+  /* ---- peek -------------------------------------------------------------------
+     An Add draws the newest row up out of the closed drawer, holds it there
+     a moment, and draws it back down — while the new icon slides into the
+     strip — to show that the bar hides a drawer. Same drawer, same max-height
+     transition as opening it; only the height differs, and the list is
+     scrolled to put that one row in view. Anything that opens the drawer
+     (or empties or restarts it) cancels the peek, and the real height takes
+     over from wherever the peek was. */
+  var PEEK_HOLD_MS = 1000;
+  var DRAWER_MS = 300;
+  var peekTimer = null;
+
+  function cancelPeek() {
+    clearTimeout(peekTimer);
+    peekHeight = null;
+    peekShown = false;
+    bar.classList.remove("is-peeking");
+  }
+
+  function endPeek() {
+    cancelPeek();
+    drawerInner.scrollTop = 0;
+    syncDrawerHeight();
+  }
+
+  function peekNewest() {
+    if (drawer.classList.contains("is-open") || reducedHeight !== null) return;
+    var row = rowsEl.lastElementChild;
+    if (!row) return;
+    cancelPeek();
+    // A lone row shows from the list's very top, its padding included.
+    var alone = rowsEl.children.length === 1;
+    peekHeight = alone ? rows.settledHeight() : row.offsetHeight;
+    // The inner box goes straight to the peek's height, so the scroll that
+    // puts the row in view can be set at once (it is capped by the box's
+    // height at the moment, which a transition would only reach later); the
+    // drawer's own height is then what animates.
+    drawerInner.style.transition = "none";
+    drawerInner.style.maxHeight = peekHeight + "px";
+    void drawerInner.offsetHeight;
+    drawerInner.scrollTop = alone ? 0 : row.getBoundingClientRect().top - rowsEl.getBoundingClientRect().top;
+    drawerInner.style.transition = "";
+    bar.classList.add("is-peeking");
+    peekShown = true;
+    syncDrawerHeight();
+    peekTimer = setTimeout(function () {
+      peekShown = false;
+      syncDrawerHeight();
+      peekTimer = setTimeout(endPeek, DRAWER_MS + 50);
+    }, DRAWER_MS + PEEK_HOLD_MS);
   }
 
   // Scrolls the list to `to` in step with the drawer's height transition,
@@ -239,6 +302,7 @@
 
   function setDrawerOpen(isOpen) {
     var wasOpen = drawer.classList.contains("is-open");
+    cancelPeek();
     // Rebuilt fresh on the way open. That also sweeps away the last row of
     // a cart that emptied while the drawer was open: render() stops
     // updating the rows once the cart is empty, so that row leaves with
@@ -671,6 +735,9 @@
     // Re-measures against the updated rows — if the drawer is open, this
     // is what makes it grow/shrink smoothly with them.
     syncDrawerHeight();
+    // A genuine Add (not an Undo, not the page's first render): the drawer
+    // gives a glimpse of the row that just went in.
+    if (e && e.detail && e.detail.action === "add") peekNewest();
   }
 
   window.addEventListener("emjive:selection-changed", render);

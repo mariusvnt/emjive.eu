@@ -434,7 +434,10 @@ list, if none are given), across every series (or just one, with
   `hero-hand-visibility` field (`data.md`) and `pages.md`'s `index.html` section.
 - **One metal sample strip per metal**, regardless of whether any product
   defaults to it — saved as `assets/metal-sample_<metal>.webp`
-  (**1600×48**). **Not** a render of any actual product — a long tube lying
+  (**144×48** — captured through a 1600×48 frame, then downscaled once
+  by `sharp`, `SWATCH_OUTPUT_WIDTH` in `scripts/auto-render.js`, which has to
+  stay in step with the bar's active length in `css/style.css`,
+  `--metal-bar-active`). **Not** a render of any actual product — a long tube lying
   across the frame and exactly filling its height, so the strip shows the
   tube's whole cross-section (highlights, reflections). All the strips come
   from **one scene** (a tube per metal in `data/series.json`'s `metals`
@@ -453,10 +456,9 @@ list, if none are given), across every series (or just one, with
   the metals relative to each other is set by constants in `three-viewer.js`
   (`SWATCH_VIEW_STEP` — how far round each successive metal is viewed from,
   currently 90°, the knob if the metals' reflections look too alike — and
-  `SWATCH_FOV`), not by data. CSS lays each strip behind its bar as a window
-  (`background: url(...) center / 25cqw 100%`, see `styling.md`), so growing
-  or shrinking a bar reveals more or less of the same image; stretching it
-  sideways is invisible since the tube is uniform along its length. Re-run
+  `SWATCH_FOV`), not by data. CSS lays each strip behind its bar, fitted to the whole bar and turned
+  with it (see `styling.md`); stretching it lengthways is invisible since
+  the tube is uniform along its length. Re-run
   just these with `npm run auto-render -- --swatches-only`.
 
 All three are captured at 2x the final pixel size and downscaled with

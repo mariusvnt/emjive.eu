@@ -7,7 +7,7 @@
 
    Why the browser can't do this itself. At first paint index.html is
    almost empty — #seriesHero is an empty div held open at 100svh by
-   css/style.css, and #productGrid holds one "Loading specimens…" line. The
+   css/style.css, and #productGrid is empty. The
    real height only arrives after three async hops: data/series.json, then
    the hero bundle (whose hero.css sets .reveal { height: 200vh }), then
    that series' products.json rendered by js/main.js. Native scroll

@@ -780,8 +780,8 @@ button, input, textarea {
 /* A single-cell grid, not a plain block — every child is placed in that
    one cell (grid-area: 1 / 1 below) so the placeholder image and the live
    3D viewer OVERLAP rather than following each other in normal flow.
-   That's required now that js/main.js crossfades between the two: both are
-   in the layout at once for the whole load plus the 400ms fade, and as
+   That's required now that js/main.js mounts the viewer over the icon: both
+   are in the layout at once for the whole load (swapped in one frame), and as
    plain in-flow blocks each sized to the full content box, the second one
    was pushed entirely below the first — leaving the canvas poking out
    through the figure's own bottom padding as a stray band, with the model

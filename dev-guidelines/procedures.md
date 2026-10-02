@@ -277,7 +277,7 @@ Each series picks its lighting environment via `"hdri"` (a key into
 
 Same tool: in `scene-tool.html`, pick that series' product, choose the HDRI
 from the dropdown to preview it live, tick "HDRI," and Save writes the key
-into that series' entry. The swatch renderer (metal-sample bars) has its
+into that series' entry. The swatch renderer (metal-sample strips) has its
 own, separate `"swatch-hdri"` choice — see "Re-rendering icons and metal
 swatches" below.
 
@@ -303,8 +303,9 @@ its 3D model, overriding whatever materials the model file itself has:
 array in `data/series.json` — that list is global (not per-series) and is
 the source of truth for what metals exist, and it's also what the metal picker's bars (and their
 swatch strips) are generated from. The actual presets live in `METAL_PRESETS` in
-`js/three-viewer.js`: `"steel"`, `"silver"` (the default if `default-metal` is
-omitted or unrecognized) and `"bronze"`. To add another finish, add it to
+`js/three-viewer.js`: `"steel"` (the fallback preset for an unrecognized
+metal, and what the product page's picker starts on when `default-metal` is
+omitted — it takes the first of the `"metals"` list), `"silver"` and `"bronze"`. To add another finish, add it to
 **three** places — the `"metals"` list in `data/series.json`, a matching
 entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
 / `roughnessFactor`, and a rendered swatch strip for it in `css/style.css`
@@ -500,7 +501,7 @@ two kinds, styled identically except for font:
 
 - `class="is-info"` — DINish, used for the two informative links (Archives,
   Creation process) and the filter row's own "Gallery" link (below).
-- `class="is-cat"` — Geist Mono (loaded from Google Fonts already), used for
+- `class="is-cat"` — Geist Mono (self-hosted — see `assets.md`), used for
   the category filter tags. **These are rendered by `js/main.js`'s
   `renderHeaderFilter()` from the active series' own category list — never
   hand-write them**, and don't assume there are three.
@@ -578,10 +579,12 @@ shows an alert saying so.
 
 ## Contact form
 
-The contact form currently doesn't send anywhere — it just shows an alert.
-To make it work, wire it to a form backend, e.g.:
+No page has a contact form any more (the old "About us"/`#contact` section
+is gone). `js/main.js` still carries a guarded `#contactForm` handler that
+only runs if such an element exists, and it just shows an alert. If a
+form gets built, wire it to a form backend, e.g.:
 
 - [Formspree](https://formspree.io) — add `action="https://formspree.io/f/yourFormId"`
-  and `method="POST"` to the `<form>` in `index.html`, remove the JS
+  and `method="POST"` to the `<form>`, remove the JS
   `preventDefault` alert in `js/main.js`.
 - Netlify Forms (if you host on Netlify) — add `data-netlify="true"` to the form.

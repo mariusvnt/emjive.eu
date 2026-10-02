@@ -62,7 +62,7 @@ over SFTP (port 22, via `lftp`), so `index.html` sits directly in `www/`.
 It's also runnable by hand from the repo's Actions tab ("Run workflow").
 After a deploy, hard-refresh (Ctrl+F5) to get past cached copies.
 
-Every run re-uploads the whole build (about 20 MB) rather than diffing it,
+Every run re-uploads the whole build (about 23 MB) rather than diffing it,
 then makes `www/` an **exact mirror** of `dist/`: anything on the server
 that the build doesn't produce (an old hashed asset, a removed image) is
 deleted, after the new files are up so the site is never missing pages
@@ -147,7 +147,7 @@ tooling, and the assets folder).
 
 This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
-from here. Seven of the eight current products still have no photography,
+from here. Eight of the nine current products still have no photography,
 no description, and no price, and every product's weight/composition is
 still a placeholder waiting on real data. `launch-order.html`'s review page goes
 all the way to a "Proceed to checkout" button, but there's still no real

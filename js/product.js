@@ -687,7 +687,8 @@
     // aside for it.
     window.addEventListener("emjive:modify-open", function () {
       if (modal.classList.contains("is-open")) closeModal();
-    });  }
+    });
+  }
 
   init();
 })();

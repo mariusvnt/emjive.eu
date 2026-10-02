@@ -110,7 +110,7 @@
   var metalsRow = el("div", "product-metals");
 
   var sizeRow = el("div", "size-modal__custom-row");
-  var sizeLabel = el("label", "size-modal__custom-label", "Custom size");
+  var sizeLabel = el("label", "size-modal__custom-label", "Size");
   sizeLabel.htmlFor = "modifyModalCustomInput";
   var sizeField = el("div", "size-modal__custom-field");
   var sizeUnderline = el("span", "size-modal__custom-underline");

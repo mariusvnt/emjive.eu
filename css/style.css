@@ -75,9 +75,7 @@
   --fade-fast: 0.075s;
   --fade-quick: 0.2s;
   --fade-standard: 0.3s;
-  /* The metal picker's bars growing/shrinking when another metal is picked
-     (js/metal-picker.js reads this to time the dot + label's fade back in
-     after the resize, so it lives here with the fade tokens, not inline). */
+  /* The metal picker's bars growing/shrinking when another metal is picked. */
   --metal-bar-resize: 0.25s;
 }
 
@@ -1817,37 +1815,52 @@ body:has(.order-checkout-bar:not([hidden])) {
   .product-carousel__caption { font-size: 0.5rem; }
 }
 
-/* ---- 3. metal selection: one bar per metal (js/metal-picker.js), stacked
-   edge to edge and centred on the box. The selected bar is long (25% of
-   the box), the rest short (15%) — growing from the middle, so it reaches
-   out both ways and shrinking pulls both ends in — and a dot + the metal's
-   name sit inline in the empty space to the left of it.
-   Which box that 25% is of, and so where its middle is, depends on the
-   screen:
-   - up to the site's one breakpoint, the picker breaks out to the full
-     screen width (the same 100vw + auto-margin technique .product-detail__
-     select uses), so the bars are centred on the screen;
-   - above it, it stays inside its container's content box, so they are
-     centred between the content margins (on product.html that's the page
-     column; in the Modify sheet, the narrower .size-modal__content column).
-   The two lengths are tokens because the tag below needs the active one to
-   find the bar's left end.
-   container-type is for the bars' background layer below (cqw): this
-   element's own width is a plain 100% (or 100vw), not derived from its
-   children, so it creates no circular sizing. ---- */
+/* ---- 3. metal selection: laid out like the size field in the Modify
+   sheet (.size-modal__custom-row) — a "Material" label at the left, the
+   control flushed to the right. The control (js/metal-picker.js) is one
+   vertical bar per metal, side by side edge to edge, the first metal
+   leftmost; the selected bar is tall (--metal-bar-active), the rest short
+   (--metal-bar-idle) — growing from the middle, so it reaches out both ways
+   and shrinking pulls both ends in — and a dot + the selected metal's name
+   sit to the left of the stack, vertically centred on the bars' midline.
+   The picker's own height is the active bar's length (each bar sits in a
+   fixed-height slot), so it doesn't jump while one bar shrinks and another
+   grows. ---- */
 .product-metals {
-  --metal-bar-idle: 15%;
-  --metal-bar-active: 25%;
+  --metal-bar-thickness: 1rem;
+  --metal-bar-idle: 2rem;
+  --metal-bar-active: 3rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   width: 100%;
-  container-type: inline-size;
+  /* Inset from the content edge, same as .size-modal__custom-row. */
+  padding-inline: 0.5rem;
 }
-/* On the product page the picker sits 2.5rem under the carousel tiles'
+/* Same label treatment as .size-modal__custom-label. Decorative here: the
+   group's own aria-label carries the name. */
+.product-metals__label {
+  flex: 0 0 auto;
+  font-family: var(--font-main);
+}
+/* flex: 0 0 auto + margin-left: auto — the field hugs its content (tag +
+   stack) and is flushed to the row's right edge, leaving the label alone at
+   the left, as .size-modal__custom-field does. The stack is the rightmost
+   thing, so it stays put while the tag's width follows the metal's name. */
+.product-metals__field {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+/* On the product page the picker sits 4.5rem under the carousel tiles'
    bottom edge, not a full --section-gap: the negative margin cancels the
-   gap .product-detail__intro puts between its children, leaving 2.5rem.
+   gap .product-detail__intro puts between its children, leaving 4.5rem.
    With photos, the viewport is taller than the tile by the caption band
    (.product-carousel--has-photos above: --caption-gap + --caption-h, which
    live on the frame and so can't be read from this sibling — repeated
-   here, keep in sync), so that band comes off too to keep the 2.5rem
+   here, keep in sync), so that band comes off too to keep the 4.5rem
    measured from the tile itself. Scoped to .product-detail__intro: the
    Modify sheet's picker has its own spacing.
    position + z-index put the picker above .product-carousel__xray: that
@@ -1857,51 +1870,21 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__intro .product-metals {
   position: relative;
   z-index: 1;
-  margin-top: calc(2.5rem - var(--section-gap));
+  margin-top: calc(4.5rem - var(--section-gap));
 }
 .product-detail__intro .product-carousel--has-photos + .product-metals {
-  margin-top: calc(2.5rem - var(--section-gap) - 2px - 0.75rem * var(--text-scale));
+  margin-top: calc(4.5rem - var(--section-gap) - 2px - 0.75rem * var(--text-scale));
 }
-@media (max-width: 640px) {
-  .product-metals {
-    width: 100vw;
-    margin-inline: calc(50% - 50vw);
-  }
-}
-.product-metals__row {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 1rem;
-}
-/* Dot + name for the selected row only (the dot's the same 0.25rem
-   --category-col one the rest of the site marks a selection with). Rendered
-   on every row, opacity-toggled — see js/metal-picker.js for the three-beat
-   change: .is-switching on the picker fades every tag out fast, the bars
-   resize, then it comes off and the new row's tag fades back in (a touch
-   slower than it left, since it's the thing the eye lands on). Out of the
-   flow, so the bar stays centred: pinned to the row's left edge and, on the
-   right, to where the ACTIVE bar's left end is (half the row less half the
-   active length), plus a gap — it's only ever shown on the active row, once
-   the bar has finished resizing. text-align: right keeps it hugging that
-   end. */
+/* Dot + name of the selected metal (the dot's the same 0.25rem
+   --category-col one the rest of the site marks a selection with). One
+   element whose text js/metal-picker.js replaces on a pick — instantly, no
+   fade, so a change reads as the label being replaced, not cross-faded. */
 .product-metals__tag {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: calc(50% + var(--metal-bar-active) / 2 + 0.5rem);
-  transform: translateY(-50%);
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-secondary);
   font-size: calc(0.65rem * var(--text-scale));
   line-height: 1;
   color: var(--category-col);
-  opacity: 0;
-  transition: opacity var(--fade-fast) ease;
+  white-space: nowrap;
 }
 .product-metals__tag::before {
   content: "";
@@ -1913,23 +1896,46 @@ body:has(.order-checkout-bar:not([hidden])) {
   border-radius: 50%;
   background: var(--category-col);
 }
-.product-metals:not(.is-switching) .product-metals__row.is-selected .product-metals__tag {
-  opacity: 1;
-  transition-duration: var(--fade-quick);
+.product-metals__stack {
+  display: flex;
 }
+/* One slot per bar: the bar's thickness wide and the active length tall,
+   always — the bar inside is turned and resized within it, so the slot (and
+   with it the stack's and the picker's size) never changes. A real width,
+   not just a flex-basis: Safari sizes the stack from the former and ignores
+   the latter once the slot has no in-flow content. */
+.product-metals__row {
+  position: relative;
+  flex: none;
+  width: var(--metal-bar-thickness);
+  height: var(--metal-bar-active);
+}
+/* The bar is laid out lying down — long side as its width, so the grow/
+   shrink transition works on it — then centred in its slot and turned a
+   quarter-turn anticlockwise about its middle to stand up (the swatches' top
+   edge ends up on the left). A transform also carries its hit area and focus
+   ring round with it, and the swatch background with it. Out of the flow,
+   so its unturned length never counts towards the stack's width: Safari
+   sums it in (a flex item's overflow still props its container open there),
+   which left the slots stranded at the stack's left instead of the picker's
+   right edge. */
 .product-metals__option {
-  flex: 0 0 var(--metal-bar-idle);
-  height: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--metal-bar-idle);
+  height: var(--metal-bar-thickness);
   padding: 0;
   border: none;
   cursor: pointer;
-  transition: flex-basis var(--metal-bar-resize) ease;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transition: width var(--metal-bar-resize) ease;
 }
 .product-metals__row.is-selected .product-metals__option {
-  flex-basis: var(--metal-bar-active);
+  width: var(--metal-bar-active);
 }
-/* The ring is drawn just inside the bar rather than outside it: the rows
-   are only 1rem tall and stacked edge to edge, so an outset ring would
+/* The ring is drawn just inside the bar rather than outside it: the bars
+   are only 1rem thick and stacked edge to edge, so an outset ring would
    paint over the neighbouring bars (like the selection bar's flush-edge
    buttons below, which draw theirs inside for the same reason). */
 .product-metals__option:focus-visible {
@@ -1937,24 +1943,27 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 /* Real renders of each metal's actual PBR material (see METAL_PRESETS in
    js/main.js) under the same studio HDRI the 3D models use — a long tube
-   lying across a 1600x48 frame, its whole cross-section (highlights,
-   reflections and all) filling the height — not a hand-picked gradient, so
-   the swatch is a faithful preview of the finish. Produced (and
-   reproduced whenever METAL_PRESETS changes) by `npm run auto-render` —
-   see README.md. The strip is laid at the widest a bar ever gets (25cqw)
-   and the bar's own height (100%, so it never crops the profile), centred:
-   the bar is a window onto it, so growing or shrinking reveals/hides more
-   of the same image at both ends rather than rescaling it
-   on every frame. Stretching it sideways to 25cqw is invisible — the tube
-   is uniform along its length. */
+   lying across a 144x48 strip (captured through a 1600x48 frame), its whole
+   cross-section (highlights, reflections and all) filling the height — not
+   a hand-picked gradient, so the swatch is a faithful preview of the
+   finish. Produced (and reproduced whenever METAL_PRESETS changes) by
+   `npm run auto-render` — see README.md. The strip is kept that narrow on
+   purpose: a bar is at most 3rem (144 device px at 3x) long, and desktop
+   Chrome's GPU raster aliases badly when it shrinks a much wider image
+   under the bar's rotation (Safari filters it fine). The whole strip is
+   fitted to the bar (100% 100%), turned
+   with it, so the bar always shows the entire swatch rather than a
+   cropped-in part of it — the tube is uniform along its length, so the
+   lengthways squeeze is hardly visible, and the grow/shrink just rescales
+   it. */
 .product-metals__option[data-metal="steel"] {
-  background: url("../assets/metal-sample_steel.webp") center / 25cqw 100% no-repeat;
+  background: url("../assets/metal-sample_steel.webp") center / 100% 100% no-repeat;
 }
 .product-metals__option[data-metal="silver"] {
-  background: url("../assets/metal-sample_silver.webp") center / 25cqw 100% no-repeat;
+  background: url("../assets/metal-sample_silver.webp") center / 100% 100% no-repeat;
 }
 .product-metals__option[data-metal="bronze"] {
-  background: url("../assets/metal-sample_bronze.webp") center / 25cqw 100% no-repeat;
+  background: url("../assets/metal-sample_bronze.webp") center / 100% 100% no-repeat;
 }
 
 /* ---- 4. select button: full-bleed black bar, same technique as the
@@ -2228,14 +2237,14 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* ---- the size field: label + underlined input + unit ----
    The only way to give a size now — no standard-size list to pick from.
    container-type here (on the row, not a nested wrapper) is what the
-   input's cqw-based width below scales against — same placement as
-   .product-metals' own container-type: inline-size for its bars' cqw
-   background sizing. */
+   input's cqw-based width below scales against. */
 .size-modal__custom-row {
   display: flex;
   align-items: center;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  /* Inset from the content edge, same as .product-metals. */
+  padding-inline: 0.5rem;
   container-type: inline-size;
 }
 /* A real <label for="…">, so the field has an accessible name. */

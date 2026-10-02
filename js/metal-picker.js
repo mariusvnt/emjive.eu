@@ -2,39 +2,27 @@
    em·ji·ve — metal picker
 
    Shared by the product page (js/product.js) and the Modify sheet
-   (js/modify-modal.js, built on every page): one bar per metal, stacked, the
-   active one stretched and the others shrunk, with a dot + the metal's name
-   beside the active bar. Both used to build and update the same markup
-   separately; loaded on all seven pages for the same reason
+   (js/modify-modal.js, built on every page): a "Material" label at the
+   left (the size field's layout), and at the right one vertical bar per
+   metal, side by side, the active one stretched and the others shrunk, with
+   a dot + the metal's name to the left of the stack. Both used to build and
+   update the same markup separately; loaded on all seven pages for the same reason
    js/modify-modal.js is, ahead of it.
 
    window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect })
    fills `container` (the .product-metals box) and returns { select(metal) }.
    A click calls onSelect(metal) at once — the model, price and images behind
-   the picker must not wait on an animation — and the picker then plays its
-   own change in three beats, all keyed off the container's classes (see
-   css/style.css):
-     1. .is-switching: the dot + label fade out (--fade-fast)
-     2. .is-selected moves to the new row: the bars resize (--metal-bar-resize)
-     3. .is-switching comes off: the dot + label fade in on the new row
-   Updated in place, never rebuilt, so keyboard focus stays on the bar just
-   pressed. The first paint (and a re-mount) shows the final state with no
-   animation. aria-pressed flips immediately; only the visuals are sequenced.
+   the picker must not wait on an animation — and the picker moves
+   .is-selected to the new bar in the same tick: the dot + label switch
+   instantly (no fade), and only the bars animate, resizing via a CSS
+   transition (see css/style.css). Updated in place, never rebuilt, so
+   keyboard focus stays on the bar just pressed. aria-pressed flips with it.
    select(metal) is the same change without the onSelect call, for callers
    that already know the metal.
    ========================================================================== */
 
 (function () {
   "use strict";
-
-  // A duration token off :root ("0.075s" or "75ms") in ms — the timing lives
-  // in css/style.css only, so the beats here can't drift from the transitions.
-  function tokenMs(name, fallback) {
-    var raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    var n = parseFloat(raw);
-    if (isNaN(n)) return fallback;
-    return /ms$/.test(raw) ? n : n * 1000;
-  }
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -48,16 +36,23 @@
     var selected = opts.selected;
     var onSelect = opts.onSelect || function () {};
     var rows = [];
-    var timers = [];
 
     container.innerHTML = "";
-    container.classList.remove("is-switching");
     container.setAttribute("role", "group");
-    container.setAttribute("aria-label", "Metal");
+    container.setAttribute("aria-label", "Material");
+
+    var label = el("span", "product-metals__label", "Material");
+    label.setAttribute("aria-hidden", "true");
+    var field = el("div", "product-metals__field");
+    var tag = el("span", "product-metals__tag");
+    var stack = el("div", "product-metals__stack");
+    field.appendChild(tag);
+    field.appendChild(stack);
+    container.appendChild(label);
+    container.appendChild(field);
 
     metals.forEach(function (metal) {
       var row = el("div", "product-metals__row");
-      row.appendChild(el("span", "product-metals__tag", metal));
 
       var btn = el("button", "product-metals__option");
       btn.type = "button";
@@ -71,7 +66,7 @@
       });
       row.appendChild(btn);
 
-      container.appendChild(row);
+      stack.appendChild(row);
       rows.push({ metal: metal, row: row, btn: btn });
     });
     paintAria();
@@ -87,33 +82,14 @@
       rows.forEach(function (r) {
         r.row.classList.toggle("is-selected", r.metal === selected);
       });
-    }
-
-    function clearTimers() {
-      timers.forEach(clearTimeout);
-      timers = [];
+      tag.textContent = selected || "";
     }
 
     function select(metal) {
       if (metal === selected) return;
       selected = metal;
       paintAria();
-      clearTimers();
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        container.classList.remove("is-switching");
-        paintRows();
-        return;
-      }
-
-      // Re-read per change: cheap, and follows a token edited in devtools.
-      var fadeOut = tokenMs("--fade-fast", 75);
-      var resize = tokenMs("--metal-bar-resize", 250);
-      container.classList.add("is-switching");
-      timers.push(setTimeout(paintRows, fadeOut));
-      timers.push(setTimeout(function () {
-        container.classList.remove("is-switching");
-      }, fadeOut + resize));
+      paintRows();
     }
 
     return { select: select };

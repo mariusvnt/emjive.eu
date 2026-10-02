@@ -57,11 +57,12 @@
      composited onto a hand image. Saved as 1024x1024 WebP alongside the
      icon, indexed in the same products.json under that product's
      "assets.top-shot" object (keyed by metal), mirroring "icons".
-   - One metal sample strip per metal, saved as 1600x48 WebP at
-     assets/metal-sample_<metal>.webp — a long tube lying across the frame
-     and exactly filling its height, which .product-metals__option in
-     css/style.css lays behind each metal bar (the bars are 1rem tall, so
-     the strip's whole height is what shows). All the strips come from ONE
+   - One metal sample strip per metal, captured through a 1600x48 frame and
+     saved as a 144x48 WebP at assets/metal-sample_<metal>.webp (see
+     SWATCH_OUTPUT_WIDTH) — a long tube lying across the frame and exactly
+     filling its height, which .product-metals__option in css/style.css
+     lays behind each metal bar, turned with it (the bars are 1rem thick,
+     so the strip's whole height is what shows). All the strips come from ONE
      scene: a tube per metal (all of data/series.json's "metals", whichever
      ones were asked for), stacked in the metal picker's order, with the
      camera aimed at each tube in turn from a shared viewpoint — which is
@@ -101,6 +102,15 @@ const TOP_SHOT_SIZE = 1024;
 // the two in step.
 const SWATCH_WIDTH = 1600;
 const SWATCH_HEIGHT = 48;
+// The frame above is only what the scene is captured through (the camera's
+// zoom is solved for its aspect); the saved file is much narrower. A bar is
+// at most 3rem (48 CSS px, 144 device px at 3x) long, and desktop Chrome
+// (GPU raster) downscales a 1600px image to that, under the bar's rotation,
+// with no real filtering — visibly pixelated. Saved at 144px wide, the one
+// big downscale is done here, by sharp, instead (the tube is uniform along
+// its length, so nothing is lost). Keep in step with the picker's active
+// length in css/style.css (--metal-bar-active).
+const SWATCH_OUTPUT_WIDTH = 144;
 // Captured at 2x the final pixel size (real GPU MSAA already handles edge
 // aliasing — this is purely for retina-sharp source pixels before the
 // final downscale) then resized down with sharp.
@@ -613,7 +623,7 @@ async function renderSwatches(page, allMetals, wantedMetals, hdriRelPath, rotati
     await page.evaluate((r, i, n) => window.__aimSwatch(r, i, n), rotation, index, allMetals.length);
     const handle = await page.$("#target");
     const buffer = await handle.screenshot({ omitBackground: true });
-    await writeWebp(sharp(buffer).resize(SWATCH_WIDTH, SWATCH_HEIGHT), path.join(ROOT, relPath));
+    await writeWebp(sharp(buffer).resize(SWATCH_OUTPUT_WIDTH, SWATCH_HEIGHT), path.join(ROOT, relPath));
     // Superseded by the naming/format above, if a product ever gets
     // re-rendered under this tool for the first time.
     deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));

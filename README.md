@@ -127,7 +127,7 @@ data/series/<slug>/                             One series' products + manifest
 series/<slug>/                                  One series' hero bundle (html/css/js)
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches
-scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/shader tuning (npm run scene-tool)
+scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
 loader-test.html, js/loader.js                  Logo loading animation + its endless-loop review page
 ```

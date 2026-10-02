@@ -113,19 +113,19 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `modify-modal.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
-| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | |
-| `launch-order.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | |
-| `archives.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
-| `creation-process.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
-| `terms.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
-| `series.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `metal-picker.js` | `modify-modal.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | |
+| `launch-order.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | |
+| `archives.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `creation-process.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `terms.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | |
+| `series.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | ✓ | | ✓ |
 
-Body scripts run in the column order shown, with two exceptions: `selection-bar.js` is always last, and `series.html` loads `series-page.js` straight after `main.js`. `carousel.js` → `order-rows.js` → `modify-modal.js` must stay in that order and ahead of the page script and `selection-bar.js`, which build on them.
+Body scripts run in the column order shown, with two exceptions: `selection-bar.js` is always last, and `series.html` loads `series-page.js` straight after `main.js`. `carousel.js` → `order-rows.js` → `metal-picker.js` → `modify-modal.js` must stay in that order and ahead of the page script and `selection-bar.js`, which build on them.
 
-`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. **Every page loads `three-viewer.js` and the Modify sheet's three scripts**, because every page can open the Modify sheet — from the floating bar's drawer, or from the order list — and the sheet's carousel shows the item's live 3D model. `focus-trap.js` is everywhere for the same reason.
+`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. **Every page loads `three-viewer.js` and the Modify sheet's four scripts**, because every page can open the Modify sheet — from the floating bar's drawer, or from the order list — and the sheet's carousel shows the item's live 3D model. `focus-trap.js` is everywhere for the same reason.
 
 **`js/loader.js` is on all seven pages** (blocking, in `<head>`, after the stylesheet — and after `scroll-memory.js` on `index.html` — and before `series.js`), and three pages opt into its **arrival loader** with `data-page-loader` on `<html>`: `index.html` (until the hero image has decoded), `product.html` (until the product is built) and `series.html` (until the manifest is in). The other four never wait on anything and don't. This replaced the static "Loading…" text: `index.html`'s grid starts empty, and `product.html`'s `#productDetailLoading` and `series.html`'s `#seriesManifestLoading` are now `hidden` paragraphs that only ever hold the not-found message (`js/product.js`/`js/series-page.js` unhide them). See `client-scripts.md`'s `js/loader.js` section and `styling.md`'s Loader section.
 

@@ -301,15 +301,17 @@ its 3D model, overriding whatever materials the model file itself has:
 
 `default-metal` should be one of the values listed in the top-level `"metals"`
 array in `data/series.json` — that list is global (not per-series) and is
-the source of truth for what metals exist, and it's also what the product page's metal-picker swatches
-are generated from. The actual presets live in `METAL_PRESETS` in
+the source of truth for what metals exist, and it's also what the metal picker's bars (and their
+swatch strips) are generated from. The actual presets live in `METAL_PRESETS` in
 `js/three-viewer.js`: `"steel"`, `"silver"` (the default if `default-metal` is
 omitted or unrecognized) and `"bronze"`. To add another finish, add it to
 **three** places — the `"metals"` list in `data/series.json`, a matching
 entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
-/ `roughnessFactor`, and a rendered swatch image for it in `css/style.css`
+/ `roughnessFactor`, and a rendered swatch strip for it in `css/style.css`
 (`.product-metals__option[data-metal="..."]`, see "Re-rendering icons and
-metal swatches" just below for how those are made) — and add a
+metal swatches" just below for how those are made; since all the strips come
+from one stack of tubes, adding a metal changes every metal's slot, so re-run
+`npm run auto-render -- --swatches-only` for all of them) — and add a
 `per-metal-specs` entry for it on every product, since the Characteristics
 section looks values up by metal name.
 
@@ -324,7 +326,7 @@ series, dropping that metal's key from `per-metal-specs`/`icons`/
 
 To **tune an existing metal's values** (rather than add a new one),
 `scene-tool.html` previews the change live before you commit to it: pick
-any product or primitive, pick the metal, drag its color/metalness/
+any product or the metal swatch, pick the metal, drag its color/metalness/
 roughness sliders and watch the material re-tint in the viewer instantly
 (`window.EmjiveModelViewer.METAL_PRESETS[metal]` is mutated in place for
 the preview), tick "Metal shader," and Save writes the new numbers into
@@ -342,13 +344,13 @@ same model in place instead of reloading it or resetting the camera angle.
 ### Re-rendering icons and metal swatches after a shader change
 
 A product's `assets.icons`, its poster images (`assets.fallback-img`), its
-top shots (`assets.top-shot`), and the metal picker's swatch bars (`css/style.css`'s
+top shots (`assets.top-shot`), and the metal picker's swatch strips (`css/style.css`'s
 `.product-metals__option[data-metal="..."]`) are all real renders of the
 PBR material — not hand-picked colors or gradients — using the exact same
 `METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
 are each lit with whichever HDRI their own product's series resolved to
 (`data/series.json`'s per-series `"hdri"` — see "Choosing a series' HDRI"
-above); the swatch bars use their own separate `"swatch-hdri"` choice
+above); the swatch strips use their own separate `"swatch-hdri"` choice
 instead, since swatches aren't tied to any series. Top shots used to be lit
 with a plain `RoomEnvironment` regardless, but that override was removed
 since `window.EmjiveModelViewer` already sets the resolved HDRI before a
@@ -362,6 +364,7 @@ field(s); it never itself re-runs `auto-render`.
 npm install               # first time only — pulls in puppeteer-core + sharp
 npm run auto-render                  # every metal
 npm run auto-render -- steel bronze  # only these metals
+npm run auto-render -- --swatches-only  # just the metal swatch strips (no product renders)
 ```
 
 This runs `scripts/auto-render.js`, which drives a real (non-headless-only)
@@ -428,29 +431,32 @@ list, if none are given), across every series (or just one, with
   product is updated in place the same way `icons`/`fallback-img` are — and read live
   by the homepage hero's ring-on-hand overlay, see the product's own
   `hero-hand-visibility` field (`data.md`) and `pages.md`'s `index.html` section.
-- **One metal sample bar**, regardless of whether any product defaults to
-  it — saved as `assets/metal-sample_<metal>.webp` (240×240). **Not** a
-  render of any actual product — a bare primitive shape instead (no GLTF),
-  built via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
-  {primitive, ...})` (`options.primitive` — same `METAL_PRESETS` material +
-  the same camera-orbit/HDRI machinery every other render uses, just with a
-  built-in mesh in place of a loaded model). Which shape, which HDRI, and
-  what camera angle it's framed at are `data/series.json`'s top-level
-  `"swatch-primitive"`/`"swatch-hdri"`/`"swatch-camera"` fields —
-  `scene-tool.html` is how you preview and set all three (pick a primitive
-  from the Model dropdown, tick "HDRI"/"Camera," Save). `"cylinder"` is the
-  default and, along with `"box"`, the only two shapes with a rectangular
-  silhouette that's *guaranteed* to fill the square frame with no corner
-  gaps at the right zoom — `"sphere"`/`"torus"` can't avoid corner gaps
-  geometrically at any zoom, they're included as options anyway since the
-  live-preview tool is exactly what makes eyeballing that framing before
-  committing practical (an earlier, pre-tool version of this that rendered
-  the Disc ring's own torus curve directly ran into exactly this problem
-  blind, with no way to check the framing before running the full render).
-  CSS applies the result via `background: url(...) center / cover`, so the
-  render only needs to look good as a plain square — `cover` handles
-  fitting it into the swatch bar's actual thin/wide shape at any width
-  (`.product-metals__option`'s `clamp(90px, 18cqw, 180px)`).
+- **One metal sample strip per metal**, regardless of whether any product
+  defaults to it — saved as `assets/metal-sample_<metal>.webp`
+  (**1600×48**). **Not** a render of any actual product — a long tube lying
+  across the frame and exactly filling its height, so the strip shows the
+  tube's whole cross-section (highlights, reflections). All the strips come
+  from **one scene** (a tube per metal in `data/series.json`'s `metals`
+  order — the picker's order — with the camera aimed at each in turn), built
+  via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
+  {swatch: {metals}, ...})` (`options.swatch` — same `METAL_PRESETS` material
+  and HDRI machinery every other render uses, with a built-in mesh in place
+  of a loaded model; see `client-scripts.md`). Two top-level fields in
+  `data/series.json` are the whole configuration: `"swatch-hdri"` (which
+  HDRI) and `"swatch-rotation"` (how the stack is turned under it, i.e.
+  which reflections land on the tubes); `scene-tool.html` is how you preview
+  and set both (pick "Metal swatch (tube)" from the Model dropdown, drag the
+  rotation slider / pick the HDRI, tick "Rotation"/"HDRI," Save — the Metal
+  buttons just choose which tube you're looking at). Tilt, roll, zoom and
+  the aim are solved, so there is nothing else to tune there. The look of
+  the metals relative to each other is set by constants in `three-viewer.js`
+  (`SWATCH_VIEW_STEP` — how far round each successive metal is viewed from,
+  currently 90°, the knob if the metals' reflections look too alike — and
+  `SWATCH_FOV`), not by data. CSS lays each strip behind its bar as a window
+  (`background: url(...) center / 25cqw 100%`, see `styling.md`), so growing
+  or shrinking a bar reveals more or less of the same image; stretching it
+  sideways is invisible since the tube is uniform along its length. Re-run
+  just these with `npm run auto-render -- --swatches-only`.
 
 All three are captured at 2x the final pixel size and downscaled with
 `sharp` — real GPU MSAA already handles edge antialiasing, this step is

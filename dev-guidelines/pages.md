@@ -4,6 +4,23 @@ The 7 HTML files at the repo root (plus `404.html`, also a root build entry — 
 
 **They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`) — except the dev-only pages (`scene-tool.html`, `json-tool.html`, `loader-test.html`), which are deliberately kept out of the build.
 
+## Addresses (clean URLs)
+
+No address shows a file name or an `?id=`:
+
+| What | Address | Served from |
+|---|---|---|
+| Gallery (home) | `/gallery` — and the bare `/` serves the same page **without a redirect** (no extra round trip on the main entry; the canonical says `/gallery`) | `index.html` |
+| An item | `/<slug>`, e.g. `/furcula`, `/rib-cage` | its own built page, `dist/<slug>.html` |
+| Any other page | `/archives`, `/creation-process`, `/terms`, `/launch-order`, `/series?series=<slug>` | `<page>.html` |
+| A non-featured series' gallery | `/gallery?series=<slug>` (and `&cat=` for a category filter) | `index.html` |
+
+- **An item's slug is its name** made URL-safe (`Furcula` → `furcula`, `rib-cage-extended` unchanged; the rule is `slugify()` in `scripts/slugs.js`, with `productSlug()` in `js/series.js` as its browser twin). It is flat — no series, no folder — because every page references `css/`, `js/`, `assets/` and `data/` **relatively**, which only resolves from a root-level URL (for the same reason a trailing slash is redirected away: `/archives/` would look for `/archives/css/…`). The consequences: slugs are unique across **all** series, and may not equal a page or a top-level file/folder (`gallery`, `archives`, `assets`, `js`…). `npm run validate-data` fails the build for either, and renaming a product changes its address.
+- **One built page per item.** `emitItemPages()` (`vite.config.js`) copies the built `product.html` to `dist/<slug>.html` with that item's own `<title>`, description, canonical and `og:*`/`twitter:*` tags. The page's script is still the shared `js/product.js`, which finds the product from `location.pathname`. `product.html` stays as the template and as the **landing for old `product.html?id=01[&series=x]` links**, which `product.js` rewrites to `/<slug>` with `history.replaceState` (a `#hash` survives).
+- **The server does the mapping** (`public/.htaccess`; `tooling.md`): `/index.html` → 301 `/gallery`; `/<page>.html` → 301 `/<page>` (not `product.html`, not `404.html`); trailing slash stripped; internally `/gallery` → `index.html` and `/<name>` → `<name>.html` when that file exists, so an unknown name is a real 404. `vite.config.js`'s `cleanUrls()` does the same for `npm run dev` and `vite preview` (in dev there are no per-item files, so an item slug is served `product.html`).
+- **Links are root-absolute**: the header/nav/footer in the pages, and the `EmjiveSeries` builders `mainHref`/`manifestHref`/`productHref` (`client-scripts.md`). A new page needs a clean link, not `<page>.html`.
+
+
 ## Titles and headings — one `h1` per page, one distinct `<title>` per page
 
 Every page used to ship `<title>em·ji·ve</title>`, with `product.html` and `series.html` overwriting it at runtime — so crawlers, browser history and shared links saw the same six characters for the homepage, Terms and the order page alike. Only `product.html` had an `h1`.
@@ -22,13 +39,13 @@ Three things to keep in step when adding a page:
 
 - `product.html` and `series.html` still overwrite `document.title` at runtime (`js/product.js`, `js/series-page.js`) with the real product/series name, in the same `<name> — em·ji·ve` shape. The static value is what a crawler and a social preview see, so it has to stand on its own.
 - `og:title` and `twitter:title` carry the same string as `<title>` on every page. They were the same hardcoded `em·ji·ve` everywhere, which is why every shared link previewed identically.
-- `og:url`, `og:image` and `twitter:image` are absolute `https://emjive.eu/...` URLs (crawlers don't resolve relative ones), `og:url` being the page's own address (`https://emjive.eu/` for the homepage). A new page needs its own `og:url`; if the domain ever changes, it's a find-and-replace across all seven.
+- `og:url`, `og:image` and `twitter:image` are absolute `https://emjive.eu/...` URLs (crawlers don't resolve relative ones), `og:url` being the page's own clean address (`https://emjive.eu/gallery` for the homepage, `https://emjive.eu/archives`, `https://emjive.eu/<slug>` for an item). A new page needs its own `og:url`; if the domain ever changes, it's a find-and-replace across all seven (the per-item pages take theirs from `SITE_ORIGIN` in `vite.config.js`).
 - The shell pages' heading is the *page's own title*, so it is an `h1`. `product.html`'s "Description"/"Characteristics"/"Shipping & Returns" stay `h2` — they are subsections under the product's `h1`. `css/style.css` targets `.section-head :is(h1, h2)` so both get the same treatment; the level is about document structure, not size. `.visually-hidden` (see `styling.md`) is for the two pages whose design has nowhere to put a visible title.
 
 ## Head and landmarks — what every page carries
 
 - **Indexing**: `archives`, `creation-process`, `series`, `terms` (empty shells) and `launch-order` (per-visitor) carry `<meta name="robots" content="noindex">`; `scripts/check-dist.js` enforces exactly that set. **Remove the line when a shell gets real content** and add the page to `emitSitemap()` in `vite.config.js`.
-- **Canonical**: `index.html` has a static `<link rel="canonical" href="https://emjive.eu/">`. `product.html` has none statically (one file serves every product — it would collapse them); `js/product.js` `updateSearchMetadata()` sets the canonical (`?id=`, plus `?series=` for a non-featured series) and the meta description from the product's own data.
+- **Canonical**: `index.html` has a static `<link rel="canonical" href="https://emjive.eu/gallery">` (not `/` — a root canonical on a page reached at another URL fails Lighthouse's canonical audit, and `/gallery` is the one address search engines should keep). Each item's built page (`dist/<slug>.html`) carries its own static canonical, title and description; the shared `product.html` has none, and `js/product.js` `updateSearchMetadata()` only fills one in (from `location.origin` + `productHref`) when the page it runs on has none, plus the meta description from the product's own data. `scripts/check-dist.js` asserts each item page's canonical and `og:url`.
 - **Icons/social**: `theme-color` is `#f8f8f8` (= `--bg`); `favicon.ico` + `apple-touch-icon.png` from `public/`; `twitter:card` is `summary` (the shared OG image is a 512px square); `og:image:alt`, `og:locale`.
 - **Skip link + main target**: every page's first focusable element is `<a class="skip-link" href="#main">` (`#productDetail`/`#seriesManifest` on those two pages, which already had ids); each `<main>` has `tabindex="-1"` so focus can land on it.
 - **`<noscript>`**: the JS-rendered pages (`index`, `product`, `launch-order`, `series`) open `<main>` with a "needs JavaScript" notice (`.page-shell__loading`).
@@ -41,7 +58,7 @@ All seven pages open with the same `<header class="site-header">`: brand logo li
 
 1. **Filter row** — dual-purpose, **rendered by `js/main.js`'s `renderHeaderFilter()`** from the active series' own category list, never hand-written — don't add markup for it, and don't assume there are three category tags, since each series declares its own subset (see `data.md`).
    - On `index.html` (`#productGrid` exists): a DINish "Filter gallery by" label plus one Geist Mono `.is-cat` tag per category, when the active series declares more than one. Exactly one category drops the label and renders that lone tag by itself, `.is-active` by default and inert (no `href`, nothing to actually filter). Zero categories hides the row entirely.
-   - On every other page: a single DINish "Gallery" link (`class="is-info"`) back to `index.html#products`, unconditionally — regardless of category count, so there's always a way back to the grid from the nav.
+   - On every other page: a single DINish "Gallery" link (`class="is-info"`) back to `/gallery#products`, unconditionally — regardless of category count, so there's always a way back to the grid from the nav.
 
    `css/style.css` needs an explicit `.site-header__filter[hidden] { display: none }` for the zero-category case to actually disappear, same trap as `.product-card[hidden]` below: the row's own `display: flex` is an author rule and beats the UA `[hidden]` regardless of specificity.
 2. **Archives** (`archives.html`) — DINish, `class="is-info"`.
@@ -49,7 +66,7 @@ All seven pages open with the same `<header class="site-header">`: brand logo li
 
 Selection inside this menu — which category tag(s) are active, or the lone leftover one's default state — is signaled by a small dot before the text, the same always-rendered/background-toggled recipe used for size/metal selection elsewhere on the site (see `styling.md`'s "Recurring non-obvious techniques"), not a color change. "Gallery", Archives and Creation process never carry a dot — only category tags do.
 
-The `<nav>` block is now **byte-identical across all seven pages** (verified by hashing it in each). The one remaining difference anywhere in the header is `.site-header__brand`'s href: `#top` on `index.html`, `index.html#top` everywhere else. That has to stay — `index.html#top` on the index itself triggers a reload instead of the CSS `scroll-behavior: smooth` scroll.
+The `<nav>` block is now **byte-identical across all seven pages** (verified by hashing it in each). The one remaining difference anywhere in the header is `.site-header__brand`'s href: `#top` on `index.html`, `/gallery#top` everywhere else. That has to stay — a link to the page's own address plus `#top` (here `/gallery#top`, or `index.html#top` before the clean URLs) would trigger a reload instead of the CSS `scroll-behavior: smooth` scroll.
 
 **Opening the menu isn't limited to the `+`/`-` icon.** `js/main.js` also delegates a click handler to `.site-header__row` itself, so any empty space in that row toggles the menu the same way the icon does — it just ignores clicks that land on the brand logo (`.site-header__brand`, which keeps navigating home) or on `.menu-toggle` (which already has its own listener; letting the row's handler also fire there would double-toggle).
 
@@ -89,7 +106,7 @@ Hero slots (above), then `#productGrid`, empty in the markup and populated by `j
 
 ## `product.html` — product detail
 
-Driven by `?id=...`, optionally with `?series=...`. Product ids are only unique within a series now, so a bare `?id=` resolves against the active series first, then scans the rest (see `client-scripts.md`).
+Driven by the address: `/<slug>` (see "Addresses" above). The slug is unique across every series, so it alone identifies the product and its series — `product.js` resolves it against the active series first, then scans the rest (see `client-scripts.md`). The old `product.html?id=...` form (optionally with `?series=...`) still resolves — a bare `?id=` only to the first series that has that id, since ids are unique per series — and is rewritten to `/<slug>`.
 
 Sections, in order (numbered in the HTML's own comments): label bar (`name.category.metal`, thumbnail, price) → carousel (3D model or photo slides; drag to scroll freely, or tap a slide to center it — no visible arrows, no rim click zones) → metal picker (centred, no "Material" label here — the Modify sheet's copy keeps it) → description → characteristics (metal-dependent specs) → shipping/returns (static text), the last three being collapsed-by-default expandable rows (`.disclosure`) → then, outside `<main>`, the glass **Select / Add bar** (`#productSelectBar`, a fixed strip stacked on the selection bar — see below) and the size-selection modal (`#sizeModal`, opened by that bar).
 

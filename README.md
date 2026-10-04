@@ -55,9 +55,11 @@ adds a few things on top of Vite's defaults:
   place (same names — nothing references a hash for them).
 - **Head fixes** — Vite inlines the `series.json` preload as a `data:` URL
   and moves the stylesheet behind the blocking scripts; a post plugin puts
-  both back. `sitemap.xml` is generated from the catalog data.
+  both back. `sitemap.xml` is generated from the catalog data, and so is
+  one page per item (`dist/<slug>.html`, with its own title, canonical and
+  social tags) — that is how an item gets an address like `/furcula`.
 - **`public/`** — copied to the root of `dist/` as-is: `.htaccess` (HTTPS,
-  compression, cache and security headers), `robots.txt`, the favicons.
+  clean-URL rewrites, compression, cache and security headers), `robots.txt`, the favicons.
 
 `npm run verify` is everything a change has to pass: ESLint, the data-file
 schema check (including exact-case asset paths), a production build, and
@@ -148,15 +150,22 @@ block, silently):
   `.glb` / `.wasm` return a sensible `Content-Type` and are compressed.
 - `https://emjive.eu/some/missing/path` shows the branded 404 page.
 - `/robots.txt` and `/sitemap.xml` load; `/favicon.ico` is not a 404.
+- **Clean URLs** (the rewrite block in `public/.htaccess`; Apache is the one
+  place they can't be tried before deploy): `/gallery`, `/`, `/archives`,
+  `/furcula` return `200`; `curl -I https://emjive.eu/index.html` is a `301` to
+  `/gallery`; `/archives.html` a `301` to `/archives`; `/archives/` a `301` to
+  `/archives`; `/product.html?id=01` is a `200` (the page then moves itself to
+  `/furcula`); `/nope` is the branded 404, not a soft 200.
 - The security headers are present (`curl -I`; securityheaders.com).
   `Content-Security-Policy-Report-Only` should log **nothing** in the browser
   console on any page — when that is true, rename the header to
   `Content-Security-Policy` in `public/.htaccess` to enforce it. Raise the
   `Strict-Transport-Security` max-age from 300 once HTTPS has been stable.
-- Run Lighthouse (mobile) on `/` and a product page.
+- Run Lighthouse (mobile) on `/gallery` and a product page (`/furcula`).
 - Remove the `noindex` meta tag from `archives.html`, `creation-process.html`,
   `terms.html` and `series.html` (and add them to `sitemap.xml` in
-  `vite.config.js`) when they get real content.
+  `vite.config.js`, and to `NOINDEX`/the sitemap check in
+  `scripts/check-dist.js`) when they get real content.
 
 ## Structure, at a glance
 
@@ -172,6 +181,7 @@ series/<slug>/                                  One series' hero bundle (html/cs
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
+scripts/slugs.js                                An item's address (/<name>) and the names it may not take
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
 loader-test.html, js/loader.js                  Logo loading animation + its endless-loop review page

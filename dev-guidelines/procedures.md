@@ -21,6 +21,14 @@ alone (step 3 stays a separate `npm run auto-render` run, see below — and a dr
 `tooling.md` for the tool's own architecture. The steps below are what it's
 doing under the hood, and still the way to do this by hand if you'd rather.
 
+**The product's `name` becomes its address** — `https://emjive.eu/<slug>`,
+the name lower-cased with other characters turned into `-` (`Furcula` →
+`/furcula`). Pick a name no other product (in *any* series) already has and
+that isn't a page or top-level folder name (`gallery`, `archives`, `assets`…):
+`npm run verify` fails otherwise. The page itself is built for you
+(`dist/<slug>.html`, with its own title/canonical/social tags) — nothing to
+register. See `pages.md`'s "Addresses".
+
 Products belong to a series. Everything below assumes you're adding to an
 existing one — `bones` is the only one so far. To start a *new* series, see
 "Adding a series" further down first.
@@ -220,11 +228,13 @@ separate Global-tab action there, same as by hand.
    its `"categories"` subset, and paths to all of the above (see `data.md`).
 5. **To make it the one the homepage shows, set `"featured"` to its slug.**
    That single field is the whole switch; the previous series stays fully
-   reachable at `index.html?series=<old-slug>`, which is exactly what the
+   reachable at `/gallery?series=<old-slug>`, which is exactly what the
    archives page will link to.
 
 No new HTML page is involved at any point — `index.html`, `product.html` and
-`series.html` each already render any series.
+`series.html` each already render any series. (A new series' products get
+their pages built like any other — and their names must not clash with the
+other series', since addresses are flat.)
 
 ### Setting a model's default view
 
@@ -527,7 +537,7 @@ The filter row is dual-purpose:
   (no `href`) — nothing to actually filter. Zero categories hides the row
   entirely (`hidden` on `#siteHeaderFilter`).
 - On every other page — an unconditional "Gallery" link back to
-  `index.html#products`, regardless of category count.
+  `/gallery#products`, regardless of category count.
 
 Selection (which tag(s) are active, or the lone tag's default state) is a
 small dot before the text — the same always-rendered, background-toggled

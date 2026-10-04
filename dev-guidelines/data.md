@@ -28,7 +28,7 @@ There is no global `data/products.json` any more; it split into the three above.
 
 | Field | Type | Purpose |
 |---|---|---|
-| `slug` | `string` | URL identity — `index.html?series=<slug>`, `product.html?series=<slug>&id=...`, `series.html?series=<slug>`. |
+| `slug` | `string` | URL identity — `/gallery?series=<slug>`, `/series?series=<slug>` (items don't carry it: `/<item-slug>` is unique across series, see below). |
 | `name`, `year` | `string` | Display name and vintage. |
 | `categories` | `string[]` | **A subset of the top-level `categories` keys**, in the order the header's filter row should show them. Each series declares its own, because the available categories genuinely differ between collections. Nothing enforces the subset relationship at runtime, but `scripts/auto-render.js` warns about violations (see `tooling.md`). |
 | `products` | `string` | Path to this series' `products.json`. |
@@ -50,7 +50,8 @@ Currently one series: **Bones** (`data/series/bones/products.json`), 9 entries (
 
 Top-level field order: `id, name, category, description, default-metal, per-metal-specs, hero-hand-visibility, 3d-viewer-camera-default, assets`. `assets` itself is ordered `model, icons, fallback-img, xray, top-shot, photos`.
 
-- **`id`** (`string`) — e.g. `"01"`. **Unique within one series' file, not globally** — every series starts over at `"01"`. Used in `product.html?id=...` URLs (with `?series=` prepended when it isn't the featured series), and as the anchor `scripts/auto-render.js` scopes its text-patching to (see `tooling.md`). A bare `?id=` with no `?series=` resolves against the active series first, then scans the others — see `client-scripts.md`.
+- **`id`** (`string`) — e.g. `"01"`. **Unique within one series' file, not globally** — every series starts over at `"01"`. No longer part of the product's URL (that is `/<slug>`, below); kept as the anchor `scripts/auto-render.js` scopes its text-patching to (see `tooling.md`) and for the old `product.html?id=...` links, which resolve against the active series first, then scan the others — see `client-scripts.md`.
+- **`name`'s address** — the product's page is `https://emjive.eu/<slug>`, where the slug is `name` lower-cased with every run of other characters turned into `-` (`Furcula` → `furcula`; `scripts/slugs.js`). So **a name is also an address**: it must be unique across **all** series (not just its own) and must not equal a page or a top-level file/folder (`gallery`, `archives`, `terms`, `series`, `launch-order`, `creation-process`, `product`, `index`, `404`, `assets`, `js`, `css`, `data`…); `npm run validate-data` fails otherwise. Renaming a product changes its address (the old one 404s).
 - **`name`** (`string`) — display name; also the basis for auto-render's generated filenames (lowercased, spaces→hyphens).
 - **`category`** (`string`) — should be one of the categories its own series declares, which in turn must be a key of the global `categories` vocabulary. Looks up that category's `unit` for the size field. A product in a category its series doesn't declare still renders in the unfiltered grid, but no filter button can reach it — `auto-render.js` warns about this.
 - **`description`** (`string`) — shown on the product detail page only. Empty string falls back to "No description yet." in `js/product.js`.

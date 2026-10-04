@@ -103,9 +103,9 @@
   }
 
   function buildFilterHref(cat) {
-    // Built off the real index URL so ?series= is preserved and the
-    // site's base path is never a concern.
-    var url = new URL("index.html", window.location.href);
+    // Built off the gallery's own address (the same one mainHref() gives) so
+    // ?series= is preserved.
+    var url = new URL("/gallery", window.location.href);
     var series = window.EmjiveSeries.slug;
     if (series && !window.EmjiveSeries.isFeatured(series)) {
       url.searchParams.set("series", series);

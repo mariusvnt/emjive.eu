@@ -41,8 +41,21 @@
     return node;
   }
 
-  function getIdFromQuery() {
-    return new URLSearchParams(window.location.search).get("id");
+  // What the address asks for. The real form is /<name-as-a-slug> (the
+  // server hands every such path this one page — public/.htaccess, and a
+  // per-item copy of it for each product, see emitItemPages() in
+  // vite.config.js); the older product.html?id=01[&series=x] still arrives
+  // from old bookmarks and from selections saved before the move, and is
+  // rewritten to the new address once the product is found (canonicalizeUrl).
+  function getRequest() {
+    var last = window.location.pathname.split("/").pop() || "";
+    var slug;
+    try { slug = decodeURIComponent(last).toLowerCase(); } catch (e) { slug = last.toLowerCase(); }
+    if (slug === "product.html" || slug === "product") slug = "";
+    return {
+      slug: slug,
+      id: new URLSearchParams(window.location.search).get("id")
+    };
   }
 
   // The page's arrival loader (js/loader.js) covers the page until this is
@@ -59,7 +72,7 @@
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
-      href: (slug ? window.EmjiveSeries.mainHref(slug) : "index.html") + "#products"
+      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/gallery") + "#products"
     }, "status");
     pageReady();
   }
@@ -78,17 +91,21 @@
     pageReady();
   }
 
-  // Product ids are only unique WITHIN a series now, so a bare ?id= (an old
-  // bookmark, or a link built before this refactor) can't identify a product
-  // on its own. Resolution order: the active series first — which is the
-  // featured one unless ?series= says otherwise — then every other series in
-  // index order. The scan costs nothing in the normal case, since step 1
-  // hits, and it's bounded by the number of series. If two series ever share
-  // an id and the URL carries no ?series=, the active one wins, which is the
-  // friendliest resolution available.
-  function findProduct(slug, id) {
+  // An item's slug (its name, see EmjiveSeries.productSlug) is unique across
+  // ALL series — validate-data enforces it — so the address alone identifies
+  // the product and the series it lives in. A bare ?id= (an old bookmark)
+  // can't: ids are only unique WITHIN a series. Resolution order either way:
+  // the active series first — the featured one unless ?series= says otherwise
+  // — then every other series in index order. The scan costs nothing in the
+  // normal case, since step 1 hits, and it's bounded by the number of series.
+  // For an id shared by two series with no ?series= in the URL, the active
+  // one wins, which is the friendliest resolution available.
+  function findProduct(slug, request) {
+    var matches = function (p) {
+      return request.slug ? window.EmjiveSeries.productSlug(p) === request.slug : p.id === request.id;
+    };
     return window.EmjiveSeries.loadProducts(slug).then(function (products) {
-      var product = products.find(function (p) { return p.id === id; });
+      var product = products.find(matches);
       if (product) return { product: product, slug: slug };
 
       var others = window.EmjiveSeries.all()
@@ -99,7 +116,7 @@
         return chain.then(function (found) {
           if (found) return found;
           return window.EmjiveSeries.loadProducts(otherSlug).then(function (list) {
-            var hit = list.find(function (p) { return p.id === id; });
+            var hit = list.find(matches);
             return hit ? { product: hit, slug: otherSlug } : null;
           });
         });
@@ -119,23 +136,36 @@
     window.EmjiveSeries.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
-        return findProduct(ctx.slug, getIdFromQuery());
+        return findProduct(ctx.slug, getRequest());
       })
       .then(function (found) {
         if (!found) return showNotFound();
         state.product = found.product;
         state.seriesSlug = found.slug;
+        canonicalizeUrl(found.product);
         render(found.product);
       })
       .catch(showLoadError);
   }
 
-  // This one file serves every product, so the static <head> can't carry a
-  // canonical URL (it would collapse all products into one) or a per-product
-  // description. Crawlers that run the page's JS and read these get the
-  // product's own address — with ?id= (and ?series= when it isn't the
-  // featured series), never a stray #hash or an old bare-id link — and its
-  // own summary, taken from the data already on the page.
+  // Old-style addresses (product.html?id=01, product.html?series=x&id=01)
+  // become the item's own, /<slug>, without a reload or a history entry; a
+  // hash survives. Only the shared template is rewritten: a path the server
+  // really has (/furcula) keeps whatever the visitor typed.
+  function canonicalizeUrl(product) {
+    var here = window.location.pathname;
+    if (here !== "/product.html" && here !== "/product") return;
+    if (!window.history || typeof window.history.replaceState !== "function") return;
+    var want = window.EmjiveSeries.productHref(product, state.seriesSlug);
+    window.history.replaceState(window.history.state, "", want + window.location.hash);
+  }
+
+  // The per-item pages the build emits (emitItemPages() in vite.config.js)
+  // already carry the product's canonical URL and description in the static
+  // <head>; this is for the shared product.html (old links, the dev server),
+  // whose head can't — it would collapse every product into one. Crawlers
+  // that run the page's JS get the product's own address and summary, taken
+  // from the data already on the page, never a stray #hash or ?id=.
   function updateSearchMetadata(product) {
     var canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
@@ -143,7 +173,9 @@
       canonical.rel = "canonical";
       document.head.appendChild(canonical);
     }
-    canonical.href = new URL(window.EmjiveSeries.productHref(product, state.seriesSlug), window.location.href).href;
+    if (!canonical.getAttribute("href")) {
+      canonical.href = new URL(window.EmjiveSeries.productHref(product, state.seriesSlug), window.location.origin).href;
+    }
 
     var description = document.querySelector('meta[name="description"]');
     if (description && product.description) description.setAttribute("content", product.description);

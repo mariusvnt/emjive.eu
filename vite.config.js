@@ -1,6 +1,7 @@
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
+import { slugify } from "./scripts/slugs.js";
 
 // The public origin, for the generated sitemap.xml. Same host as every page's
 // og:url / canonical.
@@ -287,27 +288,31 @@ function injectLoadHints() {
   };
 }
 
-// sitemap.xml, built from the same data the site renders from so it can never
-// drift from the catalog: the homepage plus one entry per product. The
-// product URL form mirrors js/product.js — a bare ?id= for the featured
-// series, ?series=<slug>&id=<id> for any other (ids are only unique within a
-// series). The empty shell pages (archives, creation-process, series, terms)
-// and launch-order.html are noindex and deliberately left out.
+// Every product with the series it lives in, read from the same data the site
+// renders from, so nothing here can drift from the catalog. The item's address
+// is /<slug> (scripts/slugs.js; js/series.js carries the browser copy of the
+// rule).
+function readProducts() {
+  const read = (path) => JSON.parse(readFileSync(resolve(__dirname, path), "utf8"));
+  const index = read("data/series.json");
+  const list = [];
+  for (const series of index.series) {
+    for (const product of read(series.products).products) {
+      list.push({ product, series, slug: slugify(product.name), featured: series.slug === index.featured });
+    }
+  }
+  return { index, list };
+}
+
+// sitemap.xml: the gallery plus one entry per item, at the addresses the site
+// really uses. The empty shell pages (archives, creation-process, series,
+// terms) and launch-order are noindex and deliberately left out.
 function emitSitemap() {
   return {
     name: "emit-sitemap",
     generateBundle() {
-      const read = (path) => JSON.parse(readFileSync(resolve(__dirname, path), "utf8"));
-      const index = read("data/series.json");
-      const urls = [SITE_ORIGIN + "/"];
-      for (const series of index.series) {
-        for (const product of read(series.products).products) {
-          const query = series.slug === index.featured
-            ? "id=" + encodeURIComponent(product.id)
-            : "series=" + encodeURIComponent(series.slug) + "&id=" + encodeURIComponent(product.id);
-          urls.push(SITE_ORIGIN + "/product.html?" + query);
-        }
-      }
+      const urls = [SITE_ORIGIN + "/gallery"];
+      for (const item of readProducts().list) urls.push(SITE_ORIGIN + "/" + item.slug);
       const xml =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -315,6 +320,103 @@ function emitSitemap() {
         "\n</urlset>\n";
       this.emitFile({ type: "asset", fileName: "sitemap.xml", source: xml });
     }
+  };
+}
+
+const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+// One real page per item: dist/<slug>.html, a copy of the built product.html
+// with that item's own <title>, description, canonical and social tags in the
+// static <head>. The server maps /<slug> to it (public/.htaccess), so an item
+// has a real address, link previews show the item rather than a generic
+// "Product", and a crawler that doesn't run JS still sees the right canonical.
+// The page's script is the same one every product shares: js/product.js finds
+// the product from the address. product.html itself stays as the template —
+// and as the landing for old product.html?id= links, which product.js rewrites
+// to the new address.
+//
+// Runs after the bundle is on disk (closeBundle), because Vite's processed HTML
+// (hashed asset URLs, hints) is what gets copied. Each tag it rewrites must
+// exist in the template: a missing one throws, so a head edit in product.html
+// can't silently leave items with the generic tags.
+function emitItemPages() {
+  let isBuild = false;
+  return {
+    name: "emit-item-pages",
+    apply: "build",
+    configResolved(config) { isBuild = config.command === "build"; },
+    closeBundle() {
+      if (!isBuild) return;
+      const distDir = resolve(__dirname, "dist");
+      const templatePath = join(distDir, "product.html");
+      if (!existsSync(templatePath)) throw new Error("emit-item-pages: dist/product.html is missing");
+      const template = readFileSync(templatePath, "utf8");
+      const { index, list } = readProducts();
+      const featured = index.series.find((s) => s.slug === index.featured);
+
+      const swap = (html, pattern, replacement, what) => {
+        if (!pattern.test(html)) throw new Error("emit-item-pages: product.html has no " + what + " to rewrite");
+        return html.replace(pattern, () => replacement);
+      };
+
+      for (const { product, series, slug } of list) {
+        const name = product.name || "Product";
+        const title = name + " \u2014 em\u00b7ji\u00b7ve";
+        const description = product.description || "Item detail";
+        const url = SITE_ORIGIN + "/" + slug;
+        const metal = product["default-metal"];
+        const icon = product.assets && product.assets.icons && (product.assets.icons[metal] || Object.values(product.assets.icons)[0]);
+
+        let html = template;
+        html = swap(html, /<title>[^<]*<\/title>/, "<title>" + escapeAttr(title) + "</title>", "<title>");
+        html = swap(html, /<meta name="description" content="[^"]*" \/>/, '<meta name="description" content="' + escapeAttr(description) + '" />\n<link rel="canonical" href="' + url + '" />', "meta description");
+        html = swap(html, /<meta property="og:title" content="[^"]*" \/>/, '<meta property="og:title" content="' + escapeAttr(title) + '" />', "og:title");
+        html = swap(html, /<meta property="og:description" content="[^"]*" \/>/, '<meta property="og:description" content="' + escapeAttr(description) + '" />', "og:description");
+        html = swap(html, /<meta property="og:url" content="[^"]*" \/>/, '<meta property="og:url" content="' + url + '" />', "og:url");
+        html = swap(html, /<meta name="twitter:title" content="[^"]*" \/>/, '<meta name="twitter:title" content="' + escapeAttr(title) + '" />', "twitter:title");
+        html = swap(html, /<meta name="twitter:description" content="[^"]*" \/>/, '<meta name="twitter:description" content="' + escapeAttr(description) + '" />', "twitter:description");
+        if (icon) {
+          const image = SITE_ORIGIN + "/" + icon;
+          html = swap(html, /<meta property="og:image" content="[^"]*" \/>/, '<meta property="og:image" content="' + image + '" />', "og:image");
+          html = swap(html, /<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="' + escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" />', "og:image:alt");
+          html = swap(html, /<meta name="twitter:image" content="[^"]*" \/>/, '<meta name="twitter:image" content="' + image + '" />', "twitter:image");
+        }
+        // The early products.json hint names the featured series; an item of
+        // another series needs its own.
+        if (featured && series.slug !== featured.slug) {
+          html = html.split('href="' + featured.products + '"').join('href="' + series.products + '"');
+        }
+        writeFileSync(join(distDir, slug + ".html"), html);
+      }
+    }
+  };
+}
+
+// Dev and preview have no .htaccess, so this does what its rewrite rules do
+// (keep the two in step): /gallery is index.html, /<page> is <page>.html, and
+// an item's /<slug> is its own page — in preview that is the per-item file
+// emitItemPages() wrote, in dev (where none exists) the shared product.html,
+// which finds its product from the address. Only extension-less single-segment
+// paths are touched.
+function cleanUrls() {
+  const rewrite = (root, isPreview) => (req, res, next) => {
+    const url = req.url || "";
+    const q = url.indexOf("?");
+    const path = q === -1 ? url : url.slice(0, q);
+    const rest = q === -1 ? "" : url.slice(q);
+    let name = "";
+    try { name = decodeURIComponent(path).replace(/^\/+/, "").toLowerCase(); } catch (e) { return next(); }
+    if (!name || name.includes("/") || name.includes(".")) return next();
+
+    if (name === "gallery") req.url = "/index.html" + rest;
+    else if (existsSync(join(root, name + ".html"))) req.url = "/" + name + ".html" + rest;
+    else if (!isPreview && readProducts().list.some((item) => item.slug === name)) req.url = "/product.html" + rest;
+    next();
+  };
+  return {
+    name: "clean-urls",
+    configureServer(server) { server.middlewares.use(rewrite(__dirname, false)); },
+    configurePreviewServer(server) { server.middlewares.use(rewrite(resolve(__dirname, "dist"), true)); }
   };
 }
 
@@ -356,7 +458,9 @@ export default defineConfig({
     restoreHeadOrderAndPreload(),
     injectLoadHints(),
     emitSitemap(),
-    copyFilesVitesBuildCantTrace()
+    cleanUrls(),
+    copyFilesVitesBuildCantTrace(),
+    emitItemPages()
   ],
   build: {
     // The one chunk over Vite's 500kB default is three.js itself (the lazy

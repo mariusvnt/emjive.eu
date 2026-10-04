@@ -112,9 +112,15 @@
     return manifestCache[slug];
   }
 
-  // Href helpers deliberately omit ?series= for the featured series, so the
-  // common case keeps clean, shareable URLs (product.html?id=01) and links
-  // bookmarked before this refactor keep resolving unchanged.
+  // Addresses. The gallery is /gallery, a manifest page /series?series=<slug>,
+  // and an item is /<its name as a slug> — flat at the root, with no series in
+  // the path, because every page references css/, js/, assets/ and data/
+  // relatively and that only resolves from a root-level URL. Root-absolute
+  // here for the same reason. The server maps these onto the .html files
+  // (public/.htaccess; Vite's dev/preview server does it in vite.config.js).
+  //
+  // The gallery/manifest helpers deliberately omit ?series= for the featured
+  // series, so the common case keeps clean, shareable URLs.
   function isFeatured(slug) {
     return !!index && slug === index.featured;
   }
@@ -125,16 +131,27 @@
   }
 
   function mainHref(slug) {
-    return "index.html" + seriesParam(slug);
+    return "/gallery" + seriesParam(slug);
   }
 
   function manifestHref(slug) {
-    return "series.html?series=" + encodeURIComponent(slug);
+    return "/series?series=" + encodeURIComponent(slug);
   }
 
-  function productHref(product, slug) {
-    var s = seriesParam(slug);
-    return "product.html" + (s ? s + "&" : "?") + "id=" + encodeURIComponent(product.id);
+  // The item's address segment: its name, URL-safe. The same rule as
+  // slugify() in scripts/slugs.js (which the build uses for the per-item pages
+  // and the sitemap) — `npm run validate-data` compares the two on every
+  // product, so change them together. validate-data also reads this function's
+  // source, so keep it a single self-contained declaration.
+  function productSlug(product) {
+    return String(product.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  // The series argument is kept for the callers' sake (and for a day when the
+  // address needs it again): the item's slug already identifies it across all
+  // series, which is why the URL carries no ?series=.
+  function productHref(product) {
+    return "/" + productSlug(product);
   }
 
   /* ---------------------------------------------------------------------
@@ -511,6 +528,7 @@
     mainHref: mainHref,
     manifestHref: manifestHref,
     productHref: productHref,
+    productSlug: productSlug,
 
     // The raw ?series= value, with no featured-series fallback applied.
     // series.html needs this: silently showing the featured series' manifest

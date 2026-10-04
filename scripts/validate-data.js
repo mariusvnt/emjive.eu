@@ -83,6 +83,7 @@ function checkVariants(where, rel, suffixes) {
 // quietly off (or a hero whose layers no longer line up) with no error to
 // point at it, so it is checked here.
 const { PHONE_CROP } = require("./make-image-variants");
+const { slugify, reservedNames } = require("./slugs");
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
 function checkPhoneConstants(file, expectedCrops) {
@@ -239,6 +240,12 @@ if (index && validate("data/series.json", indexSchema, index)) {
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
 
+  // An item is addressed by emjive.eu/<slug> (scripts/slugs.js), flat at the
+  // root, so slugs are unique across ALL series and may not shadow a page or
+  // a top-level file/folder.
+  const reserved = reservedNames(ROOT);
+  const itemSlugs = new Map();
+
   for (const series of index.series) {
     const where = "series " + series.slug;
     if (!hdriKeys.has(series.hdri)) fail(where, 'hdri "' + series.hdri + '" is not a key of hdris');
@@ -286,6 +293,12 @@ if (index && validate("data/series.json", indexSchema, index)) {
         const label = series.products + " product " + product.id + " (" + product.name + ")";
         if (ids.has(product.id)) fail(label, "duplicate id within the series");
         ids.add(product.id);
+
+        const itemSlug = slugify(product.name);
+        if (!itemSlug) fail(label, "name has no letters or digits to build an address from");
+        else if (reserved.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is taken by a page or a top-level file/folder');
+        else if (itemSlugs.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is already used by ' + itemSlugs.get(itemSlug));
+        else itemSlugs.set(itemSlug, series.slug + " / " + product.id);
         if (!series.categories.includes(product.category)) fail(label, 'category "' + product.category + '" is not declared by its series');
         if (!metals.has(product["default-metal"])) fail(label, 'default-metal "' + product["default-metal"] + '" is not in metals');
 
@@ -321,6 +334,26 @@ if (index && validate("data/series.json", indexSchema, index)) {
     const manifest = readJson(series.manifest);
     if (manifest && validate(series.manifest, manifestSchema, manifest)) {
       if (manifest.series !== series.slug) fail(series.manifest, 'series field "' + manifest.series + '" does not match slug "' + series.slug + '"');
+    }
+  }
+}
+
+// js/series.js carries the browser copy of slugify() as productSlug(); both
+// must give every product the same address.
+if (index && existsExactCase("js/series.js")) {
+  const src = fs.readFileSync(path.join(ROOT, "js/series.js"), "utf8").replace(/\r\n/g, "\n");
+  const body = /\n {2}function productSlug\(product\) \{[\s\S]*?\n {2}\}/.exec(src);
+  if (!body) {
+    fail("js/series.js", "no productSlug(product) function found (validate-data reads it to compare with scripts/slugs.js)");
+  } else {
+    const clientSlug = new Function("return (" + body[0] + ")")();
+    for (const series of index.series) {
+      const file = readJson(series.products);
+      for (const product of (file && file.products) || []) {
+        if (clientSlug(product) !== slugify(product.name)) {
+          fail("js/series.js", 'productSlug() gives "' + clientSlug(product) + '" for "' + product.name + '" but scripts/slugs.js gives "' + slugify(product.name) + '"');
+        }
+      }
     }
   }
 }

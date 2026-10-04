@@ -18,12 +18,19 @@
        by Vite unless vite.config.js's post plugin restores them)
      - indexing: the empty shell pages and the order page are noindex, the
        pages that should be found are not
+     - clean URLs: every item has its own page (dist/<slug>.html) carrying its
+       own canonical/title, the links use extension-less addresses that map
+       onto real files, the sitemap lists those addresses, and .htaccess has
+       the rewrite rules that serve them
 
    Run:  npm run check-dist
    ========================================================================== */
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { slugify } = require("./slugs");
+
+const SITE_ORIGIN = "https://emjive.eu";
 
 const DIST = path.resolve(__dirname, "..", "dist");
 const problems = [];
@@ -84,7 +91,13 @@ function resolvesLocally(ref, fromPage) {
     ? clean.slice(1)
     : path.posix.normalize(path.posix.join(path.posix.dirname(fromPage), clean));
   if (target === "" || target === ".") return fileSet.has("index.html");
-  return fileSet.has(target);
+  if (fileSet.has(target)) return true;
+  // A clean address (/archives, /gallery, /furcula): what public/.htaccess
+  // serves as <name>.html, with /gallery being index.html.
+  if (clean.startsWith("/") && !target.includes("/") && !target.includes(".")) {
+    return target === "gallery" ? fileSet.has("index.html") : fileSet.has(target + ".html");
+  }
+  return false;
 }
 
 const NOINDEX = new Set(["archives.html", "creation-process.html", "series.html", "terms.html", "launch-order.html", "404.html"]);
@@ -123,12 +136,55 @@ for (const page of pages) {
   }
 }
 
+/* ---- items -------------------------------------------------------------- */
+
+const readJson = (rel) => JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", rel), "utf8"));
+const catalog = readJson("data/series.json");
+const items = [];
+for (const series of catalog.series) {
+  for (const product of readJson(series.products).products) {
+    items.push({ product, series, slug: slugify(product.name) });
+  }
+}
+
+for (const { product, series, slug } of items) {
+  const file = slug + ".html";
+  if (!fileSet.has(file)) { fail("no page for item " + product.name + ": dist/" + file + " is missing (emitItemPages in vite.config.js)"); continue; }
+  const head = fs.readFileSync(path.join(DIST, file), "utf8").split("</head>")[0];
+  const url = SITE_ORIGIN + "/" + slug;
+  if (!head.includes('<link rel="canonical" href="' + url + '" />')) fail(file + ": canonical is not " + url);
+  if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(file + ": og:url is not " + url);
+  if (!head.includes("<title>" + product.name)) fail(file + ": <title> does not start with the item's name");
+  if (!head.includes('href="' + series.products + '"')) fail(file + ": no products.json hint for its series (" + series.products + ")");
+}
+
+// Pages that are not items name their own canonical form too: no .html.
+for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
+  if (!fileSet.has(page)) continue;
+  const head = fs.readFileSync(path.join(DIST, page), "utf8").split("</head>")[0];
+  const url = page === "index.html" ? SITE_ORIGIN + "/gallery" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
+  if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(page + ": og:url is not " + url);
+  if (page === "index.html" && !head.includes('<link rel="canonical" href="' + url + '" />')) fail(page + ": canonical is not " + url);
+}
+
+if (fileSet.has(".htaccess")) {
+  const rules = fs.readFileSync(path.join(DIST, ".htaccess"), "utf8");
+  for (const needle of ["RewriteRule ^gallery$ index.html [L]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ /gallery [L,R=301]"]) {
+    if (!rules.includes(needle)) fail(".htaccess: the clean-URL rules are missing (" + needle + ")");
+  }
+}
+
 /* ---- sitemap ------------------------------------------------------------ */
 
 if (fileSet.has("sitemap.xml")) {
   const sitemap = fs.readFileSync(path.join(DIST, "sitemap.xml"), "utf8");
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   if (urls.length < 2) fail("sitemap.xml lists fewer than two URLs");
+  const wanted = [SITE_ORIGIN + "/gallery", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
+  for (const url of wanted) if (!urls.includes(url)) fail("sitemap.xml does not list " + url);
+  for (const url of urls) {
+    if (!wanted.includes(url)) fail("sitemap.xml lists an address the site does not use: " + url);
+  }
   for (const url of urls) {
     for (const noindexed of NOINDEX) {
       if (url.includes("/" + noindexed)) fail("sitemap.xml lists a noindex page: " + url);

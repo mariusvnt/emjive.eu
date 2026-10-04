@@ -77,7 +77,7 @@
 
   var orderLink = document.createElement("a");
   orderLink.className = "selection-bar__order is-hidden";
-  orderLink.href = "launch-order.html";
+  orderLink.href = "/launch-order";
   orderLink.setAttribute("aria-hidden", "true");
   orderLink.inert = true;
   var orderCountEl = el("span", "selection-bar__order-count");

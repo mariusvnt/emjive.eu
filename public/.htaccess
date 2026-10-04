@@ -25,6 +25,47 @@ ServerSignature Off
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # -------------------------------------------------------------------------
+  # Clean URLs. The site's addresses carry no file names:
+  #   /gallery            the homepage (index.html; the bare / serves it too,
+  #                       through DirectoryIndex, with no redirect)
+  #   /archives, /terms,  the other pages, i.e. <page>.html without the .html
+  #   /launch-order, ...
+  #   /furcula, ...       an item: the build writes one page per product,
+  #                       dist/<slug>.html (emitItemPages in vite.config.js)
+  # so the rules below need no list of items. vite.config.js's cleanUrls()
+  # does the same mapping for the dev and preview servers — keep them in step.
+  #
+  # THE_REQUEST is the raw request line: it only matches when a client asked
+  # for the .html name itself, never for the internal rewrites below (which
+  # would otherwise redirect and rewrite each other forever). Query strings
+  # ride along on every redirect.
+  # -------------------------------------------------------------------------
+
+  # The old homepage address.
+  RewriteCond %{THE_REQUEST} \s/index\.html[?\s]
+  RewriteRule ^index\.html$ /gallery [L,R=301]
+
+  # /<page>.html -> /<page>, so links and bookmarks from before still land.
+  # Not product.html: old product.html?id=01 links arrive there and
+  # js/product.js moves the address on to /<slug> (the page can't know the
+  # item without running). Not 404.html: it is the ErrorDocument.
+  RewriteCond %{THE_REQUEST} \s/[^/?\s]+\.html[?\s]
+  RewriteRule ^(?!(?:product|404)\.html$)([^/]+)\.html$ /$1 [L,R=301]
+
+  # No trailing slash (/archives/ -> /archives): the pages reference css/, js/,
+  # assets/ relatively, which only resolves from a root-level URL. Real
+  # directories are left to mod_dir.
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.+)/$ /$1 [L,R=301]
+
+  # Internal: /gallery is index.html, and /<name> is <name>.html when that
+  # file exists (every page, and every item's own page). Anything else falls
+  # through to a real 404.
+  RewriteRule ^gallery$ index.html [L]
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^([^/]+)$ $1.html [L]
 </IfModule>
 
 # ---------------------------------------------------------------------------

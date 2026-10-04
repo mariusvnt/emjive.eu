@@ -65,6 +65,10 @@ jobs:
           # mirror --delete removes everything in www/ that isn't in dist/, so
           # never run it against an empty or failed build.
           test -f dist/index.html || { echo "dist/index.html is missing; refusing to mirror"; exit 1; }
+          # A dotfile, so it is the one thing an artifact round-trip can lose
+          # without anyone noticing (see include-hidden-files in verify.yml);
+          # --delete would then remove the live copy from the server.
+          test -f dist/.htaccess || { echo "dist/.htaccess is missing; refusing to mirror"; exit 1; }
 
           # Pinned host keys go in a known_hosts file under the real hostname;
           # ssh below refuses to connect to anything that doesn't match.

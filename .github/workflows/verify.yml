@@ -38,5 +38,9 @@ jobs:
         with:
           name: dist
           path: dist/
+          # Without this the artifact silently omits every dotfile — which in
+          # dist/ is .htaccess, the host configuration. The first deploy that
+          # went through this artifact shipped without it.
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

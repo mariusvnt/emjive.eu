@@ -69,14 +69,18 @@
      that stops propagation can hide an event from it), and focus handed
      back right after a pointer input carries .is-focus-quiet — which
      css/style.css uses to drop the ring — until that element loses focus or
-     the next key is pressed, when the ring is right again. */
+     the next key is pressed, when the ring is right again.
+     A caller can also ask for it outright (release()'s `quiet`): the size
+     sheet's Enter confirms an Add from the keyboard, and the Select button
+     it hands focus back to showing a ring right after that reads as just as
+     much of a glitch as after a tap. */
   var lastInputWasPointer = false;
   document.addEventListener("pointerdown", function () { lastInputWasPointer = true; }, true);
   document.addEventListener("keydown", function () { lastInputWasPointer = false; }, true);
 
-  function focusElement(el, options) {
+  function focusElement(el, options, quiet) {
     if (!el) return;
-    if (lastInputWasPointer) {
+    if (quiet || lastInputWasPointer) {
       el.classList.add("is-focus-quiet");
       var clear = function () {
         el.classList.remove("is-focus-quiet");
@@ -254,8 +258,10 @@
     },
 
     /* focusTarget — optional: where focus goes instead of returnFocus (the
-       Modify sheet sends it to the bar's Undo after an Unselect). */
-    release: function (focusTarget) {
+       Modify sheet sends it to the bar's Undo after an Unselect).
+       quiet       — optional: true hands focus back without a ring even
+                     though the last input was a key (see above). */
+    release: function (focusTarget, quiet) {
       if (!activeRoot) return;
       document.removeEventListener("keydown", onKeydown);
       document.removeEventListener("focusin", onFocusIn);
@@ -277,7 +283,7 @@
 
       // No preventScroll this time: the trigger may legitimately be
       // off-screen now, and scrolling it back into view is exactly right.
-      focusElement(target);
+      focusElement(target, undefined, quiet === true);
     },
 
     // Whether a dialog currently holds the trap — for the Escape handling

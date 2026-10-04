@@ -672,7 +672,7 @@
     customInput.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
       e.preventDefault();
-      if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd();
+      if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd(true);
     });
 
     guideToggle.addEventListener("click", function () {
@@ -700,7 +700,10 @@
       });
     }
 
-    function closeModal() {
+    // quiet: focus goes back to the Select button without a ring — Enter in
+    // the field confirms from the keyboard, and the ring that would otherwise
+    // appear there right after reads as a glitch (see js/focus-trap.js).
+    function closeModal(quiet) {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
       // Covers both paths that reach here: a successful confirmAdd() (which
@@ -708,13 +711,13 @@
       // — either way, the bar goes back to "Select" once the sheet is gone.
       // Before the trap lets go, so focus lands back on a live button.
       syncBar();
-      window.EmjiveFocusTrap.release();
+      window.EmjiveFocusTrap.release(undefined, quiet === true);
     }
 
     // The actual "add to cart" action — reached via the Select bar's Add or
     // Enter in the field, both of which only fire for a valid size; the
     // guard below is belt and braces against a stale callback.
-    function confirmAdd() {
+    function confirmAdd(quiet) {
       if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
       var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
       window.EmjiveSelection.addItem({
@@ -730,7 +733,7 @@
         price: details.price || 0,
         image: (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || ""
       });
-      closeModal();
+      closeModal(quiet);
     }
 
     selectBtn.addEventListener("click", function () {

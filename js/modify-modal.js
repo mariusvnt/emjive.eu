@@ -583,14 +583,17 @@
     saveBtn.disabled = !window.EmjiveSelection.isValidSize(sizeInput.value);
   }
 
-  function save() {
+  // quiet: Enter in the field saves from the keyboard, and the ring that
+  // would then appear on the row focus goes back to reads as a glitch — see
+  // js/focus-trap.js.
+  function save(quiet) {
     if (!state.isOpen || !window.EmjiveSelection.isValidSize(sizeInput.value)) return;
     window.EmjiveSelection.updateItem(state.index, draftValues());
     // The strip stays up while the band grows to fill it and fades; the bar
     // gets its own content back after that (leaveAfterSave). The row already
     // shows what was saved (previewDraft), so it isn't put back.
     var bar = state.options.bar;
-    close({ keepStrip: true, keepPreview: true });
+    close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
     leaveAfterSave(bar);
   }
 
@@ -697,7 +700,7 @@
   sizeInput.addEventListener("keydown", function (e) {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    save();
+    save(true);
   });
 
   guideToggle.addEventListener("click", function () {
@@ -775,6 +778,7 @@
   // or an Unselect, whose row is leaving; otherwise the row goes back
   // to what's stored.
   // focus: where focus goes instead of returnFocus.
+  // quiet: it lands there without a focus ring (an Enter save).
   function close(opts) {
     if (!state.isOpen) return;
     opts = opts || {};
@@ -784,7 +788,7 @@
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
     if (!opts.keepStrip && options.bar) options.bar.hide(strip);
-    window.EmjiveFocusTrap.release(opts.focus);
+    window.EmjiveFocusTrap.release(opts.focus, opts.quiet === true);
     // A viewer not built yet never will be now; one that was goes with the
     // rest after the slide-out.
     if (state.cancelViewerBuild) {

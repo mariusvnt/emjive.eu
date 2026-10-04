@@ -10,12 +10,23 @@
 
    Usage:
      node scripts/auto-render.js [metal ...] [--series=<slug>] [--swatches-only]
+     node scripts/auto-render.js --image-variants [--series=<slug>]
      npm run auto-render -- steel bronze
      npm run auto-render -- --series=bones
+     npm run auto-render -- --image-variants
 
    With no metal names given, renders every metal in data/series.json's
    top-level "metals" list. With no --series, walks every series listed
    there, patching each one's own products.json.
+
+   --image-variants renders nothing: it only rewrites the small sibling of
+   every image the site loads in two sizes (the x-ray backdrops, the product
+   icons, the hero) from the full-size files already on disk, by running
+   scripts/make-image-variants.js's makeVariants() with force on — so no
+   Chrome, no GPU, no products.json writes. A full render does the icon part
+   of that itself at the end (see the end of main()): the icons it just wrote
+   would otherwise have stale 128px siblings, and those are what the
+   selection bar and order rows show.
 
    Requires a local Chrome install (set CHROME_PATH
    to override the auto-detected path) with a real GPU available — see the
@@ -87,6 +98,7 @@ const path = require("path");
 const http = require("http");
 const puppeteer = require("puppeteer-core");
 const sharp = require("sharp");
+const { makeVariants } = require("./make-image-variants");
 
 const ROOT = path.resolve(__dirname, "..");
 const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
@@ -756,6 +768,20 @@ async function main() {
   // products.json writes. The loop for tuning the swatch scene
   // (scene-tool.html's swatch mode) without re-rendering the catalog.
   const swatchesOnly = args.includes("--swatches-only");
+  // Just the other versions of the big images (see make-image-variants.js) —
+  // no browser, no render.
+  // Handled before anything else so it needs neither Chrome nor a valid metal.
+  if (args.includes("--image-variants")) {
+    if (seriesArg) {
+      const known = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8")).series.map((s) => s.slug);
+      if (!known.includes(seriesArg)) {
+        throw new Error("Unknown series: " + seriesArg + " — must be one of: " + known.join(", "));
+      }
+    }
+    console.log("auto-render --image-variants — series: " + (seriesArg || "all"));
+    await makeVariants({ force: true, series: seriesArg });
+    return;
+  }
 
   const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
   const allMetals = seriesIndex.metals || [];
@@ -944,6 +970,15 @@ async function main() {
         console.log("\nUpdated " + path.relative(ROOT, target.absPath).replace(/\\/g, "/") +
           " icon/top-shot paths.");
       }
+    }
+
+    // The icons just written are the source of the bar's and the order
+    // rows' 128px thumbnails: rewrite those so they match (and so a metal
+    // that has just been added gets its siblings at all). A swatches-only
+    // run wrote no icons.
+    if (!swatchesOnly) {
+      console.log("\n--- icon thumbnails ---");
+      await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
     }
 
     console.log("\nDone.");

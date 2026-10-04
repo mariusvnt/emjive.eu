@@ -372,20 +372,41 @@
   // image-drag-and-drop gesture instead of (or fighting with) the custom
   // pointer-drag above — the viewport's dragstart guard is the rest of
   // that fix.
-  function imageSlide(src, alt) {
+  //
+  // opts.deferred: true builds the slide without starting the download. The
+  // product page uses it for the photos, which sit off screen and must not
+  // compete with the image the page's first paint is waiting on; the caller
+  // starts them with slide.loadImage() once that has arrived. The slide's
+  // loader waits for that too, so it still covers the box until the photo is in.
+  function imageSlide(src, alt, opts) {
     var slide = document.createElement("div");
     slide.className = "product-carousel__slide";
     var img = document.createElement("img");
-    img.src = src;
     img.alt = alt || "";
     img.loading = "lazy";
     img.draggable = false;
     slide.appendChild(img);
+
+    var ready;
+    if (opts && opts.deferred) {
+      ready = new Promise(function (resolve) {
+        slide.loadImage = function () {
+          if (!img.getAttribute("src")) {
+            img.src = src;
+            if (global.EmjiveLoader) global.EmjiveLoader.imageReady(img).then(resolve);
+            else resolve();
+          }
+        };
+      });
+    } else {
+      img.src = src;
+      ready = global.EmjiveLoader ? global.EmjiveLoader.imageReady(img) : null;
+    }
     // A loader over the slide until the photo has loaded, then the photo
     // fades in (js/loader.js). Every slide is a fixed square, so this
     // crosses exactly the slide's own box.
     if (global.EmjiveLoader) {
-      global.EmjiveLoader.cover(slide, global.EmjiveLoader.imageReady(img));
+      global.EmjiveLoader.cover(slide, ready);
     }
     return slide;
   }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-page-loader data-viewer="eager">
+<html lang="en" data-page-loader data-products="eager">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -58,10 +58,11 @@
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- Lazy 3D viewer loader (see js/viewer-entry.js). data-viewer="eager" on
-     <html> starts the three.js chunk downloading right away, in parallel
-     with the product data; js/product.js waits for it before building the
-     carousel. -->
+<!-- Lazy 3D viewer loader (see js/viewer-entry.js). No data-viewer on <html>
+     here on purpose: the three.js chunk (and the HDRI and model) are the
+     heaviest things on the page and none of them is part of its first
+     paint, so js/product.js asks for them only once the images that are
+     (the x-ray backdrop and the model's poster) have arrived. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body>
@@ -126,7 +127,7 @@
            No visible arrows/outline — navigate by dragging horizontally,
            or tapping a slide to center it (see js/product.js). -->
       <div class="product-carousel-frame" id="productCarouselFrame">
-        <img class="product-carousel__xray" id="productCarouselXray" alt="" hidden />
+        <img class="product-carousel__xray" id="productCarouselXray" alt="" fetchpriority="high" decoding="async" hidden />
         <div class="product-carousel" id="productCarousel">
           <div class="product-carousel__viewport">
             <div class="product-carousel__track" id="productCarouselTrack"></div>
@@ -257,31 +258,31 @@
   </div>
 </div>
 
-<!-- defer on main.js/product.js: js/viewer-entry.js (a module, loaded in
-     <head>) executes on the same deferred queue as defer'd classic
-     scripts, in document order — since the module tag comes first, it's
-     guaranteed to have already defined window.EmjiveLoadViewer by the time
-     these run. Without defer, these would run inline as soon as the
-     parser reached them, ahead of the module. The plain synchronous
-     scripts below don't touch the viewer at load — modify-modal.js only
-     asks for it once a Modify is clicked, long after the module has run —
-     so they're left undeferred; selection.js still runs (and sets
-     window.EmjiveSelection) before the deferred pair, same as today. -->
-<script src="js/main.js" defer></script>
-<!-- Plain (non-deferred) so window.EmjiveFocusTrap and window.EmjiveCarousel
-     exist before the whole deferred queue runs — js/product.js, which uses
-     both, is deferred. carousel.js/order-rows.js/modify-modal.js are the
+<!-- Every script below is deferred. They used to be plain parser-blocking
+     scripts, which made the parser wait on each file in turn — a staggered
+     chain of round trips that held product.js, the 3D module and the
+     arrival loader back by about a second on a slow link. Deferred
+     scripts download in parallel with the parser and run in document order
+     once it is done.
+
+     That order is the contract. js/viewer-entry.js (a module, in <head>) is
+     first on the deferred queue, so window.EmjiveLoadViewer exists before
+     any of these run. The helpers come before the scripts that use them:
+     focus-trap.js and carousel.js (window.EmjiveFocusTrap/EmjiveCarousel)
+     before product.js; carousel.js/order-rows.js/modify-modal.js are the
      Modify sheet and its parts, reachable from the bar's drawer on every
-     page; order-rows.js has to precede selection-bar.js, which builds its
-     drawer rows with it at load. -->
-<script src="js/focus-trap.js"></script>
-<script src="js/selection.js"></script>
-<script src="js/carousel.js"></script>
-<script src="js/order-rows.js"></script>
-<script src="js/metal-picker.js"></script>
-<script src="js/modify-modal.js"></script>
-<script src="js/liquid-glass.js"></script>
+     page, and order-rows.js has to precede selection-bar.js, which builds
+     its drawer rows with it at load. main.js and product.js run last, the
+     same order they ran in when only those two were deferred. -->
+<script src="js/focus-trap.js" defer></script>
+<script src="js/selection.js" defer></script>
+<script src="js/carousel.js" defer></script>
+<script src="js/order-rows.js" defer></script>
+<script src="js/metal-picker.js" defer></script>
+<script src="js/modify-modal.js" defer></script>
+<script src="js/liquid-glass.js" defer></script>
+<script src="js/selection-bar.js" defer></script>
+<script src="js/main.js" defer></script>
 <script src="js/product.js" defer></script>
-<script src="js/selection-bar.js"></script>
 </body>
 </html>

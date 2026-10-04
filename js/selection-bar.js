@@ -511,7 +511,12 @@
   function buildIcon(item) {
     var img = document.createElement("img");
     img.className = "selection-bar__icon";
-    if (item.image) img.src = item.image;
+    // A 36px thumbnail: the 128px sibling of the 512px icon, not the icon
+    // itself (3KB against 25-40KB, on every page that has a selection).
+    if (item.image) {
+      if (window.EmjiveLoader) window.EmjiveLoader.setSrc(img, window.EmjiveLoader.variant(item.image, "128"), item.image);
+      else img.src = item.image;
+    }
     img.alt = "";
     return img;
   }
@@ -650,8 +655,12 @@
     } else {
       items.forEach(function (item, i) {
         if (keys[i] === oldKeys[i]) return;
-        if (item.image) iconEls[i].src = item.image;
-        else iconEls[i].removeAttribute("src");
+        if (item.image) {
+          if (window.EmjiveLoader) window.EmjiveLoader.setSrc(iconEls[i], window.EmjiveLoader.variant(item.image, "128"), item.image);
+          else iconEls[i].src = item.image;
+        } else {
+          iconEls[i].removeAttribute("src");
+        }
       });
     }
   }

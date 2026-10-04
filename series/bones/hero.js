@@ -134,6 +134,7 @@
       var ring = document.createElement("img");
       ring.className = "reveal__ring";
       ring.alt = "";
+      ring.decoding = "async";
       ring.src = topShot;
       ring.style.setProperty("--ring-x", onHand.x + "%");
       ring.style.setProperty("--ring-y", onHand.y + "%");

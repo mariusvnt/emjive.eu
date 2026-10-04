@@ -66,16 +66,21 @@ ServerSignature Off
 # mix of old scripts/JSON and new bundles.
 #   - html/js/css/json/xml/txt: no-cache = always revalidate (a cheap 304 via
 #     ETag), never serve a stale copy.
-#   - unhashed binaries (models, images, HDRIs, wasm): one day, so a returning
-#     visitor doesn't re-validate multi-MB files on every page, while a
-#     replaced model still shows up within a day.
+#   - unhashed binaries (models, images, HDRIs, wasm): a week, then served
+#     stale for up to a further day while the browser refetches in the
+#     background (stale-while-revalidate). A returning visitor re-downloads
+#     nothing on every page — the models and the HDRI are megabytes — and a
+#     replaced file reaches them within a week at the outside, on the visit
+#     after it expires rather than blocking that one. These keep their names
+#     when their art is regenerated (scripts/auto-render.js), so a change that
+#     must show up sooner than that needs a new filename.
 # ---------------------------------------------------------------------------
 <IfModule mod_headers.c>
   <FilesMatch "\.(html|js|mjs|css|json|xml|txt)$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
   <FilesMatch "\.(glb|hdr|wasm|webp|png|jpe?g|svg|ico|woff2)$">
-    Header set Cache-Control "public, max-age=86400"
+    Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
   </FilesMatch>
   <If "%{REQUEST_URI} =~ m#^/assets/[^/]+-[A-Za-z0-9_-]{8}\.(js|css|woff2|svg|webp)$#">
     Header set Cache-Control "public, max-age=31536000, immutable"

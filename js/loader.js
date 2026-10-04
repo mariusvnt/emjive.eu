@@ -14,6 +14,11 @@
                                       once `ready` settles and the loader has
                                       left. Resolves when revealed.
      imageReady(img)        -> Promise  loaded (or failed) and decoded.
+     isPhone / versions / variant / setSrc / upgradeImage    responsive images:
+                                      four versions of each big picture, a low
+                                      one for the first paint and a high one
+                                      swapped in afterwards (see "responsive
+                                      images").
      pageReady()                      the page's arrival loader may go.
 
    THE GUARDRAILS, which every path below goes through:
@@ -242,6 +247,8 @@
       timer: 0,
       observer: null,
       rebuildPending: 0,
+      rate: 1,
+      rampRaf: 0,
       forcedPosition: forcedPosition,
       bleed: !!bleed,
       clipAncestor: null,
@@ -319,6 +326,9 @@
         fill: "backwards"
       });
       if (saved[i] != null) a.currentTime = saved[i];
+      // A rebuild (the loader's box was resized) must not snap a released
+      // loader back to its loading pace.
+      if (s.rate !== 1) a.playbackRate = s.rate;
       return a;
     });
   }
@@ -350,6 +360,7 @@
     states.delete(s.host);
     clearTimeout(s.timer);
     cancelAnimationFrame(s.rebuildPending);
+    cancelAnimationFrame(s.rampRaf);
     if (s.visibility) s.visibility.disconnect();
     if (s.observer) s.observer.disconnect();
     s.anims.forEach(function (a) { a.cancel(); });
@@ -381,11 +392,47 @@
       if (s.holds <= 0) destroy(s);
       return Promise.resolve();
     }
+    // Nothing left to wait for but the crossing in progress: let it finish
+    // faster instead of at its leisurely loading pace. The guardrail is
+    // unchanged — the loader still goes only inside the safe window, and
+    // never with a part visible — it just gets there sooner (without this,
+    // content that was ready could sit behind the cover for most of a cycle).
+    if (s.holds <= 0) finishCrossing(s);
     return whenSafe(s).then(function () {
       // Re-checked here, not above: a hold taken while this one was waiting
       // for the safe window keeps the loader alive.
       if (s.holds <= 0) destroy(s);
     });
+  }
+
+  // How much faster a released loader's crossing runs, and how long the speed-up
+  // takes to build. The rate is eased in (smoothstep) rather than switched: a
+  // step from 1x to 2.5x is a visible jolt in the parts' motion, a ramp reads
+  // as the loader simply deciding to finish. The Web Animations playbackRate
+  // setter keeps the current time, so the parts carry on from where they are
+  // and only their speed changes (the stagger between them keeps its shape,
+  // scaled).
+  var FINISH_RATE = 2.5;
+  var FINISH_RAMP_MS = 700;
+
+  function setRate(s, rate) {
+    s.rate = rate;
+    s.anims.forEach(function (a) {
+      try { a.playbackRate = rate; } catch (err) { /* no-op: keep the pace */ }
+    });
+  }
+
+  function finishCrossing(s) {
+    if (s.rampRaf || inSafeWindow(s)) return;
+    var from = s.rate;
+    var start = performance.now();
+    (function step(now) {
+      var p = Math.min(1, (now - start) / FINISH_RAMP_MS);
+      setRate(s, from + (FINISH_RATE - from) * p * p * (3 - 2 * p));
+      // Until it is at full speed — or the loader is gone (destroy() cancels
+      // the pending frame).
+      s.rampRaf = p < 1 ? requestAnimationFrame(step) : 0;
+    })(start);
   }
 
   function mount(host, opts) {
@@ -436,6 +483,111 @@
     });
   }
 
+  /* ---- responsive images ---------------------------------------------------
+     The big pictures ship in four versions (scripts/make-image-variants.js
+     writes them, scripts/validate-data.js insists they exist):
+
+                      desktop                 smartphone
+       low res        <name>_lo.webp          <name>_m_lo.webp
+       high res       <name>.webp             <name>_m.webp
+
+     The smartphone ones are cropped to the middle of the picture, which is
+     all a phone ever shows, and so are smaller than the desktop ones. The low
+     one is what a page's first paint is made of; the high one is fetched
+     afterwards, once the page is loaded and idle, and swapped in without
+     anyone noticing. A picture that is hidden or far down the page has no low
+     version (hasLow false): it just gets the right high one.
+
+     PHONE_QUERY is what "smartphone" means: a narrow window that is also tall
+     and thin. The aspect clause is what the hero's crop is sized for (see
+     PHONE_CROP in scripts/make-image-variants.js) — a square 640px window is
+     not a phone, and a cropped picture would not fill it. The CSS rules that
+     lay a cropped picture out use this exact query; keep them in step.
+
+     isPhone()                      does the viewport match PHONE_QUERY?
+     onPhoneChange(fn)              fn() when it starts or stops matching
+     versions(src, hasLow)          -> { first, hi }: what to show first and what
+                                    to swap in, for the viewport right now
+     variant(src, suffix)           "a/b.webp", "m" -> "a/b_m.webp"
+     setSrc(img, first, src)        point img at first (src, the full file, if
+                                    that 404s)
+     upgradeImage(img, hiSrc)       -> Promise<boolean>  swap in hiSrc once the
+                                    img has loaded and the browser is idle;
+                                    false when it chose not to */
+
+  var PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
+  var phoneMedia = window.matchMedia(PHONE_QUERY);
+
+  function isPhone() {
+    return phoneMedia.matches;
+  }
+
+  function onPhoneChange(fn) {
+    if (phoneMedia.addEventListener) phoneMedia.addEventListener("change", fn);
+    else if (phoneMedia.addListener) phoneMedia.addListener(fn);
+  }
+
+  function variant(src, suffix) {
+    return String(src).replace(/(.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
+  }
+
+  function versions(src, hasLow) {
+    if (isPhone()) return { first: variant(src, hasLow ? "m_lo" : "m"), hi: variant(src, "m") };
+    return { first: hasLow ? variant(src, "lo") : src, hi: src };
+  }
+
+  function setSrc(img, first, src) {
+    function cleanup() {
+      img.removeEventListener("error", fallback);
+      img.removeEventListener("load", cleanup);
+    }
+    function fallback() {
+      cleanup();
+      if (img.getAttribute("src") !== src) img.src = src;
+    }
+    img.addEventListener("error", fallback);
+    img.addEventListener("load", cleanup);
+    img.src = first;
+  }
+
+  // Saving data, or a slow link: the small one stays. Costing a visitor on 3G
+  // the second download for a sharpness they would wait seconds for is the
+  // wrong trade.
+  function lowBandwidth() {
+    var conn = navigator.connection;
+    return !!conn && (!!conn.saveData || /(^|-)(2g|3g)$/.test(conn.effectiveType || ""));
+  }
+
+  function whenIdle(fn) {
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(fn, { timeout: 3000 });
+    else setTimeout(fn, 200);
+  }
+
+  function upgradeImage(img, hiSrc) {
+    if (!img || !hiSrc || lowBandwidth()) return Promise.resolve(false);
+    return imageReady(img).then(function () {
+      return new Promise(function (resolve) { whenIdle(resolve); });
+    }).then(function () {
+      if (!img.isConnected || img.getAttribute("src") === hiSrc) return false;
+      // Already sharp enough for the size it is shown at (and the screen's
+      // density)? Then there is nothing to gain. A box with no size yet
+      // (hidden) can't be judged, so it upgrades.
+      var needed = img.clientWidth * (window.devicePixelRatio || 1);
+      if (needed > 0 && img.naturalWidth >= needed) return false;
+      var hi = new Image();
+      hi.decoding = "async";
+      hi.fetchPriority = "low";
+      hi.src = hiSrc;
+      // Decoded off-screen first, so the swap is one frame with nothing to
+      // wait for; the box doesn't change size (same aspect ratio).
+      return hi.decode().then(function () {
+        if (!img.isConnected) return false;
+        img.src = hiSrc;
+        return true;
+      }, function () { return false; });
+    });
+  }
+
   function cover(host, ready) {
     if (!host || reduceQuery.matches) return Promise.resolve();
     host.classList.add("loader-host", "is-loader-pending");
@@ -480,7 +632,17 @@
     setTimeout(cleanup, 600);
   }
 
+  // Announced once, on every page and whether or not it has an arrival loader
+  // (reduced motion, a scroll restore): "the page's first paint is in". What
+  // js/viewer-entry.js waits for before it starts the heavy 3D download on
+  // the homepage.
+  var pageReadyAnnounced = false;
+
   function pageReady() {
+    if (!pageReadyAnnounced) {
+      pageReadyAnnounced = true;
+      window.dispatchEvent(new Event("emjive:pageready"));
+    }
     if (!pageActive || pageIsReady) return;
     pageIsReady = true;
     if (!pageHold) return; // body not parsed yet; the mount below sees the flag
@@ -517,6 +679,15 @@
     mount: mount,
     cover: cover,
     imageReady: imageReady,
-    pageReady: pageReady
+    isPhone: isPhone,
+    onPhoneChange: onPhoneChange,
+    versions: versions,
+    variant: variant,
+    setSrc: setSrc,
+    upgradeImage: upgradeImage,
+    pageReady: pageReady,
+    // Has pageReady() been called yet? (For a script that starts after the
+    // event it announces has already fired.)
+    isPageReady: function () { return pageReadyAnnounced; }
   };
 })();

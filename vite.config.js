@@ -6,6 +6,11 @@ import { defineConfig, transformWithEsbuild } from "vite";
 // og:url / canonical.
 const SITE_ORIGIN = "https://emjive.eu";
 
+// What a "smartphone" is for the responsive images: the same query as
+// PHONE_QUERY in js/loader.js and the phone rules in css/style.css and
+// series/<slug>/hero.css. Keep the four in step.
+const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
+
 // Vite's static asset pipeline only ever sees paths it can trace at build
 // time: <script>/<link>/<img> attributes in the HTML entries themselves,
 // and url()/import references inside processed CSS/JS. This site's real
@@ -50,6 +55,10 @@ const SITE_ORIGIN = "https://emjive.eu";
 //     bundles it and the built pages load the hashed copy; the verbatim one
 //     has a relative dynamic import() that would resolve to the unbundled
 //     three-viewer.js, which can't run.
+//   js/hdr-worker.js — the HDR decode worker (new Worker(new URL(...)) in
+//     js/three-viewer.js). Vite bundles it into dist/assets/hdr-worker-<hash>.js
+//     and rewrites the reference; the verbatim copy still has the bare
+//     `three` import nothing at runtime can resolve.
 //   js/three-viewer.js — the unbundled ES module source. The built pages
 //     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this
 //     one still carries the bare `import "three"` specifier that nothing at
@@ -74,7 +83,8 @@ const NEVER_COPY = [
   resolve(__dirname, "assets", "metal-sample_silver.webp"),
   resolve(__dirname, "assets", "metal-sample_bronze.webp"),
   resolve(__dirname, "js", "three-viewer.js"),
-  resolve(__dirname, "js", "viewer-entry.js")
+  resolve(__dirname, "js", "viewer-entry.js"),
+  resolve(__dirname, "js", "hdr-worker.js")
 ];
 
 // Every classic script and hero bundle file that reaches dist/ by verbatim
@@ -197,6 +207,86 @@ function restoreHeadOrderAndPreload() {
   };
 }
 
+// Early-discovery hints for things the browser can only learn about by running
+// code, and that sit several round trips deep in the page's load chain. All of
+// them are derived here, at build time, from the same data/series.json the
+// pages read at runtime, so they can never drift from the catalog — and they
+// name the FEATURED series, which is what every page shows unless the URL says
+// ?series=. (A visitor on another series just gets a few unused preloads.)
+//
+//   - data/series/<featured>/products.json, on pages with data-products="eager"
+//     (js/series.js also starts that request itself once the index resolves;
+//     this is the same request, a hop earlier).
+//   - the homepage hero bundle (fragment, css, js, and the first image in
+//     hero.preload, which is the LCP image), all of which js/series.js can
+//     only request after data/series.json has come back.
+//
+// Deliberately NOT here: the three.js chunk, the HDRI and the model on
+// product.html. They are the heaviest things on the page (~165KB + 0.9MB +
+// the .glb) and none of them is part of the first paint, so hinting them from
+// the <head> only made them share a slow link with the images the page is
+// actually waiting on (measured: it pushed the LCP image later). js/product.js
+// starts all three itself once those images are in.
+//
+// `crossorigin` on a preload as=fetch is what makes it match a same-origin
+// fetch() — the same reason the series.json preload carries it.
+function injectLoadHints() {
+  return {
+    name: "inject-load-hints",
+    transformIndexHtml: {
+      order: "post",
+      handler(html, ctx) {
+        // Build only: the dev server has no bundle, and serves everything
+        // unhashed anyway.
+        if (!ctx || !ctx.bundle) return html;
+
+        const htmlTag = /<html\b[^>]*>/.exec(html);
+        if (!htmlTag) return html;
+        const hasAttr = (name, value) =>
+          new RegExp("\\bdata-" + name + "=\"" + value + "\"").test(htmlTag[0]);
+
+        const index = JSON.parse(readFileSync(resolve(__dirname, "data/series.json"), "utf8"));
+        const series = index.series.find((s) => s.slug === index.featured);
+        if (!series) return html;
+
+        const hints = [];
+        const hint = (attrs) => hints.push("<link " + attrs + " />");
+
+        if (hasAttr("products", "eager")) {
+          hint('rel="preload" as="fetch" href="' + series.products + '" crossorigin');
+        }
+        if (html.includes('id="seriesHero"') && series.hero) {
+          const hero = series.hero;
+          if (hero.fragment) hint('rel="preload" as="fetch" href="' + hero.fragment + '" crossorigin');
+          if (hero.css) hint('rel="preload" as="style" href="' + hero.css + '"');
+          if (hero.js) hint('rel="preload" as="script" href="' + hero.js + '"');
+          if (hero.preload && hero.preload[0]) {
+            // The first picture exists in four versions (see "responsive
+            // images" in js/loader.js): the low-res one for this viewport is
+            // what the first paint is made of, so that is what is preloaded —
+            // one link per side of the phone query, the browser takes the one
+            // whose media matches. (js/series.js repeats this for a page whose
+            // featured series is not this one.)
+            const first = hero.preload[0];
+            const low = (suffix) => first.replace(/(.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
+            hint('rel="preload" as="image" href="' + low("m_lo") + '" media="' + PHONE_QUERY + '" fetchpriority="high"');
+            hint('rel="preload" as="image" href="' + low("lo") + '" media="not all and ' + PHONE_QUERY + '" fetchpriority="high"');
+          }
+        }
+        if (!hints.length) return html;
+
+        // Ahead of the stylesheet (and so of every script), where the preload
+        // scanner meets them first.
+        const block = hints.join("\n") + "\n";
+        const sheet = /[ \t]*<link\b[^>]*\brel="stylesheet"/.exec(html);
+        if (sheet) return html.slice(0, sheet.index) + block + html.slice(sheet.index);
+        const headEnd = html.indexOf("</head>");
+        return html.slice(0, headEnd) + block + html.slice(headEnd);
+      }
+    }
+  };
+}
+
 // sitemap.xml, built from the same data the site renders from so it can never
 // drift from the catalog: the homepage plus one entry per product. The
 // product URL form mirrors js/product.js — a bare ?id= for the featured
@@ -258,9 +348,13 @@ export default defineConfig({
   // <script>/<link> reference resolves from "/". If it ever goes into a
   // subfolder instead, set this to that subfolder's path (e.g. "/shop/").
   base: "/",
+  // Module workers (js/hdr-worker.js): the default worker format is an IIFE,
+  // which cannot be loaded with { type: "module" }.
+  worker: { format: "es" },
   plugins: [
     dropUnusedDracoDecoderCopies(),
     restoreHeadOrderAndPreload(),
+    injectLoadHints(),
     emitSitemap(),
     copyFilesVitesBuildCantTrace()
   ],

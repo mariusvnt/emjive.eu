@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-page-loader data-viewer="idle">
+<html lang="en" data-page-loader data-viewer="idle" data-products="eager">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -144,21 +144,26 @@
 
 </main>
 
-<!-- defer: js/viewer-entry.js (a module, loaded in <head>) executes on the
-     same deferred queue as this script, in document order — since the
-     module tag comes first, window.EmjiveLoadViewer is guaranteed to exist
-     by the time this runs. Without defer, this plain classic script would
-     run inline as soon as the parser reaches it, ahead of the module. -->
-<script src="js/main.js" defer></script>
-<!-- The Modify sheet (modify-modal.js) and its parts, reachable from the
+<!-- Every script below is deferred. A plain (parser-blocking) classic script
+     here made the parser wait for each file in turn — a staggered chain of
+     round trips on a slow link — which held back DOMContentLoaded, the
+     arrival loader and the module in <head>. Deferred scripts download in
+     parallel with the parser and run in document order once it is done.
+     That order is the contract: js/viewer-entry.js (a module, in <head>)
+     is first on the deferred queue, so window.EmjiveLoadViewer exists
+     before any of these run.
+
+     The Modify sheet (modify-modal.js) and its parts are reachable from the
      floating bar's drawer; order-rows.js has to precede selection-bar.js,
-     which builds its drawer rows with it at load. -->
-<script src="js/focus-trap.js"></script>
-<script src="js/selection.js"></script>
-<script src="js/carousel.js"></script>
-<script src="js/order-rows.js"></script>
-<script src="js/metal-picker.js"></script>
-<script src="js/modify-modal.js"></script>
-<script src="js/selection-bar.js"></script>
+     which builds its drawer rows with it at load; main.js runs last, as it
+     did when it was the only deferred one. -->
+<script src="js/focus-trap.js" defer></script>
+<script src="js/selection.js" defer></script>
+<script src="js/carousel.js" defer></script>
+<script src="js/order-rows.js" defer></script>
+<script src="js/metal-picker.js" defer></script>
+<script src="js/modify-modal.js" defer></script>
+<script src="js/selection-bar.js" defer></script>
+<script src="js/main.js" defer></script>
 </body>
 </html>

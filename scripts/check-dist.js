@@ -53,7 +53,7 @@ for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "f
 
 const forbidden = [
   [/^(json-tool|scene-tool|loader-test)\.html$/, "dev-only tool page"],
-  [/^js\/(three-viewer|viewer-entry)\.js$/, "unbundled module source (the built pages load the hashed chunk)"],
+  [/^js\/(three-viewer|viewer-entry|hdr-worker)\.js$/, "unbundled module source (the built pages load the hashed chunk)"],
   [/\.(exr|map)$/i, "source art / sourcemap"],
   [/^(node_modules|scripts|dev-guidelines|\.git|\.github)\//, "repo-internal folder"],
   [/^(README|CLAUDE)\.md$/, "repo doc"],
@@ -102,6 +102,15 @@ for (const page of pages) {
   const sheet = head.search(/<link\b[^>]*\brel="stylesheet"/);
   if (sheet === -1) fail(page + ": no stylesheet link in <head>");
   else if (firstScript !== -1 && sheet > firstScript) fail(page + ": the stylesheet comes after the first <script> in <head>");
+
+  // The early-discovery hints injectLoadHints() adds (vite.config.js): a page
+  // that opts in with data-products="eager" has to carry the products.json
+  // preload (the generic href check below then confirms it points at a file).
+  const htmlTag = (html.match(/<html\b[^>]*>/) || [""])[0];
+  if (htmlTag.includes('data-products="eager"') &&
+      !/<link\b[^>]*\brel="preload"[^>]*\bas="fetch"[^>]*\bhref="data\/series\/[^"]+\/products\.json"/.test(head)) {
+    fail(page + ": no products.json preload (see injectLoadHints in vite.config.js)");
+  }
 
   const noindex = /<meta\b[^>]*\bname="robots"[^>]*\bcontent="[^"]*noindex/.test(head);
   if (NOINDEX.has(page) && !noindex) fail(page + ": should be noindex");

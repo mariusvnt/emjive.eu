@@ -108,6 +108,12 @@
   // map so they stay in memory for the swap.
   var preloaded = {};
 
+  // A row's thumbnail is 48px: it shows the icon's 128px sibling (see
+  // EmjiveLoader.variant), not the 512px file.
+  function thumbSrc(src) {
+    return src && global.EmjiveLoader ? global.EmjiveLoader.variant(src, "128") : src;
+  }
+
   function preload(srcs) {
     srcs.forEach(function (src) {
       if (!src || preloaded[src]) return;
@@ -192,7 +198,10 @@
 
       var thumb = document.createElement("img");
       thumb.className = "order-item__thumb";
-      if (item.image) thumb.src = item.image;
+      if (item.image) {
+        if (global.EmjiveLoader) global.EmjiveLoader.setSrc(thumb, global.EmjiveLoader.variant(item.image, "128"), item.image);
+        else thumb.src = item.image;
+      }
       thumb.alt = "";
       // A picture arriving under the invert band is its own change in
       // place — see resampleBand().
@@ -262,9 +271,9 @@
       binding.button.setAttribute("aria-label", spokenLabel(item));
       if ((old.image || "") !== (item.image || "")) {
         swap(binding.thumb, function () {
-          if (item.image) binding.thumb.src = item.image;
+          if (item.image) binding.thumb.src = thumbSrc(item.image);
           else binding.thumb.removeAttribute("src");
-        }, instant ? null : decoded(item.image));
+        }, instant ? null : decoded(thumbSrc(item.image)));
       }
       if (old.name !== item.name) {
         swap(binding.name, function () { binding.name.textContent = item.name; });

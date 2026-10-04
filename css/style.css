@@ -1971,15 +1971,29 @@ body:has(.order-checkout-bar:not([hidden])) {
    (product.assets.xray). */
 .product-carousel__xray {
   --xray-width: max(512px, calc(var(--tile) * 1.66));
+  /* The share of the picture's width the file in use keeps: 1 for the
+     desktop versions, --xray-crop for the smartphone ones, which are cut down
+     to the middle of the picture (a phone shows no more than that). The box
+     narrows to match, so the cropped file fills it exactly and the artwork
+     keeps its size and place. */
+  --xray-crop: 1;
   position: absolute;
   top: 50%;
   left: 50%;
   z-index: 0;
   transform: translate(-50%, -50%);
-  width: var(--xray-width);
+  width: calc(var(--xray-width) * var(--xray-crop));
   height: calc(var(--xray-width) * 4 / 3);
   object-fit: cover;
   pointer-events: none;
+}
+/* A smartphone: the same query as PHONE_QUERY in js/loader.js (which picks the
+   file) — and --xray-crop is PHONE_CROP.xray in scripts/make-image-variants.js
+   (which cuts it); scripts/validate-data.js fails the build if they differ. */
+@media (max-width: 640px) and (max-aspect-ratio: 3/5) {
+  .product-carousel__xray {
+    --xray-crop: 0.74;
+  }
 }
 .product-carousel {
   position: relative;

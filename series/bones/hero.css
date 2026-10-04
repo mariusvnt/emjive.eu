@@ -25,6 +25,34 @@
      effect reads as one continuous image at one consistent opacity rather
      than three separately-tuned values drifting apart. */
   --reveal-xray-opacity: 1;
+
+  /* The shape of every hero picture. They are all 16:9 at whatever resolution
+     each ships at (the desktop versions); a smartphone gets versions cropped
+     to the middle --hero-crop of the width (scripts/make-image-variants.js,
+     PHONE_CROP.hero; js/loader.js picks them with the same query as the rule
+     below), so they are taller than wide, and everything laid out on top of
+     them follows:
+       --hero-aspect     width / height of each picture: the layers all use it,
+                         so they stay exactly on top of one another
+       --hero-crop       the share of the full picture's width that is left
+       --hero-crop-left  where that share starts, as a % of the full width
+     Sizes are written as ratios of the pixel counts, not decimals, so the
+     numbers can be checked against the files. */
+  --hero-aspect: calc(3840 / 2160);
+  --hero-crop: 1;
+  --hero-crop-left: 0%;
+}
+
+/* A smartphone: the same query as PHONE_QUERY in js/loader.js. --hero-crop is
+   PHONE_CROP.hero in scripts/make-image-variants.js and the aspect is that
+   crop of 3840x2160 (1536x2160); scripts/validate-data.js fails the build if
+   they differ. */
+@media (max-width: 640px) and (max-aspect-ratio: 3/5) {
+  :root {
+    --hero-aspect: calc(1536 / 2160);
+    --hero-crop: 0.4;
+    --hero-crop-left: 30%;
+  }
 }
 
 /* ==========================================================================
@@ -90,6 +118,7 @@
   transform: translateX(-50%);
   height: 100%;
   width: auto;
+  aspect-ratio: var(--hero-aspect);
   max-width: none;
   display: block;
 }
@@ -119,7 +148,7 @@
      two extension panels 3840x2160). Written as 3840/2160 rather than 16/9
      because .reveal__extension below derives its width from the same pair of
      numbers, and the two must not drift apart. */
-  aspect-ratio: 3840 / 2160;
+  aspect-ratio: var(--hero-aspect);
   /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
      the section scrolls, revealing from the bottom edge upward. */
   clip-path: inset(100% 0 0 0);
@@ -167,7 +196,7 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(var(--reveal-pin-height) * 3840 / 2160);
+  width: calc(var(--reveal-pin-height) * var(--hero-aspect));
   max-width: none;
   height: var(--reveal-pin-height);
   display: block;
@@ -187,9 +216,14 @@
 
 .reveal__ring {
   position: absolute;
-  left: var(--ring-x);
+  /* --ring-x / --ring-size are a product's numbers against the FULL picture
+     (data/series/<slug>/products.json); a smartphone's picture is cropped, so
+     they are re-expressed against what is left of it. On desktop crop is 1
+     and left is 0%, which leaves them as they were. --ring-y is untouched:
+     the crop is of the width only. */
+  left: calc((var(--ring-x) - var(--hero-crop-left)) / var(--hero-crop));
   top: var(--ring-y);
-  width: var(--ring-size);
+  width: calc(var(--ring-size) / var(--hero-crop));
   height: auto;
   /* translate centers the ring on (--ring-x, --ring-y) first; rotate then
      spins it around that same center point (the default transform-origin)

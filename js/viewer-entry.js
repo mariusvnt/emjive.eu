@@ -20,11 +20,13 @@
    scroll.
 
    When to start fetching is the page's call, via data-viewer on <html>:
-     "eager"  — start now (product.html: the model is the page);
+     "eager"  — start now (no page uses it at the moment: product.html used to,
+                but its first paint doesn't need the chunk and the download
+                competed with the images that do);
      "idle"   — start once the browser is idle (index.html: the grid's models
                 sit below the hero);
-     absent   — only when something asks (the Modify sheet, on every other
-                page).
+     absent   — only when something asks (product.html once its first paint
+                is in, the Modify sheet on every other page).
    ========================================================================== */
 
 var pending = null;
@@ -42,7 +44,28 @@ var when = document.documentElement.getAttribute("data-viewer");
 if (when === "eager") {
   window.EmjiveLoadViewer().catch(function () {});
 } else if (when === "idle") {
-  var start = function () { window.EmjiveLoadViewer().catch(function () {}); };
-  if ("requestIdleCallback" in window) window.requestIdleCallback(start, { timeout: 4000 });
-  else setTimeout(start, 2000);
+  // The grid's models are below the hero, so nothing here is needed for the
+  // first paint — and the chunk (~165KB gzipped, plus evaluating 645KB) used
+  // to start the moment the browser had a free moment, which on a slow link
+  // was while the hero picture was still downloading. It now starts once the
+  // page has revealed (js/loader.js's "emjive:pageready") and the browser is
+  // idle, or as soon as the visitor shows they are about to scroll toward the
+  // models — whichever comes first — with a backstop for a page that never
+  // reveals.
+  var started = false;
+  var start = function () {
+    if (started) return;
+    started = true;
+    window.EmjiveLoadViewer().catch(function () {});
+  };
+  var startWhenIdle = function () {
+    if ("requestIdleCallback" in window) window.requestIdleCallback(start, { timeout: 2000 });
+    else setTimeout(start, 500);
+  };
+  if (window.EmjiveLoader && window.EmjiveLoader.isPageReady()) startWhenIdle();
+  else window.addEventListener("emjive:pageready", startWhenIdle, { once: true });
+  ["scroll", "wheel", "touchstart", "pointerdown", "keydown"].forEach(function (name) {
+    window.addEventListener(name, start, { once: true, passive: true });
+  });
+  setTimeout(start, 10000);
 }

@@ -60,6 +60,41 @@ function checkPath(where, rel) {
   if (!existsExactCase(rel)) fail(where, "file not found (case-sensitive): " + rel);
 }
 
+// The other versions of a picture the site loads in more than one size must be
+// on disk (name + _<suffix> before the extension — see "responsive images" in
+// js/loader.js), or the page quietly falls back to downloading the original.
+// Run `npm run image-variants` to write them.
+//   suffixes: ["lo", "m", "m_lo"]  the four-version pictures (desktop low,
+//             smartphone high, smartphone low; the original is desktop high)
+//             ["m"]                 a layer with the smartphone version only
+//             ["128"]               an icon's thumbnail
+function checkVariants(where, rel, suffixes) {
+  if (typeof rel !== "string" || rel === "") return;
+  for (const suffix of suffixes) {
+    const sibling = rel.replace(/(\.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
+    if (!existsExactCase(sibling)) fail(where, "missing its _" + suffix + " version " + sibling + " (run `npm run image-variants`)");
+  }
+}
+
+// What a "smartphone" is, and how much of a picture its versions keep, must be
+// the same number everywhere it is written: the generator that crops the
+// files, the CSS that lays the cropped picture out, js/loader.js that picks
+// the files, and the build's preload hints. A mismatch is a layout that is
+// quietly off (or a hero whose layers no longer line up) with no error to
+// point at it, so it is checked here.
+const { PHONE_CROP } = require("./make-image-variants");
+const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
+
+function checkPhoneConstants(file, expectedCrops) {
+  if (!existsExactCase(file)) return;
+  const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+  if (!text.includes(PHONE_QUERY)) fail(file, "does not contain the phone query " + PHONE_QUERY + " (see PHONE_QUERY in js/loader.js)");
+  for (const [name, value] of Object.entries(expectedCrops)) {
+    const found = [...text.matchAll(new RegExp("--" + name + ":\\s*([0-9.]+)\\s*;", "g"))].map((m) => Number(m[1]));
+    if (!found.includes(value)) fail(file, "--" + name + " is " + (found.join(" / ") || "not set") + ", but PHONE_CROP in scripts/make-image-variants.js is " + value);
+  }
+}
+
 /* ---- schemas ----------------------------------------------------------- */
 
 const str = { type: "string" };
@@ -215,13 +250,32 @@ if (index && validate("data/series.json", indexSchema, index)) {
     checkPath(where + " manifest", series.manifest);
     if (series.hero) {
       for (const key of ["fragment", "css", "js"]) checkPath(where + " hero." + key, series.hero[key]);
-      for (const rel of series.hero.preload || []) checkPath(where + " hero.preload", rel);
-      // The fragment's own <img src>s resolve against the page, so they are
-      // repo-root-relative like everything else in data/.
+      // hero.preload names originals; js/series.js and the build derive the
+      // low-res versions for the first entry and the smartphone one for the
+      // rest.
+      (series.hero.preload || []).forEach((rel, i) => {
+        checkPath(where + " hero.preload", rel);
+        checkVariants(where + " hero.preload", rel, i === 0 ? ["lo", "m", "m_lo"] : ["m"]);
+      });
+      // The fragment's own images resolve against the page, so their paths are
+      // repo-root-relative like everything else in data/. Each carries
+      // data-full (the original, which js/series.js turns into a src for the
+      // viewport) and, if it has the low-res pair, data-lo.
       if (series.hero.fragment && existsExactCase(series.hero.fragment)) {
         const html = fs.readFileSync(path.join(ROOT, series.hero.fragment), "utf8");
-        for (const match of html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)) checkPath(where + " " + series.hero.fragment, match[1]);
+        for (const match of html.matchAll(/<img\b[^>]*>/g)) {
+          const tag = match[0];
+          const src = (tag.match(/\bsrc="([^"]+)"/) || [])[1];
+          const full = (tag.match(/\bdata-full="([^"]+)"/) || [])[1];
+          const at = where + " " + series.hero.fragment;
+          if (src) checkPath(at, src);
+          if (full) {
+            checkPath(at + " data-full", full);
+            checkVariants(at + " " + full, full, /\bdata-lo\b/.test(tag) ? ["lo", "m", "m_lo"] : ["m"]);
+          }
+        }
       }
+      checkPhoneConstants(series.hero.css, { "hero-crop": PHONE_CROP.hero });
     }
 
     const productsFile = readJson(series.products);
@@ -252,8 +306,14 @@ if (index && validate("data/series.json", indexSchema, index)) {
             checkPath(label + " assets." + field + "." + metal, rel);
           }
         }
+        // The small siblings of the images the site loads in two sizes (see
+        // js/loader.js, scripts/make-image-variants.js).
+        for (const [metal, rel] of Object.entries(product.assets.icons)) {
+          checkVariants(label + " assets.icons." + metal, rel, ["128"]);
+        }
         checkPath(label + " assets.model", product.assets.model);
         checkPath(label + " assets.xray", product.assets.xray);
+        checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));
       }
     }
@@ -262,6 +322,13 @@ if (index && validate("data/series.json", indexSchema, index)) {
     if (manifest && validate(series.manifest, manifestSchema, manifest)) {
       if (manifest.series !== series.slug) fail(series.manifest, 'series field "' + manifest.series + '" does not match slug "' + series.slug + '"');
     }
+  }
+}
+
+checkPhoneConstants("css/style.css", { "xray-crop": PHONE_CROP.xray });
+for (const file of ["js/loader.js", "vite.config.js"]) {
+  if (existsExactCase(file) && !fs.readFileSync(path.join(ROOT, file), "utf8").includes(PHONE_QUERY)) {
+    fail(file, "does not contain the phone query " + PHONE_QUERY);
   }
 }
 

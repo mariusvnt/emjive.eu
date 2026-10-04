@@ -24,6 +24,13 @@
     metals: [],
     selectedMetal: null,
     modelHandle: null,
+    // The model slide's poster <img> while the viewer isn't in yet.
+    posterImg: null,
+    // The x-ray backdrop's original file (the page shows a version of it
+    // chosen for the viewport — see startXray) and whether the viewport
+    // watcher is wired.
+    xraySrc: "",
+    xrayWatching: false,
     iconFallbackImg: null
   };
 
@@ -100,23 +107,14 @@
     });
   }
 
-  // How long the page will hold its first render for the 3D viewer chunk
-  // before building the carousel without it (the icon slide).
-  var VIEWER_WAIT_MS = 8000;
-
-  // The viewer is a lazy chunk (js/viewer-entry.js, started eagerly on this
-  // page), usually already in by the time the product data is. The carousel
-  // is built once, so it waits for the chunk rather than settling for the icon
-  // when the chunk is merely a moment behind. Resolves either way — a failed
-  // or slow download just means the icon fallback.
-  function viewerReady() {
-    if (!window.EmjiveLoadViewer) return Promise.resolve();
-    return Promise.race([
-      window.EmjiveLoadViewer().catch(function () {}),
-      new Promise(function (resolve) { setTimeout(resolve, VIEWER_WAIT_MS); })
-    ]);
-  }
-
+  // The page renders as soon as the product data is in — it does NOT wait for
+  // the 3D viewer chunk (js/viewer-entry.js, ~165KB gzipped plus evaluation).
+  // The model's slide starts as its poster
+  // image and the viewer takes that slot over once the chunk, and the images
+  // the first paint is waiting on, are in (mountViewerWhenReady below). The
+  // x-ray backdrop is the page's largest image; it used to be requested only
+  // after the chunk had arrived and then fought the HDRI and the model for
+  // bandwidth.
   function init() {
     window.EmjiveSeries.ready
       .then(function (ctx) {
@@ -125,11 +123,9 @@
       })
       .then(function (found) {
         if (!found) return showNotFound();
-        return viewerReady().then(function () {
-          state.product = found.product;
-          state.seriesSlug = found.slug;
-          render(found.product);
-        });
+        state.product = found.product;
+        state.seriesSlug = found.slug;
+        render(found.product);
       })
       .catch(showLoadError);
   }
@@ -158,13 +154,13 @@
     updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
 
-    // Every metal's icon fetched and decoded up front, so a pick swaps the
-    // label thumbnail (and a model-less product's slide) at once.
-    var icons = (product.assets && product.assets.icons) || {};
-    window.EmjiveOrderRows.preload(Object.keys(icons).map(function (m) { return icons[m]; }));
+    // First, ahead of everything else this function builds: the x-ray
+    // backdrop is the largest image on the page — what the first paint is
+    // really waiting on — so its request goes out before any other image's.
+    var xrayReady = startXray(product);
 
     renderLabel(product);
-    renderCarousel(product);
+    var carouselParts = renderCarousel(product);
     renderMetalOptions(product);
     renderSpecs(product);
     document.getElementById("productDescription").textContent =
@@ -182,8 +178,125 @@
     // instead of centering the first tile.
     carousel.sync(true);
 
-    pageReady();
+    // The arrival loader (js/loader.js) lifts once the images the first
+    // paint is made of are in, rather than on a blank page that fills in
+    // underneath it; and everything that isn't needed for that paint waits
+    // until then, so none of it competes with those images for bandwidth.
+    var firstPaintReady = Promise.race([
+      Promise.all([xrayReady, carouselParts.posterReady]),
+      new Promise(function (resolve) { setTimeout(resolve, FIRST_PAINT_WAIT_MS); })
+    ]);
+    firstPaintReady.then(pageReady);
+    // ...and not before they have actually been painted: the images being
+    // downloaded is not the same moment as them being on screen, and anything
+    // started in between (the viewer, the environment map, the model) is
+    // competing with a paint that has not happened yet.
+    firstPaintReady
+      .then(afterFirstPaint)
+      .then(function () { loadRemainingAssets(product, carouselParts); });
   }
+
+  // Resolves once the browser has painted the carousel's first picture — the
+  // x-ray backdrop or the model's poster, whichever the browser reports as the
+  // largest paint inside the carousel frame — or after a short cap, or at the
+  // next two frames where the Largest Contentful Paint API is missing.
+  var AFTER_PAINT_CAP_MS = 2000;
+
+  function afterFirstPaint() {
+    return new Promise(function (resolve) {
+      var done = false;
+      var observer = null;
+      function finish() {
+        if (done) return;
+        done = true;
+        if (observer) observer.disconnect();
+        resolve();
+      }
+      setTimeout(finish, AFTER_PAINT_CAP_MS);
+      var frame = document.getElementById("productCarouselFrame");
+      try {
+        observer = new PerformanceObserver(function (list) {
+          list.getEntries().forEach(function (entry) {
+            if (entry.element && frame && frame.contains(entry.element)) finish();
+          });
+        });
+        observer.observe({ type: "largest-contentful-paint", buffered: true });
+      } catch (err) {
+        requestAnimationFrame(function () { requestAnimationFrame(finish); });
+      }
+    });
+  }
+
+  // A ceiling, not a target: an image that stalls must not hold the loader
+  // cover (or the viewer, photos and other icons behind it) up indefinitely.
+  var FIRST_PAINT_WAIT_MS = 6000;
+
+  // The x-ray backdrop: static, independent of the metal and the slides. No
+  // product.assets.xray (Foramen/Disc today) means no backdrop at all, rather
+  // than a broken image. Resolves once the image is loaded and decoded (or
+  // failed), so callers can wait on it.
+  function startXray(product) {
+    var xray = document.getElementById("productCarouselXray");
+    var xraySrc = product.assets && product.assets.xray;
+    if (!xraySrc) {
+      xray.hidden = true;
+      return Promise.resolve();
+    }
+    // The low-res version for this viewport first (~25-50KB against ~320KB
+    // for the original): it is what the first paint waits on.
+    // loadRemainingAssets() swaps the high-res one in afterwards. A phone's
+    // versions are cropped to the middle of the picture, which is why the
+    // phone rule for .product-carousel__xray in css/style.css narrows the box
+    // to match. Without EmjiveLoader, the original directly.
+    var loader = window.EmjiveLoader;
+    state.xraySrc = xraySrc;
+    if (loader) {
+      loader.setSrc(xray, loader.versions(xraySrc, true).first, xraySrc);
+      // A phone turned (or a window resized) across the phone/desktop line:
+      // the box changes shape with it, so the picture has to be the other
+      // set's — its high-res one straight away, the low-res one has no job
+      // left to do.
+      if (!state.xrayWatching) {
+        state.xrayWatching = true;
+        loader.onPhoneChange(function () {
+          xray.src = loader.versions(state.xraySrc, true).hi;
+        });
+      }
+    } else {
+      xray.src = xraySrc;
+    }
+    xray.hidden = false;
+    return loader ? loader.imageReady(xray) : Promise.resolve();
+  }
+
+  // What the first paint did not need: the other metals' icons (so a pick
+  // swaps the label thumbnail at once — the selected one's is already in),
+  // the photo slides, and the 3D viewer.
+  function loadRemainingAssets(product, carouselParts) {
+    var icons = (product.assets && product.assets.icons) || {};
+    window.EmjiveOrderRows.preload(Object.keys(icons)
+      .filter(function (m) { return m !== state.selectedMetal; })
+      .map(function (m) { return icons[m]; }));
+    carouselParts.photoSlides.forEach(function (slide) { slide.loadImage(); });
+    carouselParts.mountViewer();
+    // The sharp x-ray replaces the small one once the model is on screen
+    // (or, at the latest, VIEWER_SETTLE_WAIT_MS after the first paint), so
+    // its 320KB never competes with the viewer, the environment map and the
+    // model for the link.
+    if (state.xraySrc && window.EmjiveLoader) {
+      Promise.race([
+        carouselParts.viewerSettled,
+        new Promise(function (resolve) { setTimeout(resolve, VIEWER_SETTLE_WAIT_MS); })
+      ]).then(function () {
+        window.EmjiveLoader.upgradeImage(
+          document.getElementById("productCarouselXray"),
+          window.EmjiveLoader.versions(state.xraySrc, true).hi
+        );
+      });
+    }
+  }
+
+  var VIEWER_SETTLE_WAIT_MS = 20000;
 
   /* ---- 1. label ------------------------------------------------------- */
 
@@ -245,20 +358,21 @@
     var carouselFrame = document.getElementById("productCarouselFrame");
     track.innerHTML = "";
 
-    // Static backdrop behind the filmstrip, independent of the metal
-    // picker/slides — no product.assets.xray yet (Foramen/Disc today)
-    // means no backdrop at all, rather than a broken image.
-    var xray = document.getElementById("productCarouselXray");
-    var xraySrc = product.assets && product.assets.xray;
-    if (xraySrc) {
-      xray.src = xraySrc;
-      xray.hidden = false;
-    } else {
-      xray.hidden = true;
-    }
+    // (The static x-ray backdrop behind the filmstrip is startXray()'s: it is
+    // requested ahead of everything this function builds.)
 
     var slideSources = [];
     var modelSlide = null;
+    // Resolves once the slide the first paint shows — the model's poster, or
+    // the icon of a model-less product — is in. render() lifts the arrival
+    // loader on it.
+    var posterReady = Promise.resolve();
+    var photoSlides = [];
+    // Resolves when the 3D model is on screen — or will never be (no viewer,
+    // failed, no model at all). What render() holds the sharp x-ray back for:
+    // that swap is polish, and should not share the link with the model.
+    var settleViewer;
+    var viewerSettled = new Promise(function (resolve) { settleViewer = resolve; });
     // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
     // here so the viewer construction/material logic lives in exactly one
     // place. It can return null if the browser couldn't grant a WebGL
@@ -298,19 +412,20 @@
         // here handled this at all (unlike js/main.js's grid), so either
         // failure just left an empty, permanently blank 3D-viewer slide
         // with no fallback ever shown.
-        onError: replaceModelSlideWithIcon
+        onError: replaceModelSlideWithIcon,
+        onReady: settleViewer
       });
     }
 
-    state.modelHandle = (product.assets && product.assets.model)
-      ? buildModelViewer()
-      : null;
-    if (state.modelHandle) {
+    state.modelHandle = null;
+    state.posterImg = null;
+    if (product.assets && product.assets.model) {
       // Smaller than the photo slides on purpose — leaves generous empty
       // space around the model to drag/swipe the carousel from without
       // that drag landing on the viewer's own TrackballControls instead.
+      // Holds the model's poster until mountViewer() swaps the viewer in.
       modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
-      modelSlide.appendChild(state.modelHandle.el);
+      posterReady = showPoster();
       track.appendChild(modelSlide);
       slideSources.push("model");
     } else {
@@ -321,9 +436,78 @@
         // slide isn't rebuilt then, only the 3D viewer path re-tints live,
         // so a static image needs its own explicit update.
         state.iconFallbackImg = iconSlide.querySelector("img");
+        if (window.EmjiveLoader) posterReady = window.EmjiveLoader.imageReady(state.iconFallbackImg);
         track.appendChild(iconSlide);
         slideSources.push("icon");
       }
+    }
+
+    // The model slide before the viewer is in: its poster image (the same
+    // one the viewer shows over its own canvas until the model is drawn), in
+    // a box sized exactly like the viewer that replaces it, so the swap moves
+    // nothing — the Modify sheet's stand-in for the same reason (js/modify-
+    // modal.js posterBox(), .size-modal__model-poster in css/style.css).
+    function showPoster() {
+      modelSlide.innerHTML = "";
+      state.posterImg = null;
+      var src = posterSrcFor(product, state.selectedMetal);
+      if (!src) return Promise.resolve();
+      var box = el("div", "size-modal__model-poster");
+      var img = document.createElement("img");
+      img.src = src;
+      img.alt = product.name || "";
+      img.draggable = false;
+      box.appendChild(img);
+      modelSlide.appendChild(box);
+      state.posterImg = img;
+      return window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
+    }
+
+    // Swaps the viewer in for the poster. Also what restoreModelViewer() calls
+    // after a back/forward-cache restore. No WebGL context to be had (or the
+    // viewer module never arrived) means the icon fallback, as always.
+    function attachViewer() {
+      if (state.modelHandle || !modelSlide) return;
+      // The slide loses this class the moment replaceModelSlideWithIcon
+      // takes it over, which is exactly the case that must NOT be rebuilt —
+      // the visitor is looking at the icon fallback, and a viewer appended
+      // underneath it would be an invisible second context.
+      if (!modelSlide.classList.contains("product-carousel__slide--model")) return;
+      var handle = buildModelViewer();
+      if (!handle) {
+        replaceModelSlideWithIcon();
+        return;
+      }
+      state.modelHandle = handle;
+      state.posterImg = null;
+      modelSlide.innerHTML = "";
+      modelSlide.appendChild(handle.el);
+    }
+
+    // Called by render() once the first paint's images are in. Waits for the
+    // viewer chunk (already downloading since the HTML — see the modulepreload
+    // injectLoadHints() adds), then builds it when the browser is idle:
+    // creating a WebGL context and compiling shaders is a long task that
+    // should not land on top of the images and text arriving.
+    function mountViewer() {
+      if (!modelSlide) {
+        settleViewer();
+        return;
+      }
+      if (!window.EmjiveLoadViewer) {
+        replaceModelSlideWithIcon();
+        return;
+      }
+      // The chunk, the environment map and the model are independent
+      // downloads; the viewer asks for the last two only once it has been
+      // built, which is after the chunk. Hinting them now runs all three at
+      // once instead of one after another (the viewer's own requests then
+      // reuse these, being the same URL fetched the same way).
+      hintFetch(window.EmjiveSeries.hdriPath(state.seriesSlug));
+      hintFetch(product.assets.model);
+      window.EmjiveLoadViewer().then(function () {
+        whenIdle(attachViewer);
+      }, replaceModelSlideWithIcon);
     }
 
     // Swaps a failed model slide's contents for the same icon fallback a
@@ -340,9 +524,11 @@
         state.modelHandle.dispose();
         state.modelHandle = null;
       }
+      settleViewer();
       if (!modelSlide) return;
       modelSlide.classList.remove("product-carousel__slide--model");
       modelSlide.innerHTML = "";
+      state.posterImg = null;
       var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
       if (fallbackIconSrc) {
         var img = document.createElement("img");
@@ -378,18 +564,10 @@
     }
 
     function restoreModelViewer() {
-      if (state.modelHandle || !modelSlide) return;
-      // The slide loses this class the moment replaceModelSlideWithIcon
-      // takes it over, which is exactly the case that must NOT be rebuilt —
-      // the visitor is looking at the icon fallback, and a viewer appended
-      // underneath it would be an invisible second context.
-      if (!modelSlide.classList.contains("product-carousel__slide--model")) return;
-      state.modelHandle = buildModelViewer();
-      if (state.modelHandle) modelSlide.appendChild(state.modelHandle.el);
-      else replaceModelSlideWithIcon();
+      attachViewer();
     }
 
-    if (state.modelHandle) {
+    if (modelSlide) {
       window.addEventListener("pagehide", releaseModelViewer);
       window.addEventListener("pageshow", function (e) {
         if (e.persisted) restoreModelViewer();
@@ -397,7 +575,9 @@
     }
 
     ((product.assets && product.assets.photos) || []).forEach(function (photo) {
-      track.appendChild(buildPhotoSlide(photo, product.name));
+      var slide = buildPhotoSlide(photo, product.name);
+      photoSlides.push(slide);
+      track.appendChild(slide);
       slideSources.push(photo.src);
     });
 
@@ -415,6 +595,40 @@
     // at this point (render() calls this before unhiding it), so every
     // element would measure as zero-size. render() does the initial
     // carousel.sync(true) itself, right after unhiding.
+
+    return {
+      posterReady: posterReady,
+      photoSlides: photoSlides,
+      mountViewer: mountViewer,
+      viewerSettled: viewerSettled
+    };
+  }
+
+  // What stands in for the model until its viewer is built: the viewer's own
+  // poster (fallback-img, the model's default-orbit capture, so it lines up
+  // with the live canvas's first frame), else the metal's icon.
+  function posterSrcFor(product, metal) {
+    var assets = product.assets || {};
+    return (assets["fallback-img"] && assets["fallback-img"][metal]) ||
+      (assets.icons && assets.icons[metal]) || "";
+  }
+
+  // <link rel="preload" as="fetch" crossorigin> is what a same-origin fetch()
+  // (three's FileLoader) matches, so the viewer's own request joins this one
+  // instead of downloading the file twice.
+  function hintFetch(href) {
+    if (!href) return;
+    var link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "fetch";
+    link.crossOrigin = "anonymous";
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  function whenIdle(fn) {
+    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(fn, { timeout: 1500 });
+    else setTimeout(fn, 0);
   }
 
   // Real product photos (product.assets.photos), unlike the model/icon
@@ -430,7 +644,9 @@
   // an empty description, same convention appendSpecRow's
   // weight/composition rows already use.
   function buildPhotoSlide(photo, alt) {
-    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt);
+    // Deferred: the photos are off screen, so they start downloading only
+    // after the page's first paint (render() → loadRemainingAssets).
+    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true });
     slide.classList.add("product-carousel__slide--photo");
     slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
     return slide;
@@ -481,6 +697,9 @@
     if (state.iconFallbackImg) {
       state.iconFallbackImg.src = (product.assets && product.assets.icons && product.assets.icons[metal]) || "";
     }
+    // The model's poster, if the viewer isn't in yet: the viewer is built for
+    // whichever metal is selected when it arrives.
+    if (state.posterImg) state.posterImg.src = posterSrcFor(product, metal);
     renderSpecs(product);
     tintAfterPaint();
   }

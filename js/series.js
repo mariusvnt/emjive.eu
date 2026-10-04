@@ -258,19 +258,70 @@
    * Hero bundle loading (index.html only — guarded on #seriesHero, the
    * same pattern main.js uses for #productGrid).
    * ------------------------------------------------------------------- */
-  function injectPreload(href) {
+  // The hero pictures exist in four versions (see "responsive images" in
+  // js/loader.js). hero.preload names them by their original path; the first
+  // entry is the picture the first paint is made of, which has the low-res
+  // pair, and the rest are layers that have only the high-res ones.
+  function injectPreload(href, isLcp) {
     var link = document.createElement("link");
     link.rel = "preload";
     link.as = "image";
-    // These are the hero — the one thing on the homepage that is both
-    // above the fold and impossible to discover early (it lives in a
-    // fragment fetched two round trips deep, so the preload scanner never
-    // sees it). By the time this runs the grid's own product icons are
+    if (window.EmjiveLoader) href = window.EmjiveLoader.versions(href, !!isLcp).first;
+    // The first entry is the hero picture — the one thing on the homepage
+    // that is both above the fold and impossible to discover early (it lives
+    // in a fragment fetched two round trips deep, so the preload scanner
+    // never sees it). By the time this runs the grid's own product icons are
     // usually already queued, and without an explicit priority the browser
     // has no way to know the hero outranks a card sitting below the fold.
-    link.fetchPriority = "high";
+    // The rest are hero layers that start out clipped away (the x-ray): they
+    // are wanted, but must never take bandwidth from the first one.
+    link.fetchPriority = isLcp ? "high" : "low";
     link.href = href;
     document.head.appendChild(link);
+  }
+
+  // The fragment's pictures carry no src, only data-full (the original, the
+  // desktop high-res file and the base name of the other three) and, for the
+  // ones that have a low-res pair, data-lo (see series/bones/hero.html). Each
+  // gets the version that suits this viewport before it is attached, so the
+  // browser never fetches the wrong one. Run on the fragment while it is
+  // still inert — an <img> in a template's content does not load.
+  function chooseHeroImages(root) {
+    var imgs = root.querySelectorAll("img[data-full]");
+    for (var i = 0; i < imgs.length; i++) {
+      var full = imgs[i].getAttribute("data-full");
+      var v = window.EmjiveLoader
+        ? window.EmjiveLoader.versions(full, imgs[i].hasAttribute("data-lo"))
+        : { first: full };
+      imgs[i].src = v.first;
+    }
+  }
+
+  // Once the page has revealed and the browser is idle, the pictures that
+  // started low-res are swapped for their high-res version. A layer with no
+  // low-res version already is its high-res one.
+  function upgradeHeroImages(slot) {
+    if (!window.EmjiveLoader) return;
+    var imgs = slot.querySelectorAll("img[data-full][data-lo]");
+    for (var i = 0; i < imgs.length; i++) {
+      window.EmjiveLoader.upgradeImage(imgs[i], window.EmjiveLoader.versions(imgs[i].getAttribute("data-full"), true).hi);
+    }
+  }
+
+  // The viewport crossed the phone/desktop line (a phone turned, a window
+  // resized): the hero's layout changes shape with it (hero.css), so every
+  // picture has to be the other set's — straight to the high-res one.
+  var watchingPhone = false;
+  function watchHeroForPhoneChange() {
+    if (watchingPhone || !window.EmjiveLoader) return;
+    watchingPhone = true;
+    window.EmjiveLoader.onPhoneChange(function () {
+      var imgs = document.querySelectorAll("img[data-full]");
+      for (var i = 0; i < imgs.length; i++) {
+        var full = imgs[i].getAttribute("data-full");
+        imgs[i].src = window.EmjiveLoader.versions(full, imgs[i].hasAttribute("data-lo")).hi;
+      }
+    });
   }
 
   function injectStylesheet(href) {
@@ -298,7 +349,7 @@
     // discoverable by the browser's preload scanner at parse time (they
     // live in a fragment now), so this is what keeps them starting on the
     // second round trip rather than the third.
-    (hero.preload || []).forEach(injectPreload);
+    (hero.preload || []).forEach(function (href, i) { injectPreload(href, i === 0); });
 
     // Issued before the fragment fetch resolves, so the bundle's CSS is in
     // flight (and CSS blocks render regardless) by the time any hero markup
@@ -327,10 +378,15 @@
       var templates = doc.querySelectorAll("template[data-series-slot]");
       for (var i = 0; i < templates.length; i++) {
         var target = document.getElementById(templates[i].dataset.seriesSlot);
-        if (target) target.appendChild(templates[i].content.cloneNode(true));
+        if (target) {
+          var clone = templates[i].content.cloneNode(true);
+          chooseHeroImages(clone);
+          target.appendChild(clone);
+        }
         else console.warn("No slot #" + templates[i].dataset.seriesSlot + " for the hero fragment");
       }
 
+      watchHeroForPhoneChange();
       if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.init) {
         window.EmjiveSeriesHero.init(slot, { slug: activeSlug, series: entry });
       }
@@ -366,6 +422,16 @@
     window.EmjiveSeries.slug = activeSlug;
     window.EmjiveSeries.series = activeSeries;
 
+    // The pages that list products opt in with data-products="eager" on
+    // <html>: the request starts the moment the slug is known instead of
+    // when their own (deferred) script gets round to asking, which put it a
+    // full script-loading chain behind the index. loadProducts() memoizes,
+    // so the page's real call below simply picks up this promise. The catch
+    // is only for this side branch — the caller still sees the rejection.
+    if (activeSeries && document.documentElement.getAttribute("data-products") === "eager") {
+      loadProducts(activeSlug).catch(function () {});
+    }
+
     var slot = document.getElementById("seriesHero");
     if (slot && activeSeries) {
       loadHero(slot, activeSeries)
@@ -376,7 +442,10 @@
           // NOT for the products below, which only feed the rings.
           var heroImg = slot.querySelector("img");
           if (heroImg && window.EmjiveLoader) {
-            window.EmjiveLoader.imageReady(heroImg).then(pageReady);
+            window.EmjiveLoader.imageReady(heroImg).then(function () {
+              pageReady();
+              upgradeHeroImages(slot);
+            });
           } else {
             pageReady();
           }

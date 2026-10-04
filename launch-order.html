@@ -155,16 +155,18 @@
 <!-- No Modify markup here: the sheet (#modifyModal) is built by
      js/modify-modal.js, the same one every other page uses from the
      floating bar's drawer. -->
-<script src="js/main.js"></script>
+<!-- All deferred (see index.html for why): they download in parallel and run
+     in this order once the page is parsed. -->
+<script src="js/main.js" defer></script>
 <!-- Before js/selection-page.js, which uses window.EmjiveFocusTrap,
      window.EmjiveOrderRows and window.EmjiveModifyModal. -->
-<script src="js/focus-trap.js"></script>
-<script src="js/selection.js"></script>
-<script src="js/carousel.js"></script>
-<script src="js/order-rows.js"></script>
-<script src="js/metal-picker.js"></script>
-<script src="js/modify-modal.js"></script>
-<script src="js/liquid-glass.js"></script>
-<script src="js/selection-page.js"></script>
+<script src="js/focus-trap.js" defer></script>
+<script src="js/selection.js" defer></script>
+<script src="js/carousel.js" defer></script>
+<script src="js/order-rows.js" defer></script>
+<script src="js/metal-picker.js" defer></script>
+<script src="js/modify-modal.js" defer></script>
+<script src="js/liquid-glass.js" defer></script>
+<script src="js/selection-page.js" defer></script>
 </body>
 </html>

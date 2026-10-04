@@ -374,14 +374,99 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // Generous: the biggest single file is a ~4MB model on a slow mobile link.
   var LOAD_TIMEOUT_MS = 90000;
 
+  // ---- decoding off the main thread ------------------------------------
+  //
+  // The file is downloaded here (that is the request the page's own preload
+  // of it is matched against) and decoded by js/hdr-worker.js, which hands the
+  // half-float pixels back. Used only where Vite has bundled this module:
+  // `import.meta.env` is undefined on a page that loads it unbundled
+  // (scene-tool.html, the render harness), where a module worker could not
+  // resolve `three` through the import map anyway. Any failure — no module
+  // workers, the worker script missing, a decode error — falls back to
+  // decoding on the main thread with HDRLoader.parse(), the same function the
+  // worker runs, so the result is identical either way.
+  var hdrWorker = null;
+  var hdrWorkerBroken = typeof Worker !== "function" || typeof import.meta.env === "undefined";
+  var hdrJobs = {};
+  var hdrJobCount = 0;
+
+  function retireHdrWorker() {
+    hdrWorkerBroken = true;
+    if (hdrWorker) {
+      try { hdrWorker.terminate(); } catch (err) { /* already gone */ }
+      hdrWorker = null;
+    }
+    var jobs = hdrJobs;
+    hdrJobs = {};
+    Object.keys(jobs).forEach(function (id) { jobs[id].fail(); });
+  }
+
+  function getHdrWorker() {
+    if (hdrWorkerBroken) return null;
+    if (!hdrWorker) {
+      try {
+        hdrWorker = new Worker(new URL("./hdr-worker.js", import.meta.url), { type: "module" });
+      } catch (err) {
+        hdrWorkerBroken = true;
+        return null;
+      }
+      hdrWorker.onmessage = function (event) {
+        var job = hdrJobs[event.data.id];
+        if (!job) return;
+        delete hdrJobs[event.data.id];
+        if (event.data.error) job.fail();
+        else job.done(event.data);
+      };
+      hdrWorker.onerror = retireHdrWorker;
+    }
+    return hdrWorker;
+  }
+
+  // The parsed file as the plain object loadEnvironment() reads (it only
+  // ever uses these fields; a DataTexture is made per renderer from them).
+  function hdrSource(parsed) {
+    return {
+      image: { data: parsed.data, width: parsed.width, height: parsed.height },
+      format: THREE.RGBAFormat,
+      type: parsed.type,
+      colorSpace: parsed.colorSpace,
+      minFilter: parsed.minFilter,
+      magFilter: parsed.magFilter,
+      generateMipmaps: parsed.generateMipmaps,
+      flipY: parsed.flipY
+    };
+  }
+
+  function decodeHdr(buffer) {
+    var worker = getHdrWorker();
+    if (!worker) return Promise.resolve(hdrSource(new HDRLoader().parse(buffer)));
+    return new Promise(function (resolve) {
+      var id = ++hdrJobCount;
+      hdrJobs[id] = {
+        done: function (parsed) { resolve(hdrSource(parsed)); },
+        fail: function () { resolve(hdrSource(new HDRLoader().parse(buffer))); }
+      };
+      // Copied, not transferred: if the worker can't do it the buffer is
+      // still here for the fallback above.
+      worker.postMessage({ id: id, buffer: buffer });
+    });
+  }
+
   function loadHdrSource(src) {
     if (!hdrSourceCache[src]) {
       hdrLoadsInFlight++;
       hdrSourceCache[src] = new Promise(function (resolve, reject) {
         var timer = setTimeout(function () { reject(new Error("Timed out loading " + src)); }, LOAD_TIMEOUT_MS);
-        new HDRLoader().load(src, function (texture) {
-          clearTimeout(timer);
-          resolve(texture);
+        var fileLoader = new THREE.FileLoader();
+        fileLoader.setResponseType("arraybuffer");
+        fileLoader.load(src, function (buffer) {
+          decodeHdr(buffer).then(function (source) {
+            clearTimeout(timer);
+            resolve(source);
+          }, function (err) {
+            clearTimeout(timer);
+            reject(err);
+          });
         }, undefined, function (err) {
           clearTimeout(timer);
           reject(err);

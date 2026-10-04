@@ -8,7 +8,7 @@
 //   js/*.js, series/<slug>/hero.js   classic <script>s: browser globals, NOT
 //                                    modules (no import/export, top-level `var`
 //                                    stays global-scoped like the browser does)
-//   js/three-viewer.js, viewer-entry.js
+//   js/three-viewer.js, viewer-entry.js, hdr-worker.js
 //                                    ES modules, bundled by Vite
 //   scripts/, vite.config.js         Node tooling
 import js from "@eslint/js";
@@ -40,7 +40,7 @@ export default [
   js.configs.recommended,
   {
     files: ["js/**/*.js", "series/**/*.js"],
-    ignores: ["js/three-viewer.js", "js/viewer-entry.js"],
+    ignores: ["js/three-viewer.js", "js/viewer-entry.js", "js/hdr-worker.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",
@@ -49,7 +49,7 @@ export default [
     rules
   },
   {
-    files: ["js/three-viewer.js", "js/viewer-entry.js"],
+    files: ["js/three-viewer.js", "js/viewer-entry.js", "js/hdr-worker.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

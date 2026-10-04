@@ -814,7 +814,7 @@
           if (token !== state.openToken) return;
           var product = products.find(function (p) { return p.id === item.productId; });
           if (!product) {
-            window.EmjiveOrderRows.notice("This item's original product listing couldn't be found, so it can't be modified here.");
+            window.EmjiveOrderRows.notice("This item listing couldn't be found, please reload.");
             return;
           }
           show(item, index, product, slug, options || {});
@@ -828,7 +828,7 @@
       .catch(function (err) {
         if (token !== state.openToken) return;
         console.error("emjive: could not open the modify sheet", err);
-        window.EmjiveOrderRows.notice("This item's original product listing couldn't be loaded, so it can't be modified right now.");
+        window.EmjiveOrderRows.notice("This item listing couldn't be found, please reload.");
       });
   }
 

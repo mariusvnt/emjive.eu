@@ -19,7 +19,7 @@ import globals from "globals";
 // is not flagged — and so a typo in a new bare identifier still is.
 const EMJIVE = [
   "EmjiveCarousel", "EmjiveFocusTrap", "EmjiveGlass", "EmjiveHero", "EmjiveLoadViewer",
-  "EmjiveLoader", "EmjiveMenus", "EmjiveMetalPicker", "EmjiveModelViewer", "EmjiveModifyModal",
+  "EmjiveLoader", "EmjiveMenus", "EmjiveMessage", "EmjiveMetalPicker", "EmjiveModelViewer", "EmjiveModifyModal",
   "EmjiveMotion", "EmjiveOrderRows", "EmjiveScrollMemory", "EmjiveSelection", "EmjiveSeries",
   "EmjiveSeriesHero"
 ];

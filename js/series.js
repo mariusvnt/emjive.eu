@@ -161,6 +161,46 @@
   };
 
   /* ---------------------------------------------------------------------
+   * Page messages — the one place the site words and lays out "this didn't
+   * load" / "that doesn't exist". Lives here with the other page-wide
+   * helpers because this is the one script every page loads first. Markup
+   * and look: .page-message in css/style.css.
+   *
+   * show(container, text, button, role) replaces the container's contents
+   * with the text and, if given, a button under it. `button` is
+   * { label, href } for a link, or { label, onClick } for an action;
+   * with neither it reloads the page (the retry for every failed load).
+   * ------------------------------------------------------------------- */
+  window.EmjiveMessage = {
+    show: function (container, text, button, role) {
+      container.textContent = "";
+      container.classList.add("page-message");
+      if (role) container.setAttribute("role", role);
+      else container.removeAttribute("role");
+
+      var textEl = document.createElement("span");
+      textEl.className = "page-message__text";
+      textEl.textContent = text;
+      container.appendChild(textEl);
+
+      if (button) {
+        var control;
+        if (button.href) {
+          control = document.createElement("a");
+          control.href = button.href;
+        } else {
+          control = document.createElement("button");
+          control.type = "button";
+          control.addEventListener("click", button.onClick || function () { window.location.reload(); });
+        }
+        control.className = "page-message__button";
+        control.textContent = button.label;
+        container.appendChild(control);
+      }
+    }
+  };
+
+  /* ---------------------------------------------------------------------
    * Click-away coordination for independently-opened chrome panels — the
    * header menu (js/main.js) and the selection-bar drawer (js/selection-
    * bar.js). Neither file knows about the other, so a plain outside-click

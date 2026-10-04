@@ -436,22 +436,59 @@
      What replaces alert() for "can't do that right now" messages (the Modify
      sheet failing to open, the checkout stub): a blocking native dialog is
      jarring, can't be styled, and on iOS is suppressed outright in some
-     contexts. One element, created on first use, with role="status" so
-     assistive tech announces the text without moving focus; it fades out by
-     itself after a few seconds. See .emjive-notice in css/style.css. */
+     contexts. A full-width bar that slides up from the bottom of the screen
+     and rests on whatever stands there — see .emjive-notice in
+     css/style.css. role="status" so assistive tech announces the text
+     without moving focus; it slides away by itself after a few seconds. */
   var NOTICE_MS = 6000;
   var noticeEl = null;
+  var noticeTextEl = null;
   var noticeTimer = 0;
+
+  // The bottom-anchored things a notice has to rest on. Whichever of them is
+  // actually on screen and highest wins: the selection bar (grown by its
+  // drawer), the product page's Select bar and the order page's checkout bar
+  // and drawer that stand on it, and the Modify sheet.
+  var REST_ON = ".selection-bar, .product-select-bar, .order-checkout-bar, .order-checkout-drawer, .size-modal__sheet";
+
+  // How far up from the bottom of the screen the stack reaches: the viewport
+  // height minus the highest top edge among the visible elements above.
+  function stackHeight() {
+    var viewportHeight = window.innerHeight;
+    var top = viewportHeight;
+    var nodes = document.querySelectorAll(REST_ON);
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (node.hidden) continue;
+      var style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+      var rect = node.getBoundingClientRect();
+      // Off screen (the homepage bar before its entrance, a closed sheet
+      // slid out of view) or empty: not part of what is standing there.
+      if (rect.height <= 0 || rect.top >= viewportHeight || rect.bottom <= 0) continue;
+      if (rect.top < top) top = rect.top;
+    }
+    return Math.max(0, viewportHeight - top);
+  }
 
   function notice(message) {
     if (!noticeEl) {
       noticeEl = document.createElement("div");
       noticeEl.className = "emjive-notice";
       noticeEl.setAttribute("role", "status");
+      var bar = document.createElement("div");
+      bar.className = "emjive-notice__bar";
+      noticeTextEl = document.createElement("p");
+      noticeTextEl.className = "emjive-notice__text";
+      bar.appendChild(noticeTextEl);
+      noticeEl.appendChild(bar);
       document.body.appendChild(noticeEl);
     }
-    noticeEl.textContent = message;
-    noticeEl.classList.add("is-shown");
+    noticeTextEl.textContent = message;
+    noticeEl.style.setProperty("--notice-rest", stackHeight() + "px");
+    // A frame between placing it and showing it, so the first notice slides
+    // in instead of appearing already at rest.
+    requestAnimationFrame(function () { noticeEl.classList.add("is-shown"); });
     clearTimeout(noticeTimer);
     noticeTimer = setTimeout(function () { noticeEl.classList.remove("is-shown"); }, NOTICE_MS);
   }

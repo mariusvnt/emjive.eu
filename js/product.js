@@ -47,30 +47,27 @@
 
   function showNotFound() {
     loadingEl.hidden = false;
-    loadingEl.textContent = "Product not found — ";
-    var link = el("a", "btn", "Browse the collection");
     // Back to whichever series was being browsed, not always the featured
     // one — mainHref() drops the ?series= for the featured slug anyway.
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
-    link.href = (slug ? window.EmjiveSeries.mainHref(slug) : "index.html") + "#products";
-    loadingEl.appendChild(link);
+    window.EmjiveMessage.show(loadingEl, "Item not found", {
+      label: "Back to gallery",
+      href: (slug ? window.EmjiveSeries.mainHref(slug) : "index.html") + "#products"
+    }, "status");
     pageReady();
   }
 
   // Something went wrong that is NOT "this id doesn't exist": a failed
   // request, a timeout, an exception while building the page. Saying
-  // "Product not found" for those sends a visitor with a perfectly good link
+  // "Item not found" for those sends a visitor with a perfectly good link
   // away from a product that is really there. A reload is the retry.
   function showLoadError(err) {
     console.error("Could not load the product:", err);
     loadingEl.hidden = false;
     contentEl.hidden = true;
-    loadingEl.textContent = "This product couldn't be loaded. Check your connection and try again. ";
-    loadingEl.setAttribute("role", "alert");
-    var retry = el("button", "btn", "Try again");
-    retry.type = "button";
-    retry.addEventListener("click", function () { window.location.reload(); });
-    loadingEl.appendChild(retry);
+    window.EmjiveMessage.show(loadingEl,
+      "This item couldn't be loaded. Check your connection and try again.",
+      { label: "Reload" }, "alert");
     pageReady();
   }
 

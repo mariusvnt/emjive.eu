@@ -577,7 +577,7 @@ removes the item and offers **Undo** in the bar for a few seconds. See
 
 "Proceed to checkout" is still a stub — no Stripe session, no backend to
 hand off to yet. Clicking it (once shipping + terms are filled in) just
-shows an alert saying so.
+shows a pop-up notice saying so (`EmjiveOrderRows.notice`).
 
 ## Contact form
 

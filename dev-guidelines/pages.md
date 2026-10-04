@@ -33,7 +33,7 @@ Three things to keep in step when adding a page:
 - **Skip link + main target**: every page's first focusable element is `<a class="skip-link" href="#main">` (`#productDetail`/`#seriesManifest` on those two pages, which already had ids); each `<main>` has `tabindex="-1"` so focus can land on it.
 - **`<noscript>`**: the JS-rendered pages (`index`, `product`, `launch-order`, `series`) open `<main>` with a "needs JavaScript" notice (`.page-shell__loading`).
 - **Header**: the menu toggle's `aria-label` is a neutral "Menu" (state is `aria-expanded`); the `<nav>` has `aria-label="Site"`. Logo images carry intrinsic `width`/`height`. `<html data-viewer="eager|idle">` controls when the 3D chunk starts downloading (`client-scripts.md`).
-- **Live regions**: `#productLabelPrice` (`aria-live`), `#productDetailLoading` (`role=status`), the selection bar's hidden status, the grid's empty-filter message; load failures use `role="alert"` with a "Try again" (reload) button. The order page's terms control is a `role="checkbox"` button labelled by its sentence (`aria-checked`, not `aria-pressed`).
+- **Live regions**: `#productLabelPrice` (`aria-live`), `#productDetailLoading` (`role=status`), the selection bar's hidden status, the grid's empty-filter message; load failures use `role="alert"` with a "Reload" button (built by `window.EmjiveMessage.show()`, see `client-scripts.md`; a missing product or series says "Item not found" / "The requested series doesn't exist" with "Back to gallery"). The skip link, when focused, is a full-header-height bar with no outline. The order page's terms control is a `role="checkbox"` button labelled by its sentence (`aria-checked`, not `aria-pressed`).
 
 ## Shared header — one byte-identical nav
 

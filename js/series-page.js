@@ -22,16 +22,12 @@
     if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
   }
 
-  function showNotFound(slug) {
+  function showNotFound() {
     loadingEl.hidden = false;
-    loadingEl.textContent = slug
-      ? "No series called “" + slug + "” — "
-      : "No series specified — ";
-    var link = document.createElement("a");
-    link.className = "btn";
-    link.href = "archives.html";
-    link.textContent = "Browse the archives";
-    loadingEl.appendChild(link);
+    window.EmjiveMessage.show(loadingEl, "The requested series doesn't exist", {
+      label: "Back to gallery",
+      href: "index.html#products"
+    }, "status");
     pageReady();
   }
 
@@ -42,7 +38,7 @@
       // than saying it doesn't exist.
       var slug = window.EmjiveSeries.requestedSlug();
       var entry = slug && window.EmjiveSeries.get(slug);
-      if (!entry) return showNotFound(slug);
+      if (!entry) return showNotFound();
 
       return window.EmjiveSeries.loadManifest(slug).then(function (manifest) {
         var title = manifest.title || entry.name || slug;
@@ -68,14 +64,9 @@
       console.error("Could not load the series:", err);
       loadingEl.hidden = false;
       contentEl.hidden = true;
-      loadingEl.textContent = "This page couldn't be loaded. Check your connection and try again. ";
-      loadingEl.setAttribute("role", "alert");
-      var retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "btn";
-      retry.textContent = "Try again";
-      retry.addEventListener("click", function () { window.location.reload(); });
-      loadingEl.appendChild(retry);
+      window.EmjiveMessage.show(loadingEl,
+        "This page couldn't be loaded. Check your connection and try again.",
+        { label: "Reload" }, "alert");
       pageReady();
     });
 })();

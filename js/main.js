@@ -925,16 +925,23 @@
       .catch(function (err) {
         console.error("Could not load the gallery:", err);
         grid.innerHTML = "";
-        // role="alert" so a screen reader announces it; a reload is the
-        // retry, since everything this page needs hangs off one fetch chain.
-        var failed = el("p", "product-grid__loading",
-          "The gallery couldn't be loaded. Check your connection and try again. ");
-        failed.setAttribute("role", "alert");
-        var retry = el("button", "btn", "Try again");
-        retry.type = "button";
-        retry.addEventListener("click", function () { window.location.reload(); });
-        failed.appendChild(retry);
-        grid.appendChild(failed);
+        // Where the visitor is looking: when the series index itself failed,
+        // no hero will ever arrive, so its (empty) slot — the whole first
+        // screen — carries the message. If the hero did load and only the
+        // products failed, the message goes in the grid instead.
+        var heroSlot = document.getElementById("seriesHero");
+        var host;
+        if (heroSlot && !heroSlot.children.length) {
+          host = heroSlot;
+          host.classList.add("page-message--hero");
+        } else {
+          host = document.createElement("div");
+          host.className = "page-message--grid";
+          grid.appendChild(host);
+        }
+        window.EmjiveMessage.show(host,
+          "The gallery couldn't be loaded. Check your connection and try again.",
+          { label: "Reload" }, "alert");
         // Still signalled: a failed fetch means the height this page is
         // ever going to have is the height it has now, so there's nothing
         // for the restore to keep waiting for — without this it would sit

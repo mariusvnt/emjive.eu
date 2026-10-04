@@ -8,7 +8,7 @@ This file is an index into `dev-guidelines/`, the full agent-facing documentatio
 
 - `archives.html`, `creation-process.html`, `series.html` and `terms.html` are deliberately **empty shells** — real routes, meta tags and styling hooks, no designed content yet. The archives page in particular does *not* render the series list, even though `data/series.json` already holds everything it needs → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
 - `js/main.js` still carries a guarded `#contactForm` handler that no-ops, since no page has that element. Harmless, kept for whenever a contact form gets built → [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md)
-- `launch-order.html`'s "Proceed to checkout" button is a stub — no Stripe session, no backend to hit yet. Clicking it (once shipping + terms are filled in) just shows an alert saying so → [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md)
+- `launch-order.html`'s "Proceed to checkout" button is a stub — no Stripe session, no backend to hit yet. Clicking it (once shipping + terms are filled in) just shows a pop-up notice saying so → [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md)
 
 ## Where to look
 

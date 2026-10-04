@@ -17,7 +17,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
 below for you** — a form with drag-and-drop for the model/x-ray/photos,
 computing the folder/filename convention itself rather than asking you to
 get it right by hand. It deliberately leaves icons/fallback-img/top-shot
-alone (step 3 stays a separate `npm run auto-render` run, see below) — see
+alone (step 3 stays a separate `npm run auto-render` run, see below — and a dropped x-ray needs `npm run image-variants`, step 2b) — see
 `tooling.md` for the tool's own architecture. The steps below are what it's
 doing under the hood, and still the way to do this by hand if you'd rather.
 
@@ -43,6 +43,7 @@ existing one — `bones` is the only one so far. To start a *new* series, see
      welded manifold mesh is ~0.5:1, the bad ones here are ~1.9:1), fix that
      in Blender with smooth shading + merge-by-distance before exporting.
      That's GPU cost, and no amount of compression touches it.
+2b. (If the product has an x-ray backdrop) drop it in as `<slug>_xray.webp`, then run **`npm run image-variants`** — it writes the other three versions of it (`_lo`, `_m`, `_m_lo`: desktop low, smartphone high and low, the smartphone ones cropped) beside it. Nothing works without them: the product page asks for the low-res one first, and `npm run verify` (`validate-data.js`) fails until they exist. `json-tool`'s x-ray dropzone does **not** run it. See `assets.md`'s "Responsive versions".
 3. (Optional) drop in icons too — 512×512 transparent WebPs of just the
    product (no background), one per metal it can be shown in (not just its
    default — the product page's metal picker swaps the icon to match
@@ -133,7 +134,10 @@ used as the carousel's backdrop — leave `""` until you have one),
 auto-render` fills these in too, same as icons), and `fallback-img` (also
 one entry per metal, same shape — the 3D viewer's pre-load poster, likewise
 filled in by `npm run auto-render`; leave every metal as `""` until then,
-same as `top-shot`).
+same as `top-shot`). Each icon also has a generated 128px thumbnail,
+`<name>_icon_<metal>_128.webp` (the selection bar's and the order rows'
+image): `auto-render` writes them after a render, `npm run image-variants`
+writes any that are missing, and `npm run verify` fails if one is.
 
 `hero-hand-visibility` controls whether/how this product's `assets.top-shot[metal]`
 image appears overlaid on the homepage hero's x-ray hand. Leave
@@ -366,7 +370,14 @@ npm install               # first time only — pulls in puppeteer-core + sharp
 npm run auto-render                  # every metal
 npm run auto-render -- steel bronze  # only these metals
 npm run auto-render -- --swatches-only  # just the metal swatch strips (no product renders)
+npm run auto-render -- --image-variants # render nothing: only rewrite the generated
+                                        # versions of the x-ray/hero/icon images
 ```
+
+A full run ends by rewriting the icons' `_128` thumbnails (the icons it just
+wrote are their source); `--image-variants` is the same step for every image
+kind, with no Chrome or GPU needed — use it after replacing a hand-added
+x-ray or hero picture, or changing the sizes in `scripts/make-image-variants.js`.
 
 This runs `scripts/auto-render.js`, which drives a real (non-headless-only)
 Chrome instance through Puppeteer with GPU acceleration enabled

@@ -141,7 +141,9 @@ block, silently):
   `www.` to the apex).
 - `curl -I https://emjive.eu/js/main.js` shows `Cache-Control: no-cache` and
   `Content-Encoding: gzip`; a hashed `/assets/style-*.css` shows
-  `max-age=31536000, immutable`.
+  `max-age=31536000, immutable`; an image or model (e.g.
+  `/assets/series/bones/hero/hand_xray.webp`) shows `max-age=604800,
+  stale-while-revalidate=86400`.
 - `curl -I https://emjive.eu/assets/hdri/studio_kontrast_04_1k.hdr` and a
   `.glb` / `.wasm` return a sensible `Content-Type` and are compressed.
 - `https://emjive.eu/some/missing/path` shows the branded 404 page.
@@ -168,7 +170,8 @@ data/series.json                                Series index + category vocabula
 data/series/<slug>/                             One series' products + manifest
 series/<slug>/                                  One series' hero bundle (html/css/js)
 assets/                                         Images, 3D models, fonts, HDRIs
-scripts/auto-render.js                          Re-renders product icons/swatches
+scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
+scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
 loader-test.html, js/loader.js                  Logo loading animation + its endless-loop review page

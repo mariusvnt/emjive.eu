@@ -1,6 +1,6 @@
 # Assets
 
-`assets/` is static binary content. Two things write into it programmatically: `scripts/auto-render.js`, into `assets/series/<slug>/products/*/` (the `icons`/`fallback-img`/`top-shot` triad only) and the top-level `metal-sample_*.webp` files; and `npm run json-tool`, into the same per-product folders (model/x-ray/photos only — it never touches the same three auto-render owns) plus `assets/hdri/*.hdr` and the folders themselves (creating a new product/series' folders, deleting a removed one's) — see `tooling.md` for both.
+`assets/` is static binary content. Three things write into it programmatically: `scripts/auto-render.js`, into `assets/series/<slug>/products/*/` (the `icons`/`fallback-img`/`top-shot` triad only) and the top-level `metal-sample_*.webp` files; `scripts/make-image-variants.js` (also run by `auto-render`), which writes the extra versions of the x-ray, hero and icon images beside their originals — see "Responsive versions" below; and `npm run json-tool`, into the same per-product folders (model/x-ray/photos only — it never touches the same three auto-render owns) plus `assets/hdri/*.hdr` and the folders themselves (creating a new product/series' folders, deleting a removed one's) — see `tooling.md` for both.
 
 ## The split: series-scoped vs global
 
@@ -33,13 +33,13 @@ That series' homepage hero art, referenced from its `hero.html` fragment and pre
 
 Sizes today, after a pass that halved the two above-the-fold images (1.27MB → 0.39MB, roughly a third of the homepage's above-the-fold weight): `hand-rings-under-flesh_3k.webp` 2880×1620 (233KB), `hand_xray.webp` 1920×1080 (159KB), and the two `hand_xray_extension_*.webp` panels still at 3840×2160 (56KB and 36KB — they're below the fold and already tiny, so they were left alone). Resize with `sharp` directly at **quality 90** and `alphaQuality: 90` (all four carry alpha). **Do not use `npm run optimize-images` for hero art** — see `tooling.md` for the four separate reasons it will quietly do the wrong thing here.
 
-There is no `srcset` anywhere on the site, deliberately: these images are cropped ~73% horizontally on a phone (their rendered width is `100vh × 16/9`, driven by viewport *height*), and `sizes` has no way to express "most of this is off-canvas" — so an honest `sizes` value would have left every phone and retina laptop downloading the original anyway. Halving the source outright buys the same bytes with none of the `imagesrcset`-must-match-the-`<img>` bookkeeping.
+**The hero pictures ship in several versions each** (see "Responsive versions" below) — the sizes above are the *originals*, which are the desktop high-res ones. This replaces an earlier decision not to use `srcset` at all (`sizes` can't express "most of this is off-canvas", so an honest value would have left every phone downloading the original): the versions here aren't picked by `srcset`/`sizes` but by `js/series.js` from a phone query, and the phone ones are **cropped** to the middle of the picture instead of merely scaled, which is what "off-canvas" needs.
 
 For Bones: WebP (quality 90) rather than PNG, since these are full-bleed photographic renders where the lossy compression buys a large size win with no visible quality loss. `hand-rings-under-flesh_3k.webp` is `.reveal__img--normal`'s source, showing the ring shapes already embossed under the skin — reworked to also embed the "SCROLL TO SCAN" hint directly into the image itself, like a tattoo on the skin, replacing the separate `.reveal__scan-hint` DOM element/CSS/JS that used to render that text on top (removed entirely — see `styling.md`/`client-scripts.md`).
 
 ## `series/<slug>/products/<slug>_<category>/`
 
-One folder per product, matching that series' `products.json` path fields:
+One folder per product, matching that series' `products.json` path fields (the listing shows the files those fields name; beside the x-ray and each icon sit the generated `_lo`/`_m`/`_m_lo` and `_128` versions described under "Responsive versions" below — `furcula_xray.webp` also has `furcula_xray_lo.webp`, `furcula_xray_m.webp`, `furcula_xray_m_lo.webp`, and so on):
 
 ```text
 disc_ring/                disc_gltf.glb, disc_icon_{bronze,silver,steel}.webp, disc_fallback-img_{bronze,silver,steel}.webp, disc_top-shot_{bronze,silver,steel}.webp, disc_xray.webp
@@ -70,6 +70,26 @@ What Draco does **not** fix is triangle count, and that is where the remaining c
 - X-ray backdrop (`assets.xray` field): `<slug>_xray.<ext>` — underscore, matching the icon/fallback-img/top-shot convention (not hyphenated — an earlier, Furcula-only version was, before the other three products picked up their own backdrops too). Hand-added — no `auto-render.js` involvement, unlike icons/fallback-img/top-shot. `json-tool`'s dropzone/Replace writes `<slug(name)>_xray.<ext>`, same canonical-lowercase, casing-isn't-preserved rule as the model file above.
 
 **Hand-added art should be WebP, and `npm run optimize-images` (`scripts/optimize-images.js`) is what enforces it** — it converts any stray PNG/JPEG under `assets/` to WebP (quality 82, alpha preserved, capped at 2048px) and deletes the original. Furcula's three files were the reason it exists: they shipped as PNG at **8.4MB combined**, `furcula_xray.png` alone being 6.38MB — larger than every 3D model in the catalog put together after Draco, on a page whose own model is 0.3MB. They are now 0.42MB. The script deliberately does **not** rewrite the `products.json` paths that point at what it converts; it prints the list of renames for you to apply by hand, since silently editing the catalog while also deleting the source art is the wrong trade.
+
+## Responsive versions (generated)
+
+The big pictures exist in up to four versions, one file each, written **next to the original** by `scripts/make-image-variants.js` (`npm run image-variants`; `npm run auto-render -- --image-variants` runs the same thing, and a full `auto-render` rewrites the icon ones). Never edit or commit-by-hand a generated file; change the original, or the rule in the script, and re-run.
+
+| | desktop | smartphone |
+|---|---|---|
+| **low res** (first paint) | `<name>_lo.webp` | `<name>_m_lo.webp` |
+| **high res** (swapped in when idle) | `<name>.webp` — the **original** | `<name>_m.webp` |
+
+The smartphone versions are **cropped** to the middle of the picture — all a phone ever shows — and so are smaller as well as lower-res. What gets which, and the numbers (`PHONE_CROP`, the sizes and qualities live in the script):
+
+| Original | Versions | Smartphone crop |
+|---|---|---|
+| `products/<n>/<n>_xray.webp` (1500×2000) | `_lo` (640w), `_m` (1600 tall), `_m_lo` (800 tall) | middle 74% of the width |
+| `hero/<n>_3k.webp` (2880×1620) | `_lo` (1280w), `_m` (full height), `_m_lo` (810 tall) | middle 40% of the width |
+| `hero/hand_xray.webp`, `hero/hand_xray_extension_*.webp` | `_m` only (hidden / far down the page: no low-res step) | the same 40%, so the layers stay on top of one another |
+| `products/<n>/<n>_icon_<metal>.webp` (512²) | one thumbnail, `_128.webp` (selection bar, order rows) | — |
+
+The fallback-img, top-shot and photo files have no versions. A **smartphone** is `(max-width: 640px) and (max-aspect-ratio: 3/5)`. The crop fractions and that query are also written in `css/style.css` (`--xray-crop`), `series/<slug>/hero.css` (`--hero-crop`, `--hero-crop-left`, `--hero-aspect`), `js/loader.js` and `vite.config.js`; `scripts/validate-data.js` fails the build if any copy differs from the script's or if a version file is missing, so a new product or series can't ship without them (`procedures.md`). How the pages choose and swap them: `client-scripts.md`'s `loader.js` section.
 
 ## Global items
 

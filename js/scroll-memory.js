@@ -78,7 +78,7 @@
      throwing.
      ----------------------------------------------------------------------- */
   var key = (function () {
-    var state = null;
+    var state;
     try { state = window.history.state; } catch (e) { state = null; }
     if (state && state.emjiveScrollKey) return state.emjiveScrollKey;
 

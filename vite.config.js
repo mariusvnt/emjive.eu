@@ -1,6 +1,10 @@
-import { cpSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { defineConfig } from "vite";
+import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { defineConfig, transformWithEsbuild } from "vite";
+
+// The public origin, for the generated sitemap.xml. Same host as every page's
+// og:url / canonical.
+const SITE_ORIGIN = "https://emjive.eu";
 
 // Vite's static asset pipeline only ever sees paths it can trace at build
 // time: <script>/<link>/<img> attributes in the HTML entries themselves,
@@ -42,6 +46,10 @@ import { defineConfig } from "vite";
 //     font is ever loaded from a runtime string rather than from CSS.
 //   assets/hand_normal.webp — genuinely dead, in the repo and in the build
 //     (see assets.md); it's the plain hand the ring-embossed hero replaced.
+//   js/viewer-entry.js — a module entry (<script type="module">), so Vite
+//     bundles it and the built pages load the hashed copy; the verbatim one
+//     has a relative dynamic import() that would resolve to the unbundled
+//     three-viewer.js, which can't run.
 //   js/three-viewer.js — the unbundled ES module source. The built pages
 //     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this
 //     one still carries the bare `import "three"` specifier that nothing at
@@ -50,16 +58,70 @@ import { defineConfig } from "vite";
 //     Every OTHER file in js/ is a classic script the built HTML really
 //     does load by its original path, which is why this is one exclusion
 //     rather than a rule about js/.
+//
+//   assets/logo*.svg, hand-pointer-thumb-opened.svg, metal-sample_*.webp —
+//     referenced only from HTML <img>/<link> and css/style.css url(), all of
+//     which Vite DOES trace, so it emits its own content-hashed copies and
+//     rewrites every reference. The verbatim copies this plugin used to add
+//     beside them (byte-identical, md5 checked) were never requested.
 const NEVER_COPY = [
   resolve(__dirname, "assets", "fonts"),
   resolve(__dirname, "assets", "hand_normal.webp"),
-  resolve(__dirname, "js", "three-viewer.js")
+  resolve(__dirname, "assets", "logo.svg"),
+  resolve(__dirname, "assets", "logo_compact.svg"),
+  resolve(__dirname, "assets", "hand-pointer-thumb-opened.svg"),
+  resolve(__dirname, "assets", "metal-sample_steel.webp"),
+  resolve(__dirname, "assets", "metal-sample_silver.webp"),
+  resolve(__dirname, "assets", "metal-sample_bronze.webp"),
+  resolve(__dirname, "js", "three-viewer.js"),
+  resolve(__dirname, "js", "viewer-entry.js")
 ];
+
+// Every classic script and hero bundle file that reaches dist/ by verbatim
+// copy rather than through Vite's pipeline: js/*.js, series/<slug>/hero.js
+// and hero.css. Walks dist/, not the sources, so it only ever touches what
+// was really copied (and never the already-minified Vite bundle in
+// dist/assets/).
+function* distFilesToMinify(distDir) {
+  const jsDir = join(distDir, "js");
+  if (existsSync(jsDir)) {
+    for (const name of readdirSync(jsDir)) {
+      if (name.endsWith(".js")) yield join(jsDir, name);
+    }
+  }
+  const seriesDir = join(distDir, "series");
+  if (existsSync(seriesDir)) {
+    for (const slug of readdirSync(seriesDir)) {
+      const dir = join(seriesDir, slug);
+      if (!statSync(dir).isDirectory()) continue;
+      for (const name of readdirSync(dir)) {
+        if (name === "hero.js" || name === "hero.css") yield join(dir, name);
+      }
+    }
+  }
+}
+
+// These files keep their names (nothing in the HTML or in data/series.json
+// is rewritten), so minifying is a pure size win: ~306KB of classic scripts
+// and ~9KB of hero CSS, no sourcemaps. esbuild's transform keeps top-level
+// names in a plain script (it only renames inside nested scopes), so the
+// window.Emjive* globals and the load-order contract between the scripts are
+// untouched.
+async function minifyCopiedFiles(distDir) {
+  for (const file of distFilesToMinify(distDir)) {
+    const out = await transformWithEsbuild(readFileSync(file, "utf8"), file, {
+      minify: true,
+      loader: file.endsWith(".css") ? "css" : "js",
+      legalComments: "none"
+    });
+    writeFileSync(file, out.code);
+  }
+}
 
 function copyFilesVitesBuildCantTrace() {
   return {
     name: "copy-files-vites-build-cant-trace",
-    closeBundle() {
+    async closeBundle() {
       for (const dir of ["assets", "data", "js", "series"]) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
@@ -69,6 +131,99 @@ function copyFilesVitesBuildCantTrace() {
           });
         }
       }
+      await minifyCopiedFiles(resolve(__dirname, "dist"));
+    }
+  };
+}
+
+// Two things Vite's HTML build does to every page's <head> that undo choices
+// documented in the page sources (both confirmed by reading dist/*.html):
+//
+// 1. <link rel="preload" as="fetch" href="data/series.json"> — Vite treats
+//    the href as an asset reference, and data/series.json is under its inline
+//    limit, so the built tag becomes href="data:application/json;base64,…".
+//    A data: URL can never satisfy the real fetch("data/series.json") in
+//    js/series.js, so the early request the preload exists for never
+//    happens, and every page also carries a stale base64 copy of the JSON.
+//    Put the real path back. (series.json is the only JSON any page
+//    preloads; scripts/check-dist.js fails the build if a data: preload ever
+//    reappears.)
+//
+// 2. The stylesheet — the source <link rel="stylesheet" href="css/style.css">
+//    sits ahead of the blocking scripts on purpose (scroll-memory.js adds
+//    .emjive-restoring-scroll, loader.js shows the loader cover — both rely
+//    on the rules in that file already being parsed), but Vite re-emits the
+//    CSS as a link injected AFTER the scripts. Move every stylesheet link in
+//    <head> back in front of the first <script>.
+function restoreHeadOrderAndPreload() {
+  return {
+    name: "restore-head-order-and-preload",
+    transformIndexHtml: {
+      order: "post",
+      handler(html) {
+        html = html.replace(
+          /(<link\b[^>]*\bhref=")data:application\/json;base64,[^"]*(")/g,
+          "$1data/series.json$2"
+        );
+
+        const headEnd = html.indexOf("</head>");
+        const head = html.slice(0, headEnd);
+        // Same-length copy with every comment blanked out, so a "<script>" or
+        // a <link> mentioned inside one of the pages' long explanatory
+        // comments is never mistaken for a real tag. Offsets found in the
+        // copy are valid in `head`.
+        const bare = head.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
+        const firstScript = bare.search(/<script\b/);
+        if (firstScript === -1) return html;
+
+        const sheetRe = /[ \t]*<link\b[^>]*\brel="stylesheet"[^>]*>[ \t]*\r?\n?/g;
+        const sheets = [];
+        const cuts = [];
+        for (let m; (m = sheetRe.exec(bare)); ) {
+          // Only the ones currently AFTER the first script need moving.
+          if (m.index > firstScript) {
+            sheets.push(head.slice(m.index, m.index + m[0].length).trim());
+            cuts.push([m.index, m.index + m[0].length]);
+          }
+        }
+        if (!sheets.length) return html;
+
+        let rest = head;
+        for (const [from, to] of cuts.reverse()) rest = rest.slice(0, from) + rest.slice(to);
+        // Removing text after firstScript doesn't shift it.
+        return rest.slice(0, firstScript) + sheets.join("\n") + "\n" + rest.slice(firstScript) + html.slice(headEnd);
+      }
+    }
+  };
+}
+
+// sitemap.xml, built from the same data the site renders from so it can never
+// drift from the catalog: the homepage plus one entry per product. The
+// product URL form mirrors js/product.js — a bare ?id= for the featured
+// series, ?series=<slug>&id=<id> for any other (ids are only unique within a
+// series). The empty shell pages (archives, creation-process, series, terms)
+// and launch-order.html are noindex and deliberately left out.
+function emitSitemap() {
+  return {
+    name: "emit-sitemap",
+    generateBundle() {
+      const read = (path) => JSON.parse(readFileSync(resolve(__dirname, path), "utf8"));
+      const index = read("data/series.json");
+      const urls = [SITE_ORIGIN + "/"];
+      for (const series of index.series) {
+        for (const product of read(series.products).products) {
+          const query = series.slug === index.featured
+            ? "id=" + encodeURIComponent(product.id)
+            : "series=" + encodeURIComponent(series.slug) + "&id=" + encodeURIComponent(product.id);
+          urls.push(SITE_ORIGIN + "/product.html?" + query);
+        }
+      }
+      const xml =
+        '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+        urls.map((url) => "  <url><loc>" + url.replace(/&/g, "&amp;") + "</loc></url>").join("\n") +
+        "\n</urlset>\n";
+      this.emitFile({ type: "asset", fileName: "sitemap.xml", source: xml });
     }
   };
 }
@@ -103,8 +258,19 @@ export default defineConfig({
   // <script>/<link> reference resolves from "/". If it ever goes into a
   // subfolder instead, set this to that subfolder's path (e.g. "/shop/").
   base: "/",
-  plugins: [dropUnusedDracoDecoderCopies(), copyFilesVitesBuildCantTrace()],
+  plugins: [
+    dropUnusedDracoDecoderCopies(),
+    restoreHeadOrderAndPreload(),
+    emitSitemap(),
+    copyFilesVitesBuildCantTrace()
+  ],
   build: {
+    // The one chunk over Vite's 500kB default is three.js itself (the lazy
+    // three-viewer chunk, ~645kB / ~168kB gzipped) — a known, deliberate size
+    // that only loads when a 3D model is actually drawn (js/viewer-entry.js).
+    // The limit is raised just past it so the warning stays meaningful: a
+    // second chunk growing that large, or this one doubling, would still show.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       // Vite only treats index.html as an entry by default — every other
       // page needs listing explicitly or its own <script type="module">
@@ -118,7 +284,11 @@ export default defineConfig({
         archives: resolve(__dirname, "archives.html"),
         creationProcess: resolve(__dirname, "creation-process.html"),
         series: resolve(__dirname, "series.html"),
-        terms: resolve(__dirname, "terms.html")
+        terms: resolve(__dirname, "terms.html"),
+        // Served by Apache for any missing path (ErrorDocument in
+        // public/.htaccess). A real entry rather than a public/ file so Vite
+        // rewrites its stylesheet and logo to absolute hashed URLs.
+        notFound: resolve(__dirname, "404.html")
       }
     }
   }

@@ -328,6 +328,27 @@
       }
     }
 
+    // Keyboard: the viewport is a focus stop and the arrow keys (Home/End to
+    // jump) page through the slides, using the same centring a tap does.
+    // Dragging and tapping were pointer-only, which left every slide after the
+    // first unreachable without a mouse or touch. Nothing is drawn for it —
+    // the strip simply moves, and the page's focus ring marks the stop.
+    viewport.setAttribute("tabindex", "0");
+    viewport.setAttribute("role", "group");
+    viewport.setAttribute("aria-roledescription", "carousel");
+    viewport.setAttribute("aria-label", "Product images");
+    viewport.addEventListener("keydown", function (e) {
+      var keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
+      if (!(e.key in keys) || slideCount <= 1) return;
+      var tile = measureTileWidth();
+      if (!tile) return;
+      var current = Math.round((computeBounds().max - scrollOffset) / tile);
+      var step = keys[e.key];
+      var next = step === "first" ? 0 : step === "last" ? slideCount - 1 : current + step;
+      e.preventDefault();
+      centerOnSlide(Math.max(0, Math.min(slideCount - 1, next)));
+    });
+
     viewport.addEventListener("pointerdown", onPointerDown);
     viewport.addEventListener("pointermove", onPointerMove);
     viewport.addEventListener("pointerup", endDrag);

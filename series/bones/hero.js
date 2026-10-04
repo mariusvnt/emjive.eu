@@ -45,6 +45,11 @@
     // this takes exactly one band-height of scrolling. Phase 2 only then
     // starts the x-ray wipe, with the band riding the reveal boundary.
     var liftDistance = Math.min(revealFrontier.getBoundingClientRect().height, totalScroll);
+    // Every layout read happens up here, before the first style write below.
+    // The header was measured at the bottom of this function, after the
+    // clip-path/bottom writes — which made the browser lay the page out a
+    // second time per scroll frame.
+    var headerHeight = siteHeader ? siteHeader.getBoundingClientRect().height : 0;
     var wipeDistance = Math.max(totalScroll - liftDistance, 1);
 
     if (totalScroll <= 0 || scrolled <= liftDistance) {
@@ -86,7 +91,6 @@
     // measures its summary row), and js/selection-bar.js subscribes to
     // this via window.EmjiveHero. Everything above the publish call is
     // hero geometry, which is why the header measurement stays here.
-    var headerHeight = siteHeader ? siteHeader.getBoundingClientRect().height : 0;
     var wipeProgressAtHeader = window.innerHeight > 0
       ? Math.max(0, 1 - headerHeight / window.innerHeight)
       : 1;

@@ -1,6 +1,7 @@
 name: Deploy to OVH (SFTP)
 
-# Builds the site and makes www/ on the OVH hosting an exact mirror of dist/
+# Runs verify.yml (lint, data schema, build, built-output checks, audit) and
+# only then makes www/ on the OVH hosting a mirror of the dist/ it produced,
 # over SFTP, on every push to main. See the "Deploying" section in README.md
 # for the one-time secrets setup this needs.
 #
@@ -16,6 +17,10 @@ on:
         description: List what would be uploaded and deleted, but change nothing on the server
         type: boolean
         default: false
+      prune_old_assets:
+        description: Also delete the previous releases' content-hashed bundles (assets/*-<hash>.js etc.) instead of keeping them
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,16 +32,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
   deploy:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # The dist/ that verify just built and checked — not a second build.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          name: dist
+          path: dist
       - name: Install lftp
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
       - name: Upload dist/ to OVH
@@ -45,6 +52,7 @@ jobs:
           SFTP_USER: ${{ secrets.FTP_USERNAME }}
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
           DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+          PRUNE_OLD_ASSETS: ${{ inputs.prune_old_assets && 'yes' || 'no' }}
           # The server's SSH host keys, pinned so the password is only ever
           # sent to the real OVH server. Scanned with
           #   ssh-keyscan -p 22 -t rsa,ecdsa,ed25519 <FTP_SERVER>
@@ -71,8 +79,29 @@ jobs:
           pass=$(printf '%s' "$SFTP_PASS" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
           # The contents of dist/ land directly in www/, so index.html sits at
-          # its root. --delete then removes whatever else is in www/, after
-          # the new files are up, so the site is never missing pages mid-deploy.
+          # its root. Two passes, so the site is never missing anything
+          # mid-deploy and an open tab never loses a file it still needs:
+          #
+          #   1. upload everything, delete nothing;
+          #   2. delete whatever is on the server but not in dist/ — EXCEPT the
+          #      content-hashed bundles directly under assets/ (Vite's
+          #      three-viewer-<hash>.js, style-<hash>.css, hashed fonts and
+          #      SVGs). A visitor whose browser still holds the previous
+          #      release's HTML would otherwise 404 on a bundle this deploy had
+          #      just deleted. They are cheap (about 0.8MB a release) and are
+          #      cleared by running this workflow by hand with
+          #      "prune_old_assets" ticked, e.g. once a month.
+          #
+          # Excluded paths are ignored on both sides by lftp, so pass 2 never
+          # re-uploads or deletes them; pass 1 already put the new ones up.
+          # If the exclude regex ever stops matching (lftp matches on the path
+          # relative to the mirror root), the effect is only the old behaviour
+          # — everything stale is deleted — so check a dry run first.
+          hashed='^assets/[^/]+-[A-Za-z0-9_-]{8}\.(js|css|woff2|svg|webp)$'
+          if [ "$PRUNE_OLD_ASSETS" = "yes" ]; then
+            hashed='^$'
+          fi
+
           lftp <<EOF
           set cmd:fail-exit yes
           set net:max-retries 3
@@ -80,6 +109,7 @@ jobs:
           set sftp:auto-confirm no
           set sftp:connect-program "ssh -a -x -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$known_hosts -o GlobalKnownHostsFile=/dev/null"
           open -p 22 -u "$SFTP_USER","$pass" sftp://$SFTP_HOST
-          mirror --reverse --delete --verbose --no-perms $DRY_RUN ./dist www
+          mirror --reverse --verbose --no-perms $DRY_RUN ./dist www
+          mirror --reverse --delete --verbose --no-perms --exclude '$hashed' $DRY_RUN ./dist www
           bye
           EOF

@@ -61,7 +61,21 @@
         pageReady();
       });
     })
-    .catch(function () {
-      showNotFound(window.EmjiveSeries.requestedSlug());
+    .catch(function (err) {
+      // Not "no such series" — that case is handled above without throwing.
+      // This is a failed request or an exception, which the old catch
+      // reported as a missing series.
+      console.error("Could not load the series:", err);
+      loadingEl.hidden = false;
+      contentEl.hidden = true;
+      loadingEl.textContent = "This page couldn't be loaded. Check your connection and try again. ";
+      loadingEl.setAttribute("role", "alert");
+      var retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "btn";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", function () { window.location.reload(); });
+      loadingEl.appendChild(retry);
+      pageReady();
     });
 })();

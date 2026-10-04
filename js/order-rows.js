@@ -432,7 +432,31 @@
     };
   }
 
+  /* ---- transient notice ----------------------------------------------------
+     What replaces alert() for "can't do that right now" messages (the Modify
+     sheet failing to open, the checkout stub): a blocking native dialog is
+     jarring, can't be styled, and on iOS is suppressed outright in some
+     contexts. One element, created on first use, with role="status" so
+     assistive tech announces the text without moving focus; it fades out by
+     itself after a few seconds. See .emjive-notice in css/style.css. */
+  var NOTICE_MS = 6000;
+  var noticeEl = null;
+  var noticeTimer = 0;
+
+  function notice(message) {
+    if (!noticeEl) {
+      noticeEl = document.createElement("div");
+      noticeEl.className = "emjive-notice";
+      noticeEl.setAttribute("role", "status");
+      document.body.appendChild(noticeEl);
+    }
+    noticeEl.textContent = message;
+    noticeEl.classList.add("is-shown");
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(function () { noticeEl.classList.remove("is-shown"); }, NOTICE_MS);
+  }
+
   // preload and resampleBand are shared with js/product.js's label bar and
   // js/modify-modal.js, which swap icons the same way.
-  global.EmjiveOrderRows = { create: create, preload: preload, resampleBand: resampleBand };
+  global.EmjiveOrderRows = { create: create, preload: preload, resampleBand: resampleBand, notice: notice };
 })(window);

@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="en" data-page-loader>
+<html lang="en" data-page-loader data-viewer="eager">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#ffffff" />
+<meta name="theme-color" content="#f8f8f8" />
 <title>Product — em·ji·ve</title>
 <meta name="description" content="Item detail" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
@@ -16,7 +18,9 @@
 <meta property="og:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 <meta property="og:image:width" content="512" />
 <meta property="og:image:height" content="512" />
-<meta name="twitter:card" content="summary_large_image" />
+<meta property="og:image:alt" content="em&middot;ji&middot;ve — Marrow ring in steel" />
+<meta property="og:locale" content="en" />
+<meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="Product — em·ji·ve" />
 <meta name="twitter:description" content="Item detail" />
 <meta name="twitter:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
@@ -54,25 +58,29 @@
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) -->
-<script type="module" src="js/three-viewer.js"></script>
+<!-- Lazy 3D viewer loader (see js/viewer-entry.js). data-viewer="eager" on
+     <html> starts the three.js chunk downloading right away, in parallel
+     with the product data; js/product.js waits for it before building the
+     carousel. -->
+<script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body>
+<a class="skip-link" href="#productDetail">Skip to content</a>
 
 
 <header class="site-header">
   <div class="site-header__row">
     <a class="site-header__brand" href="index.html#top">
-      <img src="assets/logo.svg" alt="em&middot;ji&middot;ve" />
+      <img src="assets/logo.svg" width="512" height="192" alt="em&middot;ji&middot;ve" />
     </a>
-    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+    <button class="menu-toggle" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="siteHeaderMenu">
       <span class="menu-toggle__bar menu-toggle__bar--h"></span>
       <span class="menu-toggle__bar menu-toggle__bar--v"></span>
     </button>
   </div>
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
-      <nav class="site-header__nav">
+      <nav class="site-header__nav" aria-label="Site">
         <!-- Filter row: the buttons are rendered by js/main.js from the
              ACTIVE series' own category list (data/series.json) — don't
              hand-write them, and don't assume three: each series declares
@@ -90,11 +98,16 @@
   </div>
 </header>
 
-<main class="product-detail" id="productDetail">
+<main class="product-detail" id="productDetail" tabindex="-1">
+<noscript>
+  <div class="page-shell">
+    <p class="page-shell__loading">This page needs JavaScript to load its content.</p>
+  </div>
+</noscript>
 
   <!-- Only ever holds the not-found message now (js/product.js showNotFound);
        the wait itself is the page's arrival loader (js/loader.js). -->
-  <p class="product-detail__loading" id="productDetailLoading" hidden></p>
+  <p class="product-detail__loading" id="productDetailLoading" role="status" hidden></p>
 
   <div class="product-detail__content" id="productDetailContent" hidden>
 
@@ -106,7 +119,7 @@
         <h1 class="product-detail__label-text">
           <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
         </h1>
-        <span class="product-detail__label-price" id="productLabelPrice"></span>
+        <span class="product-detail__label-price" id="productLabelPrice" aria-live="polite" aria-atomic="true"></span>
       </div>
 
       <!-- 2. Carousel: 3D model (always slide 1) + real product photos.
@@ -244,17 +257,15 @@
   </div>
 </div>
 
-<!-- defer on main.js/product.js: js/three-viewer.js (a module, loaded in
+<!-- defer on main.js/product.js: js/viewer-entry.js (a module, loaded in
      <head>) executes on the same deferred queue as defer'd classic
      scripts, in document order — since the module tag comes first, it's
-     guaranteed to have already set window.EmjiveModelViewer by the time
+     guaranteed to have already defined window.EmjiveLoadViewer by the time
      these run. Without defer, these would run inline as soon as the
-     parser reached them, which can race ahead of the module (its own
-     fetch("data/products.json") can resolve before the module has
-     finished loading "three"). The plain synchronous scripts below don't
-     touch window.EmjiveModelViewer at load — modify-modal.js only reads it
-     once a Modify is clicked, long after the module has run — so they're
-     left undeferred; selection.js still runs (and sets
+     parser reached them, ahead of the module. The plain synchronous
+     scripts below don't touch the viewer at load — modify-modal.js only
+     asks for it once a Modify is clicked, long after the module has run —
+     so they're left undeferred; selection.js still runs (and sets
      window.EmjiveSelection) before the deferred pair, same as today. -->
 <script src="js/main.js" defer></script>
 <!-- Plain (non-deferred) so window.EmjiveFocusTrap and window.EmjiveCarousel

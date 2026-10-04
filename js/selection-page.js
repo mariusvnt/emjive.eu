@@ -91,7 +91,9 @@
   };
   // The strip goes into the bar now, hidden, rather than in the middle of
   // the first Modify.
-  window.EmjiveModifyModal.attach(stripHost);
+  // Modify is an enhancement on this page: the list, shipping and terms all
+  // work without it, so a missing sheet script must not abort the page.
+  if (window.EmjiveModifyModal) window.EmjiveModifyModal.attach(stripHost);
 
   /* ---- the drawer over the checkout bar ---------------------------------------
      The floating bar on every other page opens the Modify sheet from its
@@ -336,17 +338,16 @@
     if (e.target.closest("a")) return;
     termsAccepted = !termsAccepted;
     termsToggleEl.classList.toggle("is-checked", termsAccepted);
-    termsToggleEl.setAttribute("aria-pressed", String(termsAccepted));
+    termsToggleEl.setAttribute("aria-checked", String(termsAccepted));
     updateCheckoutGate();
   });
 
   /* ---- checkout -------------------------------------------------------
-     No backend yet — same "isn't connected yet" stub js/main.js's contact
-     form uses, until a real Stripe Checkout session exists to redirect to.
+     No backend yet — an "isn't connected yet" notice, until a real Stripe Checkout session exists to redirect to.
      Inert while the bar is standing in as the Modify sheet's strip. */
   checkoutButton.addEventListener("click", function () {
     if (checkoutButton.disabled || stripShown) return;
-    alert("Checkout isn't connected yet. Wire this up to a Stripe Checkout session once the backend exists.");
+    window.EmjiveOrderRows.notice("Checkout isn't connected yet. Wire this up to a Stripe Checkout session once the backend exists.");
   });
 
   /* ---- render -----------------------------------------------------------

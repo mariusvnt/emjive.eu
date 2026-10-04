@@ -100,6 +100,10 @@ assets/fonts/dinish-woff2/DINish-Regular.woff2
 
 That's the path `css/style.css`'s first `@font-face` rule points at, and it exists on disk — so the font file itself isn't the problem if DINish isn't rendering. See `styling.md`'s note: that rule previously had a real syntax bug (a trailing comma in its `src` value) that made browsers drop the whole declaration regardless of the file being present and correctly pathed.
 
+## `public/` icons (outside `assets/`)
+
+`public/favicon.ico` and `public/apple-touch-icon.png` are generated from `assets/logo_compact.svg` by `npm run render-favicons`. They live in `public/` (not `assets/`) because they are requested by fixed root URLs and must not be content-hashed; Vite copies `public/` to the root of `dist/`. See `tooling.md`.
+
 ## Pointers
 
 - Which JSON fields point at these files: `data.md`

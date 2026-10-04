@@ -3,10 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#ffffff" />
+<meta name="theme-color" content="#f8f8f8" />
 <title>Your selection — em·ji·ve</title>
 <meta name="description" content="Your current selection" />
+<!-- Per-visitor page (the contents of one person's selection): nothing here for a search
+     engine to index. -->
+<meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
@@ -16,7 +21,9 @@
 <meta property="og:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 <meta property="og:image:width" content="512" />
 <meta property="og:image:height" content="512" />
-<meta name="twitter:card" content="summary_large_image" />
+<meta property="og:image:alt" content="em&middot;ji&middot;ve — Marrow ring in steel" />
+<meta property="og:locale" content="en" />
+<meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="Your selection — em·ji·ve" />
 <meta name="twitter:description" content="Your current selection" />
 <meta name="twitter:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
@@ -54,27 +61,29 @@
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) — for the
-     Modify sheet's carousel (js/modify-modal.js), which only reads it once a
-     Modify is clicked, so nothing below needs to wait for it. -->
-<script type="module" src="js/three-viewer.js"></script>
+<!-- Lazy 3D viewer loader (see js/viewer-entry.js). This page draws no model
+     of its own; the only consumer is the Modify sheet's carousel
+     (js/modify-modal.js), which asks for the viewer when a Modify is
+     clicked — so three.js is not downloaded at all unless that happens. -->
+<script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body id="top">
+<a class="skip-link" href="#main">Skip to content</a>
 
 
 <header class="site-header">
   <div class="site-header__row">
     <a class="site-header__brand" href="index.html#top">
-      <img src="assets/logo.svg" alt="em&middot;ji&middot;ve" />
+      <img src="assets/logo.svg" width="512" height="192" alt="em&middot;ji&middot;ve" />
     </a>
-    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+    <button class="menu-toggle" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="siteHeaderMenu">
       <span class="menu-toggle__bar menu-toggle__bar--h"></span>
       <span class="menu-toggle__bar menu-toggle__bar--v"></span>
     </button>
   </div>
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
-      <nav class="site-header__nav">
+      <nav class="site-header__nav" aria-label="Site">
         <!-- Filter row: the buttons are rendered by js/main.js from the
              ACTIVE series' own category list (data/series.json) — don't
              hand-write them, and don't assume three: each series declares
@@ -92,7 +101,12 @@
   </div>
 </header>
 
-<main class="selection-page">
+<main class="selection-page" id="main" tabindex="-1">
+<noscript>
+  <div class="page-shell">
+    <p class="page-shell__loading">This page needs JavaScript to load its content.</p>
+  </div>
+</noscript>
   <!-- Visually hidden for the same reason index.html's is: the design has
        nowhere to put a visible title (the page opens on the item list), but
        it had no heading at all. See .visually-hidden in css/style.css. -->
@@ -113,8 +127,13 @@
     </section>
 
     <div class="order-terms" id="orderTerms">
-      <p class="order-terms__text">I have read and accept the <a href="terms.html">terms &amp; conditions</a>.</p>
-      <button type="button" class="order-terms__toggle" id="orderTermsToggle" aria-pressed="false" aria-label="Accept the terms and conditions"></button>
+      <p class="order-terms__text" id="orderTermsText">I have read and accept the <a href="terms.html">terms &amp; conditions</a>.</p>
+      <!-- A checkbox to assistive tech (it is one: checked or not, and the
+           choice gates checkout), named by the visible sentence beside it —
+           not an aria-pressed toggle button with a hand-written label that
+           could drift from that sentence. Still a styled <button> so the look
+           and the click handling are untouched. -->
+      <button type="button" class="order-terms__toggle" id="orderTermsToggle" role="checkbox" aria-checked="false" aria-labelledby="orderTermsText"></button>
     </div>
   </div>
 </main>

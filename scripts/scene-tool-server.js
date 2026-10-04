@@ -341,7 +341,28 @@ function serveStatic(req, res) {
   });
 }
 
+// These servers can write to and delete files in the repo, so they must only
+// ever answer this machine: bound to the loopback interface (not the LAN),
+// and — because a web page the developer happens to have open could still
+// aim a request at localhost — only for requests whose Host is a loopback
+// name (stops DNS rebinding) and, for anything that isn't a plain read, whose
+// Origin is this server itself (stops cross-site writes).
+const LOOPBACK = "127.0.0.1";
+function isLocalRequest(req) {
+  const host = String(req.headers.host || "");
+  const allowed = ["localhost:" + PORT, LOOPBACK + ":" + PORT];
+  if (!allowed.includes(host)) return false;
+  if (req.method === "GET" || req.method === "HEAD") return true;
+  const origin = req.headers.origin;
+  return !origin || allowed.some((h) => origin === "http://" + h);
+}
+
 const server = http.createServer((req, res) => {
+  if (!isLocalRequest(req)) {
+    res.writeHead(403, { "Content-Type": "text/plain" });
+    res.end("forbidden");
+    return;
+  }
   var routeKey = req.method + " " + req.url.split("?")[0];
   var handler = ROUTES[routeKey];
   if (handler) {
@@ -354,6 +375,6 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
-server.listen(PORT, () => {
-  console.log("scene-tool — http://localhost:" + PORT + "/scene-tool.html");
+server.listen(PORT, LOOPBACK, () => {
+  console.log("scene-tool — http://" + LOOPBACK + ":" + PORT + "/scene-tool.html");
 });

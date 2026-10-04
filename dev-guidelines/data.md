@@ -10,6 +10,8 @@ There is no global `data/products.json` any more; it split into the three above.
 
 **Every path inside these files is repo-root-relative with no leading slash** (`assets/series/bones/...`, `series/bones/hero.css`). That resolves correctly *only* because every HTML page sits at the repo root — the fetches are relative to the page, and `vite.config.js` sets `base: "/"`. A page in a subdirectory would silently break all of them.
 
+**`npm run validate-data` (`scripts/validate-data.js`) checks all of this** — field types, the cross-references below (featured slug, hdri/category/metal keys, ids unique within a series), and that every path exists with its exact on-disk case. It runs in CI before every deploy; run it after hand-editing or after `json-tool`.
+
 ## `data/series.json` — top-level schema
 
 | Field | Type | Purpose |

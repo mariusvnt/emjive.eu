@@ -16,9 +16,14 @@
   <section class="reveal" id="revealSection">
     <div class="reveal__pin">
       <div class="reveal__stage">
-        <img class="reveal__img reveal__img--normal" src="assets/series/bones/hero/hand-rings-under-flesh_3k.webp" alt="" />
+        <!-- The LCP image: fetchpriority="high" because by the time this fragment
+             is cloned in, the grid's own icons are usually already queued and
+             the browser has no other way to know this one outranks them.
+             width/height are the file's intrinsic size (the CSS sets both
+             dimensions itself) so the box is reserved before it decodes. -->
+        <img class="reveal__img reveal__img--normal" src="assets/series/bones/hero/hand-rings-under-flesh_3k.webp" width="2880" height="1620" fetchpriority="high" alt="" />
         <div class="reveal__xray-group" id="revealXrayGroup">
-          <img class="reveal__img--xray" src="assets/series/bones/hero/hand_xray.webp" alt="" />
+          <img class="reveal__img--xray" src="assets/series/bones/hero/hand_xray.webp" width="1920" height="1080" alt="" />
           <!-- .reveal__ring <img>s are inserted here by hero.js's
                updateHeroRings() — one per product whose
                hero-hand-visibility.visible is true in this series'
@@ -35,7 +40,7 @@
      position: relative and stacks the grid above it), not inside .reveal. -->
 <template data-series-slot="seriesBackdrop">
   <div class="reveal__extension-crop">
-    <img class="reveal__extension reveal__extension--1" src="assets/series/bones/hero/hand_xray_extension_1.webp" alt="" />
-    <img class="reveal__extension reveal__extension--2" src="assets/series/bones/hero/hand_xray_extension_2.webp" alt="" />
+    <img class="reveal__extension reveal__extension--1" src="assets/series/bones/hero/hand_xray_extension_1.webp" width="3840" height="2160" alt="" />
+    <img class="reveal__extension reveal__extension--2" src="assets/series/bones/hero/hand_xray_extension_2.webp" width="3840" height="2160" alt="" />
   </div>
 </template>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#f8f8f8" />
+<meta name="robots" content="noindex" />
+<title>Page not found — em·ji·ve</title>
+<link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+
+<!-- The server serves this at ANY path that doesn't exist (see ErrorDocument
+     in public/.htaccess), including deep ones like /foo/bar/baz, so nothing
+     here may rely on a path relative to this file once it is built. Vite
+     rewrites the stylesheet, logo and favicon above to absolute hashed
+     /assets/... URLs because base is "/". That is also why there is no
+     <script> on this page at all: the site's classic scripts (js/*.js) are
+     plain unbundled files referenced relatively, so they would 404 at depth.
+     The home link below is the absolute "/" for the same reason. -->
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body id="top">
+
+<header class="site-header">
+  <div class="site-header__row">
+    <a class="site-header__brand" href="/">
+      <img src="assets/logo.svg" width="512" height="192" alt="em&middot;ji&middot;ve" />
+    </a>
+  </div>
+</header>
+
+<main class="page-shell">
+  <div class="section-head">
+    <span class="section-head__index">404</span>
+    <h1>Page not found</h1>
+  </div>
+
+  <div class="page-shell__body">
+    <a class="btn" href="/">Back to the gallery</a>
+  </div>
+</main>
+
+</body>
+</html>

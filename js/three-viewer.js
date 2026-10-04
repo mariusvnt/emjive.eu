@@ -367,11 +367,25 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   var hdrSourceCache = {};
   var hdrLoadsInFlight = 0;
 
+  // three's loaders take no AbortSignal, so a request that stalls (rather
+  // than fails) would leave a viewer waiting forever with nothing to fall
+  // back on. Rejecting after this long hands it to the same error path a
+  // failed request takes; the stalled download itself is simply abandoned.
+  // Generous: the biggest single file is a ~4MB model on a slow mobile link.
+  var LOAD_TIMEOUT_MS = 90000;
+
   function loadHdrSource(src) {
     if (!hdrSourceCache[src]) {
       hdrLoadsInFlight++;
       hdrSourceCache[src] = new Promise(function (resolve, reject) {
-        new HDRLoader().load(src, resolve, undefined, reject);
+        var timer = setTimeout(function () { reject(new Error("Timed out loading " + src)); }, LOAD_TIMEOUT_MS);
+        new HDRLoader().load(src, function (texture) {
+          clearTimeout(timer);
+          resolve(texture);
+        }, undefined, function (err) {
+          clearTimeout(timer);
+          reject(err);
+        });
       }).then(
         function (texture) {
           hdrLoadsInFlight--;
@@ -420,7 +434,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   function loadEnvironment(renderer, hdriSrc) {
     var src = hdriSrc || DEFAULT_HDRI_SRC;
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
-    pmremGenerator.compileEquirectangularShader();
+    // Synchronous, so a throw here would escape as an exception out of the
+    // viewer's constructor instead of the rejected promise every other
+    // failure in this chain becomes — leaving the renderer (and its WebGL
+    // context) behind. Turn it into the same rejection.
+    try {
+      pmremGenerator.compileEquirectangularShader();
+    } catch (err) {
+      pmremGenerator.dispose();
+      console.error("emjive: failed to prepare the HDRI environment", err);
+      return Promise.reject(err);
+    }
     return loadHdrSource(src).then(
       function (sourceTexture) {
         // A fresh DataTexture per call, sharing sourceTexture's pixel
@@ -620,6 +644,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
     var wrapper = document.createElement("div");
     wrapper.className = "emjive-3d-viewer";
+    // The canvas is the whole of it and has no text of its own: without a
+    // name a screen reader meets an unlabelled graphic. role="img" presents
+    // the viewer as one named picture (the product's), which is what it is
+    // to a visitor who can't see it; dragging it is a pointer-only extra.
+    wrapper.setAttribute("role", "img");
+    wrapper.setAttribute("aria-label", ((product && product.name) || "Product") + ", 3D model");
 
     var renderer;
     try {
@@ -776,15 +806,28 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // without it, everything a fast scroll started but didn't finish
     // leaked its full decoded geometry, which is precisely the memory the
     // lazy grid exists to cap.
+    // Material.dispose() frees the compiled program but NOT its textures
+    // (maps are separate GPU objects), so a glTF's own maps would otherwise
+    // outlive everything that could ever draw them.
+    function disposeMaterial(material) {
+      if (!material) return;
+      if (Array.isArray(material)) {
+        material.forEach(disposeMaterial);
+        return;
+      }
+      Object.keys(material).forEach(function (key) {
+        var value = material[key];
+        if (value && value.isTexture) value.dispose();
+      });
+      material.dispose();
+    }
+
     function disposeObject3D(root) {
       if (!root) return;
       root.traverse(function (node) {
         if (!node.isMesh) return;
         if (node.geometry) node.geometry.dispose();
-        var material = node.material;
-        if (!material) return;
-        if (Array.isArray(material)) material.forEach(function (m) { m.dispose(); });
-        else material.dispose();
+        disposeMaterial(node.material);
       });
     }
 
@@ -1019,12 +1062,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // thin/open enough that some angles look straight through a
         // back-culled face into the inside — rendering both sides fixes
         // it, applied unconditionally to every mesh.
+        var previous = node.material;
         node.material = new THREE.MeshStandardMaterial({
           color: params.color,
           metalness: params.metalness,
           roughness: params.roughness,
           side: THREE.DoubleSide
         });
+        // Every metal switch used to leave the material it replaced (and, the
+        // first time, the glTF's own textured one) allocated for the life of
+        // the viewer.
+        disposeMaterial(previous);
       });
     }
 
@@ -1050,9 +1098,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       // asks the decoder for anything.
       preloadDracoDecoder();
       modelPromise = new Promise(function (resolve, reject) {
+        var loadTimer = setTimeout(function () {
+          reject(new Error("Timed out loading " + product.assets.model));
+        }, LOAD_TIMEOUT_MS);
         gltfLoader.load(
           product.assets.model,
           function (gltf) {
+            clearTimeout(loadTimer);
             // Same late-arrival case as the environment above, and the
             // more expensive of the two: this is the fully decoded
             // geometry of a model that can be tens of MB on the wire and
@@ -1070,6 +1122,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           },
           undefined,
           function (err) {
+            clearTimeout(loadTimer);
             console.error("emjive: failed to load model", product.assets.model, err);
             reject(err);
           }

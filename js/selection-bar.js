@@ -23,7 +23,10 @@
 (function () {
   "use strict";
 
-  if (!window.EmjiveSelection) return;
+  // The drawer's rows are built with the order-row component at load, so
+  // without it there is nothing to build; bail like a missing selection
+  // store does rather than throw halfway through building the bar.
+  if (!window.EmjiveSelection || !window.EmjiveOrderRows) return;
 
   function el(tag, className) {
     var node = document.createElement(tag);
@@ -93,6 +96,16 @@
   // opens, no manual position math needed.
   bar.appendChild(drawer);
   bar.appendChild(summary);
+
+  // The visible count crossfades and is aria-hidden while it fades out, so a
+  // screen-reader user got no word that an Add or an Unselect had worked.
+  // This is what says so: a visually-hidden polite status, written only when
+  // the count CHANGES (never for the page's first render).
+  var statusEl = el("div", "visually-hidden");
+  statusEl.setAttribute("role", "status");
+  bar.appendChild(statusEl);
+  var announcedCount = null;
+
   document.body.appendChild(bar);
 
   // The drawer's rows: the order page's own row component, not a lookalike.
@@ -284,7 +297,8 @@
         return bar.contains(node) || !!(node && node.closest && node.closest("#modifyModal"));
       }
     },
-    close: function () { setDrawerOpen(false); }
+    close: function () { setDrawerOpen(false); },
+    returnFocus: toggleBtn
   };
 
   function setDrawerOpen(isOpen) {
@@ -650,6 +664,13 @@
 
     renderIcons(items, e && e.detail);
 
+    if (announcedCount !== null && items.length !== announcedCount) {
+      statusEl.textContent = hasItems
+        ? items.length + (items.length === 1 ? " item" : " items") + " in your order"
+        : "Your order is empty";
+    }
+    announcedCount = items.length;
+
     // Both stay in the layout (no [hidden]) and crossfade via opacity —
     // see the .is-hidden rules in css/style.css — rather than popping
     // instantly between "No selected item" and "Order (N)".
@@ -696,6 +717,12 @@
   // always the point (see the header comment): on a page with no hero
   // nothing ever publishes, so nothing ever happens and the bar just stays
   // visible — no special-casing, same as before.
+  var summaryHeight = 0;
+  if (window.EmjiveHero && typeof ResizeObserver === "function") {
+    new ResizeObserver(function (entries) {
+      summaryHeight = entries[entries.length - 1].target.getBoundingClientRect().height;
+    }).observe(summary);
+  }
   if (window.EmjiveHero) {
     window.EmjiveHero.onScroll(function (pastTriggerPx, hasScrollRange) {
       // The summary row specifically, not .selection-bar as a whole: the
@@ -703,7 +730,12 @@
       // would make "how far to scroll" fluctuate with unrelated drawer
       // state instead of staying tied to the one constant, always-visible
       // part of the bar.
-      var revealDistance = Math.max(summary.getBoundingClientRect().height, 1);
+      //
+      // Read from a ResizeObserver's cache rather than measured here: this
+      // runs once per scroll frame, right after the hero has WRITTEN styles,
+      // so a getBoundingClientRect() at this point forced a synchronous
+      // layout every frame.
+      var revealDistance = Math.max(summaryHeight || summary.getBoundingClientRect().height, 1);
       var progress = hasScrollRange ? Math.min(1, pastTriggerPx / revealDistance) : 1;
       bar.style.transform = "translateY(" + (100 - progress * 100) + "%) translateZ(0)";
     });

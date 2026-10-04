@@ -66,8 +66,13 @@
   // transform in css/style.css) plus a margin — the viewer is disposed only
   // once it's out of sight, or the model would blank out mid-slide.
   var SLIDE_OUT_MS = 350;
-  // How long the bar offers "Undo" after an Unselect.
-  var UNDO_MS = 4000;
+  // How long the bar offers "Undo" after an Unselect. Eight seconds, not four:
+  // a timed offer has to be long enough to find, read and reach (WCAG 2.2.1),
+  // and it is also held open for as long as the pointer is over the button or
+  // it has keyboard focus — see armUndo().
+  var UNDO_MS = 8000;
+  // How often a held-open offer re-checks whether it may expire.
+  var UNDO_RECHECK_MS = 1000;
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -492,7 +497,19 @@
   var SLIDE_IN_MS = 400;
 
   function scheduleViewer() {
-    if (!state.modelSlide || !window.EmjiveModelViewer) return;
+    if (!state.modelSlide) return;
+    if (typeof window.EmjiveModelViewer !== "function") {
+      // The viewer is a lazy chunk (js/viewer-entry.js) and this may be the
+      // first thing on the page to want it: fetch it while the sheet slides
+      // in, then come back. A failed download leaves the poster, which is
+      // what a browser with no WebGL gets anyway.
+      if (!window.EmjiveLoadViewer) return;
+      var token = state.openToken;
+      window.EmjiveLoadViewer().then(function () {
+        if (state.isOpen && token === state.openToken) scheduleViewer();
+      }, function () {});
+      return;
+    }
     state.cancelViewerBuild = afterTransition(sheet, "transform", SLIDE_IN_MS, function () {
       state.cancelViewerBuild = null;
       buildViewer();
@@ -599,8 +616,24 @@
       item: removed,
       index: index,
       options: options,
-      timer: setTimeout(expireUndo, UNDO_MS)
+      timer: armUndo(UNDO_MS)
     };
+  }
+
+  // The expiry timer. Not simply setTimeout(expireUndo): when it fires while
+  // the visitor is hovering Undo or has it focused, they are evidently still
+  // deciding, so the offer is kept and checked again a moment later instead
+  // of being pulled out from under the pointer or the focus ring.
+  function armUndo(ms) {
+    return setTimeout(function () {
+      var pending = state.undo;
+      if (!pending) return;
+      if (document.activeElement === undoBtn || undoBtn.matches(":hover")) {
+        pending.timer = armUndo(UNDO_RECHECK_MS);
+        return;
+      }
+      expireUndo();
+    }, ms);
   }
 
   // Back where it was — clamped, in case the list got shorter meanwhile.
@@ -767,8 +800,8 @@
   // falls back to the active series for a pre-refactor selection saved
   // without one. A genuine miss (the product no longer exists in that
   // series' catalog) leaves the sheet unopened with an explanation, the
-  // same "can't do that right now" alert() convention the checkout button
-  // stub uses.
+  // same "can't do that right now" notice (EmjiveOrderRows.notice) the
+  // checkout button stub uses.
   function open(item, index, options) {
     // Already up: the only row still in view (or reachable) is the one it's
     // showing, and reopening would throw away picks not saved yet.
@@ -781,7 +814,7 @@
           if (token !== state.openToken) return;
           var product = products.find(function (p) { return p.id === item.productId; });
           if (!product) {
-            alert("This item's original product listing couldn't be found, so it can't be modified here.");
+            window.EmjiveOrderRows.notice("This item's original product listing couldn't be found, so it can't be modified here.");
             return;
           }
           show(item, index, product, slug, options || {});
@@ -795,7 +828,7 @@
       .catch(function (err) {
         if (token !== state.openToken) return;
         console.error("emjive: could not open the modify sheet", err);
-        alert("This item's original product listing couldn't be loaded, so it can't be modified right now.");
+        window.EmjiveOrderRows.notice("This item's original product listing couldn't be loaded, so it can't be modified right now.");
       });
   }
 

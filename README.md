@@ -37,7 +37,7 @@ the product grid loads its data via `fetch`, which browsers block on
 
 `npm run build` produces a real, portable `dist/` folder — a plain
 `vite build` isn't enough on its own for this site, so `vite.config.js`
-adds two things on top of Vite's defaults:
+adds a few things on top of Vite's defaults:
 
 - **Multi-page entries** — Vite only treats `index.html` as a build entry
   by default; every other page is listed explicitly too, so all seven get
@@ -51,26 +51,42 @@ adds two things on top of Vite's defaults:
   paths, the hero bundle paths in `data/series.json`, or the HDRI path in
   `js/three-viewer.js`. Copying those four folders (`js/`, `assets/`,
   `data/`, `series/`) verbatim sidesteps tracing every case individually.
+  The copied `js/*.js` and each hero's `hero.js`/`hero.css` are minified in
+  place (same names — nothing references a hash for them).
+- **Head fixes** — Vite inlines the `series.json` preload as a `data:` URL
+  and moves the stylesheet behind the blocking scripts; a post plugin puts
+  both back. `sitemap.xml` is generated from the catalog data.
+- **`public/`** — copied to the root of `dist/` as-is: `.htaccess` (HTTPS,
+  compression, cache and security headers), `robots.txt`, the favicons.
+
+`npm run verify` is everything a change has to pass: ESLint, the data-file
+schema check (including exact-case asset paths), a production build, and
+assertions about the built output (`scripts/check-dist.js`). CI runs the same
+thing on every pull request and before every deploy.
 
 ### The live setup: OVH, over SFTP
 
 The site is served from the root of `emjive.eu` on OVH shared hosting.
 Every push to `main` deploys it automatically: the GitHub Actions workflow
-in `.github/workflows/deploy.yml` runs `npm ci` and `npm run build`, then
-uploads the *contents* of `dist/` to the `www/` folder on the OVH hosting
-over SFTP (port 22, via `lftp`), so `index.html` sits directly in `www/`.
-It's also runnable by hand from the repo's Actions tab ("Run workflow").
-After a deploy, hard-refresh (Ctrl+F5) to get past cached copies.
+in `.github/workflows/deploy.yml` first runs `.github/workflows/verify.yml`
+(the checks above), then uploads the *contents* of the `dist/` it built to the
+`www/` folder on the OVH hosting over SFTP (port 22, via `lftp`), so
+`index.html` sits directly in `www/`. It's also runnable by hand from the
+repo's Actions tab ("Run workflow"). The HTML, scripts and JSON are served
+with `no-cache` (see `public/.htaccess`), so a normal reload picks up a deploy.
 
 Every run re-uploads the whole build (about 23 MB) rather than diffing it,
 then makes `www/` an **exact mirror** of `dist/`: anything on the server
-that the build doesn't produce (an old hashed asset, a removed image) is
-deleted, after the new files are up so the site is never missing pages
-mid-deploy. That includes files put there by hand (an `.htaccess`, a
-`robots.txt`) — if one is ever needed, put it in a `public/` folder at the
-repo root, which Vite copies into `dist/` as-is. The job
-refuses to run if `dist/index.html` is missing, so a broken build can't wipe
-the site.
+that the build doesn't produce (a removed image) is deleted, after the new
+files are up so the site is never missing pages mid-deploy. The exception is
+the previous releases' content-hashed bundles directly under `assets/`
+(`three-viewer-<hash>.js`, `style-<hash>.css`, hashed fonts): they are kept,
+so a visitor whose browser still holds the old HTML doesn't 404 on a bundle
+that was just deleted. Clear them now and then (say monthly) by running the
+workflow by hand with **prune_old_assets** ticked. Files put on the server by
+hand (an `.htaccess`, a `robots.txt`) are wiped — they live in `public/`.
+The job refuses to run if `dist/index.html` is missing, so a broken build
+can't wipe the site.
 
 To see what a run would do before it does it, use the Actions tab → "Deploy
 to OVH (SFTP)" → "Run workflow" with **dry_run** ticked. It builds, connects,
@@ -112,7 +128,33 @@ change.
 
 The host is Linux, so filenames are **case-sensitive**: a path in
 `products.json` that differs from the real filename only by case works on
-Windows and 404s in production.
+Windows and 404s in production. `npm run validate-data` checks every path in
+`data/` with the exact case on disk.
+
+### Production checklist
+
+After the first deploy that includes `public/.htaccess`, confirm each part of
+it actually applied on the OVH plan (a missing Apache module just skips its
+block, silently):
+
+- `curl -I http://emjive.eu/` redirects to `https://emjive.eu/` (and
+  `www.` to the apex).
+- `curl -I https://emjive.eu/js/main.js` shows `Cache-Control: no-cache` and
+  `Content-Encoding: gzip`; a hashed `/assets/style-*.css` shows
+  `max-age=31536000, immutable`.
+- `curl -I https://emjive.eu/assets/hdri/studio_kontrast_04_1k.hdr` and a
+  `.glb` / `.wasm` return a sensible `Content-Type` and are compressed.
+- `https://emjive.eu/some/missing/path` shows the branded 404 page.
+- `/robots.txt` and `/sitemap.xml` load; `/favicon.ico` is not a 404.
+- The security headers are present (`curl -I`; securityheaders.com).
+  `Content-Security-Policy-Report-Only` should log **nothing** in the browser
+  console on any page — when that is true, rename the header to
+  `Content-Security-Policy` in `public/.htaccess` to enforce it. Raise the
+  `Strict-Transport-Security` max-age from 300 once HTTPS has been stable.
+- Run Lighthouse (mobile) on `/` and a product page.
+- Remove the `noindex` meta tag from `archives.html`, `creation-process.html`,
+  `terms.html` and `series.html` (and add them to `sitemap.xml` in
+  `vite.config.js`) when they get real content.
 
 ## Structure, at a glance
 

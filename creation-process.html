@@ -3,10 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="theme-color" content="#ffffff" />
+<meta name="theme-color" content="#f8f8f8" />
 <title>Creation process — em·ji·ve</title>
 <meta name="description" content="Design philosophy, workflow, and production" />
+<!-- Not indexable: this page is either an empty shell waiting on its real content or a
+     per-visitor page. Remove this line when the page has content worth indexing. -->
+<meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
@@ -16,7 +21,9 @@
 <meta property="og:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
 <meta property="og:image:width" content="512" />
 <meta property="og:image:height" content="512" />
-<meta name="twitter:card" content="summary_large_image" />
+<meta property="og:image:alt" content="em&middot;ji&middot;ve — Marrow ring in steel" />
+<meta property="og:locale" content="en" />
+<meta name="twitter:card" content="summary" />
 <meta name="twitter:title" content="Creation process — em·ji·ve" />
 <meta name="twitter:description" content="Design philosophy, workflow, and production" />
 <meta name="twitter:image" content="https://emjive.eu/assets/series/bones/products/marrow_ring/marrow_icon_steel.webp" />
@@ -54,28 +61,30 @@
      Blocking on purpose — see the header comment in js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- 3D viewer (glTF / GLB support, three.js + TrackballControls) — for the
-     Modify sheet's carousel (js/modify-modal.js), reachable from the
-     floating bar's drawer. It only reads the viewer once a Modify is
-     clicked, so nothing below needs to wait for this module. -->
-<script type="module" src="js/three-viewer.js"></script>
+<!-- Lazy 3D viewer loader (see js/viewer-entry.js). This page draws no
+     model of its own; the only consumer is the Modify sheet's carousel
+     (js/modify-modal.js), reachable from the floating bar's drawer, which
+     asks for the viewer when a Modify is clicked — so three.js is not
+     downloaded at all unless that happens. -->
+<script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body id="top">
+<a class="skip-link" href="#main">Skip to content</a>
 
 
 <header class="site-header">
   <div class="site-header__row">
     <a class="site-header__brand" href="index.html#top">
-      <img src="assets/logo.svg" alt="em&middot;ji&middot;ve" />
+      <img src="assets/logo.svg" width="512" height="192" alt="em&middot;ji&middot;ve" />
     </a>
-    <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="siteHeaderMenu">
+    <button class="menu-toggle" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="siteHeaderMenu">
       <span class="menu-toggle__bar menu-toggle__bar--h"></span>
       <span class="menu-toggle__bar menu-toggle__bar--v"></span>
     </button>
   </div>
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
-      <nav class="site-header__nav">
+      <nav class="site-header__nav" aria-label="Site">
         <!-- Filter row: the buttons are rendered by js/main.js from the
              ACTIVE series' own category list (data/series.json) — don't
              hand-write them, and don't assume three: each series declares
@@ -93,7 +102,7 @@
   </div>
 </header>
 
-<main class="page-shell">
+<main class="page-shell" id="main" tabindex="-1">
   <div class="section-head">
     <span class="section-head__index">process</span>
     <h1>Creation process</h1>

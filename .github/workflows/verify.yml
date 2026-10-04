@@ -1,0 +1,42 @@
+name: Verify
+
+# Everything that must be true of a change before it can go live: lint, the
+# data files against their schema (including exact-case asset paths — the dev
+# machine's file system doesn't care about case, the Linux host does), a real
+# production build, assertions about the built output, and an audit of the
+# runtime dependencies.
+#
+# Runs on every pull request, and is called by deploy.yml, which publishes the
+# exact dist/ this job produced (uploaded as an artifact) rather than
+# rebuilding it — so what is checked is what ships.
+#
+# Locally the same checks are:   npm run verify   (then `npm audit --omit=dev`)
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      # Only what is shipped to visitors. The devDependencies (build tooling,
+      # the asset pipeline) never reach the site, so findings there are
+      # tracked as maintenance rather than blocking a deploy.
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

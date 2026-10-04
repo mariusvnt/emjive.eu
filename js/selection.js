@@ -22,12 +22,60 @@
   // null while storage is working.
   var memoryItems = null;
 
+  // Stored shape: { v: STORAGE_VERSION, items: [...] }. The version is what
+  // lets a future change to an item's fields migrate old carts instead of
+  // guessing. The original format — a bare array of items, written by every
+  // release before this one — is still read (as "version 0") and is simply
+  // rewritten in the new shape on the next write.
+  var STORAGE_VERSION = 1;
+
+  // localStorage is writable by anything on the origin and survives across
+  // deploys, so what comes back can be stale, hand-edited or corrupt. One bad
+  // entry (null, a string, an item with no productId) used to throw inside
+  // itemKey() and take the bar and the whole order page down with it. This
+  // keeps only entries that are usable and coerces the fields the UI does
+  // arithmetic or string-building on.
+  function isSafeImagePath(path) {
+    // A same-origin relative path only: no scheme (javascript:, data:,
+    // https:) and no protocol-relative "//host" — it ends up in an <img src>.
+    return typeof path === "string" && path !== "" &&
+      !/^[a-z][a-z0-9+.-]*:/i.test(path) && path.indexOf("//") !== 0;
+  }
+
+  function sanitizeItem(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    if (raw.productId == null || raw.productId === "") return null;
+    var price = Number(raw.price);
+    var item = Object.assign({}, raw, {
+      productId: String(raw.productId),
+      name: raw.name == null ? "" : String(raw.name),
+      category: raw.category == null ? "" : String(raw.category),
+      metal: raw.metal == null ? "" : String(raw.metal),
+      size: raw.size == null ? "" : String(raw.size),
+      price: isFinite(price) && price > 0 ? price : 0,
+      image: isSafeImagePath(raw.image) ? raw.image : ""
+    });
+    if (item.series != null) item.series = String(item.series);
+    return item;
+  }
+
+  function sanitizeItems(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var item = sanitizeItem(list[i]);
+      if (item) out.push(item);
+    }
+    return out;
+  }
+
   function readAll() {
     if (memoryItems) return memoryItems.slice();
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
-      var parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      var list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : []);
+      return sanitizeItems(list);
     } catch (e) {
       return [];
     }
@@ -35,12 +83,23 @@
 
   function writeAll(items) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_VERSION, items: items }));
       memoryItems = null;
     } catch (e) {
       memoryItems = items.slice();
     }
   }
+
+  // Another tab changed the cart: tell this one, so the bar and the order
+  // page don't keep showing a list that no longer matches storage. (The
+  // "storage" event only fires in OTHER documents, so this can't loop with
+  // notify() below.) Ignored while the memory fallback is in charge, since
+  // storage isn't this page's source of truth then.
+  global.addEventListener("storage", function (e) {
+    if (e.key !== null && e.key !== STORAGE_KEY) return;
+    if (memoryItems) return;
+    notify("sync");
+  });
 
   // Lets any page-specific script (the floating selection bar especially)
   // react live to a change instead of needing a reload. Dispatched

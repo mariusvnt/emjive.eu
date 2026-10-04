@@ -1,0 +1,112 @@
+# Server configuration for the OVH (Apache) host. Vite copies public/ to the
+# root of dist/, and the deploy mirrors dist/ over www/ with --delete — so this
+# file only survives if it lives here, never if it is edited on the server.
+#
+# Every block is wrapped in <IfModule> so a module missing on the hosting plan
+# degrades to "directive skipped" rather than a 500 for the whole site. After
+# the first deploy, confirm with `curl -I` that each section really applied
+# (see "Production checklist" in README.md).
+
+Options -Indexes
+ServerSignature Off
+
+# ---------------------------------------------------------------------------
+# HTTPS and a single host name
+# ---------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # www -> apex (the canonical/og:url host is https://emjive.eu).
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+  # http -> https. X-Forwarded-Proto covers a TLS-terminating proxy in front
+  # of Apache, where %{HTTPS} is "off" even for secure requests.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# MIME types — the 3D assets are the ones shared hosts most often get wrong.
+# A wrong .wasm type breaks streaming compilation of the Draco decoder.
+# ---------------------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType model/gltf-binary .glb
+  AddType application/wasm  .wasm
+  AddType application/octet-stream .hdr
+  AddType image/webp .webp
+  AddType font/woff2 .woff2
+  AddType application/json .json
+  AddType application/javascript .js .mjs
+  AddCharset UTF-8 .html .css .js .json .svg .xml .txt
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression. .glb/.hdr/.wasm are included on purpose: they compress poorly
+# (the studio HDR ~1.47MB -> ~0.9MB) but it is still free bandwidth.
+# ---------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json application/xml
+  AddOutputFilterByType DEFLATE image/svg+xml application/wasm
+  <FilesMatch "\.(hdr|glb)$">
+    SetOutputFilter DEFLATE
+  </FilesMatch>
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Caching
+#
+# Vite content-hashes only what its pipeline traced: the bundle, the CSS and
+# the fonts/SVGs it emitted straight into /assets/. Those never change under
+# the same name, so they are cached for a year. Everything else keeps a fixed
+# filename (js/*.js, data/**, series/**, the HTML, and the models/images/HDRIs
+# under assets/), so a deploy could otherwise leave a returning visitor with a
+# mix of old scripts/JSON and new bundles.
+#   - html/js/css/json/xml/txt: no-cache = always revalidate (a cheap 304 via
+#     ETag), never serve a stale copy.
+#   - unhashed binaries (models, images, HDRIs, wasm): one day, so a returning
+#     visitor doesn't re-validate multi-MB files on every page, while a
+#     replaced model still shows up within a day.
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|mjs|css|json|xml|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(glb|hdr|wasm|webp|png|jpe?g|svg|ico|woff2)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+  <If "%{REQUEST_URI} =~ m#^/assets/[^/]+-[A-Za-z0-9_-]{8}\.(js|css|woff2|svg|webp)$#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+
+  # -------------------------------------------------------------------------
+  # Security headers
+  # -------------------------------------------------------------------------
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+  Header always set X-Frame-Options "DENY"
+
+  # HSTS starts short on purpose: a wrong max-age is hard to take back once a
+  # browser has cached it. Raise to 31536000 (and consider includeSubDomains)
+  # after the site has run on HTTPS for a while.
+  Header always set Strict-Transport-Security "max-age=300"
+
+  # Report-Only first: nothing is blocked, violations just show in the browser
+  # console. The site has no inline scripts or handlers, so this should be
+  # quiet — the sources it needs are listed explicitly:
+  #   img-src data: blob:   liquid-glass.js builds its refraction map as a data URL
+  #   worker-src blob:      three's Draco loader spins up a blob worker
+  #   wasm-unsafe-eval      compiling the Draco decoder wasm
+  # Once a clean pass on every page confirms no violations, rename the header
+  # to Content-Security-Policy to enforce it.
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Errors — 404.html is built from the repo-root 404.html (see vite.config.js)
+# and uses only absolute URLs, so it renders correctly at any path depth.
+# ---------------------------------------------------------------------------
+ErrorDocument 404 /404.html

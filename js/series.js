@@ -72,10 +72,25 @@
     return all[key];
   }
 
+  // A request that neither succeeds nor fails — a stalled connection, a
+  // captive portal holding the socket open — would otherwise leave every
+  // page waiting on it forever (the loader cover included, until its own
+  // watchdog). Aborting turns that into an ordinary failure the callers'
+  // error paths already handle.
+  var FETCH_TIMEOUT_MS = 20000;
+
   function fetchJson(path) {
-    return fetch(path).then(function (res) {
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT_MS) : null;
+    return fetch(path, controller ? { signal: controller.signal } : undefined).then(function (res) {
       if (!res.ok) throw new Error("Could not load " + path);
       return res.json();
+    }).then(function (data) {
+      if (timer) clearTimeout(timer);
+      return data;
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      throw err;
     });
   }
 
@@ -171,6 +186,21 @@
       if (i !== -1) openPanels.splice(i, 1);
     }
   };
+
+  // Escape closes the most-recently-opened panel, the keyboard twin of the
+  // click-away below. Skipped while a dialog (the size or Modify sheet) holds
+  // the focus trap: that Escape belongs to the dialog, and the panel behind it
+  // should still be there when it closes. Focus goes back to the panel's
+  // trigger only if it was inside the panel — otherwise it is left where the
+  // visitor had it.
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape" || !openPanels.length) return;
+    if (window.EmjiveFocusTrap && window.EmjiveFocusTrap.isActive && window.EmjiveFocusTrap.isActive()) return;
+    var top = openPanels.pop();
+    var hadFocus = top.root.contains(document.activeElement);
+    top.close();
+    if (hadFocus && top.returnFocus) top.returnFocus.focus();
+  });
 
   document.addEventListener("click", function (e) {
     if (!openPanels.length) return;
@@ -310,10 +340,15 @@
           } else {
             pageReady();
           }
+          // Its own catch: the hero is already on screen and working by now,
+          // so a products failure must not fall through to the outer catch,
+          // which tears the hero down. (The grid reports its own failure.)
           return loadProducts(activeSlug).then(function (products) {
             if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.onProducts) {
               window.EmjiveSeriesHero.onProducts(products);
             }
+          }).catch(function (err) {
+            console.error("Hero could not receive the products: " + (err && err.message ? err.message : err));
           });
         })
         .catch(function (err) { heroFailed(slot, err); pageReady(); });
@@ -323,6 +358,13 @@
 
     return { index: index, slug: activeSlug, series: activeSeries };
   });
+
+  // If the index itself can't be loaded nothing below ever runs, so nothing
+  // would lift the arrival loader's cover except its long watchdog. Release
+  // it now so the page's own error message (each page's script handles the
+  // rejection of `ready`) is what the visitor sees. A side branch: `ready`
+  // itself still rejects for those consumers.
+  ready.catch(function () { pageReady(); });
 
   window.EmjiveSeries = {
     ready: ready,

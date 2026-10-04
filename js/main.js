@@ -22,7 +22,11 @@
   // the header closes it — root spans the whole header (toggle included),
   // not just the menu panel, so clicking the toggle itself is never
   // mistaken for "away" by that shared listener.
-  var headerMenuPanel = { root: siteHeader, close: function () { setHeaderMenuOpen(false); } };
+  var headerMenuPanel = {
+    root: siteHeader,
+    close: function () { setHeaderMenuOpen(false); },
+    returnFocus: menuToggle
+  };
 
   function setHeaderMenuOpen(isOpen) {
     menuToggle.classList.toggle("is-open", isOpen);
@@ -183,10 +187,13 @@
   // series' product page rather than the featured one's.
   var activeSlug = null;
 
-  function el(tag, className, html) {
+  // `text` goes in as textContent, never as HTML: it carries product names
+  // and categories straight from products.json (and, on the error path, an
+  // exception message), and none of the callers need markup.
+  function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
-    if (html !== undefined) node.innerHTML = html;
+    if (text !== undefined) node.textContent = text;
     return node;
   }
 
@@ -322,6 +329,21 @@
   // removed from the card, only hidden) is left showing in that case,
   // same as a product with no "assets.model" field at all.
   function startViewerLoad(entry) {
+    // The viewer is a separately-loaded module. If it never arrived — its
+    // hashed file gone after a deploy while this page's HTML was cached, a
+    // blocked request — there is nothing to call: leave the icon showing
+    // (the same graceful degradation as a product with no model) instead of
+    // throwing a TypeError below, after the slot counter had already gone up
+    // and could never come back down.
+    if (typeof window.EmjiveModelViewer !== "function") {
+      // Not downloaded yet (it is a lazy chunk — js/viewer-entry.js): ask for
+      // it, and once it lands re-run the reconcile, which hands this card its
+      // viewer. If the download fails the card just keeps its icon.
+      if (window.EmjiveLoadViewer) {
+        window.EmjiveLoadViewer().then(scheduleReconcile, function () {});
+      }
+      return;
+    }
     activeModelLoads++;
     var settled = false;
     // Whether it loaded or failed, the slot has to come back — and exactly
@@ -354,41 +376,49 @@
     var loadHold = window.EmjiveLoader ? window.EmjiveLoader.mount(entry.figure) : null;
     entry.loadHold = loadHold;
 
-    var handle = window.EmjiveModelViewer(
-      entry.product,
-      entry.product["default-metal"],
-      {
-        hdri: window.EmjiveSeries.hdriPath(activeSlug),
-        // The card's own icon is already on screen and already framed
-        // for this product, so the viewer's built-in poster would just be
-        // a second, differently-cropped copy of the same ring fading over
-        // the first. See options.poster in js/three-viewer.js.
-        poster: false,
-        loader: loadHold || false,
-        // Several of these can be alive at once, and iOS Safari's canvas
-        // budget is a page-wide total — see maxPixelRatio's comment in
-        // js/three-viewer.js. product.html's single carousel viewer keeps
-        // the full 2x.
-        maxPixelRatio: 1.5,
-        onReady: function () {
-          releaseSlot();
-          revealViewer(entry);
-        },
-        // Fires for an initial load/HDRI failure (the icon is still showing
-        // then — never faded out — so teardownViewer's own iconEl.hidden =
-        // false is a no-op) OR, since three-viewer.js also treats a WebGL
-        // context loss as a failure, for a model that HAD already loaded
-        // and was on screen: iOS Safari can silently reclaim a GPU context
-        // under memory pressure at any time, not just during load. Either
-        // way this puts the icon back and drops the dead viewer, rather
-        // than leaving a blank canvas with nothing telling the visitor
-        // anything's wrong.
-        onError: function () {
-          releaseSlot();
-          teardownViewer(entry);
+    var handle;
+    try {
+      handle = window.EmjiveModelViewer(
+        entry.product,
+        entry.product["default-metal"],
+        {
+          hdri: window.EmjiveSeries.hdriPath(activeSlug),
+          // The card's own icon is already on screen and already framed
+          // for this product, so the viewer's built-in poster would just be
+          // a second, differently-cropped copy of the same ring fading over
+          // the first. See options.poster in js/three-viewer.js.
+          poster: false,
+          loader: loadHold || false,
+          // Several of these can be alive at once, and iOS Safari's canvas
+          // budget is a page-wide total — see maxPixelRatio's comment in
+          // js/three-viewer.js. product.html's single carousel viewer keeps
+          // the full 2x.
+          maxPixelRatio: 1.5,
+          onReady: function () {
+            releaseSlot();
+            revealViewer(entry);
+          },
+          // Fires for an initial load/HDRI failure (the icon is still showing
+          // then — never faded out — so teardownViewer's own iconEl.hidden =
+          // false is a no-op) OR, since three-viewer.js also treats a WebGL
+          // context loss as a failure, for a model that HAD already loaded
+          // and was on screen: iOS Safari can silently reclaim a GPU context
+          // under memory pressure at any time, not just during load. Either
+          // way this puts the icon back and drops the dead viewer, rather
+          // than leaving a blank canvas with nothing telling the visitor
+          // anything's wrong.
+          onError: function () {
+            releaseSlot();
+            teardownViewer(entry);
+          }
         }
-      }
-    );
+      );
+    } catch (err) {
+      // A synchronous throw out of the viewer (WebGL setup, a bad product
+      // record) must give the slot back like any other failure.
+      console.error("3D viewer could not start:", err);
+      handle = null;
+    }
     if (!handle) {
       releaseSlot();
       if (loadHold) loadHold.done();
@@ -604,6 +634,10 @@
       iconEl = el("img");
       iconEl.src = placeholderSrc;
       iconEl.alt = product.name || "";
+      // Every card icon is a 512px square, and the CSS sizes it to fill the
+      // figure — these only let the browser reserve the box before decoding.
+      iconEl.width = 512;
+      iconEl.height = 512;
       iconEl.loading = "lazy";
       // Keeps the decode off the main thread. These are 512px WebPs and a
       // grid can hold a dozen, so the synchronous default would land a
@@ -714,6 +748,7 @@
     if (!visible && cards.length) {
       if (!emptyMsg) {
         emptyMsg = el("p", "product-grid__loading");
+        emptyMsg.setAttribute("role", "status");
         var showAll = el("button", "btn", "Show all");
         showAll.type = "button";
         showAll.addEventListener("click", function () { setCategories([]); });
@@ -888,9 +923,18 @@
         signalContentReady();
       })
       .catch(function (err) {
+        console.error("Could not load the gallery:", err);
         grid.innerHTML = "";
-        grid.appendChild(el("p", "product-grid__loading",
-          "Couldn't load products — if you're opening this file directly in a browser, run a local server instead (see README). " + err.message));
+        // role="alert" so a screen reader announces it; a reload is the
+        // retry, since everything this page needs hangs off one fetch chain.
+        var failed = el("p", "product-grid__loading",
+          "The gallery couldn't be loaded. Check your connection and try again. ");
+        failed.setAttribute("role", "alert");
+        var retry = el("button", "btn", "Try again");
+        retry.type = "button";
+        retry.addEventListener("click", function () { window.location.reload(); });
+        failed.appendChild(retry);
+        grid.appendChild(failed);
         // Still signalled: a failed fetch means the height this page is
         // ever going to have is the height it has now, so there's nothing
         // for the restore to keep waiting for — without this it would sit

@@ -1,6 +1,6 @@
 /* ==========================================================================
    J&MV — product detail page
-   Resolves ?id= against data/products.json and renders the label, carousel,
+   Resolves ?id= against the active series' products.json and renders the label, carousel,
    metal picker, description, characteristics and size/selection flow.
    ========================================================================== */
 
@@ -57,6 +57,23 @@
     pageReady();
   }
 
+  // Something went wrong that is NOT "this id doesn't exist": a failed
+  // request, a timeout, an exception while building the page. Saying
+  // "Product not found" for those sends a visitor with a perfectly good link
+  // away from a product that is really there. A reload is the retry.
+  function showLoadError(err) {
+    console.error("Could not load the product:", err);
+    loadingEl.hidden = false;
+    contentEl.hidden = true;
+    loadingEl.textContent = "This product couldn't be loaded. Check your connection and try again. ";
+    loadingEl.setAttribute("role", "alert");
+    var retry = el("button", "btn", "Try again");
+    retry.type = "button";
+    retry.addEventListener("click", function () { window.location.reload(); });
+    loadingEl.appendChild(retry);
+    pageReady();
+  }
+
   // Product ids are only unique WITHIN a series now, so a bare ?id= (an old
   // bookmark, or a link built before this refactor) can't identify a product
   // on its own. Resolution order: the active series first — which is the
@@ -86,6 +103,23 @@
     });
   }
 
+  // How long the page will hold its first render for the 3D viewer chunk
+  // before building the carousel without it (the icon slide).
+  var VIEWER_WAIT_MS = 8000;
+
+  // The viewer is a lazy chunk (js/viewer-entry.js, started eagerly on this
+  // page), usually already in by the time the product data is. The carousel
+  // is built once, so it waits for the chunk rather than settling for the icon
+  // when the chunk is merely a moment behind. Resolves either way — a failed
+  // or slow download just means the icon fallback.
+  function viewerReady() {
+    if (!window.EmjiveLoadViewer) return Promise.resolve();
+    return Promise.race([
+      window.EmjiveLoadViewer().catch(function () {}),
+      new Promise(function (resolve) { setTimeout(resolve, VIEWER_WAIT_MS); })
+    ]);
+  }
+
   function init() {
     window.EmjiveSeries.ready
       .then(function (ctx) {
@@ -94,17 +128,37 @@
       })
       .then(function (found) {
         if (!found) return showNotFound();
-        state.product = found.product;
-        state.seriesSlug = found.slug;
-        render(found.product);
+        return viewerReady().then(function () {
+          state.product = found.product;
+          state.seriesSlug = found.slug;
+          render(found.product);
+        });
       })
-      .catch(function () {
-        showNotFound();
-      });
+      .catch(showLoadError);
+  }
+
+  // This one file serves every product, so the static <head> can't carry a
+  // canonical URL (it would collapse all products into one) or a per-product
+  // description. Crawlers that run the page's JS and read these get the
+  // product's own address — with ?id= (and ?series= when it isn't the
+  // featured series), never a stray #hash or an old bare-id link — and its
+  // own summary, taken from the data already on the page.
+  function updateSearchMetadata(product) {
+    var canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = new URL(window.EmjiveSeries.productHref(product, state.seriesSlug), window.location.href).href;
+
+    var description = document.querySelector('meta[name="description"]');
+    if (description && product.description) description.setAttribute("content", product.description);
   }
 
   function render(product) {
     document.title = (product.name || "Product") + " — em·ji·ve";
+    updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
 
     // Every metal's icon fetched and decoded up front, so a pick swaps the
@@ -219,6 +273,20 @@
     // state.selectedMetal at call time, so a rebuild picks up whatever metal
     // is selected then rather than the one the page opened on.
     function buildModelViewer() {
+      // The viewer is a separate module: if it never arrived (its hashed file
+      // gone after a deploy while this page's HTML was cached, a blocked
+      // request) the carousel takes the icon fallback below, exactly as it
+      // does for a browser with no WebGL.
+      if (typeof window.EmjiveModelViewer !== "function") return null;
+      try {
+        return createModelViewer();
+      } catch (err) {
+        console.error("3D viewer could not start:", err);
+        return null;
+      }
+    }
+
+    function createModelViewer() {
       return window.EmjiveModelViewer(product, state.selectedMetal, {
         hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
         // The viewer's box is smaller than its slide and has no visible

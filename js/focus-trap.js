@@ -280,6 +280,13 @@
       focusElement(target);
     },
 
+    // Whether a dialog currently holds the trap — for the Escape handling
+    // outside it (js/series.js's EmjiveMenus), which must leave a keypress to
+    // the dialog while one is open.
+    isActive: function () {
+      return !!activeRoot;
+    },
+
     // Moves focus the way release() hands it back — quietly after a tap —
     // for focus moves that aren't a trap release: the bar's Undo resolving.
     // Same element-or-function target.

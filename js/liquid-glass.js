@@ -510,7 +510,9 @@
         var sro = new ResizeObserver(function () { kick(); });
         sro.observe(inst.source);
         inst.observers.push(sro);
-        var mo = new MutationObserver(function () { scheduleClone(inst); });
+        var mo = new MutationObserver(function (records) {
+          if (records.some(isCopyRelevant)) scheduleClone(inst);
+        });
         mo.observe(inst.source, { subtree: true, childList: true, attributes: true, characterData: true });
         inst.observers.push(mo);
         rebuildClone(inst);
@@ -607,6 +609,20 @@
     inst.el.classList.remove("is-glass-backdrop", "is-glass-clone");
     if (inst.layer && inst.layer.parentNode) inst.layer.parentNode.removeChild(inst.layer);
     inst.layer = inst.pane = inst.stage = null;
+  }
+
+  // A 3D viewer repaints itself constantly (its idle nudge, the hand overlay
+  // that fades in and out, its poster crossfade), and every one of those is a
+  // DOM mutation that would otherwise re-clone and re-prune the whole page —
+  // a getComputedStyle per node — for a copy that doesn't show it anyway:
+  // prune() blanks canvases, and what the glass samples is a blurred,
+  // refracted few pixels of it. Changes INSIDE a viewer are skipped; the
+  // viewer being added or removed is a change to its parent, which still
+  // counts.
+  function isCopyRelevant(record) {
+    var node = record.target;
+    var element = node.nodeType === 1 ? node : node.parentElement;
+    return !(element && element.closest && element.closest(".emjive-3d-viewer"));
   }
 
   function scheduleClone(inst) {

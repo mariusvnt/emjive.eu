@@ -1,6 +1,6 @@
 # Pages
 
-The 7 HTML files at the repo root.
+The 7 HTML files at the repo root (plus `404.html`, also a root build entry — the Apache `ErrorDocument` — which has no scripts and uses only absolute URLs so it renders at any path depth; see `tooling.md`).
 
 **They all stay at the repo root, deliberately.** `js/series.js` fetches `data/series.json` with a *relative* path, and every path inside the JSON is repo-root-relative too. Combined with `vite.config.js`'s `base: "/"`, a page moved into a subdirectory would resolve all of them against the wrong prefix and break silently. Any new page also needs adding to `vite.config.js`'s `rollupOptions.input` or it ships unprocessed (see `tooling.md`) — except the dev-only pages (`scene-tool.html`, `json-tool.html`, `loader-test.html`), which are deliberately kept out of the build.
 
@@ -24,6 +24,16 @@ Three things to keep in step when adding a page:
 - `og:title` and `twitter:title` carry the same string as `<title>` on every page. They were the same hardcoded `em·ji·ve` everywhere, which is why every shared link previewed identically.
 - `og:url`, `og:image` and `twitter:image` are absolute `https://emjive.eu/...` URLs (crawlers don't resolve relative ones), `og:url` being the page's own address (`https://emjive.eu/` for the homepage). A new page needs its own `og:url`; if the domain ever changes, it's a find-and-replace across all seven.
 - The shell pages' heading is the *page's own title*, so it is an `h1`. `product.html`'s "Description"/"Characteristics"/"Shipping & Returns" stay `h2` — they are subsections under the product's `h1`. `css/style.css` targets `.section-head :is(h1, h2)` so both get the same treatment; the level is about document structure, not size. `.visually-hidden` (see `styling.md`) is for the two pages whose design has nowhere to put a visible title.
+
+## Head and landmarks — what every page carries
+
+- **Indexing**: `archives`, `creation-process`, `series`, `terms` (empty shells) and `launch-order` (per-visitor) carry `<meta name="robots" content="noindex">`; `scripts/check-dist.js` enforces exactly that set. **Remove the line when a shell gets real content** and add the page to `emitSitemap()` in `vite.config.js`.
+- **Canonical**: `index.html` has a static `<link rel="canonical" href="https://emjive.eu/">`. `product.html` has none statically (one file serves every product — it would collapse them); `js/product.js` `updateSearchMetadata()` sets the canonical (`?id=`, plus `?series=` for a non-featured series) and the meta description from the product's own data.
+- **Icons/social**: `theme-color` is `#f8f8f8` (= `--bg`); `favicon.ico` + `apple-touch-icon.png` from `public/`; `twitter:card` is `summary` (the shared OG image is a 512px square); `og:image:alt`, `og:locale`.
+- **Skip link + main target**: every page's first focusable element is `<a class="skip-link" href="#main">` (`#productDetail`/`#seriesManifest` on those two pages, which already had ids); each `<main>` has `tabindex="-1"` so focus can land on it.
+- **`<noscript>`**: the JS-rendered pages (`index`, `product`, `launch-order`, `series`) open `<main>` with a "needs JavaScript" notice (`.page-shell__loading`).
+- **Header**: the menu toggle's `aria-label` is a neutral "Menu" (state is `aria-expanded`); the `<nav>` has `aria-label="Site"`. Logo images carry intrinsic `width`/`height`. `<html data-viewer="eager|idle">` controls when the 3D chunk starts downloading (`client-scripts.md`).
+- **Live regions**: `#productLabelPrice` (`aria-live`), `#productDetailLoading` (`role=status`), the selection bar's hidden status, the grid's empty-filter message; load failures use `role="alert"` with a "Try again" (reload) button. The order page's terms control is a `role="checkbox"` button labelled by its sentence (`aria-checked`, not `aria-pressed`).
 
 ## Shared header — one byte-identical nav
 
@@ -115,7 +125,7 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `three-viewer.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `metal-picker.js` | `modify-modal.js` | `liquid-glass.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `viewer-entry.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `metal-picker.js` | `modify-modal.js` | `liquid-glass.js` | `product.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `index.html` | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
 | `product.html` | | ✓ | ✓ | ✓ (defer) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ (defer) | ✓ | | |

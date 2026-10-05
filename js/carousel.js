@@ -378,6 +378,9 @@
   // compete with the image the page's first paint is waiting on; the caller
   // starts them with slide.loadImage() once that has arrived. The slide's
   // loader waits for that too, so it still covers the box until the photo is in.
+  //
+  // opts.loaderHost: the element whose shared loader this slide's wait goes
+  // through, instead of a loader of the slide's own (see below).
   function imageSlide(src, alt, opts) {
     var slide = document.createElement("div");
     slide.className = "product-carousel__slide";
@@ -405,8 +408,15 @@
     // A loader over the slide until the photo has loaded, then the photo
     // fades in (js/loader.js). Every slide is a fixed square, so this
     // crosses exactly the slide's own box.
+    //
+    // opts.loaderHost: a loader shared by the whole strip instead — the
+    // product page's, which is mounted on the carousel and also carries the
+    // 3D model's wait. The slide then holds it only while it is on screen and
+    // loading, and the photo fades in the moment it has loaded, whether or not
+    // that loader is still crossing (see coverWithin in js/loader.js).
     if (global.EmjiveLoader) {
-      global.EmjiveLoader.cover(slide, ready);
+      if (opts && opts.loaderHost) global.EmjiveLoader.coverWithin(opts.loaderHost, slide, ready);
+      else global.EmjiveLoader.cover(slide, ready);
     }
     return slide;
   }

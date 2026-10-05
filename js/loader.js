@@ -9,6 +9,15 @@
      mount(host, { page })  -> hold   put a loader inside `host` (one per
                                       host; more mounts on the same host add
                                       holds to it). hold.done() releases it.
+     mount(host, { target }) -> hold  a SHARED loader: many assets, one loader.
+                                      Each hold names the element its asset
+                                      is shown in (`target`) and only counts
+                                      while that element is on screen — see
+                                      "a loader shared by several assets".
+     coverWithin(host, target, ready) -> Promise
+                                      cover()'s counterpart for a shared loader:
+                                      `target` fades in as soon as `ready`
+                                      settles; `host`'s loader is held until then.
      cover(host, ready)     -> Promise  hide host's <img> children, show a
                                       loader, and reveal them (a quick fade)
                                       once `ready` settles and the loader has
@@ -97,6 +106,11 @@
   var DEFAULT_DELAY_MS = 150;
   var WATCHDOG_MS = 15000;
   var SAFE_POLL_MS = 25;
+  // How much of a target must be on screen for its asset's wait to count in a
+  // shared loader (see "a loader shared by several assets"). Not "any": a slide
+  // with a sliver showing at the edge of the carousel is not something anyone
+  // is waiting on.
+  var VISIBLE_RATIO = 0.2;
   // Margin past the last part's own exit, so a removal never lands on its
   // final sub-pixel of opacity.
   var SAFE_MARGIN = 0.004;
@@ -211,7 +225,7 @@
     return raw.slice(-2) === "ms" ? n : n * 1000;
   }
 
-  function createState(host, page, bleed) {
+  function createState(host, page, bleed, targeted) {
     var el = document.createElement("div");
     el.className = "loader is-waiting" + (page ? " loader--page" : "") + (bleed ? " loader--bleed" : "");
     if (page) {
@@ -252,12 +266,20 @@
       forcedPosition: forcedPosition,
       bleed: !!bleed,
       clipAncestor: null,
-      visibility: null
+      visibility: null,
+      // A shared loader (mount's opts.target): the holds taken on it, and
+      // whether a crossing is being finished off before it goes quiet.
+      targeted: !!targeted,
+      holdList: [],
+      parking: false
     };
     states.set(host, s);
     function startTimer() {
       s.timer = setTimeout(function () { show(s); }, showDelayMs());
     }
+    // A shared loader has no host-level "on screen" test: whether it should be
+    // up is decided by its holds' targets (reevaluate), as they come and go.
+    if (s.targeted) return s;
     // The show-delay starts once the host is actually on screen (the page
     // loader's host, <body>, always is). IntersectionObserver respects
     // overflow clipping, so a slide scrolled out of its carousel counts as
@@ -336,6 +358,7 @@
   function show(s) {
     s.timer = 0;
     if (states.get(s.host) !== s) return;
+    if (s.targeted && !isActive(s)) return;
     s.cfg = compute(s.el, s.parts.length);
     if (s.bleed) s.clipAncestor = findClipAncestor(s.el);
     s.shown = true;
@@ -363,6 +386,7 @@
     cancelAnimationFrame(s.rampRaf);
     if (s.visibility) s.visibility.disconnect();
     if (s.observer) s.observer.disconnect();
+    s.holdList.forEach(function (h) { if (h.io) { h.io.disconnect(); h.io = null; } });
     s.anims.forEach(function (a) { a.cancel(); });
     if (s.el.parentNode) s.el.parentNode.removeChild(s.el);
     if (s.forcedPosition) s.host.style.position = "";
@@ -385,11 +409,25 @@
     });
   }
 
-  function release(s) {
+  function release(s, hold) {
     s.holds--;
+    if (hold) {
+      hold.released = true;
+      if (hold.io) { hold.io.disconnect(); hold.io = null; }
+    }
     // Never shown (still inside the show-delay): nothing to wait out.
     if (!s.shown) {
       if (s.holds <= 0) destroy(s);
+      // A shared loader with other holds left: this one may have been the
+      // only visible wait, in which case the pending show-delay is void.
+      else if (s.targeted) reevaluate(s);
+      return Promise.resolve();
+    }
+    // A shared loader that still has holds is not finished with: whether it
+    // carries on or finishes its crossing and goes quiet depends on whether
+    // any of the waits left are on screen.
+    if (s.holds > 0 && s.targeted) {
+      reevaluate(s);
       return Promise.resolve();
     }
     // Nothing left to wait for but the crossing in progress: let it finish
@@ -403,6 +441,103 @@
       // for the safe window keeps the loader alive.
       if (s.holds <= 0) destroy(s);
     });
+  }
+
+  /* ---- a loader shared by several assets -------------------------------------
+     The product page's carousel holds a 3D model and some photos, which load
+     independently. Each used to have a loader of its own, so a visitor could
+     watch two or three of them cross at once; now they share one, mounted on
+     the carousel, and each asset just takes a hold on it (mount's opts.target).
+
+     A hold only counts while its target — the slide the asset appears in — is
+     on screen (IntersectionObserver, which respects the carousel's own
+     clipping, so a slide scrolled out of the strip is off screen). The loader
+     is "active" while at least one unreleased hold is visible, and:
+
+       - the show-delay (--loader-delay) is counted from the moment it becomes
+         active, and abandoned if it stops being so first. A wait nobody can
+         see never shows anything.
+       - once shown, it carries on for as long as it stays active. When the
+         last visible wait is over — released, or scrolled out of view — it
+         finishes the crossing it is in (the same speed-up and safe window as a
+         release) and goes quiet, with the holds that remain still counted.
+       - when a pending asset comes into view later, it starts again, after
+         the delay, as a new cycle.
+       - when the last hold is released it is removed, as ever.
+     ----------------------------------------------------------------------- */
+
+  function isActive(s) {
+    for (var i = 0; i < s.holdList.length; i++) {
+      var h = s.holdList[i];
+      if (!h.released && h.visible) return true;
+    }
+    return false;
+  }
+
+  function reevaluate(s) {
+    if (states.get(s.host) !== s) return;
+    if (isActive(s)) {
+      if (s.shown) {
+        // Something visible is waiting again while the crossing was being
+        // finished off: back to the loading pace.
+        if (s.rate !== 1) {
+          cancelAnimationFrame(s.rampRaf);
+          s.rampRaf = 0;
+          setRate(s, 1);
+        }
+      } else if (!s.timer) {
+        s.timer = setTimeout(function () { show(s); }, showDelayMs());
+      }
+      return;
+    }
+    if (!s.shown) {
+      clearTimeout(s.timer);
+      s.timer = 0;
+    } else {
+      park(s);
+    }
+  }
+
+  // Finishes the crossing in progress, then puts the loader away (not
+  // destroyed: holds remain) — unless something visible is waiting again by
+  // the time it is safe to.
+  function park(s) {
+    if (s.parking) return;
+    s.parking = true;
+    finishCrossing(s);
+    whenSafe(s).then(function () {
+      s.parking = false;
+      if (states.get(s.host) !== s || !s.shown || s.holds <= 0 || isActive(s)) return;
+      hide(s);
+    });
+  }
+
+  function hide(s) {
+    s.shown = false;
+    s.rate = 1;
+    cancelAnimationFrame(s.rampRaf);
+    cancelAnimationFrame(s.rebuildPending);
+    s.rampRaf = 0;
+    if (s.observer) { s.observer.disconnect(); s.observer = null; }
+    s.anims.forEach(function (a) { a.cancel(); });
+    s.anims = [];
+    s.el.classList.add("is-waiting");
+  }
+
+  function watchTarget(s, hold) {
+    if (typeof IntersectionObserver !== "function") {
+      hold.visible = true;
+      reevaluate(s);
+      return;
+    }
+    hold.io = new IntersectionObserver(function (entries) {
+      var e = entries[entries.length - 1];
+      var visible = e.isIntersecting && e.intersectionRatio >= VISIBLE_RATIO;
+      if (visible === hold.visible) return;
+      hold.visible = visible;
+      reevaluate(s);
+    }, { threshold: [0, VISIBLE_RATIO] });
+    hold.io.observe(hold.target);
   }
 
   // How much faster a released loader's crossing runs, and how long the speed-up
@@ -437,7 +572,8 @@
 
   function mount(host, opts) {
     if (!host || !states || reduceQuery.matches) return NOOP_HOLD;
-    var s = states.get(host) || createState(host, !!(opts && opts.page), !!(opts && opts.bleed));
+    var target = (opts && opts.target) || null;
+    var s = states.get(host) || createState(host, !!(opts && opts.page), !!(opts && opts.bleed), !!target);
     s.holds++;
     var promise = null;
     // opts.watchdog === false is for loader-test.html, whose loaders are
@@ -446,14 +582,24 @@
       ? 0
       : setTimeout(function () { hold.done(); }, WATCHDOG_MS);
     var hold = {
+      target: s.targeted ? target : null,
+      // A hold with no target on a shared loader is always "in view".
+      visible: !(s.targeted && target),
+      released: false,
+      io: null,
       done: function () {
         if (!promise) {
           clearTimeout(watchdog);
-          promise = release(s);
+          promise = release(s, hold);
         }
         return promise;
       }
     };
+    if (s.targeted) {
+      s.holdList.push(hold);
+      if (hold.target) watchTarget(s, hold);
+      else reevaluate(s);
+    }
     return hold;
   }
 
@@ -598,6 +744,22 @@
       .then(function () { host.classList.remove("is-loader-pending"); });
   }
 
+  // cover() for a shared loader: `target` (a slide) is hidden until `ready`
+  // settles and then fades in AT ONCE — it does not wait for the loader to
+  // leave, because the loader is not its own: it belongs to the whole strip
+  // and goes when nothing visible is still loading.
+  function coverWithin(host, target, ready) {
+    if (!host || !target || reduceQuery.matches) return Promise.resolve();
+    target.classList.add("loader-host", "is-loader-pending");
+    var hold = mount(host, { target: target });
+    return Promise.resolve(ready)
+      .then(noop, noop)
+      .then(function () {
+        target.classList.remove("is-loader-pending");
+        return hold.done();
+      });
+  }
+
   /* ---- the page's arrival loader ------------------------------------------
      Pages that wait on something (index, product, series) opt in with
      data-page-loader on <html>. This script runs in <head>, before <body>
@@ -678,6 +840,7 @@
   window.EmjiveLoader = {
     mount: mount,
     cover: cover,
+    coverWithin: coverWithin,
     imageReady: imageReady,
     isPhone: isPhone,
     onPhoneChange: onPhoneChange,

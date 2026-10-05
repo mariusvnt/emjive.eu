@@ -299,6 +299,9 @@
   // keeps the pipe busy while letting cards resolve one after another, in
   // the order they were scrolled past.
   var MAX_CONCURRENT_MODEL_LOADS = 2;
+  // How long an evicted card's load slot is held waiting for its decode to
+  // finish — see teardownViewer.
+  var SLOT_HOLD_AFTER_EVICT_MS = 6000;
   var activeModelLoads = 0;
   var loadQueue = [];
 
@@ -352,7 +355,11 @@
     function releaseSlot() {
       if (settled) return;
       settled = true;
-      entry.releaseSlot = null;
+      // Only if it is still THIS load's: a card evicted mid-load and wanted
+      // again can have started a newer one before this ran (see
+      // teardownViewer), and clearing the newer one's hook would leak its
+      // slot for good.
+      if (entry.releaseSlot === releaseSlot) entry.releaseSlot = null;
       activeModelLoads--;
       pumpLoadQueue();
     }
@@ -369,9 +376,10 @@
     entry.releaseSlot = releaseSlot;
 
     // The model's own wait gets a loader too, in the card's figure, sitting
-    // over the icon (the fallback image). The viewer holds its reveal until
-    // that loader has finished its cycle and left, then pops in — see
-    // options.loader in js/three-viewer.js. If the icon's own loader is
+    // over the icon (the fallback image). The viewer swaps in the moment its
+    // model is ready and releases this hold then; the loader finishes its
+    // crossing over the live model (click-through, above it in the figure) —
+    // see options.loader in js/three-viewer.js. If the icon's own loader is
     // still running when this starts, they are the same loader.
     var loadHold = window.EmjiveLoader ? window.EmjiveLoader.mount(entry.figure) : null;
     entry.loadHold = loadHold;
@@ -490,15 +498,36 @@
       entry.loadHold.done();
       entry.loadHold = null;
     }
+    var settledLoad = entry.modelHandle.whenSettled;
     entry.modelHandle.dispose();
     entry.figure.removeChild(entry.modelHandle.el);
     entry.modelHandle = null;
     if (entry.iconEl) entry.iconEl.hidden = false;
-    // Last — pumpLoadQueue() runs inside this and can start the next
-    // viewer synchronously, so this entry has to be fully torn down first.
     // A no-op on the onError path (releaseSlot already ran there) and on a
-    // viewer that had finished loading.
-    if (entry.releaseSlot) entry.releaseSlot();
+    // viewer that had finished loading. For one disposed MID-load the slot
+    // is NOT handed back yet: disposing frees the viewer, but the model's
+    // download and decode cannot be cancelled and are still running — the
+    // very thing the two-slot limit exists to ration. Handing the slot
+    // straight back let a fast scroll start a new load for every card it
+    // passed, each beside the decodes the evicted ones were still finishing:
+    // tens of megabytes of geometry in flight at once, on a phone. The slot
+    // comes back when the work really ends, or after a few seconds
+    // regardless, so a stalled request can't hold the grid up.
+    if (entry.releaseSlot) {
+      var release = entry.releaseSlot;
+      if (settledLoad) {
+        var held = false;
+        var giveBack = function () {
+          if (held) return;
+          held = true;
+          release();
+        };
+        settledLoad.then(giveBack);
+        setTimeout(giveBack, SLOT_HOLD_AFTER_EVICT_MS);
+      } else {
+        release();
+      }
+    }
   }
 
   // Gives up this card's viewer (and its place in the queue) without giving

@@ -1635,6 +1635,28 @@ button, input, textarea {
   user-select: none;
   -webkit-user-select: none;
 }
+/* The copy is a still picture of the page for the glass to bend, so nothing
+   inside it needs to be alive. A cloned element keeps the original's CSS, and
+   with it every compositor hint, running animation and backdrop-filter —
+   each one a layer or a per-frame job for a thing that is shown a few dozen
+   pixels high behind a blur. WebKit also doesn't reliably render a
+   backdrop-filter nested inside another (see the checkout bar's strip rules
+   above), so dropping them here removes cost, not a visible effect. The
+   page's loaders and the 3D viewer's idle "hand" are pure motion and have no
+   place in a still. */
+.glass__stage *,
+.glass__stage *::before,
+.glass__stage *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  will-change: auto !important;
+  animation: none !important;
+  transition: none !important;
+}
+.glass__stage .loader,
+.glass__stage .emjive-3d-viewer__nudge-hand {
+  display: none !important;
+}
 /* Reserves the same bottom space body:has(.selection-bar) does elsewhere —
    this page has just never needed it before now. */
 body:has(.order-checkout-bar:not([hidden])) {

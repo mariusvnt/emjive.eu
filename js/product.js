@@ -17,7 +17,8 @@
   // with the Modify sheet's small carousel — wired once here, since the
   // viewport/track are static markup in product.html and only the slides
   // inside the track change per product.
-  var carousel = window.EmjiveCarousel(document.getElementById("productCarousel"));
+  var carouselEl = document.getElementById("productCarousel");
+  var carousel = window.EmjiveCarousel(carouselEl);
 
   var state = {
     product: null,
@@ -39,6 +40,17 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
+  }
+
+  // One loader for the whole carousel — the model's, the photos' and the icon
+  // fallback's waits all go through it (js/loader.js, "a loader shared by
+  // several assets"), and it only shows while one of them is both loading and
+  // on screen. A hold on it names the slide the asset appears in. null when
+  // there is no loader (js/loader.js missing, reduced motion).
+  function carouselLoadHold(slide) {
+    if (!window.EmjiveLoader || !slide) return null;
+    var hold = window.EmjiveLoader.mount(carouselEl, { target: slide });
+    return hold && typeof hold.done === "function" ? hold : null;
   }
 
   // What the address asks for. The real form is /<name-as-a-slug> (the
@@ -421,21 +433,28 @@
       // request) the carousel takes the icon fallback below, exactly as it
       // does for a browser with no WebGL.
       if (typeof window.EmjiveModelViewer !== "function") return null;
+      // The model's wait goes through the carousel's one shared loader (see
+      // loadHoldFor): held on the model's slide, handed to the viewer, which
+      // releases it when the model is on screen or has failed or the viewer is
+      // disposed. If no viewer comes back the hold is released here.
+      var hold = carouselLoadHold(modelSlide);
+      var viewer = null;
       try {
-        return createModelViewer();
+        viewer = createModelViewer(hold);
       } catch (err) {
         console.error("3D viewer could not start:", err);
-        return null;
       }
+      if (!viewer && hold) hold.done();
+      return viewer;
     }
 
-    function createModelViewer() {
+    function createModelViewer(loadHold) {
       return window.EmjiveModelViewer(product, state.selectedMetal, {
         hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
-        // The viewer's box is smaller than its slide and has no visible
-        // edge, so its loader runs the carousel's full width rather than
-        // vanishing at an invisible line (see mount()'s bleed in js/loader.js).
-        loaderBleed: true,
+        // The carousel's shared loader, held on this slide while the model
+        // loads (false: none, e.g. reduced motion) — the viewer's box has no
+        // visible edge, and the loader belongs to the whole strip anyway.
+        loader: loadHold || false,
         // Fires for an initial load/HDRI failure OR — since
         // three-viewer.js also treats a WebGL context loss as a failure
         // — for a model that HAD already loaded and was on screen: iOS
@@ -463,7 +482,7 @@
     } else {
       var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
       if (fallbackIconSrc) {
-        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name);
+        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name, { loaderHost: carouselEl });
         // Kept so onMetalSelect can swap its src on a metal switch — this
         // slide isn't rebuilt then, only the 3D viewer path re-tints live,
         // so a static image needs its own explicit update.
@@ -604,6 +623,28 @@
       window.addEventListener("pageshow", function (e) {
         if (e.persisted) restoreModelViewer();
       });
+
+      // The Modify sheet (js/modify-modal.js, opened from a row of the
+      // selection bar's drawer) builds a viewer of its own — a second WebGL
+      // context, a second PMREM environment and a second decode of a model
+      // that can be over a hundred MB — while this page's carousel viewer
+      // sits behind the sheet's backdrop, drawing nothing anyone is looking
+      // at. The page's own model goes back to its poster for as long as the
+      // sheet is up, and the real viewer is rebuilt once the sheet's own has
+      // been freed ("emjive:modify-close" is dispatched after that, see
+      // cleanup() there). Same swap as the back/forward-cache path above.
+      var viewerHeldForModify = false;
+      window.addEventListener("emjive:modify-open", function () {
+        if (!state.modelHandle) return;
+        releaseModelViewer();
+        showPoster();
+        viewerHeldForModify = true;
+      });
+      window.addEventListener("emjive:modify-close", function () {
+        if (!viewerHeldForModify) return;
+        viewerHeldForModify = false;
+        attachViewer();
+      });
     }
 
     ((product.assets && product.assets.photos) || []).forEach(function (photo) {
@@ -678,7 +719,7 @@
   function buildPhotoSlide(photo, alt) {
     // Deferred: the photos are off screen, so they start downloading only
     // after the page's first paint (render() → loadRemainingAssets).
-    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true });
+    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true, loaderHost: carouselEl });
     slide.classList.add("product-carousel__slide--photo");
     slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
     return slide;

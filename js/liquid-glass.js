@@ -63,6 +63,17 @@
   var MAP_MAX = 1024;
   var REBUILD_DEBOUNCE_MS = 120;
   var CLONE_DEBOUNCE_MS = 200;
+  // Clone mode on WebKit — an iPhone — is the memory-tight case, and WebKit
+  // re-runs the whole filter each time the copy moves. The chromatic split
+  // is what makes that filter nine primitives instead of three (a separate
+  // displacement, channel isolation and recombine for each of red, green and
+  // blue); at the bar's size its fringe is a pixel or two wide. Set to null
+  // to give WebKit the full three-pass lens again, as the CSS asks for.
+  var WEBKIT_CLONE_DISPERSION = 0;
+  // The shortest gap between two filter ids on WebKit (see sync()). A fresh
+  // id is what makes WebKit repaint the filtered copy, so this is also the
+  // longest the refraction is allowed to trail the scroll.
+  var ID_BUMP_MS = 50;
 
   // Every knob comes from a --glass-* custom property (css/style.css :root,
   // overridable per element); these are the fallbacks if one is missing.
@@ -111,6 +122,10 @@
   }
 
   var env = detect();
+  // How many times the page copy has been made, for the ?mem=1 read-out
+  // (js/viewer-entry.js). Shared with js/three-viewer.js's counters.
+  global.EmjiveMem = global.EmjiveMem || {};
+  global.EmjiveMem.glassCopies = 0;
   var instances = [];
   var counter = 0;
   var defs = null;
@@ -459,7 +474,12 @@
         c.textContent = "";
         c.style.visibility = "hidden";
       }
-      if (o.tagName === "IMG") c.setAttribute("loading", "eager");
+      // Images keep the original's `loading`: forcing them eager made the
+      // copy fetch and decode every lazy picture on the page — the carousel's
+      // photos, far out of view — that the page itself had deliberately left
+      // alone. What the glass sits over is on screen in the original, so
+      // anything it needs has already loaded (and a cloned <img> of an
+      // already-loaded URL comes straight from the cache).
       c.removeAttribute("id");
       c.removeAttribute("name");
       c.removeAttribute("for");
@@ -484,6 +504,11 @@
       filterId: "",
       rebuildTimer: 0,
       cloneTimer: 0,
+      // A copy of the page is owed but wasn't made because nobody could see
+      // the bar at the time — see isIdle() and rebuildClone().
+      copyPending: false,
+      bumpTimer: 0,
+      lastBump: 0,
       layer: null,
       pane: null,
       stage: null,
@@ -513,7 +538,19 @@
         var mo = new MutationObserver(function (records) {
           if (records.some(isCopyRelevant)) scheduleClone(inst);
         });
-        mo.observe(inst.source, { subtree: true, childList: true, attributes: true, characterData: true });
+        // Not every attribute: `style` is rewritten constantly by things the
+        // copy has no use for (the carousel's track on every drag move, the
+        // loaders' parts, fades), and each one of those used to cost a full
+        // re-clone of the page. What changes what the glass shows through is
+        // content arriving or leaving, an image source changing, and a class
+        // or the hidden flag flipping something on or off.
+        mo.observe(inst.source, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class", "src", "hidden"],
+          characterData: true
+        });
         inst.observers.push(mo);
         rebuildClone(inst);
       }
@@ -528,6 +565,7 @@
     inst.observers.forEach(function (ob) { ob.disconnect(); });
     clearTimeout(inst.rebuildTimer);
     clearTimeout(inst.cloneTimer);
+    clearTimeout(inst.bumpTimer);
     if (inst.filterEl && inst.filterEl.parentNode) inst.filterEl.parentNode.removeChild(inst.filterEl);
     if (inst.layer && inst.layer.parentNode) inst.layer.parentNode.removeChild(inst.layer);
     el.classList.remove("is-glass-backdrop", "is-glass-clone");
@@ -570,6 +608,9 @@
     var H = el.offsetHeight;
     if (!W || !H) return; // hidden — the ResizeObserver fires again when it shows
     var o = readOptics(el);
+    if (inst.mode === "clone" && env.webkit && WEBKIT_CLONE_DISPERSION !== null) {
+      o.dispersion = WEBKIT_CLONE_DISPERSION;
+    }
     var radius = readRadius(el, W, H);
     var mapUrl;
     try {
@@ -598,7 +639,12 @@
       inst.pane.style.inset = -inst.bleed + "px";
       inst.pane.style.background = pageBackground();
       inst.lastX = NaN;
-      sync(inst);
+      // The first copy of the page is made here, when the bar first has a
+      // size, not when it was attached: it starts hidden, and copying the
+      // page for a bar nobody can see — twice over, since the page keeps
+      // changing while it loads — was pure waste (see rebuildClone).
+      if (inst.copyPending) rebuildClone(inst);
+      else sync(inst);
     }
     el.classList.add("is-glass-" + inst.mode);
     document.documentElement.setAttribute("data-glass-mode", inst.mode);
@@ -633,8 +679,30 @@
     }, CLONE_DEBOUNCE_MS);
   }
 
+  // Nobody can see this glass right now: the bar hasn't been shown yet
+  // (product.js and selection-page.js unhide it once their page has
+  // rendered), it has stepped aside for the Modify sheet (.is-away) or been
+  // covered by the checkout bar's strip (.is-strip-active), or the whole page
+  // is in the background. Copying the page and re-running a filter for it is
+  // work whose result is thrown away — and on a phone, memory it holds for
+  // nothing. The copy is owed instead (copyPending) and made the moment the
+  // bar can be seen again.
+  function isIdle(inst) {
+    var el = inst.el;
+    return !el.offsetWidth ||
+      document.hidden ||
+      el.classList.contains("is-away") ||
+      el.classList.contains("is-strip-active");
+  }
+
   function rebuildClone(inst) {
     if (!inst.source || !inst.stage) return;
+    if (isIdle(inst)) {
+      inst.copyPending = true;
+      return;
+    }
+    inst.copyPending = false;
+    window.EmjiveMem.glassCopies += 1;
     var copy = inst.source.cloneNode(true);
     prune(inst.source, copy);
     copy.style.margin = "0";
@@ -645,12 +713,30 @@
     sync(inst);
   }
 
+  // A fresh filter id is what makes WebKit repaint the filtered copy once the
+  // copy has moved (see sync()), and each repaint re-runs the whole filter.
+  function bumpFilterId(inst) {
+    inst.lastBump = Date.now();
+    if (!inst.filterEl) return;
+    inst.version += 1;
+    var id = "lg-" + inst.n + "-v" + inst.version;
+    inst.filterEl.setAttribute("id", id);
+    inst.filterId = id;
+    inst.el.style.setProperty("--glass-url", "url(#" + id + ")");
+  }
+
   // Lines the page copy up with the original under the glass. Both rects are
   // viewport-relative, so scroll, resize and a moving bar all reduce to the
   // same two reads. Returns true if anything moved.
   function sync(inst) {
     if (inst.mode !== "clone" || !inst.stage || !inst.source) return false;
-    if (!inst.el.offsetWidth) return false;
+    if (isIdle(inst)) return false;
+    // The bar became visible with a copy owed (see isIdle): make it now.
+    // rebuildClone() clears the flag and calls back in here.
+    if (inst.copyPending) {
+      rebuildClone(inst);
+      return true;
+    }
     var sr = inst.source.getBoundingClientRect();
     var br = inst.el.getBoundingClientRect();
     var x = sr.left - br.left + inst.bleed;
@@ -660,15 +746,27 @@
     inst.lastY = y;
     inst.lastW = sr.width;
     inst.stage.style.width = sr.width + "px";
-    inst.stage.style.transform = "translate3d(" + x + "px," + y + "px,0)";
+    // translate, not translate3d: the 3D form makes the copy its own
+    // compositor layer, and the copy is the whole page — a layer as tall as
+    // <main>, thousands of pixels at 3x, to show a bar's worth of it. The
+    // copy only moves under a clip a few dozen pixels high, so a plain 2D
+    // transform keeps the cost at the size of what is actually drawn.
+    inst.stage.style.transform = "translate(" + x + "px," + y + "px)";
     if (env.webkit && inst.filterEl) {
       // WebKit re-filters a changed *definition*, not changed content under
-      // an unchanged one: a fresh id each time the copy moves.
-      inst.version += 1;
-      var id = "lg-" + inst.n + "-v" + inst.version;
-      inst.filterEl.setAttribute("id", id);
-      inst.filterId = id;
-      inst.el.style.setProperty("--glass-url", "url(#" + id + ")");
+      // an unchanged one: a fresh id each time the copy moves. But not
+      // every frame — each new id re-runs the whole filter, and a scroll is
+      // sixty frames a second. At most one per ID_BUMP_MS, plus a trailing
+      // one so the refraction always ends up matching where the copy stopped.
+      var sinceBump = Date.now() - inst.lastBump;
+      if (sinceBump >= ID_BUMP_MS) {
+        bumpFilterId(inst);
+      } else if (!inst.bumpTimer) {
+        inst.bumpTimer = setTimeout(function () {
+          inst.bumpTimer = 0;
+          bumpFilterId(inst);
+        }, ID_BUMP_MS - sinceBump);
+      }
     }
     return true;
   }
@@ -708,6 +806,30 @@
     global.addEventListener("emjive:selection-changed", kick);
     global.addEventListener("emjive:modify-open", kick);
     global.addEventListener("emjive:modify-close", kick);
+    // Back from a hidden tab: a copy may be owed (see isIdle).
+    document.addEventListener("visibilitychange", kick);
+
+    // A page that goes into the back/forward cache is kept whole, copy and
+    // all — a second, filtered DOM of the entire page, and the images in it,
+    // held for as long as the entry lives. Dropped on the way out and owed
+    // again, so coming back from the cache makes it afresh (kick -> sync ->
+    // rebuildClone) instead of the cache keeping it.
+    global.addEventListener("pagehide", function (e) {
+      // Only when it is really going into the cache: on an ordinary
+      // navigation the page can still be on screen for a moment, and
+      // emptying the glass under it would show as a flicker.
+      if (!e.persisted) return;
+      instances.forEach(function (inst) {
+        if (inst.mode !== "clone" || !inst.stage) return;
+        clearTimeout(inst.cloneTimer);
+        inst.cloneTimer = 0;
+        inst.stage.textContent = "";
+        inst.copyPending = true;
+      });
+    });
+    global.addEventListener("pageshow", function (e) {
+      if (e.persisted) kick();
+    });
   }
 
   function init() {

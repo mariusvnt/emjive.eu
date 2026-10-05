@@ -492,8 +492,9 @@
   // poster image while the sheet slides in, and the viewer is only built
   // once it has — the viewer's own poster is that same image in that same
   // box, so nothing moves. The viewer then puts a loader over that poster
-  // while the model loads and pops in once the loader has finished its cycle
-  // and left (js/loader.js; options.loader in js/three-viewer.js).
+  // while the model loads and pops in the moment it is ready, the loader
+  // finishing its crossing over the live model (js/loader.js; options.loader
+  // in js/three-viewer.js).
   var SLIDE_IN_MS = 400;
 
   function scheduleViewer() {

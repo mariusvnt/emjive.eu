@@ -83,7 +83,16 @@ const HERO = [
   { suffix: "m", crop: PHONE_CROP.hero, quality: 80 },
   { suffix: "m_lo", crop: PHONE_CROP.hero, height: 810, quality: 72 }
 ];
-const HERO_LAYER = [{ suffix: "m", crop: PHONE_CROP.hero, quality: 80 }];
+// height 1600: the two hand_xray_extension_* pictures are 3840x2160 and, cropped
+// to a phone's slice, 1536x2160 — 12.7MB each once decoded. Each panel is drawn
+// one viewport tall (~850 CSS px on a phone), so even 2160 is under 3x there;
+// 1600 is ~1.9x, which for these soft, low-contrast x-ray lines is not
+// something the eye separates from 2160, and takes each to 7.3MB decoded.
+// Never enlarges, so hand_xray (1080 tall) is unaffected; the aspect ratio is
+// unchanged, which is all the layout's --hero-crop sizing depends on. To undo:
+// remove `height` here, delete the two _m extension files and rerun
+// `npm run image-variants`.
+const HERO_LAYER = [{ suffix: "m", crop: PHONE_CROP.hero, height: 1600, quality: 80 }];
 
 const RULES = [
   { kind: "xray", pattern: /[\\/]products[\\/].*_xray\.webp$/, versions: XRAY },

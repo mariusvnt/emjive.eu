@@ -46,11 +46,20 @@ existing one — `bones` is the only one so far. To start a *new* series, see
      decodes back to the same triangle count and bounding box before it lets
      the run succeed. Typical result on a raw Blender export: **95% smaller**.
      Safe to re-run over the whole folder. See `tooling.md`/`assets.md`.
-   - What it can't fix is triangle count. If your export is faceted or
-     un-decimated (check the vertex:triangle ratio the script prints — a
-     welded manifold mesh is ~0.5:1, the bad ones here are ~1.9:1), fix that
-     in Blender with smooth shading + merge-by-distance before exporting.
-     That's GPU cost, and no amount of compression touches it.
+   - What it can't fix is triangle count — and that is memory, not just GPU:
+     a Draco file of 1MB can decode to 100MB+ of geometry that three.js
+     holds in the page, which is what takes iOS Safari's tab down. Aim for a
+     few tens of thousands of vertices (today's models are 14k-39k). If your
+     export is faceted or un-decimated (check the vertex:triangle ratio the
+     script prints — a welded manifold mesh is ~0.5:1, the bad ones were
+     ~1.9:1), fix that in Blender with smooth shading + merge-by-distance and
+     decimate before exporting.
+   - **Keep the model's orientation when replacing one.** The saved
+     fallback/icon/top-shot renders were made with the old file's node
+     rotation/scale; a re-export that drops it turns the live model away
+     from its own poster (see `assets.md`). Compare against the old render
+     (`fallback-img`) after swapping, and re-run `npm run auto-render` if the
+     shape itself changed.
 2b. (If the product has an x-ray backdrop) drop it in as `<slug>_xray.webp`, then run **`npm run image-variants`** — it writes the other three versions of it (`_lo`, `_m`, `_m_lo`: desktop low, smartphone high and low, the smartphone ones cropped) beside it. Nothing works without them: the product page asks for the low-res one first, and `npm run verify` (`validate-data.js`) fails until they exist. `json-tool`'s x-ray dropzone does **not** run it. See `assets.md`'s "Responsive versions".
 3. (Optional) drop in icons too — 512×512 transparent WebPs of just the
    product (no background), one per metal it can be shown in (not just its

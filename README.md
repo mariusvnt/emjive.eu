@@ -77,7 +77,7 @@ in `.github/workflows/deploy.yml` first runs `.github/workflows/verify.yml`
 repo's Actions tab ("Run workflow"). The HTML, scripts and JSON are served
 with `no-cache` (see `public/.htaccess`), so a normal reload picks up a deploy.
 
-Every run re-uploads the whole build (about 23 MB) rather than diffing it,
+Every run re-uploads the whole build (about 15 MB) rather than diffing it,
 then makes `www/` an **exact mirror** of `dist/`: anything on the server
 that the build doesn't produce (a removed image) is deleted, after the new
 files are up so the site is never missing pages mid-deploy. The exception is

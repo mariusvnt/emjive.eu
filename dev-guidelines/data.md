@@ -40,7 +40,7 @@ There is no global `data/products.json` any more; it split into the three above.
 
 `{ "series": "<slug>", "products": Product[] }` — the `series` field is self-identifying, a cheap cross-check if a file ever gets copied to a new folder and half-edited.
 
-Currently one series: **Bones** (`data/series/bones/products.json`), 9 entries (Furcula, Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended, joint), all category `"ring"`.
+Currently one series: **Bones** (`data/series/bones/products.json`), 10 entries (Furcula, Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended, joint, omoplates), all category `"ring"`.
 
 ## `data/series/<slug>/manifest.json`
 
@@ -68,7 +68,7 @@ Top-level field order: `id, name, category, description, default-metal, per-meta
 
 ## Current data gaps (so placeholder content doesn't get mistaken for a bug)
 
-Verified directly against the file: only Furcula is fleshed out — real prices for all three metals (220/350/240), a real description and two photos. The other eight (Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended, joint) have no `assets.photos`, an empty `description`, and `price: 0` for every metal. Only Furcula, Foramen and Disc have `hero-hand-visibility.visible: true`; the other six are `false` (not yet positioned on the hero hand). Every product's `weight`/`composition` is empty for every metal, including Furcula's. All nine have a model and icons/fallback-img/top-shot renders for all three metals. Only Furcula, Foramen, Disc and Marrow have an `assets.xray` (the other five are `""`, so the carousel shows no backdrop for them).
+Verified directly against the file: only Furcula is fleshed out — real prices for all three metals (220/350/240), a real description and two photos. The other nine (Foramen, Disc, Marrow, suture, cartilage, rib-cage, rib-cage-extended, joint, omoplates) have no `assets.photos`, an empty `description`, and `price: 0` for every metal. Only Furcula, Foramen and Disc have `hero-hand-visibility.visible: true`; the other seven are `false` (not yet positioned on the hero hand). Every product's `weight`/`composition` is empty for every metal, including Furcula's. All ten have a model and icons/fallback-img/top-shot renders for all three metals. Only Furcula, Foramen, Disc and Marrow have an `assets.xray` (the other six are `""`, so the carousel shows no backdrop for them).
 
 ## How it's written
 

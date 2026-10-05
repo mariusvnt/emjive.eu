@@ -11,7 +11,7 @@ assets/
                hand_xray_extension_1.webp, hand_xray_extension_2.webp
     products/  furcula_ring/  foramen_ring/  disc_ring/  marrow_ring/
                suture_ring/  cartilage_ring/  rib-cage_ring/  rib-cage-extended_ring/
-               joint_ring/
+               joint_ring/  omoplates_ring/
   draco/                             ─┐
   fonts/  dinish-woff2/               │
           geist-mono-woff2/           │
@@ -52,6 +52,7 @@ cartilage_ring/            cartilage_gltf.glb, cartilage_icon_{bronze,silver,ste
 rib-cage_ring/             rib-cage_gltf.glb, rib-cage_icon_{bronze,silver,steel}.webp, rib-cage_fallback-img_{bronze,silver,steel}.webp, rib-cage_top-shot_{bronze,silver,steel}.webp — no xray/photos
 rib-cage-extended_ring/    rib-cage-extended_gltf.glb, rib-cage-extended_icon_{bronze,silver,steel}.webp, rib-cage-extended_fallback-img_{bronze,silver,steel}.webp, rib-cage-extended_top-shot_{bronze,silver,steel}.webp — no xray/photos
 joint_ring/                joint_gltf.glb, joint_icon_{bronze,silver,steel}.webp, joint_fallback-img_{bronze,silver,steel}.webp, joint_top-shot_{bronze,silver,steel}.webp — no xray/photos
+omoplates_ring/            omoplates_gltf.glb, omoplates_icon_{bronze,silver,steel}.webp, omoplates_fallback-img_{bronze,silver,steel}.webp, omoplates_top-shot_{bronze,silver,steel}.webp — no xray/photos
 ```
 
 **Every** `.glb` in the catalog now carries `KHR_draco_mesh_compression` (check via a model's `extensionsRequired` in its own glTF JSON chunk), and all of them are produced by one re-runnable script — `npm run optimize-models` (`scripts/optimize-models.js`, see `tooling.md`). That was not always true: three shipped compressed and five didn't, which left the series at **66.9MB of glTF** with a single ring at 20.6MB. After one pass it was **8.3MB** (10.7MB across all nine at the time; **0.8MB today**, after the models were replaced by low-poly versions — see below). Run it on any newly added model; it is idempotent enough to run over the whole folder.

@@ -297,6 +297,28 @@
         "top-shot": { "steel": "assets/series/bones/products/joint_ring/joint_top-shot_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint_top-shot_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint_top-shot_bronze.webp" },
         "photos": []
       }
+    },
+    {
+      "id": "10",
+      "name": "omoplates",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 },
+      "assets": {
+        "model": "assets/series/bones/products/omoplates_ring/omoplates_gltf.glb",
+        "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_icon_bronze.webp" },
+        "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_bronze.webp" },
+        "xray": "",
+        "top-shot": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_bronze.webp" },
+        "photos": []
+      }
     }
   ]
 }

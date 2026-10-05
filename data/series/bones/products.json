@@ -310,7 +310,7 @@
         "bronze": { "price": 0, "weight": "", "composition": "" }
       },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 },
+      "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
         "model": "assets/series/bones/products/omoplates_ring/omoplates_gltf.glb",
         "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_icon_bronze.webp" },

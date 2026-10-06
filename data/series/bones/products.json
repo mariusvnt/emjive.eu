@@ -300,7 +300,7 @@
     },
     {
       "id": "10",
-      "name": "omoplates",
+      "name": "omoplates-unified",
       "category": "ring",
       "description": "",
       "default-metal": "steel",
@@ -312,11 +312,33 @@
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
-        "model": "assets/series/bones/products/omoplates_ring/omoplates_gltf.glb",
-        "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_icon_bronze.webp" },
-        "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_bronze.webp" },
+        "model": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_gltf.glb",
+        "icons": { "steel": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_steel.webp", "silver": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_bronze.webp" },
+        "fallback-img": { "steel": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_bronze.webp" },
         "xray": "",
-        "top-shot": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_bronze.webp" },
+        "top-shot": { "steel": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_top-shot_steel.webp", "silver": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_top-shot_silver.webp", "bronze": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_top-shot_bronze.webp" },
+        "photos": []
+      }
+    },
+    {
+      "id": "11",
+      "name": "omoplates-dual",
+      "category": "ring",
+      "description": "",
+      "default-metal": "steel",
+      "per-metal-specs": {
+        "steel": { "price": 0, "weight": "", "composition": "" },
+        "silver": { "price": 0, "weight": "", "composition": "" },
+        "bronze": { "price": 0, "weight": "", "composition": "" }
+      },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
+      "assets": {
+        "model": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_gltf.glb",
+        "icons": { "steel": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_steel.webp", "silver": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_bronze.webp" },
+        "fallback-img": { "steel": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_bronze.webp" },
+        "xray": "",
+        "top-shot": { "steel": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_top-shot_steel.webp", "silver": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_top-shot_silver.webp", "bronze": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_top-shot_bronze.webp" },
         "photos": []
       }
     }

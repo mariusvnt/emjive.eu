@@ -36,18 +36,25 @@
      the edge the bending reaches (0..1); bend/bend-width the meniscus lip;
      dispersion the colour split at the rim; specular/sheen/glow the
      highlights baked into the displacement map; frost the blur (px) and
-     saturate the colour boost on what's behind the glass. */
-  --glass-strength: 0.25;
-  --glass-depth: 0.75;
-  --glass-curvature: 0;
-  --glass-bend: 0.5;
-  --glass-bend-width: 0.3;
-  --glass-dispersion: 0.5;
+     saturate the colour boost on what's behind the glass; brightness a white
+     (>0) or black (<0) veil over it. The reference's other knobs are read
+     too, and only need setting to change them: --glass-splay (0),
+     --glass-clip-to-shape (1), --glass-soft-edge (1), --glass-sheen-dark (0),
+     --glass-sheen-angle (45), --glass-sheen-width (3), --glass-sheen-falloff
+     (1.5), --glass-glow-spread (1), --glass-glow-falloff (0.5),
+     --glass-scale-x / --glass-scale-y (per-axis strength). */
+  --glass-strength: 0.15;
+  --glass-depth: 1;
+  --glass-curvature: 0.25;
+  --glass-bend: 0.25;
+  --glass-bend-width: 0.5;
+  --glass-dispersion: 1;
   --glass-specular: 1;
-  --glass-sheen: 0.3;
-  --glass-glow: 0.12;
-  --glass-frost: 4px;
+  --glass-sheen: 0;
+  --glass-glow: 0.;
+  --glass-frost: 1px;
   --glass-saturate: 1.6;
+  --glass-brightness: 0.1;
 
   /* The site's only two typefaces. font-secondary: navigation/mono
      usages, Geist Mono (loaded from Google Fonts). font-main: everything
@@ -1550,13 +1557,15 @@ button, input, textarea {
 /* ==== .glass — the site's liquid glass (js/liquid-glass.js) ====
    Shared by this bar and the product page's Select bar
    (.product-select-bar, further down) — one recipe, so they can't drift
-   apart. Three layers of look, whatever the browser:
+   apart. Three layers of look, the same in every browser:
 
-   1. The BEND. js/liquid-glass.js adds .is-glass-backdrop (Chromium:
-      backdrop-filter: url(#filter) refracts the live page behind) or
-      .is-glass-clone (Safari / Firefox, which can't: the script puts a copy
-      of the page inside .glass__layer and filters that instead). The
-      filter's own URL arrives as --glass-url.
+   1. The BEND. js/liquid-glass.js adds .is-glass-clone, puts a copy of the
+      content under the glass inside .glass__layer and filters that copy —
+      one pipeline in Chrome, Safari and Firefox alike. The filter itself is
+      set inline on .glass__pane by the script (see pointFilter() there for
+      why it can't come through a custom property). The frost, the sheen
+      and the veil around it are plain CSS (.glass__clip, .glass__sheen,
+      .glass__veil) — see buildFilter() there for why.
    2. The FROST + TINT + RIM LIGHT. In ::before, above the bend: a soft
       directional glare standing in for a specular reflection, a faint white
       tint, and inset box-shadows — bright along the top edge where light
@@ -1575,10 +1584,6 @@ button, input, textarea {
   -webkit-backdrop-filter: blur(24px) saturate(200%);
   backdrop-filter: blur(24px) saturate(200%);
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.08);
-}
-.glass.is-glass-backdrop {
-  -webkit-backdrop-filter: blur(var(--glass-frost)) var(--glass-url) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-frost)) var(--glass-url) saturate(var(--glass-saturate));
 }
 .glass.is-glass-clone {
   -webkit-backdrop-filter: none;
@@ -1607,10 +1612,12 @@ button, input, textarea {
   pointer-events: none;
 }
 /* Clone mode's layers (built by the script): the layer is the glass's own
-   size and shape and carries the bend; the pane inside it is the same plus a
-   bleed all round (set inline) and carries the frost, so the blur has real
-   pixels to sample at the rim; the stage is the page copy, moved into place
-   with a transform (also inline). Nothing here is ever interactive. */
+   size and shape and clips; the pane inside it is the same plus a bleed all
+   round (set inline, filled with the page's background) and carries the SVG
+   filter — the bend and the colour split — so the frost has solid pixels to
+   sample at the rim; the clip frosts the copy on its way in; the stage is
+   the page copy, moved into place with a transform (also inline); the sheen
+   and the veil lie over the pane. Nothing here is ever interactive. */
 .glass__layer {
   position: absolute;
   inset: 0;
@@ -1618,13 +1625,42 @@ button, input, textarea {
   overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
-  filter: var(--glass-url);
   transition: opacity 0s;
 }
 .glass__pane {
   position: absolute;
   overflow: hidden;
+}
+/* Clips the copy to the pane AND contains it: without contain: strict,
+   WebKit counts everything the copy paints (the whole page) as part of the
+   pane's box when it places the filter, and the bend drifts with the page.
+   It also frosts the copy before the pane's filter bends it — as a CSS
+   filter, which Safari draws through CoreGraphics, rather than as an SVG
+   primitive, which it runs as a per-pixel loop on the CPU every frame. */
+.glass__clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: strict;
   filter: blur(var(--glass-frost)) saturate(var(--glass-saturate));
+}
+/* The specular sheen (an image the script draws from the lens map) and the
+   veil, over the bent copy: static, so they cost nothing per frame. The
+   sheen is ADDED to what's under it (plus-lighter: the reference's additive
+   feComposite), or multiplies it for --glass-sheen-dark; the veil lies
+   "over" it. The layer (z-index: -1, positioned) is the blend group. */
+.glass__sheen,
+.glass__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.glass__sheen {
+  background-size: 100% 100%;
+  mix-blend-mode: plus-lighter;
+}
+.glass__sheen.is-dark {
+  mix-blend-mode: multiply;
 }
 .glass__stage {
   position: absolute;
@@ -1747,15 +1783,13 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar {
   transition: -webkit-backdrop-filter 0s, backdrop-filter 0s;
 }
-.order-checkout-bar.is-strip-active,
-.order-checkout-bar.is-glass-backdrop.is-strip-active {
+.order-checkout-bar.is-strip-active {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   transition-delay: calc(var(--fade-fast) * 3);
 }
-/* Clone mode has no backdrop-filter to drop, but the same beat applies to
-   its page copy: it goes once the strip has fully faded in, and is back the
-   moment the strip starts to leave. */
+/* The glass's page copy follows the same beat: it goes once the strip has
+   fully faded in, and is back the moment the strip starts to leave. */
 .order-checkout-bar.is-strip-active .glass__layer {
   opacity: 0;
   transition-delay: calc(var(--fade-fast) * 3);

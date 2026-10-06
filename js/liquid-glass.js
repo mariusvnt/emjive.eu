@@ -17,35 +17,40 @@
      The map is only regenerated when the element's shape changes.
    - An SVG <filter> turns that map into refraction: three
      feDisplacementMap passes (red / green / blue at slightly different
-     scales — the chromatic aberration), recombined with an arithmetic
-     feComposite, then the map's blue channel painted over as a white
-     specular sheen.
+     scales — the chromatic aberration) recombined with an arithmetic
+     feComposite. Around it, as plain CSS, the copy is frosted (blur +
+     saturate) before it reaches the filter, and the map's blue channel — the
+     specular sheen — and a white or black veil are laid over the result.
+     Same maths as the reference's single filter; see buildFilter() for why
+     it is split this way (it is what Safari can keep up with).
 
-   Where the filter goes depends on the browser, because only Chromium can
-   run an SVG filter on what's *behind* an element:
+   One pipeline, every browser (Chrome, Safari — every iPhone browser is
+   WebKit — and Firefox), the reference's own copy-refraction path: only
+   Chromium can run an SVG filter on what's *behind* an element
+   (backdrop-filter: url()), so nothing here relies on it. The glass carries
+   a copy of the content it sits over (a cloneNode of <main>, or whatever
+   data-glass-source selects), lined up with the original under the glass
+   and re-lined on scroll / resize / the glass moving, and runs the filter
+   on that copy with a plain filter: url(#id). The copy is inert and
+   aria-hidden; ids are stripped; fixed-position nodes are dropped;
+   <video>/<canvas> stay blank (they can't be copied).
 
-   backdrop  Chromium (Chrome, Edge, Android): backdrop-filter: url(#id)
-             bends the live page behind the glass.
-   clone     Safari (every iPhone browser is WebKit) and Firefox: no
-             backdrop-filter at all. The glass instead carries a copy of the
-             page's content (a cloneNode of <main>, or whatever
-             data-glass-source selects), lined up with the original under the
-             glass and re-lined on scroll / resize / the bar moving, and
-             applies the same filter to that copy with a plain
-             filter: url(#id). Markup is inert and aria-hidden; ids are
-             stripped; fixed-position nodes are dropped; <video>/<canvas>
-             stay blank (they can't be copied).
-   frost     the plain CSS look (blur + tint + rim light). Also what shows
-             before this script has run, with prefers-reduced-transparency,
-             or if anything here throws.
+   The only other look is the frost fallback (css/style.css: blur + tint +
+   rim light), which shows before this script has run, with
+   prefers-reduced-transparency, or if anything here throws.
 
-   Safari workarounds, all from the reference project: the filter runs at 1x
+   Safari workarounds. From the reference project: the filter runs at 1x
    (no supersampling — nothing here ever sets a filter resolution), the map
-   is regenerated only when the shape changes, and every update gets a NEW
-   filter id (lg-N-vK) because WebKit caches a filter's output by id.
+   is regenerated only when the shape changes, and the specular is read
+   from the raw map. This port's own: the filter reference is set inline
+   (WebKit resolves a url() reached through var() against the stylesheet),
+   and the filter carries no coordinates — see buildFilter(). The
+   reference also gives the filter a new id whenever its lens moves,
+   because WebKit caches a filter's output per definition; here nothing in
+   the definition ever moves (only the copy under it does, which WebKit
+   repaints like any content), so the id only changes with a rebuild.
 
-   ?glass=backdrop|clone|frost in the URL forces a mode (for testing — the
-   clone path also runs in Chromium).
+   ?glass=frost in the URL forces the fallback (for testing).
    ========================================================================== */
 
 (function (global) {
@@ -60,20 +65,9 @@
   var DISPERSION_SPREAD = 0.22;
   // Longest side of the displacement-map PNG; a wider element is sampled at
   // a coarser resolution and the feImage stretches it back out.
-  var MAP_MAX = 1024;
+  var MAP_MAX = 2048;
   var REBUILD_DEBOUNCE_MS = 120;
   var CLONE_DEBOUNCE_MS = 200;
-  // Clone mode on WebKit — an iPhone — is the memory-tight case, and WebKit
-  // re-runs the whole filter each time the copy moves. The chromatic split
-  // is what makes that filter nine primitives instead of three (a separate
-  // displacement, channel isolation and recombine for each of red, green and
-  // blue); at the bar's size its fringe is a pixel or two wide. Set to null
-  // to give WebKit the full three-pass lens again, as the CSS asks for.
-  var WEBKIT_CLONE_DISPERSION = 0;
-  // The shortest gap between two filter ids on WebKit (see sync()). A fresh
-  // id is what makes WebKit repaint the filtered copy, so this is also the
-  // longest the refraction is allowed to trail the scroll.
-  var ID_BUMP_MS = 50;
 
   // Every knob comes from a --glass-* custom property (css/style.css :root,
   // overridable per element); these are the fallbacks if one is missing.
@@ -82,7 +76,7 @@
     depth: 0.75,         // how far in from the edge the bending reaches (0..1 of half the shorter side)
     curvature: 0,        // dome magnification across the whole surface; 0 = rim only
     bend: 0.5,           // the meniscus "lip" at the rim
-    bendWidth: 0.3,      // width of that lip, as a fraction of the shorter side
+    bendWidth: 0.3,      // width of that lip, as a fraction of the shorter HALF side
     dispersion: 0.5,     // chromatic aberration at the rim
     specular: 1,         // gain on the whole highlight layer
     sheen: 0.3,          // directional edge highlight
@@ -92,33 +86,35 @@
     glow: 0.12,          // soft inner glow
     glowSpread: 1,
     glowFalloff: 0.5,
-    frost: 4,            // px of blur on the copy / backdrop
-    saturate: 1.6
+    frost: 4,            // px of blur on the copy
+    saturate: 1.6,
+    brightness: 0.1,     // white (>0) or black (<0) veil over the lens
+    splay: 0,            // push the refraction outward toward the corners
+    clipToShape: 1,      // no displacement outside the rounded rect
+    softEdge: 1,         // erf feather toward the lens edge
+    sheenDark: 0,        // the highlight darkens the edge instead of lighting it
+    scaleX: null,        // per-axis strength overrides (null = strength)
+    scaleY: null
   };
 
   // ---- environment -------------------------------------------------------
 
   function detect() {
-    var ua = navigator.userAgent || "";
-    // Chrome / Edge / Opera / Samsung Internet on iOS are WebKit wearing a
-    // different name (CriOS, EdgiOS, ...); none of them says "Chrome/".
-    var chromium = /(Chrome|Chromium|Edg|OPR|SamsungBrowser)\//.test(ua);
-    var webkit = /AppleWebKit/.test(ua) && !chromium;
     var mode;
     var forced = null;
     try { forced = new URLSearchParams(global.location.search).get("glass"); } catch (e) { /* no URLSearchParams */ }
-    if (forced === "backdrop" || forced === "clone" || forced === "frost") {
-      mode = forced;
-    } else if (
+    if (
+      forced === "frost" ||
       !global.ResizeObserver ||
+      !global.MutationObserver ||
       !document.createElementNS ||
       (global.matchMedia && global.matchMedia("(prefers-reduced-transparency: reduce)").matches)
     ) {
       mode = "frost";
     } else {
-      mode = chromium ? "backdrop" : "clone";
+      mode = "clone";
     }
-    return { mode: mode, webkit: webkit };
+    return { mode: mode };
   }
 
   var env = detect();
@@ -177,133 +173,295 @@
 
   var mapCanvas = null;
 
-  // Returns a PNG data URL for a W x H (CSS px) rounded rect.
-  function generateMap(W, H, radius, o) {
-    var scale = Math.min(1, MAP_MAX / W, MAP_MAX / H);
+  var sheenCanvas = null;
+
+  // Returns { map, sheen }, PNG data URLs for a W x H (CSS px) rounded-rect
+  // lens. map: the displacement, framed by `bleed` px of neutral grey on
+  // every side — the whole filter region, so the filter needs no sub-region
+  // coordinates at all (see buildFilter()). sheen: the specular highlight,
+  // lens-sized, as the overlay that adds it (see sheenPixel()), or "" if
+  // there is none. The maths is samasante/liquid-glass's
+  // createLensMapGenerator (src/displacement.ts), on the lens's own aspect
+  // instead of a square map stretched to fit.
+  function generateMap(W, H, radius, o, bleed) {
+    var scale = Math.min(1, MAP_MAX / (W + 2 * bleed), MAP_MAX / (H + 2 * bleed));
     var mw = Math.max(2, Math.round(W * scale));
     var mh = Math.max(2, Math.round(H * scale));
+    var bpx = Math.round(bleed * scale);
+    var pw = mw + 2 * bpx;
+    var ph = mh + 2 * bpx;
     if (!mapCanvas) mapCanvas = document.createElement("canvas");
-    mapCanvas.width = mw;
-    mapCanvas.height = mh;
+    mapCanvas.width = pw;
+    mapCanvas.height = ph;
     var ctx = mapCanvas.getContext("2d");
-    var image = ctx.createImageData(mw, mh);
+    var image = ctx.createImageData(pw, ph);
     var data = image.data;
+    for (var n = 0; n < data.length; n += 4) {
+      data[n] = data[n + 1] = data[n + 2] = 128;
+      data[n + 3] = 255;
+    }
 
     var halfW = W / 2;
     var halfH = H / 2;
     var minHalf = Math.min(halfW, halfH);
-    var minDim = Math.min(W, H);
     var r = Math.min(radius, minHalf);
+    var stepX = W / mw;
+    var stepY = H / mh;
+    var invW = 1 / halfW;
+    var invH = 1 / halfH;
 
-    // The refracting band: the rect inset by depthPx, feathered over depthPx.
-    var depthPx = Math.max(1, o.depth * minHalf);
-    var innerHalfW = Math.max(1, halfW - depthPx);
-    var innerHalfH = Math.max(1, halfH - depthPx);
-    var innerR = Math.max(0, r - depthPx);
-    var falloff = Math.SQRT1_2 / depthPx;
+    // depth: a 0..1 fraction of the lens — how far the refraction reaches in
+    // from the edge. The rect inset by depthPx, feathered over depthPx (erf).
+    var depthPx = Math.max(0, Math.min(o.depth * minHalf, minHalf - 1));
+    var innerHalfW = Math.max(0, halfW - depthPx);
+    var innerHalfH = Math.max(0, halfH - depthPx);
+    var innerR = Math.max(0, Math.min(radius, Math.min(innerHalfW, innerHalfH)));
+    var falloff = depthPx > 0 ? Math.SQRT1_2 / depthPx : 1e6;
+    var clipToShape = o.clipToShape > 0;
+    var softEdge = o.softEdge > 0;
 
     var dome = o.curvature > 0 ? domeConstants(o.curvature * minHalf, halfW, halfH) : null;
-    var bendInv = 1 / Math.max(1, o.bendWidth * minDim);
+    var splay = o.splay;
+    var splayInv = minHalf > 0 ? 1 / (0.5 * minHalf) : 0;
+    // The meniscus lip: a bump hugging the rim, bendWidth a fraction of the
+    // shorter HALF side (that is what the reference measures it against).
     var hasBend = o.bend > 0;
+    var bendInv = 1 / Math.max(2, o.bendWidth * minHalf);
 
     var angle = (o.sheenAngle * Math.PI) / 180;
     var cosA = Math.cos(angle);
     var sinA = Math.sin(angle);
-    var sheenNorm = 1 / (Math.abs(cosA) + Math.abs(sinA) || 1);
-    var sheenInv = 1 / Math.max(0.5, o.sheenWidth);
-    var glowReachInv = 1 / Math.max(1, o.glowSpread * minHalf * 0.6);
-    var hasSpec = o.specular > 0 && (o.sheen > 0 || o.glow > 0);
+    var sheenNorm = Math.SQRT1_2;
+    var sheenInv = o.sheenWidth > 0 ? 1 / o.sheenWidth : 0;
+    var glowReachInv = 1 / Math.max(2, o.glowSpread * minHalf);
+    var hasSpec = o.glow > 0 || o.sheen > 0;
 
     var halfCols = Math.ceil(mw / 2);
     var halfRows = Math.ceil(mh / 2);
-    var neutralAxis = encodeAxis(0);
-    var neutralSpec = encodeSpec(0);
+
+    // The quadrant is worked out first (offsets and highlights), encoded
+    // second: the base push, the dome and the meniscus lip add up, and an
+    // axis only holds +-0.5. Written straight into the PNG the sum clips, and
+    // everything past the clip — the rim, where it matters most — comes out
+    // as a flat plateau: a shifted copy of the page instead of a bend, with
+    // the colour split a constant offset instead of a fringe. So the peak is
+    // found first and, if it overshoots, the whole field is scaled down to
+    // fit (strength stays the peak displacement, as documented). The one
+    // deliberate difference from the reference, and only where it overshoots.
+    var cells = halfCols * halfRows;
+    var qDx = new Float32Array(cells);
+    var qDy = new Float32Array(cells);
+    var qMain = new Float32Array(cells);
+    var qCross = new Float32Array(cells);
+    var qOut = new Uint8Array(cells); // outside the shape: neutral grey
+    var peak = 0;
+
+    var domeX = null;
+    if (dome) {
+      domeX = new Float32Array(halfCols);
+      for (var c0 = 0; c0 < halfCols; c0 += 1) {
+        domeX[c0] = domeGradient(-((c0 + 0.5) * stepX - halfW), dome.rx, dome.scaleX);
+      }
+    }
 
     for (var row = 0; row < halfRows; row += 1) {
-      var py = (mh / 2 - (row + 0.5)) / scale;
+      var py = -((row + 0.5) * stepY - halfH);
+      var normY = py * invH > 1 ? 1 : py * invH;
+      var dirYBase = dome ? domeGradient(py, dome.ry, dome.scaleY) : normY;
+      var splayY = splay > 0 ? Math.max(0, 1 - (halfH - py) * splayInv) : 0;
       for (var col = 0; col < halfCols; col += 1) {
-        var px = (mw / 2 - (col + 0.5)) / scale;
-
-        var dx = 0;
-        var dy = 0;
-        var specMain = 0;
-        var specCross = 0;
+        var px = -((col + 0.5) * stepX - halfW);
+        var cell = row * halfCols + col;
         var sdf = roundRectSdf(px, py, halfW, halfH, r);
 
-        if (sdf <= 0) {
-          var innerSdf = roundRectSdf(px, py, innerHalfW, innerHalfH, innerR);
-          var edgeOpacity = 0.5 * (1 + erf(innerSdf * falloff));
-          var nx = px / halfW > 1 ? 1 : px / halfW;
-          var ny = py / halfH > 1 ? 1 : py / halfH;
-          var dirX = dome ? domeGradient(px, dome.rx, dome.scaleX) : nx;
-          var dirY = dome ? domeGradient(py, dome.ry, dome.scaleY) : ny;
+        if (clipToShape && sdf >= 0) {
+          qOut[cell] = 1;
+          continue;
+        }
 
-          dx = 0.5 * dirX * edgeOpacity;
-          dy = 0.5 * dirY * edgeOpacity;
-
-          // Meniscus: an extra push along the same direction, peaking a
-          // third of the way in from the rim (6.75 s^2 (1 - s), s = 1 at the
-          // rim, 0 at the lip's inner edge).
-          if (hasBend) {
-            var s = Math.max(0, 1 + sdf * bendInv);
-            if (s > 0) {
-              var len = Math.sqrt(dirX * dirX + dirY * dirY);
-              if (len > 1e-4) {
-                var m = 6.75 * s * s * (1 - s);
-                var a = (0.5 * o.bend * m * edgeOpacity) / len;
-                dx += dirX * a;
-                dy += dirY * a;
-              }
+        var dirX = domeX ? domeX[col] : px * invW > 1 ? 1 : px * invW;
+        var dirY = dirYBase;
+        if (splay > 0) {
+          var yAtt = splayY * splay;
+          var xAtt = Math.max(0, 1 - (halfW - px) * splayInv) * splay;
+          if (yAtt > 0.001 || xAtt > 0.001) {
+            var prevX = dirX;
+            var prevY = dirY;
+            dirX = prevX * (1 - yAtt);
+            dirY = prevY * (1 - xAtt);
+            var prevLen = Math.sqrt(prevX * prevX + prevY * prevY);
+            var nextLen = Math.sqrt(dirX * dirX + dirY * dirY);
+            if (nextLen > 0.001) {
+              var restore = prevLen / nextLen;
+              dirX *= restore;
+              dirY *= restore;
             }
-          }
-
-          if (hasSpec) {
-            var axisMain = Math.min(1, Math.abs(nx * cosA + ny * sinA) * sheenNorm);
-            var axisCross = Math.min(1, Math.abs(nx * cosA - ny * sinA) * sheenNorm);
-            if (o.sheen > 0) {
-              var band = Math.max(0, 1 + sdf * sheenInv);
-              var b = o.sheen * Math.pow(band, o.sheenFalloff);
-              specMain += b * (0.16 + 0.84 * Math.pow(axisMain, 1.6));
-              specCross += b * (0.16 + 0.84 * Math.pow(axisCross, 1.6));
-            }
-            if (o.glow > 0) {
-              var reach = Math.min(1, -sdf * glowReachInv);
-              var t = 1 - reach;
-              var g = o.glow * Math.pow(t * t * (3 - 2 * t), o.glowFalloff) * edgeOpacity;
-              specMain += g * (0.6 + 0.4 * axisMain);
-              specCross += g * (0.6 + 0.4 * axisCross);
-            }
-            if (specMain > 1) specMain = 1;
-            if (specCross > 1) specCross = 1;
           }
         }
 
-        // Top-left quadrant offsets point toward the centre (+x, +y); the
-        // other three mirror them, which is also why the specular term has a
-        // "main" and a "cross" diagonal.
-        var rPos = dx === 0 ? neutralAxis : encodeAxis(dx);
-        var rNeg = dx === 0 ? neutralAxis : encodeAxis(-dx);
-        var gPos = dy === 0 ? neutralAxis : encodeAxis(dy);
-        var gNeg = dy === 0 ? neutralAxis : encodeAxis(-dy);
-        var bMain = specMain === 0 ? neutralSpec : encodeSpec(specMain);
-        var bCross = specCross === 0 ? neutralSpec : encodeSpec(specCross);
+        var edgeOpacity = 1;
+        if (softEdge) {
+          var innerSdf = roundRectSdf(px, py, innerHalfW, innerHalfH, innerR);
+          edgeOpacity = 0.5 * (1 + erf(innerSdf * falloff));
+        }
 
-        var colR = mw - 1 - col;
-        var rowB = mh - 1 - row;
-        var i00 = (row * mw + col) * 4;
-        var i01 = (row * mw + colR) * 4;
-        var i10 = (rowB * mw + col) * 4;
-        var i11 = (rowB * mw + colR) * 4;
+        var dx = 0.5 * dirX * edgeOpacity;
+        var dy = 0.5 * dirY * edgeOpacity;
+
+        // Meniscus: an extra push along the same direction, peaking a third
+        // of the way in from the rim (6.75 s^2 (1 - s), s = 1 at the rim, 0
+        // at the lip's inner edge) and zero at the rim itself.
+        if (hasBend) {
+          var s = sdf < 0 ? Math.max(0, 1 + sdf * bendInv) : 0;
+          if (s > 0) {
+            var len = Math.sqrt(dirX * dirX + dirY * dirY);
+            if (len > 1e-4) {
+              var m = 6.75 * s * s * (1 - s);
+              var a = (0.5 * o.bend * m * edgeOpacity) / len;
+              dx += dirX * a;
+              dy += dirY * a;
+            }
+          }
+        }
+
+        var specMain = 0;
+        var specCross = 0;
+        if (hasSpec) {
+          var normX = px * invW > 1 ? 1 : px * invW;
+          var axisMain = Math.min(1, Math.abs(normX * cosA + normY * sinA) * sheenNorm);
+          var axisCross = Math.min(1, Math.abs(normX * cosA - normY * sinA) * sheenNorm);
+          if (o.sheen > 0) {
+            var band = sdf < 0 ? Math.max(0, 1 + sdf * sheenInv) : 0;
+            var b = o.sheen * Math.pow(band, o.sheenFalloff);
+            specMain += b * (0.16 + 0.84 * Math.pow(axisMain, 1.6));
+            specCross += b * (0.16 + 0.84 * Math.pow(axisCross, 1.6));
+          }
+          if (o.glow > 0) {
+            var reach = sdf < 0 ? Math.min(1, -sdf * glowReachInv) : 1;
+            var t = 1 - reach;
+            var g = o.glow * Math.pow(t * t * (3 - 2 * t), o.glowFalloff) * edgeOpacity;
+            specMain += g * (0.6 + 0.4 * axisMain);
+            specCross += g * (0.6 + 0.4 * axisCross);
+          }
+          if (specMain > 1) specMain = 1;
+          else if (specMain < -1) specMain = -1;
+          if (specCross > 1) specCross = 1;
+          else if (specCross < -1) specCross = -1;
+        }
+
+        qDx[cell] = dx;
+        qDy[cell] = dy;
+        qMain[cell] = specMain;
+        qCross[cell] = specCross;
+        if (Math.abs(dx) > peak) peak = Math.abs(dx);
+        if (Math.abs(dy) > peak) peak = Math.abs(dy);
+      }
+    }
+
+    var fit = peak > 0.5 ? 0.5 / peak : 1;
+
+    var sheenData = null;
+    var sheenCtx = null;
+    var sheenImage = null;
+    if (hasSpec && o.specular !== 0) {
+      if (!sheenCanvas) sheenCanvas = document.createElement("canvas");
+      sheenCanvas.width = mw;
+      sheenCanvas.height = mh;
+      sheenCtx = sheenCanvas.getContext("2d");
+      sheenImage = sheenCtx.createImageData(mw, mh);
+      sheenData = sheenImage.data;
+    }
+
+    for (row = 0; row < halfRows; row += 1) {
+      for (col = 0; col < halfCols; col += 1) {
+        var at = row * halfCols + col;
+        var rPos;
+        var rNeg;
+        var gPos;
+        var gNeg;
+        var bMain;
+        var bCross;
+        if (qOut[at]) {
+          // Outside the shape: neutral grey, no displacement, no specular.
+          rPos = rNeg = gPos = gNeg = bMain = bCross = 128;
+        } else {
+          var ox = qDx[at] * fit;
+          var oy = qDy[at] * fit;
+          // Top-left quadrant offsets point toward the centre (+x, +y); the
+          // other three mirror them, which is also why the specular term has
+          // a "main" and a "cross" diagonal.
+          rPos = encodeAxis(ox);
+          rNeg = encodeAxis(-ox);
+          gPos = encodeAxis(oy);
+          gNeg = encodeAxis(-oy);
+          bMain = encodeSpec(qMain[at]);
+          bCross = encodeSpec(qCross[at]);
+        }
+
+        var colL = bpx + col;
+        var colR = bpx + mw - 1 - col;
+        var rowT = bpx + row;
+        var rowB = bpx + mh - 1 - row;
+        var i00 = (rowT * pw + colL) * 4;
+        var i01 = (rowT * pw + colR) * 4;
+        var i10 = (rowB * pw + colL) * 4;
+        var i11 = (rowB * pw + colR) * 4;
 
         data[i00] = rPos; data[i00 + 1] = gPos; data[i00 + 2] = bMain; data[i00 + 3] = 255;
         data[i01] = rNeg; data[i01 + 1] = gPos; data[i01 + 2] = bCross; data[i01 + 3] = 255;
         data[i10] = rPos; data[i10 + 1] = gNeg; data[i10 + 2] = bCross; data[i10 + 3] = 255;
         data[i11] = rNeg; data[i11 + 1] = gNeg; data[i11 + 2] = bMain; data[i11 + 3] = 255;
+
+        if (sheenData) {
+          var sMain = sheenPixel(bMain, o);
+          var sCross = sheenPixel(bCross, o);
+          var s00 = (row * mw + col) * 4;
+          var s01 = (row * mw + (mw - 1 - col)) * 4;
+          var s10 = ((mh - 1 - row) * mw + col) * 4;
+          var s11 = ((mh - 1 - row) * mw + (mw - 1 - col)) * 4;
+          putSheen(sheenData, s00, sMain);
+          putSheen(sheenData, s01, sCross);
+          putSheen(sheenData, s10, sCross);
+          putSheen(sheenData, s11, sMain);
+        }
       }
     }
 
     ctx.putImageData(image, 0, 0);
-    return mapCanvas.toDataURL("image/png");
+    var sheenUrl = "";
+    if (sheenData) {
+      sheenCtx.putImageData(sheenImage, 0, 0);
+      sheenUrl = sheenCanvas.toDataURL("image/png");
+    }
+    return { map: mapCanvas.toDataURL("image/png"), sheen: sheenUrl };
+  }
+
+  // One pixel of the sheen overlay, from the map's blue value (b, 128 =
+  // none), exactly what the reference's filter does with it:
+  //   - sheen: a white mask of alpha (b - 128) / 255 (never below 0), ADDED
+  //     to the lens at `specular` gain (feComposite arithmetic k2 = specular,
+  //     k3 = 1). As an overlay: white at that alpha, mix-blend-mode
+  //     plus-lighter — which adds its premultiplied colour, the same sum.
+  //   - sheenDark: the lens MULTIPLIED by 1 + 128 * specular / 255 -
+  //     specular * b / 255 (feComposite arithmetic k1 = 1). As an overlay:
+  //     that grey, opaque, mix-blend-mode multiply.
+  // Returns [r, g, b, a] (unpremultiplied, as ImageData wants it).
+  function sheenPixel(b, o) {
+    var spec = o.specular;
+    if (o.sheenDark > 0) {
+      var grey = Math.max(0, Math.min(1, 1 + (128 * spec) / 255 - (spec * b) / 255));
+      var g8 = Math.round(grey * 255);
+      return [g8, g8, g8, 255];
+    }
+    var add = Math.max(0, Math.min(1, spec * Math.max(0, (b - 128) / 255)));
+    return [255, 255, 255, Math.round(add * 255)];
+  }
+
+  function putSheen(data, index, px) {
+    data[index] = px[0];
+    data[index + 1] = px[1];
+    data[index + 2] = px[2];
+    data[index + 3] = px[3];
   }
 
   // ---- the SVG filter ------------------------------------------------------
@@ -316,88 +474,126 @@
     return node;
   }
 
-  // Keeps one channel of its input (and alpha), zeroes the rest.
-  function channelMatrix(channel) {
-    var rows = [
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 0, 0],
-      [0, 0, 0, 1, 0]
-    ];
-    rows[channel][channel] = 1;
-    return rows.map(function (row) { return row.join(" "); }).join("  ");
+  // The displacement scale in user px: strength is a fraction of the shorter
+  // side (x2, as the field spans +-0.5), per axis if scaleX / scaleY are set —
+  // the larger of the two drives the filter, the map carries the ratio.
+  function lensScales(W, H, o) {
+    var sx = o.scaleX == null ? o.strength : o.scaleX;
+    var sy = o.scaleY == null ? o.strength : o.scaleY;
+    var maxScale = Math.max(sx, sy);
+    return {
+      sx: sx,
+      sy: sy,
+      max: maxScale,
+      base: maxScale * 2 * Math.min(W, H)
+    };
   }
 
-  function buildFilter(id, W, H, mapUrl, o) {
-    var baseScale = 2 * o.strength * Math.min(W, H);
+  // The filter is samasante/liquid-glass's LensFilterContents (src/Glass.tsx)
+  // — map -> optional axis rescale -> frost -> symmetric RGB-split
+  // displacement -> additive specular -> brightness veil — with only the
+  // displacement and the colour split left inside the SVG filter. The rest
+  // is the same maths, done where it costs nothing per frame:
+  //   - frost + saturate: a CSS filter on .glass__clip, under the pane, so
+  //     the copy reaches this filter already frosted (saturate is a
+  //     per-pixel colour op: before or after the displacement is the same);
+  //   - the sheen and the veil: overlays above the pane (.glass__sheen,
+  //     .glass__veil) — they depend only on the lens's shape, never on what
+  //     is under it, so they are drawn once, not per frame;
+  //   - nothing clips the result to the lens's rounded shape: .glass__layer
+  //     already clips to exactly that shape (it inherits the glass's
+  //     border-radius), so the reference's shape mask and its cut-out of the
+  //     copy around the lens drew nothing that shows.
+  //
+  // Why it matters — WebKit's own source, not a guess: Safari renders an SVG
+  // reference filter in software (Page::preferredFilterRenderingModes only
+  // adds the CoreImage path behind AcceleratedFiltersEnabled, an "unstable"
+  // setting that defaults to false, and the CoreGraphics path only takes a
+  // filter whose every primitive is a blur or a colour matrix), as plain
+  // per-pixel loops over the whole region, at the full device scale
+  // (RenderLayer::ensureLayerFilters: page().deviceScaleFactor(), 3 on an
+  // iPhone) — and it has to run again every frame the copy moves under it,
+  // which is every frame of a scroll. A plain CSS blur() / saturate(), by
+  // contrast, goes through CoreGraphics there (GraphicsContextFiltersEnabled,
+  // on by default), and a static overlay costs nothing at all. Chrome runs
+  // either form on the GPU; it gives the same picture both ways.
+  //
+  // No primitive carries a position, either. The region is the pane's own
+  // box (objectBoundingBox 0 0 1 1) and where the lens sits is drawn into
+  // the map (lens framed by neutral grey, the bleed wide). WebKit measures
+  // that box over everything the element paints, so the copy — which
+  // overflows the pane by the whole page — has to be contained (see
+  // .glass__clip) for it to be the pane's own box, as it is in Chrome. Plain
+  // numbers — the displacement scale — stay in px (primitiveUnits
+  // userSpaceOnUse), which carry no origin.
+  function buildFilter(id, W, H, o, mapUrl) {
+    var sc = lensScales(W, H, o);
+    var needsMapScale = sc.max > 0 && !(sc.sx === sc.max && sc.sy === sc.max);
+    var base = sc.base;
     var spread = DISPERSION_SPREAD * 0.5 * o.dispersion;
+
     var filter = svgEl("filter", {
       id: id,
       x: "0",
       y: "0",
-      width: String(W),
-      height: String(H),
-      filterUnits: "userSpaceOnUse",
+      width: "1",
+      height: "1",
+      filterUnits: "objectBoundingBox",
       primitiveUnits: "userSpaceOnUse",
       "color-interpolation-filters": "sRGB"
     });
+    function put(name, attrs) { filter.appendChild(svgEl(name, attrs)); }
 
-    var image = svgEl("feImage", {
-      x: "0",
-      y: "0",
-      width: String(W),
-      height: String(H),
-      preserveAspectRatio: "none",
-      result: "map"
-    });
+    // The map carries its own neutral surround, so it needs no grey
+    // underlay; the reference's "rawMap" and "map" are the same image here.
+    var image = svgEl("feImage", { preserveAspectRatio: "none", result: "map" });
     image.setAttribute("href", mapUrl);
     image.setAttributeNS(XLINK_NS, "xlink:href", mapUrl);
     filter.appendChild(image);
+    var mapInput = "map";
+    if (needsMapScale) {
+      var mx = sc.sx / sc.max;
+      var my = sc.sy / sc.max;
+      put("feColorMatrix", {
+        "in": "map",
+        type: "matrix",
+        values: mx + " 0 0 0 " + 0.5 * (1 - mx) + "  0 " + my + " 0 0 " + 0.5 * (1 - my) + "  0 0 1 0 0  0 0 0 1 0",
+        result: "scaledMap"
+      });
+      mapInput = "scaledMap";
+    }
 
     function displace(scale, result) {
-      return svgEl("feDisplacementMap", {
+      var attrs = {
         "in": "SourceGraphic",
-        in2: "map",
+        in2: mapInput,
         scale: String(scale),
         xChannelSelector: "R",
-        yChannelSelector: "G",
-        result: result
-      });
+        yChannelSelector: "G"
+      };
+      if (result) attrs.result = result;
+      put("feDisplacementMap", attrs);
     }
 
     if (o.dispersion > 0) {
-      var names = ["R", "G", "B"];
-      var scales = [baseScale * (1 + spread), baseScale, baseScale * (1 - spread)];
+      // Symmetric about the base: red fringes outward (+half the spread),
+      // blue inward, green stays put — so raising dispersion fringes the
+      // edges without zooming or shifting the whole refracted field.
+      var scales = [base * (1 + spread), base, base * (1 - spread)];
+      var keep = [
+        "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0",
+        "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0",
+        "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
+      ];
+      var names = ["refractR", "refractG", "refractB"];
       for (var c = 0; c < 3; c += 1) {
-        filter.appendChild(displace(scales[c], "d" + names[c]));
-        filter.appendChild(svgEl("feColorMatrix", {
-          "in": "d" + names[c],
-          type: "matrix",
-          values: channelMatrix(c),
-          result: "c" + names[c]
-        }));
+        displace(scales[c], "d" + names[c]);
+        put("feColorMatrix", { "in": "d" + names[c], type: "matrix", values: keep[c], result: names[c] });
       }
-      filter.appendChild(svgEl("feComposite", {
-        "in": "cR", in2: "cG", operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: "cRG"
-      }));
-      filter.appendChild(svgEl("feComposite", {
-        "in": "cRG", in2: "cB", operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: "lens"
-      }));
+      put("feComposite", { "in": "refractR", in2: "refractG", operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: "refractRG" });
+      put("feComposite", { "in": "refractRG", in2: "refractB", operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0" });
     } else {
-      filter.appendChild(displace(baseScale, "lens"));
-    }
-
-    // The map's blue channel is the highlight: 0.5 = none, above that is
-    // white at that alpha.
-    if (o.specular > 0) {
-      var gain = o.specular;
-      filter.appendChild(svgEl("feColorMatrix", {
-        "in": "map",
-        type: "matrix",
-        values: "0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 " + 2 * gain + " 0 " + -gain,
-        result: "spec"
-      }));
-      filter.appendChild(svgEl("feComposite", { "in": "spec", in2: "lens", operator: "over" }));
+      displace(base);
     }
     return filter;
   }
@@ -448,7 +644,7 @@
     return "#fff";
   }
 
-  // ---- the page copy (clone mode) ------------------------------------------
+  // ---- the copy ----------------------------------------------------------------
 
   var DROP_TAGS = { SCRIPT: 1, NOSCRIPT: 1, TEMPLATE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1 };
   var BLANK_TAGS = { VIDEO: 1, CANVAS: 1, AUDIO: 1 };
@@ -504,11 +700,9 @@
       filterId: "",
       rebuildTimer: 0,
       cloneTimer: 0,
-      // A copy of the page is owed but wasn't made because nobody could see
-      // the bar at the time — see isIdle() and rebuildClone().
+      // A copy is owed but wasn't made because nobody could see the glass at
+      // the time — see isIdle() and rebuildClone().
       copyPending: false,
-      bumpTimer: 0,
-      lastBump: 0,
       layer: null,
       pane: null,
       stage: null,
@@ -528,32 +722,30 @@
     ro.observe(el);
     inst.observers.push(ro);
 
-    if (inst.mode === "clone") {
-      buildLayers(inst);
-      inst.source = document.querySelector(el.getAttribute("data-glass-source") || "main");
-      if (inst.source) {
-        var sro = new ResizeObserver(function () { kick(); });
-        sro.observe(inst.source);
-        inst.observers.push(sro);
-        var mo = new MutationObserver(function (records) {
-          if (records.some(isCopyRelevant)) scheduleClone(inst);
-        });
-        // Not every attribute: `style` is rewritten constantly by things the
-        // copy has no use for (the carousel's track on every drag move, the
-        // loaders' parts, fades), and each one of those used to cost a full
-        // re-clone of the page. What changes what the glass shows through is
-        // content arriving or leaving, an image source changing, and a class
-        // or the hidden flag flipping something on or off.
-        mo.observe(inst.source, {
-          subtree: true,
-          childList: true,
-          attributes: true,
-          attributeFilter: ["class", "src", "hidden"],
-          characterData: true
-        });
-        inst.observers.push(mo);
-        rebuildClone(inst);
-      }
+    buildLayers(inst);
+    inst.source = document.querySelector(el.getAttribute("data-glass-source") || "main");
+    if (inst.source) {
+      var sro = new ResizeObserver(function () { kick(); });
+      sro.observe(inst.source);
+      inst.observers.push(sro);
+      var mo = new MutationObserver(function (records) {
+        if (records.some(isCopyRelevant)) scheduleClone(inst);
+      });
+      // Not every attribute: `style` is rewritten constantly by things the
+      // copy has no use for (the carousel's track on every drag move, the
+      // loaders' parts, fades), and each one of those used to cost a full
+      // re-clone of the page. What changes what the glass shows through is
+      // content arriving or leaving, an image source changing, and a class
+      // or the hidden flag flipping something on or off.
+      mo.observe(inst.source, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["class", "src", "hidden"],
+        characterData: true
+      });
+      inst.observers.push(mo);
+      rebuildClone(inst);
     }
     scheduleRebuild(inst, true);
     return inst;
@@ -565,35 +757,48 @@
     inst.observers.forEach(function (ob) { ob.disconnect(); });
     clearTimeout(inst.rebuildTimer);
     clearTimeout(inst.cloneTimer);
-    clearTimeout(inst.bumpTimer);
     if (inst.filterEl && inst.filterEl.parentNode) inst.filterEl.parentNode.removeChild(inst.filterEl);
     if (inst.layer && inst.layer.parentNode) inst.layer.parentNode.removeChild(inst.layer);
-    el.classList.remove("is-glass-backdrop", "is-glass-clone");
-    el.style.removeProperty("--glass-url");
+    el.classList.remove("is-glass-clone");
     delete el.__emjiveGlass;
     instances.splice(instances.indexOf(inst), 1);
   }
 
   function buildLayers(inst) {
-    // layer: bar-sized, clips to the glass's own shape, and carries the
-    // refraction filter. pane: the layer plus a bleed all round, carrying the
-    // frost — so the blur has real pixels to sample at the rim instead of
-    // fading out against transparent. stage: the page copy.
+    // layer: the glass's own size and shape; clips. pane: the layer plus the
+    // bleed all round, filled with the page's background; carries the SVG
+    // filter (the bend). clip: the pane's own box, clipping AND containing
+    // the copy (contain: strict) — WebKit otherwise counts everything the
+    // copy paints (the whole page, way past the pane) as the pane's box when
+    // it places the filter — and frosting it (CSS). stage: the copy itself,
+    // moved into place. sheen, veil: the highlight and the tint, over the
+    // pane (see buildFilter()).
     var layer = document.createElement("div");
     layer.className = "glass__layer";
     layer.setAttribute("aria-hidden", "true");
     var pane = document.createElement("div");
     pane.className = "glass__pane";
+    var clip = document.createElement("div");
+    clip.className = "glass__clip";
     var stage = document.createElement("div");
     stage.className = "glass__stage";
     stage.setAttribute("aria-hidden", "true");
     stage.setAttribute("inert", "");
-    pane.appendChild(stage);
+    var sheen = document.createElement("div");
+    sheen.className = "glass__sheen";
+    var veil = document.createElement("div");
+    veil.className = "glass__veil";
+    clip.appendChild(stage);
+    pane.appendChild(clip);
     layer.appendChild(pane);
+    layer.appendChild(sheen);
+    layer.appendChild(veil);
     inst.el.insertBefore(layer, inst.el.firstChild);
     inst.layer = layer;
     inst.pane = pane;
     inst.stage = stage;
+    inst.sheen = sheen;
+    inst.veil = veil;
   }
 
   function scheduleRebuild(inst, immediate) {
@@ -604,27 +809,33 @@
 
   function rebuild(inst) {
     var el = inst.el;
+    if (inst.mode === "frost") return;
     var W = el.offsetWidth;
     var H = el.offsetHeight;
     if (!W || !H) return; // hidden — the ResizeObserver fires again when it shows
     var o = readOptics(el);
-    if (inst.mode === "clone" && env.webkit && WEBKIT_CLONE_DISPERSION !== null) {
-      o.dispersion = WEBKIT_CLONE_DISPERSION;
-    }
-    var radius = readRadius(el, W, H);
-    var mapUrl;
+    var radius = Math.min(readRadius(el, W, H), W / 2, H / 2);
+    // The copy is padded all round by what the frost reaches past the edge
+    // (three sigmas), so the blur at the rim samples solid page background,
+    // not transparent. The displacement needs no padding of its own: every
+    // offset in the map points INTO the lens (the dome, the lip and the base
+    // push all bend toward the centre), so it never reads past the edge.
+    // The region is the cost — every pass runs over all of it, every frame
+    // the copy moves — so it is no bigger than that.
+    var bleed = Math.ceil(o.frost * 3) + 2;
+    var maps;
     try {
-      mapUrl = generateMap(W, H, radius, o);
+      maps = generateMap(W, H, radius, o, bleed);
     } catch (err) {
       fallBack(inst);
       return;
     }
 
-    // Filter regions are per-size, so a resize means a new filter; the new id
-    // is also what defeats WebKit's cached output.
+    // A new filter per rebuild, under a new id: WebKit caches a filter's
+    // output per definition.
     inst.version += 1;
     var id = "lg-" + inst.n + "-v" + inst.version;
-    var next = buildFilter(id, W, H, mapUrl, o);
+    var next = buildFilter(id, W, H, o, maps.map);
     ensureDefs().appendChild(next);
     if (inst.filterEl && inst.filterEl.parentNode) inst.filterEl.parentNode.removeChild(inst.filterEl);
     inst.filterEl = next;
@@ -632,27 +843,30 @@
     inst.width = W;
     inst.height = H;
     inst.optics = o;
-    el.style.setProperty("--glass-url", "url(#" + id + ")");
-
-    if (inst.mode === "clone") {
-      inst.bleed = Math.ceil(o.frost * 3) + 2;
-      inst.pane.style.inset = -inst.bleed + "px";
-      inst.pane.style.background = pageBackground();
-      inst.lastX = NaN;
-      // The first copy of the page is made here, when the bar first has a
-      // size, not when it was attached: it starts hidden, and copying the
-      // page for a bar nobody can see — twice over, since the page keeps
-      // changing while it loads — was pure waste (see rebuildClone).
-      if (inst.copyPending) rebuildClone(inst);
-      else sync(inst);
-    }
-    el.classList.add("is-glass-" + inst.mode);
+    inst.bleed = bleed;
+    inst.pane.style.inset = -bleed + "px";
+    inst.pane.style.background = pageBackground();
+    inst.sheen.style.backgroundImage = maps.sheen ? "url(" + maps.sheen + ")" : "none";
+    inst.sheen.classList.toggle("is-dark", o.sheenDark > 0);
+    // A white (> 0) or black (< 0) veil of that opacity, "over" the lens.
+    inst.veil.style.backgroundColor = o.brightness === 0
+      ? "transparent"
+      : (o.brightness > 0 ? "rgba(255, 255, 255, " : "rgba(0, 0, 0, ") + Math.min(1, Math.abs(o.brightness)) + ")";
+    pointFilter(inst);
+    inst.lastX = NaN;
+    // The first copy is made here, when the glass first has a size, not when
+    // it was attached: a bar starts hidden, and copying the page for a bar
+    // nobody can see — twice over, since the page keeps changing while it
+    // loads — was pure waste (see rebuildClone).
+    if (inst.copyPending) rebuildClone(inst);
+    else sync(inst);
+    el.classList.add("is-glass-clone");
     document.documentElement.setAttribute("data-glass-mode", inst.mode);
   }
 
   function fallBack(inst) {
     inst.mode = "frost";
-    inst.el.classList.remove("is-glass-backdrop", "is-glass-clone");
+    inst.el.classList.remove("is-glass-clone");
     if (inst.layer && inst.layer.parentNode) inst.layer.parentNode.removeChild(inst.layer);
     inst.layer = inst.pane = inst.stage = null;
   }
@@ -686,7 +900,7 @@
   // is in the background. Copying the page and re-running a filter for it is
   // work whose result is thrown away — and on a phone, memory it holds for
   // nothing. The copy is owed instead (copyPending) and made the moment the
-  // bar can be seen again.
+  // glass can be seen again.
   function isIdle(inst) {
     var el = inst.el;
     return !el.offsetWidth ||
@@ -713,25 +927,21 @@
     sync(inst);
   }
 
-  // A fresh filter id is what makes WebKit repaint the filtered copy once the
-  // copy has moved (see sync()), and each repaint re-runs the whole filter.
-  function bumpFilterId(inst) {
-    inst.lastBump = Date.now();
-    if (!inst.filterEl) return;
-    inst.version += 1;
-    var id = "lg-" + inst.n + "-v" + inst.version;
-    inst.filterEl.setAttribute("id", id);
-    inst.filterId = id;
-    inst.el.style.setProperty("--glass-url", "url(#" + id + ")");
+  // Inline, never through a custom property: WebKit resolves a url() that
+  // reaches a stylesheet through var() against that STYLESHEET's address
+  // (css/style.css#lg-1-v1 — a filter that doesn't exist). An inline style
+  // resolves against the page.
+  function pointFilter(inst) {
+    if (inst.pane) inst.pane.style.filter = "url(#" + inst.filterId + ")";
   }
 
-  // Lines the page copy up with the original under the glass. Both rects are
-  // viewport-relative, so scroll, resize and a moving bar all reduce to the
+  // Lines the copy up with the original under the glass. Both rects are
+  // viewport-relative, so scroll, resize and a moving glass all reduce to the
   // same two reads. Returns true if anything moved.
   function sync(inst) {
     if (inst.mode !== "clone" || !inst.stage || !inst.source) return false;
     if (isIdle(inst)) return false;
-    // The bar became visible with a copy owed (see isIdle): make it now.
+    // The glass became visible with a copy owed (see isIdle): make it now.
     // rebuildClone() clears the flag and calls back in here.
     if (inst.copyPending) {
       rebuildClone(inst);
@@ -741,34 +951,20 @@
     var br = inst.el.getBoundingClientRect();
     var x = sr.left - br.left + inst.bleed;
     var y = sr.top - br.top + inst.bleed;
-    if (x === inst.lastX && y === inst.lastY && sr.width === inst.lastW) return false;
-    inst.lastX = x;
-    inst.lastY = y;
-    inst.lastW = sr.width;
-    inst.stage.style.width = sr.width + "px";
-    // translate, not translate3d: the 3D form makes the copy its own
-    // compositor layer, and the copy is the whole page — a layer as tall as
-    // <main>, thousands of pixels at 3x, to show a bar's worth of it. The
-    // copy only moves under a clip a few dozen pixels high, so a plain 2D
-    // transform keeps the cost at the size of what is actually drawn.
-    inst.stage.style.transform = "translate(" + x + "px," + y + "px)";
-    if (env.webkit && inst.filterEl) {
-      // WebKit re-filters a changed *definition*, not changed content under
-      // an unchanged one: a fresh id each time the copy moves. But not
-      // every frame — each new id re-runs the whole filter, and a scroll is
-      // sixty frames a second. At most one per ID_BUMP_MS, plus a trailing
-      // one so the refraction always ends up matching where the copy stopped.
-      var sinceBump = Date.now() - inst.lastBump;
-      if (sinceBump >= ID_BUMP_MS) {
-        bumpFilterId(inst);
-      } else if (!inst.bumpTimer) {
-        inst.bumpTimer = setTimeout(function () {
-          inst.bumpTimer = 0;
-          bumpFilterId(inst);
-        }, ID_BUMP_MS - sinceBump);
-      }
+    var moved = !(x === inst.lastX && y === inst.lastY && sr.width === inst.lastW);
+    if (moved) {
+      inst.lastX = x;
+      inst.lastY = y;
+      inst.lastW = sr.width;
+      inst.stage.style.width = sr.width + "px";
+      // translate, not translate3d: the 3D form makes the copy its own
+      // compositor layer, and the copy is the whole page — a layer as tall
+      // as <main>, thousands of pixels at 3x, to show a bar's worth of it.
+      // The copy only moves under a clip a few dozen pixels high, so a plain
+      // 2D transform keeps the cost at the size of what is actually drawn.
+      inst.stage.style.transform = "translate(" + x + "px," + y + "px)";
     }
-    return true;
+    return moved;
   }
 
   // ---- one shared rAF loop ---------------------------------------------------

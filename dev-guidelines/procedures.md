@@ -59,7 +59,8 @@ existing one — `bones` is the only one so far. To start a *new* series, see
      rotation/scale; a re-export that drops it turns the live model away
      from its own poster (see `assets.md`). Compare against the old render
      (`fallback-img`) after swapping, and re-run `npm run auto-render` if the
-     shape itself changed.
+     shape itself changed. Re-run `npm run measure-models` either way, since
+     the file's hash changed (see `geometry` below).
 2b. (If the product has an x-ray backdrop) drop it in as `<slug>_xray.webp`, then run **`npm run image-variants`** — it writes the other three versions of it (`_lo`, `_m`, `_m_lo`: desktop low, smartphone high and low, the smartphone ones cropped) beside it. Nothing works without them: the product page asks for the low-res one first, and `npm run verify` (`validate-data.js`) fails until they exist. `json-tool`'s x-ray dropzone does **not** run it. See `assets.md`'s "Responsive versions".
 3. (Optional) drop in icons too — 512×512 transparent WebPs of just the
    product (no background), one per metal it can be shown in (not just its
@@ -86,9 +87,9 @@ existing one — `bones` is the only one so far. To start a *new* series, see
   "description": "A line or two about the piece — shown on its product page.",
   "default-metal": "silver",
   "per-metal-specs": {
-    "steel":  { "price": 0, "weight": "", "composition": "" },
-    "silver": { "price": 0, "weight": "", "composition": "" },
-    "bronze": { "price": 0, "weight": "", "composition": "" }
+    "steel":  { "price": 0 },
+    "silver": { "price": 0 },
+    "bronze": { "price": 0 }
   },
   "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
   "3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 },
@@ -129,11 +130,23 @@ the model/icon and a `Name.category` label; `description` and
 Reload the page and the new card appears automatically.
 
 `per-metal-specs` holds one entry per metal in the top-level `"metals"` list,
-each with `price` (a plain number — `0` renders as "Price on request", so
-leave it `0` until you have a real price rather than inventing one),
-`weight` and `composition` (free-text strings, left `""` until you have real
-values). These are what the product page's Characteristics section shows,
-and they re-render whenever a visitor switches the metal picker.
+each with just `price` (a plain number — `0` renders as "Price on request", so
+leave it `0` until you have a real price rather than inventing one). It is the
+selling price, shown in the product page's label bar. The Characteristics
+section is not hand-written: it shows weight, size and a cost breakdown
+derived from the model's measured `geometry` and the per-metal `metal-costs`
+in `data/series.json`, and re-renders whenever a visitor switches the metal
+picker.
+
+**Do not write the entry's `"geometry"` by hand — run `npm run
+measure-models` once the entry exists** (and its model is final). It reads
+the `.glb`, and adds a `"geometry"` line (volume, minimum bounding box, a hash
+of the model file) right after `per-metal-specs`. `npm run verify` fails
+until every product has one, and again whenever its model changes afterwards
+(including a re-run of `npm run optimize-models`): re-run the script. It prints a
+table with each model's volume and box, and warns about meshes that aren't
+watertight, whose volume is then only approximate — fix the mesh if the number
+matters. `json-tool` doesn't run it either; its add/edit responses remind you.
 
 `assets.photos` is extra photography for the product page's carousel, beyond the
 always-present 3D model slide (or the `assets.icons[metal]` fallback if there's no
@@ -335,18 +348,22 @@ entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
 (`.product-metals__option[data-metal="..."]`, see "Re-rendering icons and
 metal swatches" just below for how those are made; since all the strips come
 from one stack of tubes, adding a metal changes every metal's slot, so re-run
-`npm run auto-render -- --swatches-only` for all of them) — and add a
-`per-metal-specs` entry for it on every product, since the Characteristics
-section looks values up by metal name.
+`npm run auto-render -- --swatches-only` for all of them) — plus a
+`"metal-costs"` entry for it in `data/series.json` (density in g/cm³, price
+per gram, production cost per cm³: the Characteristics section's weight and
+cost rows are computed from them, and `validate-data` fails without one),
+and a `per-metal-specs` entry for it on every product, since the page looks
+values up by metal name.
 
-`npm run json-tool`'s Global tab handles the first of those three places —
+`npm run json-tool`'s Global tab handles the first of those places —
 add (or remove) a metal there and it only ever touches the `"metals"`
-list, showing an on-screen reminder about the other two, which still need
+list, showing an on-screen reminder about the rest, which still need
 doing by hand exactly as described above. Removing a metal there is more
 thorough than the JSON-only add: it's blocked if any product still uses it
 as `default-metal`, and otherwise cascades through every product in every
 series, dropping that metal's key from `per-metal-specs`/`icons`/
-`fallback-img`/`top-shot` wherever it appears — see `tooling.md`.
+`fallback-img`/`top-shot` wherever it appears, and its `metal-costs` entry
+too — see `tooling.md`.
 
 To **tune an existing metal's values** (rather than add a new one),
 `scene-tool.html` previews the change live before you commit to it: pick

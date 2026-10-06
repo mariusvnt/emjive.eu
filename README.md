@@ -181,6 +181,7 @@ series/<slug>/                                  One series' hero bundle (html/cs
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
+scripts/measure-models.js                       Each model's volume + size, written into products.json (npm run measure-models)
 scripts/slugs.js                                An item's address (/<name>) and the names it may not take
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
@@ -202,9 +203,11 @@ tooling, and the assets folder).
 
 This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
-from here. Eight of the nine current products still have no photography,
-no description, and no price, and every product's weight/composition is
-still a placeholder waiting on real data. `launch-order.html`'s review page goes
+from here. Ten of the eleven current products still have no photography,
+no description, and no selling price. (Each product's weight, size and an
+estimated production cost are real: they're derived from its 3D model's
+measured volume — see `npm run measure-models` in the dev-guidelines.)
+`launch-order.html`'s review page goes
 all the way to a "Proceed to checkout" button, but there's still no real
 payment step behind it — no backend exists yet to hand that off to (e.g. a
 Stripe Checkout session); clicking it just says so.

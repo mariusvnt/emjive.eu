@@ -23,6 +23,8 @@
   var state = {
     product: null,
     metals: [],
+    // data/series.json's "metal-costs", keyed by metal (see computeCosts).
+    metalCosts: {},
     selectedMetal: null,
     modelHandle: null,
     // The model slide's poster <img> while the viewer isn't in yet.
@@ -148,6 +150,7 @@
     window.EmjiveSeries.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
+        state.metalCosts = ctx.index["metal-costs"] || {};
         return findProduct(ctx.slug, getRequest());
       })
       .then(function (found) {
@@ -714,8 +717,8 @@
   // .product-carousel--has-photos reserves below --tile — a real child of
   // product-carousel__slide either way, so it rides the carousel
   // drag/transform as one unit with its photo. Falls back to an em-dash for
-  // an empty description, same convention appendSpecRow's
-  // weight/composition rows already use.
+  // an empty description, same convention renderSpecs's rows use for a
+  // missing value.
   function buildPhotoSlide(photo, alt) {
     // Deferred: the photos are off screen, so they start downloading only
     // after the page's first paint (render() → loadRemainingAssets).
@@ -779,19 +782,40 @@
 
   /* ---- 6. characteristics (metal-dependent) ------------------------------ */
 
-  function renderSpecs(product) {
-    var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
-    var dl = document.getElementById("productSpecs");
-    dl.innerHTML = "";
-    appendSpecRow(dl, "Metal", capitalize(state.selectedMetal));
-    appendSpecRow(dl, "Price", window.EmjiveSelection.formatPrice(details.price || 0));
-    appendSpecRow(dl, "Weight", details.weight || "—");
-    appendSpecRow(dl, "Composition", details.composition || "—");
+  // Weight and the cost breakdown for one metal, from the model's measured
+  // volume (product.geometry, written by scripts/measure-models.js) and that
+  // metal's constants in data/series.json's "metal-costs". Raw materials are
+  // the metal itself (weight x price per gram); manufacturing is whatever
+  // is left of the production cost (volume x production cost per cm3).
+  // Returns null if either input is missing.
+  function computeCosts(volumeCm3, costs) {
+    if (!(volumeCm3 > 0) || !costs) return null;
+    var weight = volumeCm3 * costs["density-g-cm3"];
+    var production = volumeCm3 * costs["production-per-cm3"];
+    var raw = weight * costs["price-per-g"];
+    return { weight: weight, raw: raw, manufacturing: production - raw, production: production };
   }
 
-  function appendSpecRow(dl, label, value) {
-    dl.appendChild(el("dt", null, label));
-    dl.appendChild(el("dd", null, value));
+  function formatEuros(amount) {
+    return "€ " + amount.toFixed(2);
+  }
+
+  function renderSpecs(product) {
+    var geometry = product.geometry || {};
+    var dims = geometry["dimensions-mm"];
+    var costs = computeCosts(geometry["volume-cm3"], state.metalCosts[state.selectedMetal]);
+    var dl = document.getElementById("productSpecs");
+    dl.innerHTML = "";
+    appendSpecRow(dl, "Weight", costs ? costs.weight.toFixed(1) + " g" : "—");
+    appendSpecRow(dl, "Dimensions", dims && dims.length === 3 ? dims.join(" × ") + " mm" : "—");
+    appendSpecRow(dl, "Raw materials", costs ? formatEuros(costs.raw) : "—");
+    appendSpecRow(dl, "Manufacturing", costs ? formatEuros(costs.manufacturing) : "—");
+    appendSpecRow(dl, "Production cost", costs ? formatEuros(costs.production) : "—", "product-specs__total");
+  }
+
+  function appendSpecRow(dl, label, value, cls) {
+    dl.appendChild(el("dt", cls, label));
+    dl.appendChild(el("dd", cls, value));
   }
 
   /* ---- 5–7. expandable sections ------------------------------------------ */
@@ -873,10 +897,6 @@
       requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
-  }
-
-  function capitalize(s) {
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
   }
 
   /* ---- 4 + size modal + selection ---------------------------------------- */

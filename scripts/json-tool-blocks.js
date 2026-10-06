@@ -352,10 +352,21 @@ function renderProductBlock(p, metals) {
   const specs = p["per-metal-specs"] || {};
   const perMetal = metals
     .map((m) => {
-      const s = specs[m] || { price: 0, weight: "", composition: "" };
-      return '        "' + m + '": { "price": ' + num(s.price) + ', "weight": "' + esc(s.weight) + '", "composition": "' + esc(s.composition) + '" }';
+      const s = specs[m] || { price: 0 };
+      return '        "' + m + '": { "price": ' + num(s.price) + " }";
     })
     .join(",\n");
+
+  // Written by scripts/measure-models.js, never edited here — so it's only
+  // carried through from the product object (the current on-disk one, see
+  // json-tool-server.js), and a brand-new product simply has none until
+  // `npm run measure-models` runs.
+  const g = p.geometry;
+  const geometry = g
+    ? '      "geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
+      ', "dimensions-mm": [' + (g["dimensions-mm"] || []).map(num).join(", ") +
+      '], "model-sha1": "' + esc(g["model-sha1"]) + '" },'
+    : null;
 
   const assets = p.assets || {};
   const hhv = p["hero-hand-visibility"] || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
@@ -379,6 +390,7 @@ function renderProductBlock(p, metals) {
     '      "per-metal-specs": {',
     perMetal,
     "      },",
+    ...(geometry ? [geometry] : []),
     '      "hero-hand-visibility": { "visible": ' + bool(hhv.visible) + ', "x": ' + num(hhv.x) + ', "y": ' + num(hhv.y) + ', "scale": ' + num(hhv.scale) + ', "rotation": ' + num(hhv.rotation) + " },",
     // roll is optional (three-viewer.js defaults it to 0), so it's only
     // written when the product already carries one — a product that

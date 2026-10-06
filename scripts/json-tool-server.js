@@ -28,7 +28,7 @@
    series/category/hdri/metal, not just patching a field that already
    exists) live in scripts/json-tool-blocks.js, a plain sibling module.
 
-   Three scope decisions this file deliberately never crosses:
+   Four scope decisions this file deliberately never crosses:
    1. No auto-render integration — never shells out to `npm run
       auto-render`/Puppeteer/sharp. Only writes JSON + hand-owned asset
       files; regenerating icons stays a manual terminal step afterward.
@@ -36,8 +36,12 @@
       for any metal — renderProductBlock always copies those three per-
       metal maps straight from the current on-disk product, never from
       form input, so there is no code path here that could touch them.
-   3. New metals only ever touch data/series.json's "metals" array —
+   3. New metals only ever touch data/series.json's "metals" array (and a
+      removal also drops that metal's "metal-costs" entry) —
       js/three-viewer.js and css/style.css are never opened by this file.
+   4. "geometry" on a product is never edited here — measure-models.js
+      owns it; renderProductBlock just carries it through from the
+      current on-disk product.
 
    Deliberately outside Vite entirely (not in vite.config.js's
    rollupOptions.input, same as scene-tool.html/auto-render.js) — this is
@@ -432,8 +436,11 @@ async function handleGlobalMetal(req, res) {
       });
     }
 
-    const patched = blocks.removeFromInlineStringArray(text, '"metals": [', metal);
+    let patched = blocks.removeFromInlineStringArray(text, '"metals": [', metal);
     if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
+    // Its metal-costs entry goes with it (validate-data rejects a cost entry
+    // for a metal that isn't in the list).
+    patched = blocks.removeObjectEntryInText(patched, '"metal-costs": {', metal) || patched;
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
     // Cascade cleanup: strip the removed metal's key from every product's
@@ -477,7 +484,9 @@ async function handleGlobalMetal(req, res) {
     reminder:
       'Added "' + metal + '" to data/series.json\'s metals list. Still needed by hand: a METAL_PRESETS.' + metal +
       ' entry in js/three-viewer.js, and a .product-metals__option[data-metal="' + metal + '"] rule in css/style.css ' +
-      "— this tool does not touch either file. Existing products won't have a \"" + metal +
+      "— this tool does not touch either file — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
+      "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it). " +
+      "Existing products won't have a \"" + metal +
       '" entry under per-metal-specs until you re-save them here, either.'
   });
 }
@@ -731,7 +740,9 @@ async function handleProductAdd(req, res) {
     id: product.id,
     folder,
     written,
-    reminder: "Run `npm run auto-render` to generate icons/fallback-img/top-shots for this product."
+    reminder:
+      "Run `npm run auto-render` to generate icons/fallback-img/top-shots for this product, and " +
+      "`npm run measure-models` to measure its weight, size and cost (`npm run validate-data` fails until you do)."
   });
 }
 
@@ -809,6 +820,7 @@ async function handleProductEdit(req, res) {
       writeBase64File(dest, body.modelFile.contentBase64);
       merged.assets.model = dest;
       written.push(dest);
+      warnings.push("model replaced — run `npm run measure-models` to refresh its weight, size and cost.");
     }
     if (body.xrayFile && body.xrayFile.filename) {
       const ext = extOf(body.xrayFile.filename);

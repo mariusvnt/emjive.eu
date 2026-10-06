@@ -2612,6 +2612,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   font-size: calc(12px * var(--text-scale));
   padding-bottom: 0.5rem;
 }
+/* The sum of the two rows above it (raw materials + manufacturing). */
+.product-specs .product-specs__total {
+  border-top: 1px solid var(--black);
+  padding-top: 0.75rem;
+}
 
 /* ---- size-selection modal ---- */
 /* Simple opacity/transform cross-fade — no keyframes, matching the file's

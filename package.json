@@ -16,6 +16,7 @@
     "render-favicons": "node scripts/render-favicons.js",
     "auto-render": "node scripts/auto-render.js",
     "optimize-models": "node scripts/optimize-models.js",
+    "measure-models": "node scripts/measure-models.js",
     "optimize-images": "node scripts/optimize-images.js",
     "optimize-hdri": "node scripts/optimize-hdri.js",
     "image-variants": "node scripts/make-image-variants.js",

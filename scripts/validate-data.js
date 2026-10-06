@@ -14,6 +14,7 @@
    Exits 1 with a list of every problem found, not just the first.
    ========================================================================== */
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
@@ -104,10 +105,22 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "categories", "hdris", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
+    "metal-costs": {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        required: ["density-g-cm3", "price-per-g", "production-per-cm3"],
+        properties: {
+          "density-g-cm3": { type: "number", exclusiveMinimum: 0 },
+          "price-per-g": { type: "number", exclusiveMinimum: 0 },
+          "production-per-cm3": { type: "number", exclusiveMinimum: 0 }
+        }
+      }
+    },
     categories: {
       type: "object",
       additionalProperties: {
@@ -153,7 +166,7 @@ const metalMap = { type: "object", additionalProperties: str };
 
 const productSchema = {
   type: "object",
-  required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "assets"],
+  required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "geometry", "assets"],
   properties: {
     id: str,
     name: { type: "string", minLength: 1 },
@@ -164,8 +177,18 @@ const productSchema = {
       type: "object",
       additionalProperties: {
         type: "object",
-        required: ["price", "weight", "composition"],
-        properties: { price: { type: "number", minimum: 0 }, weight: str, composition: str }
+        required: ["price"],
+        properties: { price: { type: "number", minimum: 0 } }
+      }
+    },
+    // Written by `npm run measure-models`, never by hand.
+    geometry: {
+      type: "object",
+      required: ["volume-cm3", "dimensions-mm", "model-sha1"],
+      properties: {
+        "volume-cm3": { type: "number", exclusiveMinimum: 0 },
+        "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+        "model-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
       }
     },
     "hero-hand-visibility": {
@@ -237,6 +260,19 @@ if (index && validate("data/series.json", indexSchema, index)) {
 
   if (!slugs.includes(index.featured)) fail("data/series.json", 'featured "' + index.featured + '" is not a series slug');
   if (new Set(slugs).size !== slugs.length) fail("data/series.json", "duplicate series slug");
+  // The product page derives weight and cost from these (js/product.js's
+  // computeCosts): one entry per metal, and manufacturing (production minus
+  // raw material) must not come out negative.
+  const costs = index["metal-costs"];
+  for (const metal of metals) {
+    if (!costs[metal]) fail("data/series.json", 'metal-costs has no "' + metal + '"');
+  }
+  for (const [metal, c] of Object.entries(costs)) {
+    if (!metals.has(metal)) fail("data/series.json", 'metal-costs has unknown metal "' + metal + '"');
+    else if (c["production-per-cm3"] < c["price-per-g"] * c["density-g-cm3"]) {
+      fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
+    }
+  }
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
 
@@ -325,6 +361,12 @@ if (index && validate("data/series.json", indexSchema, index)) {
           checkVariants(label + " assets.icons." + metal, rel, ["128"]);
         }
         checkPath(label + " assets.model", product.assets.model);
+        // geometry.model-sha1 pins the measurements to the exact model file
+        // they were taken from (scripts/measure-models.js).
+        if (product.assets.model && existsExactCase(product.assets.model)) {
+          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, product.assets.model))).digest("hex");
+          if (sha1 !== product.geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
+        }
         checkPath(label + " assets.xray", product.assets.xray);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));

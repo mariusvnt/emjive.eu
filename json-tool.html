@@ -198,7 +198,7 @@
     <div>
       Per-metal specs
       <table>
-        <thead><tr><th>Metal</th><th>Price</th><th>Weight</th><th>Composition</th></tr></thead>
+        <thead><tr><th>Metal</th><th>Price</th></tr></thead>
         <tbody id="perMetalSpecsBody"></tbody>
       </table>
     </div>
@@ -891,13 +891,11 @@ function fillProductForm() {
 
   const specs = (product && product["per-metal-specs"]) || {};
   els.perMetalSpecsBody.innerHTML = (si.metals || []).map((m) => {
-    const s = specs[m] || { price: 0, weight: "", composition: "" };
+    const s = specs[m] || { price: 0 };
     return (
       '<tr data-metal="' + escapeHtml(m) + '">' +
       "<td>" + escapeHtml(m) + "</td>" +
       '<td><input type="number" class="spec-price" value="' + (s.price || 0) + '"></td>' +
-      '<td><input type="text" class="spec-weight" value="' + escapeHtml(s.weight || "") + '"></td>' +
-      '<td><input type="text" class="spec-composition" value="' + escapeHtml(s.composition || "") + '"></td>' +
       "</tr>"
     );
   }).join("");
@@ -985,9 +983,7 @@ async function onProductSave() {
   const perMetalSpecs = {};
   els.perMetalSpecsBody.querySelectorAll("tr").forEach((row) => {
     perMetalSpecs[row.dataset.metal] = {
-      price: parseFloat(row.querySelector(".spec-price").value) || 0,
-      weight: row.querySelector(".spec-weight").value,
-      composition: row.querySelector(".spec-composition").value
+      price: parseFloat(row.querySelector(".spec-price").value) || 0
     };
   });
 

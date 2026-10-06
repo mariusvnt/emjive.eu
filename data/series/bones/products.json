@@ -8,10 +8,11 @@
       "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel":  { "price": 220,   "weight": "", "composition": "" },
-        "silver": { "price": 350, "weight": "", "composition": "" },
-        "bronze": { "price": 240,   "weight": "", "composition": "" }
+        "steel":  { "price": 220 },
+        "silver": { "price": 350 },
+        "bronze": { "price": 240 }
       },
+      "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "model-sha1": "62f26a2886471b85a003b898c233bcddb3ba6270" },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {
@@ -45,10 +46,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel":  { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel":  { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 1.216, "dimensions-mm": [30.7, 25.2, 20.1], "model-sha1": "a4b09e9a81099702f95b2a1e9d82fd1ef9c27728" },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
       "assets": {
@@ -79,10 +81,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel":  { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel":  { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.567, "dimensions-mm": [25.9, 23.8, 5.5], "model-sha1": "0bd13a6f148fd184f4c3ffac885aea7230f45741" },
       "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
       "assets": {
@@ -113,10 +116,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel":  { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel":  { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "model-sha1": "7c728c46b4f3fe32252b07b5da65fd5abcf338a5" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
       "assets": {
@@ -143,10 +147,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.49, "dimensions-mm": [27.1, 22.9, 9.6], "model-sha1": "40318e39acaf3c76333216a424279fe4379c5134" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
       "assets": {
@@ -177,10 +182,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.921, "dimensions-mm": [35.7, 24, 15.4], "model-sha1": "0aadbcc4cff59623d7131b401e1836adba1dfa90" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
       "assets": {
@@ -211,10 +217,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.594, "dimensions-mm": [24.8, 24.8, 13.9], "model-sha1": "36713c477f720fc9c4c125023711dd0211e2bc78" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 80 },
       "assets": {
@@ -245,10 +252,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "model-sha1": "c3b4e17decd3edd193eb7242a98804f6f40df0cd" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
       "assets": {
@@ -279,10 +287,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "model-sha1": "d9055605e2c2ff192f97e9a580295699e8e4f428" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
@@ -305,10 +314,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "model-sha1": "840d4df47f95524689d9795fc38befe593786310" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
@@ -327,10 +337,11 @@
       "description": "",
       "default-metal": "steel",
       "per-metal-specs": {
-        "steel": { "price": 0, "weight": "", "composition": "" },
-        "silver": { "price": 0, "weight": "", "composition": "" },
-        "bronze": { "price": 0, "weight": "", "composition": "" }
+        "steel": { "price": 0 },
+        "silver": { "price": 0 },
+        "bronze": { "price": 0 }
       },
+      "geometry": { "volume-cm3": 2.034, "dimensions-mm": [29.6, 28, 25.1], "model-sha1": "4c21beb1896e44e16c60acaea595c906194d61c7" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {

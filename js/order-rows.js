@@ -4,20 +4,39 @@
    selection bar's drawer (js/selection-page.js and js/selection-bar.js), so
    the two behave identically: a tap anywhere on a row opens the Modify
    sheet for its item (js/modify-modal.js). That's all a row does — its
-   Unselect and the Undo after it live in the page's bar while the sheet is
-   open. Same .order-item markup and CSS in both lists.
+   Unselect lives in the page's bar while the sheet is open; the Undo after
+   it is on the row's own line (offerUndo, below). Same .order-item markup
+   and CSS in both lists.
 
    Rows follow the selection one change at a time instead of being rebuilt
    on every change, so each change shows as what it is: a Modify crossfades
-   just the parts of its row that changed, an Unselect collapses its row,
-   and an Undo expands it back where it was — the collapse played in
-   reverse.
+   just the parts of its row that changed, an Unselect collapses its row
+   (or, when the Modify sheet asked for an Undo, holds it open as one — see
+   below), and an Undo brings it back where it was.
 
    window.EmjiveOrderRows.create(options) returns
    { render(items, { animate }), preview(index, values), settledHeight(),
-   buttonAt(index) } — preview() is the Modify sheet's live draft: the row's
-   changed parts switch to the draft at once, no fade (null: back to the
-   stored item), without touching storage.
+   buttonAt(index), offerUndo(index, handlers), isHolding() } — preview() is
+   the Modify sheet's live draft: the row's changed parts switch to the draft
+   at once, no fade (null: back to the stored item), without touching
+   storage.
+
+   offerUndo(index, handlers) is called just BEFORE the item at `index` is
+   removed from storage. The removal's row then stays in the list, at its
+   full height, as the item's "undo line" (css/style.css's .order-item__undo):
+   its content fades out and an invert band grows in across the left quarter
+   of the line, under an "Undo" button. handlers is { onUndo(), onGone() }:
+   onUndo when that button is tapped (the caller puts the item back, and the
+   held line is the very row that comes back to life), onGone once the line
+   has gone for any other reason — closed, dropped, or swept away by a
+   rebuild. It returns the handle { held(), button(), leave(done), drop() }:
+   held() is false when no line could be held (the list wasn't animating),
+   leave(done) is the offer running out — the band regresses to the left
+   edge, then the line closes — and drop() closes it at once. A line that is
+   all that's left of its list (the last item) doesn't collapse: it leaves
+   along with the list, like the last row always has. isHolding() says
+   whether a line is held or about to be, which is what a page needs to know
+   before it treats its list as empty.
    options:
      listEl             the <ul> the rows are rendered into
      rowClass           an extra class on every <li> (the drawer's
@@ -25,6 +44,11 @@
      showPrice          the order list shows each row's price; the drawer
                         doesn't
      onModify(binding)  a row was tapped — binding.item / binding.index
+     dropAtOnce         a dropped undo line (another row was tapped while it
+                        was on offer) leaves the list at once instead of
+                        closing: for the bar's drawer, which is about to
+                        measure the tapped row's place and mustn't have the
+                        row above it still collapsing
      onResize()         the list's height changes: once a collapsed row has
                         left, and when a row is put back — at full size,
                         just before its expansion plays, so a container
@@ -34,8 +58,9 @@
 
    The list emptying out is left to each page (the drawer closes, the order
    list crossfades to its empty state), which simply stops calling render()
-   then: the last row leaves along with its list rather than collapsing on
-   its own first, and an Undo finds it still in place.
+   then — except while a line is held (isHolding()): the last row leaves along
+   with its list rather than collapsing on its own first, and the page lets
+   the list go when onGone says the line has.
    ========================================================================== */
 
 (function (global) {
@@ -156,6 +181,7 @@
     var listEl = options.listEl;
     var rowClass = options.rowClass || "";
     var showPrice = !!options.showPrice;
+    var dropAtOnce = !!options.dropAtOnce;
 
     // One entry per row still in the list, in list order:
     // { item, index, li, inner, button, thumb, name, attrs, price }. A row
@@ -163,6 +189,12 @@
     // can't open an item that's gone, and every index here matches
     // storage.
     var bindings = [];
+    // The undo line asked for and not answered yet (offerUndo() runs before
+    // the removal, which render() then answers), and the one now held: both
+    // { index, handlers, state: "pending" | "held" | "leaving" | "done",
+    // binding, line }.
+    var pendingHold = null;
+    var held = null;
 
     function resize() {
       if (options.onResize) options.onResize();
@@ -303,7 +335,7 @@
       if (i !== -1) list.splice(i, 1);
     }
 
-    function collapse(binding) {
+    function collapse(binding, done) {
       collapsing.push(binding);
       binding.li.classList.add("is-removing");
       // Waits for both: .order-item__inner's max-height (the layout
@@ -319,6 +351,105 @@
         forget(collapsing, binding);
         binding.li.remove();
         resize();
+        if (done) done();
+      });
+    }
+
+    /* ---- the undo line ------------------------------------------------------ */
+
+    function buildUndoLine(h) {
+      var wrap = document.createElement("div");
+      wrap.className = "order-item__undo";
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "order-item__undo-button";
+      var label = document.createElement("span");
+      label.className = "order-item__undo-label";
+      label.textContent = "Undo";
+      button.appendChild(label);
+      var band = document.createElement("span");
+      band.className = "order-item__undo-band";
+      band.setAttribute("aria-hidden", "true");
+      wrap.appendChild(button);
+      wrap.appendChild(band);
+      button.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (h.state === "held" && h.handlers.onUndo) h.handlers.onUndo();
+      });
+      return { wrap: wrap, button: button, band: band };
+    }
+
+    // The removed row stays: its content goes inert, and the line is built in
+    // and laid out before .is-undo lands, so there is a state to transition
+    // from.
+    function hold(h, binding) {
+      h.state = "held";
+      h.binding = binding;
+      h.line = buildUndoLine(h);
+      held = h;
+      binding.inner.inert = true;
+      binding.li.appendChild(h.line.wrap);
+      void binding.li.offsetWidth;
+      binding.li.classList.add("is-undo");
+    }
+
+    // The line is over. It closes like any removed row — unless it is all the
+    // list has left, which goes with the list.
+    function finishHold(h, done, atOnce) {
+      if (h.state === "done") return;
+      var wasPending = h.state === "pending";
+      h.state = "done";
+      if (pendingHold === h) pendingHold = null;
+      if (held === h) held = null;
+      if (wasPending) return;
+      function end() {
+        if (done) done();
+        if (h.handlers.onGone) h.handlers.onGone();
+      }
+      if (atOnce) {
+        h.binding.li.remove();
+        resize();
+        end();
+      } else if (bindings.length) {
+        collapse(h.binding, end);
+      } else {
+        end();
+      }
+    }
+
+    // The offer ran out: the label goes, the band regresses to the left edge,
+    // and only then does the line close.
+    function leave(h, done) {
+      if (h.state !== "held") return;
+      h.state = "leaving";
+      h.binding.li.classList.add("is-undo-leaving");
+      transitionDone(h.line.band, "width", ROW_MOTION_MS).then(function () {
+        if (h.state === "leaving") finishHold(h, done);
+      });
+    }
+
+    // Undo: the held line is the row coming back — its band sweeps the whole
+    // line and fades as the row's own band and content return (all CSS),
+    // and then the undo line is taken down.
+    function revive(h, items, index) {
+      var binding = h.binding;
+      var li = binding.li;
+      h.state = "done";
+      held = null;
+      // Only moved when something has come between (re-inserting an element
+      // drops the state its transitions start from — it would just snap).
+      var next = bindings[index] ? bindings[index].li : null;
+      if (li.nextElementSibling !== next) listEl.insertBefore(li, next);
+      bindings.splice(index, 0, binding);
+      syncBindings(items);
+      crossfadeRow(binding, items[index], true);
+      binding.inner.inert = false;
+      li.classList.remove("is-undo", "is-undo-leaving");
+      li.classList.add("is-undo-revived");
+      transitionDone(h.line.band, "opacity", 700).then(function () {
+        li.classList.remove("is-undo-revived");
+        h.line.wrap.remove();
+        if (h.handlers.onGone) h.handlers.onGone();
       });
     }
 
@@ -364,6 +495,18 @@
     }
 
     function rebuild(items) {
+      // Whatever was held goes with the list; told once this call is over,
+      // since the page it tells may well be the one that is rendering.
+      var swept = held;
+      held = null;
+      if (swept) {
+        swept.state = "done";
+        setTimeout(function () { if (swept.handlers.onGone) swept.handlers.onGone(); }, 0);
+      }
+      if (pendingHold) {
+        pendingHold.state = "done";
+        pendingHold = null;
+      }
       listEl.innerHTML = "";
       collapsing = [];
       expanding = [];
@@ -382,14 +525,39 @@
     // it can't explain as one change rebuilds too.
     function render(items, opts) {
       var animate = !!(opts && opts.animate);
+      var sel = global.EmjiveSelection;
+      var oldKeys = bindings.map(function (binding) { return sel.itemKey(binding.item); });
+      var keys = items.map(sel.itemKey);
+
+      // An Unselect that asked for an Undo (offerUndo): its row stays, as the
+      // line — even the list's last one.
+      if (pendingHold) {
+        var asked = pendingHold;
+        pendingHold = null;
+        var removal = animate && bindings.length ? sel.singleChange(oldKeys, keys) : null;
+        if (removal && removal.type === "remove" && removal.index === asked.index) {
+          hold(asked, bindings.splice(removal.index, 1)[0]);
+          syncBindings(items);
+          return;
+        }
+        asked.state = "done";
+      }
+
+      // An Undo: the line held for it is the row that comes back.
+      if (held && animate) {
+        var back = sel.singleChange(oldKeys, keys);
+        if (back && back.type === "insert" && keys[back.index] === sel.itemKey(held.binding.item)) {
+          revive(held, items, back.index);
+          return;
+        }
+      }
+
       if (!animate || !items.length || !bindings.length) {
         rebuild(items);
         return;
       }
 
-      var sel = global.EmjiveSelection;
-      var oldKeys = bindings.map(function (binding) { return sel.itemKey(binding.item); });
-      var change = sel.singleChange(oldKeys, items.map(sel.itemKey));
+      var change = sel.singleChange(oldKeys, keys);
       if (!change) {
         rebuild(items);
         return;
@@ -428,9 +596,23 @@
       resampleBand(binding.li);
     }
 
+    function offerUndo(index, handlers) {
+      if (held) finishHold(held);
+      var h = { index: index, handlers: handlers || {}, state: "pending", binding: null, line: null };
+      pendingHold = h;
+      return {
+        held: function () { return h.state === "held" || h.state === "leaving"; },
+        button: function () { return h.line ? h.line.button : null; },
+        leave: function (done) { leave(h, done); },
+        drop: function () { finishHold(h, null, dropAtOnce); }
+      };
+    }
+
     return {
       render: render,
       preview: preview,
+      offerUndo: offerUndo,
+      isHolding: function () { return !!(pendingHold || held); },
       // The row now at `index` — where focus goes back to when the Modify
       // sheet closes, looked up late because rows come and go.
       settledHeight: settledHeight,

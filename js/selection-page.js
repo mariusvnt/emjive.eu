@@ -6,9 +6,10 @@
    shipping-option pick, a terms-acceptance toggle, and a fixed "Proceed to
    checkout" bar gated on both of those. While the Modify sheet
    (js/modify-modal.js) is open that bar turns into its Unselect | Save
-   strip — and, after an Unselect, into "Undo" for a few seconds — with a
-   drawer opened over it showing the row that was tapped, the sheet resting
-   right on top of it. Falls
+   strip, with a drawer opened over it showing the row that was tapped, the
+   sheet resting right on top of it. After an Unselect the row's own line in
+   the list stays on as "Undo" for a few seconds (js/order-rows.js's
+   offerUndo), even the last item's. Falls
    back to the static .selection-empty block when there's nothing selected.
    ========================================================================== */
 
@@ -59,14 +60,19 @@
 
   /* ---- checkout bar as the Modify sheet's strip ------------------------------
      While the sheet is open, its Unselect | Save strip (built by
-     js/modify-modal.js, appended into this bar) covers the bar, and after
-     an Unselect the strip stays on as "Undo". The swap itself is pure CSS
+     js/modify-modal.js, appended into this bar) covers the bar. The swap
+     itself is pure CSS
      (.order-checkout-bar.is-strip-active, sequenced with transition-delay
      so the total and "Proceed to checkout" are gone before the strip
      arrives); this flips the classes and keeps whichever half isn't
-     showing out of reach. stripShown also keeps the bar up through an
-     "Undo" that follows the last item out. */
+     showing out of reach. stripShown also keeps the bar up while the strip
+     fades out after the last item's Unselect (stripFading, for as long as
+     that takes), with .is-empty keeping its row out meanwhile: nothing left
+     to total. */
   var stripShown = false;
+  var stripFading = false;
+  var stripFadeTimer = 0;
+  var STRIP_FADE_MS = 300;
 
   var stripHost = {
     el: checkoutBar,
@@ -86,6 +92,12 @@
       strip.classList.add("is-hidden");
       strip.setAttribute("aria-hidden", "true");
       strip.inert = true;
+      stripFading = true;
+      clearTimeout(stripFadeTimer);
+      stripFadeTimer = setTimeout(function () {
+        stripFading = false;
+        updateCheckoutSummary();
+      }, STRIP_FADE_MS);
       updateCheckoutSummary();
     }
   };
@@ -170,7 +182,8 @@
   // per-metal-specs notes.
   function updateCheckoutSummary() {
     var items = window.EmjiveSelection.getSelection();
-    checkoutBar.hidden = !items.length && !stripShown;
+    checkoutBar.hidden = !items.length && !stripShown && !stripFading;
+    checkoutBar.classList.toggle("is-empty", !items.length);
     var total = selectedShippingOption().price || 0;
     items.forEach(function (item) { total += item.price || 0; });
     checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
@@ -277,6 +290,17 @@
       },
       onOpen: function () { openRowDrawer(binding.index); },
       onClose: closeRowDrawer,
+      // The row's line stays on as its Undo (see js/order-rows.js); when it
+      // goes, a list with nothing left in it gives way to the empty state.
+      offerUndo: function (index, handlers) {
+        return rows.offerUndo(index, {
+          onUndo: handlers.onUndo,
+          onGone: function () {
+            handlers.onGone();
+            render();
+          }
+        });
+      },
       returnFocus: function () {
         return listState === "list" ? rows.buttonAt(binding.index) : null;
       },
@@ -369,7 +393,8 @@
       drawerRows.render([items[drawerIndex]], { animate: true });
     }
 
-    if (items.length) {
+    // A line held as an Undo (even the last item's) keeps the list up.
+    if (items.length || rows.isHolding()) {
       if (listState === "empty") {
         rows.render(items, { animate: false });
         crossfade(emptyEl, listEl);

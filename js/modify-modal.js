@@ -23,11 +23,13 @@
    Unselect on the bar's left quarter and Save on the rest (inactive while
    the size field holds nothing orderable), each marked by an invert band
    like the drawer rows', coming in from its own edge of the screen.
-   Unselect removes the item, the sheet slides away and its band stretches
-   across the whole bar, over "Undo", for a few seconds; tapping the bar
-   then puts the item back where it was. Either way the band slides back
-   out to the left once the offer is over. On Save, both bands simply slide
-   out through their own edges.
+   Unselect removes the item and the sheet slides away; the strip gives the
+   bar back to its own content, and the item's own line in the list (the
+   drawer's, or the order page's) stays put as "Undo" for four seconds —
+   js/order-rows.js's undo line: the left quarter of the line, an invert
+   band growing in across it from the left edge. Tapping Undo puts the item
+   back where it was; left alone, the line closes. On Save, both bands
+   simply slide out through their own edges.
 
    window.EmjiveModifyModal = { open(item, index, options), isOpen() }.
    options:
@@ -40,6 +42,12 @@
                     at once, to { metal, size, price, image } without storing
                     anything — and values is null when the sheet is dismissed
                     unsaved, putting the row back
+     offerUndo(index, handlers)
+                    the list holds the unselected row's line open as its
+                    "Undo" (js/order-rows.js's offerUndo), returning the
+                    handle { held(), button(), leave(done), drop() };
+                    handlers is { onUndo(), onGone() }. Without it, an
+                    Unselect is final
      onOpen()       once the sheet is up (the drawer shrinks to the row)
      onClose()      once the sheet has closed — saved, unselected or just
                     dismissed (the drawer grows back)
@@ -66,13 +74,9 @@
   // transform in css/style.css) plus a margin — the viewer is disposed only
   // once it's out of sight, or the model would blank out mid-slide.
   var SLIDE_OUT_MS = 350;
-  // How long the bar offers "Undo" after an Unselect. Eight seconds, not four:
-  // a timed offer has to be long enough to find, read and reach (WCAG 2.2.1),
-  // and it is also held open for as long as the pointer is over the button or
-  // it has keyboard focus — see armUndo().
-  var UNDO_MS = 8000;
-  // How often a held-open offer re-checks whether it may expire.
-  var UNDO_RECHECK_MS = 1000;
+  // How long the list offers "Undo" after an Unselect, from the Unselect
+  // itself — whatever the pointer or keyboard focus is doing.
+  var UNDO_MS = 4000;
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -169,18 +173,16 @@
 
   /* ---- the bar strip -------------------------------------------------------
      What the page's bar turns into while this sheet is open (css/style.css's
-     .modify-strip): one dark, full-bleed layer over the bar holding three
-     buttons, in reading (and Tab) order — Unselect (the left quarter), Save
-     (the rest) and Undo (the whole strip, once Unselect has been tapped) —
-     each a plain --white label on the strip's own --black-bg, plus one
-     invert band (.modify-strip__band), the same backdrop-filter band the
-     drawer rows carry, sized to Save's own right three quarters at rest so
-     Save's label alone reads dark on a light band. Tapping Save grows the
-     band to the full bar width, then fades it out, before the bar takes its
-     own content back (leaveAfterSave). Tapping Unselect shrinks the band
-     back into the right edge it's pinned to, crossfading into "Undo" as it
-     goes; once that offer is over, "Undo" simply fades out in turn
-     (leaveStrip) — nothing left to slide, the band having already gone.
+     .modify-strip): one dark, full-bleed layer over the bar holding two
+     buttons, in reading (and Tab) order — Unselect (the left quarter) and
+     Save (the rest) — each a plain --white label on the strip's own
+     --black-bg, plus one invert band (.modify-strip__band), the same
+     backdrop-filter band the drawer rows carry, sized to Save's own right
+     three quarters at rest so Save's label alone reads dark on a light band.
+     Tapping Save grows the band to the full bar width, then fades it out,
+     before the bar takes its own content back (leaveAfterSave). Tapping
+     Unselect just hides the strip, like any dismissal — "Undo" is not part
+     of it: it lives in the list, on the unselected item's own line.
      The strip's own outer show/hide (options.bar showing/hiding it) fades
      its dark surface (css/style.css's .modify-strip::before, grouped with
      the band) and its three buttons on two separately-delayed timings —
@@ -194,15 +196,15 @@
      hidden by that bar (options.bar), since only the bar knows how it hands
      its own content over. Hidden, it's inert, so nothing in it can be
      tabbed to. */
-  function stripButton(className, label) {
+  function stripButton(className, labelClass, label) {
     var btn = el("button", className);
     btn.type = "button";
-    btn.appendChild(el("span", "modify-strip__label", label));
+    btn.appendChild(el("span", labelClass, label));
     return btn;
   }
 
-  function stripBand() {
-    var node = el("span", "modify-strip__band");
+  function stripBand(className) {
+    var node = el("span", className);
     node.setAttribute("aria-hidden", "true");
     return node;
   }
@@ -210,14 +212,12 @@
   var strip = el("div", "modify-strip is-hidden");
   strip.setAttribute("aria-hidden", "true");
   strip.inert = true;
-  var unselectBtn = stripButton("modify-strip__unselect", "Unselect");
-  var saveBtn = stripButton("modify-strip__save", "Save");
-  var undoBtn = stripButton("modify-strip__undo", "Undo");
+  var unselectBtn = stripButton("modify-strip__unselect", "modify-strip__label", "Unselect");
+  var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
   // After the buttons, so it paints over the label it inverts.
-  var saveBand = stripBand();
+  var saveBand = stripBand("modify-strip__band");
   strip.appendChild(unselectBtn);
   strip.appendChild(saveBtn);
-  strip.appendChild(undoBtn);
   strip.appendChild(saveBand);
 
   var carousel = window.EmjiveCarousel(carouselEl);
@@ -243,9 +243,9 @@
     // Cancels a viewer build still waiting on the slide-in.
     cancelViewerBuild: null,
     cleanupTimer: null,
-    // While the bar offers "Undo": { item, index, options, timer }.
+    // While the list offers "Undo": { item, index, options, handle, timer }.
     undo: null,
-    // Cancels the bands' exit, while it's playing.
+    // Cancels the Save band's exit, while it's playing.
     cancelLeave: null
   };
 
@@ -288,26 +288,18 @@
     return cancel;
   }
 
-  // "modify" (Unselect | Save, each band at rest), "undo" (Unselect's band
-  // across the whole bar, under "Undo", Save's drawn back into its edge),
-  // "leaving" (that stretched band sliding back out to the left once the
-  // offer is over — see leaveStrip) or "saved" (both bands sliding straight
-  // out through their own edges — see leaveAfterSave).
+  // "modify" (Unselect | Save, each band at rest) or "saved" (both bands
+  // sliding straight out through their own edges — see leaveAfterSave).
   // Whichever buttons aren't part of the mode are inert, so a hidden one
   // can never take a click or a Tab. instant — or a strip that's out of
   // sight anyway — skips the motion: the next open starts on the modify
-  // layout rather than playing a stretch backwards.
+  // layout rather than playing a slide backwards.
   function setStripMode(mode, instant) {
     instant = instant || strip.classList.contains("is-hidden");
     if (instant) strip.classList.add("is-instant");
-    if (mode !== "leaving") {
-      strip.classList.toggle("is-undo", mode === "undo");
-      strip.classList.toggle("is-saved", mode === "saved");
-    }
-    strip.classList.toggle("is-leaving", mode === "leaving");
+    strip.classList.toggle("is-saved", mode === "saved");
     unselectBtn.inert = mode !== "modify";
     saveBtn.inert = mode !== "modify";
-    undoBtn.inert = mode !== "undo";
     if (instant) {
       void strip.offsetWidth;
       strip.classList.remove("is-instant");
@@ -322,51 +314,28 @@
     void strip.offsetWidth;
   }
 
-  // The "Undo" offer is over, taken or run out: its label fades out (the
-  // band having already regressed into the right edge it's pinned to, back
-  // when Unselect was tapped) and only once it's gone does the bar take its
-  // own content back. At once if the strip isn't even showing (on
-  // product.html a size typed during the offer takes the bar over as
-  // "Add"). onDone runs once the bar has its content back — where focus has
-  // to wait to move: until then the rest of the bar (the drawer toggle,
-  // say) is inert under the strip.
-  var LEAVE_MS = 400;
-  // .is-saved's own real transition is longer than LEAVE_MS: the band's
-  // width (var(--fade-standard)) doubles as the opacity leg's own delay,
-  // plus the opacity leg itself (var(--fade-quick)) — 0.5s total (see
-  // .modify-strip.is-saved .modify-strip__band in css/style.css).
-  // LEAVE_MS's 400ms used to be less than that, so afterTransition()'s
-  // fallback timer won the race before the band had actually finished
-  // fading — handBack() fired early, visibly truncating it. Sized with
-  // the same buffer convention as LEAVE_MS.
+  // .is-saved's own real transition: the band's width (var(--fade-standard))
+  // doubles as the opacity leg's own delay, plus the opacity leg itself
+  // (var(--fade-quick)) — 0.5s total (see .modify-strip.is-saved
+  // .modify-strip__band in css/style.css). The fallback timeout that backs
+  // up its transitionend carries a buffer on top of that, so it can't win
+  // the race before the band has actually finished fading and visibly
+  // truncate it.
   var SAVE_LEAVE_MS = 600;
 
-  function leaveStrip(bar, onDone) {
-    exitStrip(bar, "leaving", undoBtn, "opacity", LEAVE_MS, onDone);
-  }
-
   // Saved: nothing more to show, so the band that grew to fill the bar
-  // (css/style.css's .is-saved rule) fades out before the bar takes its own
-  // content back.
+  // (css/style.css's .is-saved rule) fades out, and only then does the bar
+  // take its own content back. At once if the strip isn't even showing.
   function leaveAfterSave(bar) {
-    exitStrip(bar, "saved", saveBand, "opacity", SAVE_LEAVE_MS);
-  }
-
-  // mode's own exit animation plays (css/style.css), and the bar gets its
-  // content back once `property` finishes transitioning on `node` —
-  // whichever is the last thing left moving. `ms` is that transition's own
-  // fallback timeout, sized per caller since it isn't the same for both.
-  function exitStrip(bar, mode, node, property, ms, onDone) {
     function handBack() {
       if (bar) bar.hide(strip);
-      if (onDone) onDone();
     }
     if (!bar || strip.classList.contains("is-hidden")) {
       handBack();
       return;
     }
-    setStripMode(mode);
-    state.cancelLeave = afterTransition(node, property, ms, function () {
+    setStripMode("saved");
+    state.cancelLeave = afterTransition(saveBand, "opacity", SAVE_LEAVE_MS, function () {
       state.cancelLeave = null;
       handBack();
     });
@@ -598,11 +567,13 @@
     leaveAfterSave(bar);
   }
 
-  // Removed from storage right away — the lists collapse the row on the
-  // spot — while the strip stays up as "Undo" and the sheet slides away.
-  // The item itself (as stored, not as edited here) is kept aside for the
-  // Undo, along with the options of the session it came from: the offer
-  // outlives the sheet. Focus goes to Undo, since the button it was on is
+  // Removed from storage right away while the sheet slides away and the
+  // strip hands the bar back. The row isn't let go of, though: the list holds
+  // its line open as "Undo" (options.offerUndo) — asked for before the
+  // removal, which is what the list then answers by keeping the row. The
+  // item itself (as stored, not as edited here) is kept aside for the Undo,
+  // along with the options of the session it came from: the offer outlives
+  // the sheet. Focus goes to the line's Undo, since the button it was on is
   // about to be inert.
   function unselect() {
     if (!state.isOpen) return;
@@ -613,34 +584,25 @@
       return;
     }
     var options = state.options;
+    var handle = options.offerUndo ? options.offerUndo(index, {
+      onUndo: undo,
+      onGone: function () { forgetUndo(handle); }
+    }) : null;
     window.EmjiveSelection.removeItem(index);
-    setStripMode("undo");
-    close({ keepStrip: true, keepPreview: true, focus: undoBtn });
+    var offered = !!handle && handle.held();
+    close({ keepPreview: true, focus: offered ? handle.button() : undefined });
+    if (!offered) return;
     state.undo = {
       item: removed,
       index: index,
       options: options,
-      timer: armUndo(UNDO_MS)
+      handle: handle,
+      timer: setTimeout(expireUndo, UNDO_MS)
     };
   }
 
-  // The expiry timer. Not simply setTimeout(expireUndo): when it fires while
-  // the visitor is hovering Undo or has it focused, they are evidently still
-  // deciding, so the offer is kept and checked again a moment later instead
-  // of being pulled out from under the pointer or the focus ring.
-  function armUndo(ms) {
-    return setTimeout(function () {
-      var pending = state.undo;
-      if (!pending) return;
-      if (document.activeElement === undoBtn || undoBtn.matches(":hover")) {
-        pending.timer = armUndo(UNDO_RECHECK_MS);
-        return;
-      }
-      expireUndo();
-    }, ms);
-  }
-
   // Back where it was — clamped, in case the list got shorter meanwhile.
+  // The list finds its held line in the insert and brings it back to life.
   function undo() {
     var pending = state.undo;
     if (!pending) return;
@@ -648,45 +610,50 @@
     state.undo = null;
     var sel = window.EmjiveSelection;
     sel.insertItem(Math.min(pending.index, sel.getSelection().length), pending.item);
-    leaveStrip(pending.options.bar, function () {
-      window.EmjiveFocusTrap.focus(function () {
-        return resolve(pending.options.returnFocus) || resolve(pending.options.fallbackFocus);
-      });
+    window.EmjiveFocusTrap.focus(function () {
+      return resolve(pending.options.returnFocus) || resolve(pending.options.fallbackFocus);
     });
   }
 
+  // The list let go of the held line by itself (rebuilt under it, say): the
+  // offer is over, the removal stands.
+  function forgetUndo(handle) {
+    if (!state.undo || state.undo.handle !== handle) return;
+    clearTimeout(state.undo.timer);
+    state.undo = null;
+  }
+
   // The offer ran out (or, immediate, the page is going away): the removal
-  // stands.
+  // stands, and the line closes. Focus, if Undo had it, goes to the
+  // fallback once the line is gone.
   function expireUndo(immediate) {
     var pending = state.undo;
     if (!pending) return;
     clearTimeout(pending.timer);
     state.undo = null;
-    // Read before the strip goes inert, which drops focus off it.
-    var hadFocus = strip.contains(document.activeElement);
-    function refocus() {
+    var hadFocus = pending.handle.button() === document.activeElement;
+    if (immediate === true) {
+      pending.handle.drop();
+      return;
+    }
+    pending.handle.leave(function () {
       if (!hadFocus) return;
       window.EmjiveFocusTrap.focus(function () { return resolve(pending.options.fallbackFocus); });
-    }
-    if (immediate === true) {
-      if (pending.options.bar) pending.options.bar.hide(strip);
-      refocus();
-    } else {
-      leaveStrip(pending.options.bar, refocus);
-    }
+    });
   }
 
   // Another Modify opened while "Undo" was still on offer: the removal
-  // stands, and the strip — still up — simply becomes that Modify's.
-  function commitUndo() {
-    if (!state.undo) return;
-    clearTimeout(state.undo.timer);
+  // stands, and the line simply closes.
+  function dropUndo() {
+    var pending = state.undo;
+    if (!pending) return;
+    clearTimeout(pending.timer);
     state.undo = null;
+    pending.handle.drop();
   }
 
   saveBtn.addEventListener("click", save);
   unselectBtn.addEventListener("click", unselect);
-  undoBtn.addEventListener("click", undo);
 
   // Same filter as product.html's size sheet (js/selection.js), written
   // back only when it changed something so the caret doesn't jump.
@@ -713,9 +680,9 @@
 
   /* ---- open / close ------------------------------------------------------- */
   function show(item, index, product, slug, options) {
-    commitUndo();
-    // Bands still sliding out after the last Save or Undo: the strip is
-    // about to be needed again, so it snaps straight back to Unselect | Save.
+    dropUndo();
+    // The band still sliding out after the last Save: the strip is about to
+    // be needed again, so it snaps straight back to Unselect | Save.
     var cutLeaveShort = !!state.cancelLeave;
     if (cutLeaveShort) {
       state.cancelLeave();
@@ -774,7 +741,7 @@
     scheduleViewer();
   }
 
-  // keepStrip: the strip stays up (an Unselect, turning it into "Undo").
+  // keepStrip: the strip stays up (a Save, whose band is still to play out).
   // keepPreview: the row keeps showing the draft — a Save, which stores it,
   // or an Unselect, whose row is leaving; otherwise the row goes back
   // to what's stored.

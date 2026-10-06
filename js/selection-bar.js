@@ -9,8 +9,10 @@
    drawer listing the selected items — the very same rows as the order page
    (js/order-rows.js). Tapping one shrinks the drawer down to just that row
    and opens the Modify sheet (js/modify-modal.js) right on top of it, while
-   the bar itself turns into the sheet's Unselect | Save — and, after an
-   Unselect, into "Undo" for a few seconds.
+   the bar itself turns into the sheet's Unselect | Save. After an Unselect
+   the row's own line in the drawer stays on as "Undo" for a few seconds
+   (js/order-rows.js's offerUndo) — even the last item's, which keeps the
+   drawer open until the offer is over.
 
    Always visible here in the DOM/JS sense — the one exception (sliding
    in as a direct continuation of the homepage hero's own scroll-driven
@@ -113,6 +115,7 @@
     listEl: rowsEl,
     rowClass: "order-item--drawer",
     showPrice: false,
+    dropAtOnce: true,
     onModify: openModify,
     onResize: syncDrawerHeight
   });
@@ -308,7 +311,8 @@
     // a cart that emptied while the drawer was open: render() stops
     // updating the rows once the cart is empty, so that row leaves with
     // the closing drawer instead of collapsing on its own first.
-    if (isOpen && !wasOpen) {
+    // Not while an Undo line is held, which a rebuild would sweep away.
+    if (isOpen && !wasOpen && !rows.isHolding()) {
       rows.render(window.EmjiveSelection.getSelection(), { animate: false });
     }
     drawer.classList.toggle("is-open", isOpen);
@@ -334,9 +338,9 @@
 
   /* ---- the summary row's one slot ------------------------------------------
      Whatever the bar has to say, it says in one place, one thing at a time:
-       strip  the Modify sheet is up (or its "Undo" is on offer) — its strip,
-              laid over the whole row (js/modify-modal.js builds it; this
-              bar only shows and hides it — stripHost below)
+       strip  the Modify sheet is up — its strip, laid over the whole row
+              (js/modify-modal.js builds it; this bar only shows and hides
+              it — stripHost below)
        order  items selected — "Order (N) ›"
        empty  nothing selected — "No selected item"
      in that order of precedence. (The product page's "Add" is not here: it
@@ -479,6 +483,18 @@
       onPreview: function (index, values) { rows.preview(index, values); },
       onOpen: function () { setDrawerReduced(true, binding.li); },
       onClose: function () { setDrawerReduced(false); },
+      // The row's line stays on as its Undo (see js/order-rows.js); when it
+      // goes, a drawer with nothing left in it closes.
+      offerUndo: function (index, handlers) {
+        return rows.offerUndo(index, {
+          onUndo: handlers.onUndo,
+          onGone: function () {
+            handlers.onGone();
+            if (!window.EmjiveSelection.getSelection().length && !rows.isHolding()) setDrawerOpen(false);
+            syncDrawerHeight();
+          }
+        });
+      },
       returnFocus: function () {
         return drawer.classList.contains("is-open") ? rows.buttonAt(binding.index) : null;
       },
@@ -697,8 +713,10 @@
     // order, same order items were actually picked in. The rows follow
     // every change, animated only while the drawer is open for anyone to
     // see — except the one that empties the cart: then the drawer simply
-    // closes, its last row still in it (see setDrawerOpen()).
-    if (hasItems) {
+    // closes, its last row still in it (see setDrawerOpen()) — unless that
+    // row is being held as an Undo (rows.isHolding()), in which case the
+    // drawer closes once the line is gone.
+    if (hasItems || rows.isHolding()) {
       rows.render(items, { animate: drawer.classList.contains("is-open") });
     } else {
       setDrawerOpen(false);

@@ -112,94 +112,94 @@
 
   <div class="product-detail__content" id="productDetailContent" hidden>
 
-    <div class="product-detail__intro">
+    <!-- The show: a tall track (.product-stage) holding one sticky stage.
+         Scrolling down the track doesn't move the page, it moves the show
+         on, presentation -> specs -> logistics (js/product-stages.js, which
+         publishes --to-specs / --to-logistics for css/style.css to fade
+         everything from). The title bar stays at the top throughout. -->
+    <div class="product-stage" id="productStage" data-stage="presentation">
+      <div class="product-stage__pin">
 
-      <!-- 1. Product label -->
-      <div class="product-detail__label-bar">
-        <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
-        <h1 class="product-detail__label-text">
-          <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
-        </h1>
-        <span class="product-detail__label-price" id="productLabelPrice" aria-live="polite" aria-atomic="true"></span>
-      </div>
-
-      <!-- 2. Carousel: 3D model (always slide 1) + real product photos.
-           No visible arrows/outline — navigate by dragging horizontally,
-           or tapping a slide to center it (see js/product.js). -->
-      <div class="product-carousel-frame" id="productCarouselFrame">
-        <img class="product-carousel__xray" id="productCarouselXray" alt="" fetchpriority="high" decoding="async" hidden />
-        <div class="product-carousel" id="productCarousel">
-          <div class="product-carousel__viewport">
-            <div class="product-carousel__track" id="productCarouselTrack"></div>
-          </div>
+        <!-- 1. Product label -->
+        <div class="product-detail__label-bar">
+          <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
+          <h1 class="product-detail__label-text">
+            <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
+          </h1>
+          <span class="product-detail__label-price" id="productLabelPrice" aria-live="polite" aria-atomic="true"></span>
         </div>
+
+        <!-- 2. Description: plain text under the title (presentation) -->
+        <p class="product-detail__description" id="productDescription" hidden></p>
+
+        <!-- 3. The show area -->
+        <div class="product-stage__show">
+
+          <!-- Carousel: 3D model (always slide 1) + real product photos.
+               No visible arrows/outline — navigate by dragging horizontally,
+               or tapping a slide to center it (see js/product.js). In specs
+               the photos and the x-ray fade, the strip holds the model and
+               the model turns into a wireframe with its dimensions.
+
+               Everything else of the show that is placed against the model
+               lives in this frame too (it shares the frame's --tile): the
+               metal picker, the specs stage's size row and its figures. -->
+          <div class="product-carousel-frame" id="productCarouselFrame">
+            <img class="product-carousel__xray" id="productCarouselXray" alt="" fetchpriority="high" decoding="async" hidden />
+            <div class="product-carousel" id="productCarousel">
+              <div class="product-carousel__viewport">
+                <div class="product-carousel__track" id="productCarouselTrack"></div>
+              </div>
+            </div>
+
+            <!-- Metal selection: a tile left of the model (presentation),
+                 which rises to the size row in specs; built by
+                 js/metal-picker.js. -->
+            <div class="product-metals" id="productMetals"></div>
+
+            <!-- Specs: the size, as a slider from 40 to 70 and a field to type
+                 an exact one in (js/product.js). The Select sheet opens with
+                 it. Hidden for a category with no unit. -->
+            <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
+              <label class="visually-hidden" for="productSizeInput">Size</label>
+              <span class="size-modal__custom-underline">
+                <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
+                <span class="size-modal__custom-unit" id="productSizeUnit"></span>
+              </span>
+              <input class="product-size__range" id="productSizeRange" type="range" min="40" max="70" step="0.5" value="55" aria-label="Size" />
+            </div>
+
+            <!-- Specs: weight and the cost breakdown for the chosen metal,
+                 in a column under the metal picker (js/product.js
+                 renderSpecs). The dimensions are drawn on the model itself;
+                 their row is here for screen readers. -->
+            <section class="product-specs" aria-labelledby="productSpecsHeading">
+              <h2 class="visually-hidden" id="productSpecsHeading">Characteristics</h2>
+              <dl class="product-specs__list" id="productSpecs"></dl>
+            </section>
+          </div>
+
+          <!-- Logistics: shipping & returns (static, same on every product) -->
+          <section class="product-logistics" aria-labelledby="productLogisticsHeading">
+            <h2 class="visually-hidden" id="productLogisticsHeading">Shipping &amp; Returns</h2>
+            <div class="product-logistics__block">
+              <h3 class="product-logistics__title">Shipping</h3>
+              <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
+            </div>
+            <div class="product-logistics__block">
+              <h3 class="product-logistics__title">Returns</h3>
+              <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+            </div>
+          </section>
+        </div>
+
+        <!-- The scan band: a full-screen-width inversion band riding the cut
+             of the model's metal -> wireframe sweep, as the homepage hero's
+             does for its x-ray wipe (js/product.js onScan places it). -->
+        <div class="product-stage__scan" id="productScan" aria-hidden="true"></div>
+
       </div>
-
-      <!-- 3. Metal selection: one bar per metal, built by js/metal-picker.js -->
-      <div class="product-metals" id="productMetals"></div>
-
     </div>
-
-    <!-- 5–7. Expandable sections (collapsed by default; js/product.js's
-         wireDisclosures toggles aria-expanded on the button and .is-open on
-         its panel). The "+" reuses the header toggle's bars. -->
-
-    <!-- 5. Item description -->
-    <section class="product-detail__section">
-      <h2 class="disclosure__heading">
-        <button class="disclosure__toggle" type="button" id="descriptionToggle" aria-expanded="false" aria-controls="descriptionPanel">
-          <span class="disclosure__label">Description</span>
-          <span class="disclosure__icon" aria-hidden="true">
-            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
-            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
-          </span>
-        </button>
-      </h2>
-      <div class="disclosure__panel" id="descriptionPanel" role="region" aria-labelledby="descriptionToggle">
-        <div class="disclosure__inner">
-          <p class="product-detail__description" id="productDescription"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- 6. Technical characteristics (depends on the chosen metal) -->
-    <section class="product-detail__section">
-      <h2 class="disclosure__heading">
-        <button class="disclosure__toggle" type="button" id="specsToggle" aria-expanded="false" aria-controls="specsPanel">
-          <span class="disclosure__label">Characteristics</span>
-          <span class="disclosure__icon" aria-hidden="true">
-            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
-            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
-          </span>
-        </button>
-      </h2>
-      <div class="disclosure__panel" id="specsPanel" role="region" aria-labelledby="specsToggle">
-        <div class="disclosure__inner">
-          <dl class="product-specs" id="productSpecs"></dl>
-        </div>
-      </div>
-    </section>
-
-    <!-- 7. Shipping & returns (static, same on every product) -->
-    <section class="product-detail__section">
-      <h2 class="disclosure__heading">
-        <button class="disclosure__toggle" type="button" id="shippingToggle" aria-expanded="false" aria-controls="shippingPanel">
-          <span class="disclosure__label">Shipping &amp; Returns</span>
-          <span class="disclosure__icon" aria-hidden="true">
-            <span class="menu-toggle__bar menu-toggle__bar--h"></span>
-            <span class="menu-toggle__bar menu-toggle__bar--v"></span>
-          </span>
-        </button>
-      </h2>
-      <div class="disclosure__panel" id="shippingPanel" role="region" aria-labelledby="shippingToggle">
-        <div class="disclosure__inner">
-          <div class="product-detail__shipping">
-            <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
-            <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
-          </div>
-        </div>
-      </div>
-    </section>
 
   </div>
 </main>
@@ -268,8 +268,9 @@
      That order is the contract. js/viewer-entry.js (a module, in <head>) is
      first on the deferred queue, so window.EmjiveLoadViewer exists before
      any of these run. The helpers come before the scripts that use them:
-     focus-trap.js and carousel.js (window.EmjiveFocusTrap/EmjiveCarousel)
-     before product.js; carousel.js/order-rows.js/modify-modal.js are the
+     focus-trap.js, carousel.js and product-stages.js (window.EmjiveFocusTrap/
+     EmjiveCarousel/EmjiveProductStages) before product.js;
+     carousel.js/order-rows.js/modify-modal.js are the
      Modify sheet and its parts, reachable from the bar's drawer on every
      page, and order-rows.js has to precede selection-bar.js, which builds
      its drawer rows with it at load. main.js and product.js run last, the
@@ -283,6 +284,7 @@
 <script src="js/liquid-glass.js" defer></script>
 <script src="js/selection-bar.js" defer></script>
 <script src="js/main.js" defer></script>
+<script src="js/product-stages.js" defer></script>
 <script src="js/product.js" defer></script>
 </body>
 </html>

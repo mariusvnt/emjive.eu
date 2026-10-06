@@ -657,8 +657,7 @@ button, input, textarea {
   transform: translate(-50%, -50%) rotate(0deg);
   transition: transform 0.3s ease;
 }
-.menu-toggle.is-open .menu-toggle__bar--v,
-.disclosure__toggle[aria-expanded="true"] .menu-toggle__bar--v {
+.menu-toggle.is-open .menu-toggle__bar--v {
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
@@ -1782,7 +1781,9 @@ button, input, textarea {
    backdrop-filter nested inside another (see the checkout bar's strip rules
    above), so dropping them here removes cost, not a visible effect. The
    page's loaders and the 3D viewer's idle "hand" are pure motion and have no
-   place in a still. */
+   place in a still; nor have the model's dimension labels, which the viewer
+   re-places on every frame the view moves (a copy would keep them where it
+   found them). */
 .glass__stage *,
 .glass__stage *::before,
 .glass__stage *::after {
@@ -1793,7 +1794,8 @@ button, input, textarea {
   transition: none !important;
 }
 .glass__stage .loader,
-.glass__stage .emjive-3d-viewer__nudge-hand {
+.glass__stage .emjive-3d-viewer__nudge-hand,
+.glass__stage .emjive-3d-viewer__dim {
   display: none !important;
 }
 /* Reserves the same bottom space body:has(.selection-bar) does elsewhere —
@@ -1930,20 +1932,17 @@ body:has(.order-checkout-bar:not([hidden])) {
    ========================================================================== */
 
 .product-detail {
+  /* Where the stage sticks, which is where the content starts: the stage
+     is stuck from the very first scroll pixel, so the title bar never moves.
+     Never above the header's own bottom edge. */
+  --stage-top: max(clamp(4rem, 10vw, 7rem), var(--header-height));
+  /* How much scrolling each transition (presentation -> specs -> logistics)
+     takes — the knob for how long the show is. */
+  --stage-step: 100svh;
   max-width: var(--max);
   margin: 0 auto;
-  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
-  min-height: 55vh;
+  padding: var(--stage-top) var(--edge-px) 0;
   background: var(--bg);
-  /* Single source of truth for the vertical gaps between the intro's
-     label/carousel/metals/select-button (the expandable sections below
-     them sit a fixed 2rem under the button instead) — was previously a mix of .product-detail__intro's own
-     1.5rem flex gap plus ad-hoc per-element "top-up" margins (2.5rem,
-     6.5rem) layered on top to reach different totals (4rem, 8rem) in
-     different places, plus yet another clamp() value for the gap before
-     the prose sections — normalized to one value, used directly
-     everywhere instead. */
-  --section-gap: 15vh;
 }
 
 .product-detail__loading {
@@ -1952,15 +1951,119 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
-/* Sections 1–4: centered hero cluster (label, carousel, metal picker, CTA).
-   gap spaces the four of them evenly at --section-gap each. No margin
-   below: the expandable sections that follow sit a fixed 2rem under the
-   Select button (see .product-detail__section:first-of-type). */
-.product-detail__intro {
+/* ---- the show: three stages on one sticky stage ----
+   .product-stage is a tall track and .product-stage__pin the one screen
+   that sticks inside it while the track scrolls by: presentation, specs,
+   logistics (product.html). js/product-stages.js publishes how far along the
+   show is as two eased numbers on the track, --to-specs and --to-logistics
+   (0 -> 1 each), and everything below fades from them. --specs-on is what
+   specs alone shows: in with the first, back out with the second.
+   data-stage (the nearest stage) only decides what takes taps.
+
+   The pin fills the screen between the stick point and the two bars at the
+   bottom, measured in svh — the smallest viewport — so iOS Safari's toolbar
+   collapsing never resizes it (and with it the 3D canvas). The track is that
+   plus a step of scrolling per transition, and ends exactly where the page
+   does. */
+.product-stage {
+  --to-specs: 0;
+  --to-logistics: 0;
+  --specs-on: calc(var(--to-specs) * (1 - var(--to-logistics)));
+  /* The same, but only once the metal picker has risen to its place (the
+     figures stand under it, where it passes on the way up). */
+  --specs-late: calc(clamp(0, (var(--to-specs) - 0.55) / 0.45, 1) * (1 - var(--to-logistics)));
+  --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
+  height: calc(var(--pin-h) + 2 * var(--stage-step));
+}
+.product-stage__pin {
+  position: sticky;
+  top: var(--stage-top);
+  height: var(--pin-h);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--section-gap);
+}
+.product-stage__pin > .product-detail__label-bar {
+  flex: 0 0 auto;
+  /* Above the show's x-ray backdrop, which is taller than the carousel and
+     reaches up behind this bar. */
+  z-index: 3;
+}
+
+/* The description: plain text 1.5rem under the title, left-aligned with it,
+   presentation only. */
+.product-detail__description {
+  flex: 0 0 auto;
+  align-self: stretch;
+  max-width: 640px;
+  margin: 1.5rem 0 0;
+  color: var(--black);
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.7;
+  opacity: calc(1 - var(--to-specs));
+  /* No background of its own, and above the show's x-ray backdrop, which
+     reaches up behind it and shows through. */
+  position: relative;
+  z-index: 1;
+}
+
+/* Whatever height is left goes to the carousel (and, laid over the same
+   room, the logistics text). A size container, so the carousel's tile can be
+   bounded by this height (100cqh, see .product-carousel-frame) as well as by
+   the width. Nothing here clips: the carousel breaks out to the screen's
+   edges and its x-ray backdrop, taller than the tile on purpose, reaches up
+   behind the description and down behind the bars, showing through the
+   transparent picker, size row and figures laid over it. */
+.product-stage__show {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin-top: 1.5rem;
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* What takes taps: only what its stage is showing. (Focus still reaches
+   everything; js/product-stages.js scrolls to the stage it's in.) */
+.product-stage[data-stage="specs"] .product-carousel__slide--photo,
+.product-stage[data-stage="logistics"] .product-carousel,
+.product-stage[data-stage="logistics"] .product-metals,
+.product-stage[data-stage="presentation"] .product-size,
+.product-stage[data-stage="logistics"] .product-size {
+  pointer-events: none;
+}
+
+/* The scan band: a full-screen-width inversion band riding the cut of the
+   model's metal -> wireframe sweep — the homepage hero's frontier band
+   (series/bones/hero.css), inverting whatever is behind it rather than
+   painting a colour. Fixed, placed by js/product.js from where the viewer
+   says the cut is; on only while the sweep is under way. */
+.product-stage__scan {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0.8rem;
+  transform: translateY(-50%);
+  z-index: 4;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--fade-fast) ease, visibility 0s linear var(--fade-fast);
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+}
+.product-stage__scan.is-on {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--fade-fast) ease;
+}
+@media (max-width: 640px) {
+  .product-stage__scan { height: 0.7rem; }
 }
 
 /* ---- 1. label ---- */
@@ -2087,7 +2190,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    collapsing to a static "show everything, hug the content" layout.
    width: 100vw (rather than 100%) breaks the frame out of .product-detail's
    centered/padded column to span the full viewport edge-to-edge —
-   .product-detail__intro's own align-items: center then centers this
+   .product-stage__show's justify-content: center then centers this
    wider-than-its-container box the same way it would a narrower one, no
    separate breakout trick needed (unlike the left:50%+translateX(-50%)
    technique .product-card__bar-link/.product-detail__label-bar::before use
@@ -2104,7 +2207,11 @@ body:has(.order-checkout-bar:not([hidden])) {
   position: relative;
   width: 100vw;
   container-type: inline-size;
-  --tile: min(560px, 100cqw - 4rem);
+  /* Bounded by the height too: 100cqh is .product-stage__show's (the
+     nearest container that answers height queries — this one only answers
+     width), less the photos' caption band when there is one. */
+  --tile: min(560px, 100cqw - 4rem, 100cqh - var(--caption-room));
+  --caption-room: 0px;
   /* Below, only when .product-carousel--has-photos is also set —
      .product-carousel__viewport adds these on top of --tile so a photo
      slide's caption gets real reserved room instead of eating into the
@@ -2116,9 +2223,49 @@ body:has(.order-checkout-bar:not([hidden])) {
      caption gets cropped. Scaling by --text-scale keeps the two in sync. */
   --caption-h: calc(0.75rem * var(--text-scale));
 }
+.product-carousel-frame.product-carousel--has-photos {
+  --caption-room: calc(var(--caption-gap) + var(--caption-h));
+}
 /* No peek to reserve space for when there's nothing to peek at. */
 .product-carousel-frame.product-carousel--single {
-  --tile: min(560px, 100cqw);
+  --tile: min(560px, 100cqw, 100cqh - var(--caption-room));
+}
+/* In the stage the frame is an item of a flex row (.product-stage__show),
+   where it would shrink to the column's width — an inline-size container
+   has no minimum width of its own — and lose the breakout to the screen's
+   edges. */
+.product-stage .product-carousel-frame {
+  flex-shrink: 0;
+  /* The rail: the column left of the model that the metal picker (a tile
+     beside the model in presentation, rising to the size row in specs) and
+     the specs figures under it share. Flush to the page's edge on a phone;
+     wider screens stand it just outside the model's tile. --row-y is the
+     height of the specs size row from the tile's top (a centre line, above
+     the tile). */
+  --rail-w: 6rem;
+  --rail-x: max(var(--edge-px), calc(50% - var(--tile) / 2 - var(--rail-w) - 1rem));
+  --row-y: -1.75rem;
+}
+@media (min-width: 641px) {
+  .product-stage .product-carousel-frame { --rail-w: 7rem; }
+}
+/* The stages: the photos and the x-ray go as specs comes in (the model
+   stays — it turns into its wireframe instead, js/three-viewer.js), and the
+   whole strip goes with logistics. A model that isn't live (its poster, the
+   icon fallback) turns grey with it rather than staying in metal. */
+.product-stage .product-carousel {
+  opacity: calc(1 - var(--to-logistics));
+}
+.product-stage .product-carousel__slide--photo,
+.product-stage .product-carousel__xray {
+  opacity: calc(1 - var(--to-specs));
+}
+.product-stage .product-carousel__slide:not(.product-carousel__slide--photo) img {
+  filter: grayscale(var(--to-specs));
+}
+.product-carousel.is-locked .product-carousel__viewport,
+.product-carousel.is-locked .product-carousel__viewport:active {
+  cursor: default;
 }
 /* Behind .product-carousel (z-index: 1, below) — a static, non-scrolling
    x-ray backdrop for the product. Real product x-ray source images have a
@@ -2320,46 +2467,97 @@ body:has(.order-checkout-bar:not([hidden])) {
   gap: 0.5rem;
   margin-left: auto;
 }
-/* On the product page the picker sits 4.5rem under the carousel tiles'
-   bottom edge, not a full --section-gap: the negative margin cancels the
-   gap .product-detail__intro puts between its children, leaving 4.5rem.
-   With photos, the viewport is taller than the tile by the caption band
-   (.product-carousel--has-photos above: --caption-gap + --caption-h, which
-   live on the frame and so can't be read from this sibling — repeated
-   here, keep in sync), so that band comes off too to keep the 4.5rem
-   measured from the tile itself. Scoped to .product-detail__intro: the
-   Modify sheet's picker has its own spacing.
-   position + z-index put the picker above .product-carousel__xray: that
-   backdrop is positioned (z-index 0) and bleeds well past the carousel's
-   bottom edge, so it paints over a plain in-flow box like this one — which
-   hid the bars where they overlap it. */
-.product-detail__intro .product-metals {
-  position: relative;
-  z-index: 1;
-  margin-top: calc(4.5rem - var(--section-gap));
-}
-.product-detail__intro .product-carousel--has-photos + .product-metals {
-  margin-top: calc(4.5rem - var(--section-gap) - 2px - 0.75rem * var(--text-scale));
-}
-/* On the product page the picker is just the control, centred: no "Material"
-   label (the group's aria-label still names it), and the dot + name + stack
-   sit in the middle of the page instead of flushed right. The tag holds the
-   width of the longest metal name (Geist Mono, so six letters is six
-   characters) with the text on its right, so the stack stays put when a pick
-   changes the name. The Modify sheet keeps the labelled, flush-right layout. */
-.product-detail__intro .product-metals {
+/* On the product page the picker is a tile on the rail left of the model: the
+   bars with the metal's name under them, centred on a column --rail-w wide
+   (so the specs figures under it share its centre line), no "Material" label
+   (the group's aria-label still names it). In presentation its middle is the
+   tile's middle; as specs comes in it rises to the size row's line, the same
+   --to-specs that fades everything else, and stays on that x. It goes with
+   logistics. No background: the x-ray shows under it. The Modify sheet keeps
+   its labelled, flush-right layout. */
+.product-stage .product-metals {
+  position: absolute;
+  z-index: 2;
+  left: var(--rail-x);
+  width: var(--rail-w);
+  padding-inline: 0;
+  top: calc(var(--tile) / 2 + (var(--row-y) - var(--tile) / 2) * var(--to-specs));
+  /* Half the active bar's length: the stack's middle sits on the line. */
+  transform: translateY(calc(var(--metal-bar-active) / -2));
   justify-content: center;
+  opacity: calc(1 - var(--to-logistics));
 }
-.product-detail__intro .product-metals__label {
+.product-stage .product-metals__label {
   display: none;
 }
-.product-detail__intro .product-metals__field {
+.product-stage .product-metals__field {
   margin-left: 0;
+  flex-direction: column-reverse;
+  gap: 0.6rem;
 }
-.product-detail__intro .product-metals__tag {
-  min-width: calc(6ch + 0.6rem);
-  text-align: right;
+.product-stage .product-metals__tag {
+  text-align: center;
 }
+/* The specs stage's size, on the line the picker rises to, centred above the
+   model: the typed field (the size sheet's own — .size-modal__custom-*, the
+   iOS no-zoom input included) and, to its right, the slider. In and out with
+   specs; transparent like the rest. */
+.product-size {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: var(--row-y);
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  opacity: var(--specs-on);
+}
+.product-size[hidden] {
+  display: none;
+}
+/* The slider: a hairline track and a black dot, a field's underline colour
+   and the site's selection dots. Dimmed until a size has been given. A tall
+   box for a thumb to find, vertical swipes left to the page. */
+.product-size__range {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 0 0 auto;
+  width: clamp(6.5rem, 26vw, 12rem);
+  height: 2rem;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.product-size__range::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--category-col);
+}
+.product-size__range::-moz-range-track {
+  height: 1px;
+  background: var(--category-col);
+}
+.product-size__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: calc((1px - 0.85rem) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--black);
+  transition: opacity var(--fade-quick) ease;
+}
+.product-size__range::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--black);
+  transition: opacity var(--fade-quick) ease;
+}
+.product-size__range.is-unset::-webkit-slider-thumb { opacity: 0.35; }
+.product-size__range.is-unset::-moz-range-thumb { opacity: 0.35; }
 /* Dot + name of the selected metal (the dot's the same 0.25rem
    --category-col one the rest of the site marks a selection with). One
    element whose text js/metal-picker.js replaces on a pick — instantly, no
@@ -2517,105 +2715,180 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label { transition: opacity var(--fade-fast) ease; }
 .product-select-bar__label.is-swapping { opacity: 0; }
 
-/* ---- 5–7. expandable sections (description / characteristics / shipping) ----
-   Label left, "+" right; js/product.js's wireDisclosures flips
-   aria-expanded on the button and .is-open on the panel. The "+" is the
-   header toggle's own bars (.menu-toggle__bar, rotated to a "-" by the rule
-   next to .menu-toggle above), sized to the label text. */
-.product-detail__section:first-of-type { padding-top: 2rem; }
-/* Opening a section scrolls the page itself (js/product.js's glideScroll).
-   Left to scroll anchoring, a section opening above another one in view would
-   also shift the page to keep that one still, on top of the glide. */
-.product-detail__section { overflow-anchor: none; }
-
-/* The h2 stays for document structure (see .section-head's comment); the
-   size is the button's, so it takes none of its own. */
-.disclosure__heading {
-  margin: 0;
-  font: inherit;
-}
-.disclosure__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  width: 100%;
-  padding: 0.9rem 0;
-  background: none;
-  border: none;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  color: var(--category-col);
-  text-align: left;
-  cursor: pointer;
-}
-/* Half the label's own text size (0.5em of the button's font-size), tinted
-   with its colour rather than the header's black. */
-.disclosure__icon {
-  position: relative;
-  flex-shrink: 0;
-  width: 0.5em;
-  height: 0.5em;
-}
-.disclosure__icon .menu-toggle__bar { background: var(--category-col); }
-
-/* Same 0fr/1fr grid-row reveal as .site-header__menu — animates to the
-   content's height without knowing it. visibility (delayed on close) takes
-   the collapsed content out of the tab order and the accessibility tree. */
-.disclosure__panel {
-  display: grid;
-  grid-template-rows: 0fr;
-  visibility: hidden;
-  transition: grid-template-rows 0.35s ease, visibility 0s linear 0.35s;
-}
-.disclosure__panel.is-open {
-  grid-template-rows: 1fr;
-  visibility: visible;
-  transition: grid-template-rows 0.35s ease, visibility 0s;
-}
-.disclosure__inner {
-  overflow: hidden;
-  min-height: 0;
-}
-/* Spacing as a margin on the content inside the clipped box (it doesn't
-   collapse through overflow: hidden), so the closed panel is truly 0 tall. */
-.disclosure__inner > * { margin: 0 0 1.25rem; }
-
-.product-detail__description,
-.product-detail__shipping {
-  max-width: 640px;
-  color: var(--black);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.7;
-  font-family: var(--font-main);
-}
-.product-detail__shipping { display: flex; flex-direction: column; gap: 1rem; }
-
+/* ---- specs: the figures, on the rail ----
+   One column of them, centred, under the metal picker's tile and sharing its
+   centre line: weight, raw materials and manufacturing stacked, then the
+   production cost they sum to under a light rule. (On a phone the column and
+   the model's labels share the width; the labels are what stay clear of it.)
+   The dimensions are the model's own brackets (js/three-viewer.js); their
+   row here is for screen readers while those are drawn (.has-brackets), and
+   stands first among the figures, under the weight, when they aren't (no
+   model, or no WebGL). In and out with specs; nothing in it takes taps.
+   Transparent: the x-ray shows under it. */
 .product-specs {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  max-width: 480px;
-  row-gap: 0.75rem;
-  column-gap: 1.5rem;
+  position: absolute;
+  z-index: 2;
+  left: var(--rail-x);
+  width: var(--rail-w);
+  /* Under the picker's tile: the line, half a bar, the name under it. */
+  top: calc(var(--row-y) + 4.25rem);
+  pointer-events: none;
+  opacity: var(--specs-late);
 }
-.product-specs dt {
+.product-specs__list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: center;
+}
+.product-specs__item { margin: 0; }
+.product-specs__item--production {
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--category-col) 40%, transparent);
+}
+.has-brackets .product-specs__item--dimensions {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.product-specs__item dt {
   font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
+  font-size: calc(0.65rem * var(--text-scale));
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--category-col);
+}
+@media (max-width: 640px) {
+  /* A phone's rail is the width of its longest name, and the model's
+     brackets come close. */
+  .product-specs__item dt {
+    font-size: calc(0.6rem * var(--text-scale));
+    letter-spacing: 0.04em;
+  }
+}
+.product-specs__item dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-secondary);
+  font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1.3;
+  color: var(--black);
+}
+
+/* ---- logistics: shipping & returns ----
+   Laid over the same room as the carousel, which has gone by the time this
+   arrives. Centred, the description's measure. */
+.product-logistics {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2rem;
+  pointer-events: none;
+  opacity: var(--to-logistics);
+}
+.product-logistics__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-main);
+  font-size: calc(0.65rem * var(--text-scale));
+  font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--black);
+  color: var(--category-col);
 }
-.product-specs dd {
-  font-family: var(--font-main);
+.product-logistics p {
   margin: 0;
-  color: var(--black);
+  font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
-  padding-bottom: 0.5rem;
+  line-height: 1.7;
+  color: var(--black);
 }
-/* The sum of the two rows above it (raw materials + manufacturing). */
-.product-specs .product-specs__total {
-  border-top: 1px solid var(--black);
-  padding-top: 0.75rem;
+
+/* ---- a screen too short to pin the stage (a phone on its side) ----
+   No room for a title, a carousel and the rest in one screen, so the show is
+   laid out as a plain column — description, carousel, then (all in the
+   carousel's frame) the picker, the size and the figures, then shipping &
+   returns — everything shown at once, the title bar still sticking under the
+   header. js/product-stages.js stands down on the same query
+   (data-stage="flow") and the model stays in metal. */
+@media (max-height: 560px) {
+  .product-stage {
+    height: auto;
+  }
+  .product-stage__pin {
+    position: static;
+    height: auto;
+  }
+  .product-stage__pin > .product-detail__label-bar {
+    position: sticky;
+    top: var(--header-height);
+    background: var(--bg);
+  }
+  .product-stage__show {
+    display: block;
+    container-type: normal;
+  }
+  .product-stage .product-carousel-frame {
+    --tile: min(560px, 100cqw - 4rem, 70svh);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .product-stage .product-carousel {
+    align-self: stretch;
+  }
+  .product-stage .product-carousel__xray {
+    top: calc(var(--tile) / 2);
+  }
+  .product-stage .product-metals,
+  .product-size,
+  .product-specs {
+    position: static;
+    transform: none;
+    opacity: 1;
+  }
+  .product-stage .product-metals {
+    width: auto;
+  }
+  .product-specs {
+    width: min(100%, 20rem);
+  }
+  .product-logistics {
+    position: static;
+    opacity: 1;
+    width: 100%;
+    padding: 2rem 0 3rem;
+  }
+}
+
+/* ---- the model's dimension labels ----
+   One per bracket the specs stage draws on the model (js/three-viewer.js
+   positions them over the canvas every time the view moves), in the brackets'
+   own colour. No background: the x-ray shows under them. */
+.emjive-3d-viewer__dim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  font-family: var(--font-secondary);
+  font-size: calc(0.6rem * var(--text-scale));
+  line-height: 1;
+  color: var(--category-col);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
 /* ---- size-selection modal ---- */
@@ -2812,7 +3085,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 /* The Modify sheet's metal picker, above the size field: same gap as the
    size row's own margin-bottom below it. Scoped to this container
    (.size-modal__content, not .product-metals directly) so product.html's
-   own metal picker — inside .product-detail__intro's separate flex gap —
+   own metal picker — in the stage's controls row —
    isn't affected. */
 .size-modal__content .product-metals {
   margin-bottom: 1.5rem;

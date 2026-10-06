@@ -1,7 +1,10 @@
 /* ==========================================================================
    J&MV — product detail page
    Resolves ?id= against the active series' products.json and renders the label, carousel,
-   metal picker, description, characteristics and size/selection flow.
+   metal picker, description, characteristics and size/selection flow — the
+   three stages of product.html's show (presentation, specs, logistics), whose
+   scrolling js/product-stages.js drives; this file reacts to it for the parts
+   CSS can't do (the model's wireframe sweep, the carousel holding the model).
    ========================================================================== */
 
 (function () {
@@ -34,7 +37,15 @@
     // watcher is wired.
     xraySrc: "",
     xrayWatching: false,
-    iconFallbackImg: null
+    iconFallbackImg: null,
+    // How far the show has gone (js/product-stages.js): presentation ->
+    // specs, specs -> logistics, 0 to 1 each. Kept so a viewer built later
+    // (first mount, after the Modify sheet, after Back) starts where the
+    // page is.
+    toSpecs: 0,
+    toLogistics: 0,
+    // Whether the carousel is held on the model (specs is coming in).
+    carouselHeld: false
   };
 
   function el(tag, className, text) {
@@ -210,10 +221,12 @@
     var carouselParts = renderCarousel(product);
     renderMetalOptions(product);
     renderSpecs(product);
-    document.getElementById("productDescription").textContent =
-      product.description || "No description yet.";
+    // Plain text under the title — no heading, nothing to open. A product
+    // without one shows nothing there rather than a placeholder.
+    var description = document.getElementById("productDescription");
+    description.textContent = product.description || "";
+    description.hidden = !product.description;
     wireSelectButton(product);
-    wireDisclosures();
 
     loadingEl.hidden = true;
     contentEl.hidden = false;
@@ -224,6 +237,10 @@
     // would read as a zero-width tile/carousel and rest at offset 0
     // instead of centering the first tile.
     carousel.sync(true);
+    // After the carousel, for the same reason (the stages measure the track)
+    // and because a page restored part way down starts with the carousel
+    // already held on the model.
+    wireStages();
 
     // The arrival loader (js/loader.js) lifts once the images the first
     // paint is made of are in, rather than on a blank page that fills in
@@ -467,7 +484,16 @@
         // failure just left an empty, permanently blank 3D-viewer slide
         // with no fallback ever shown.
         onError: replaceModelSlideWithIcon,
-        onReady: settleViewer
+        onReady: function () {
+          settleViewer();
+          syncBracketsFlag();
+        },
+        // The specs stage's wireframe sweep and dimension brackets (see
+        // onStageChange). The fill is the page's own background, so the
+        // filled model disappears into it and only its lines read.
+        blueprint: { fill: pageColor("--bg", "#f8f8f8"), lineColor: pageColor("--category-col", "#727272") },
+        // Where the sweep's cut is on screen, for the scan band.
+        onScan: placeScanBand
       });
     }
 
@@ -536,6 +562,9 @@
       state.posterImg = null;
       modelSlide.innerHTML = "";
       modelSlide.appendChild(handle.el);
+      // Wherever the show is now — a rebuild after the Modify sheet or Back
+      // can land in specs, or out of sight in logistics.
+      applyStageToViewer();
     }
 
     // Called by render() once the first paint's images are in. Waits for the
@@ -579,6 +608,7 @@
         state.modelHandle = null;
       }
       settleViewer();
+      syncBracketsFlag();
       if (!modelSlide) return;
       modelSlide.classList.remove("product-carousel__slide--model");
       modelSlide.innerHTML = "";
@@ -609,6 +639,7 @@
        coming back from the cache restores the real thing.
        --------------------------------------------------------------------- */
     function releaseModelViewer() {
+      hideScanBand();
       if (!state.modelHandle) return;
       state.modelHandle.dispose();
       if (state.modelHandle.el.parentNode) {
@@ -780,19 +811,22 @@
     tintAfterPaint();
   }
 
-  /* ---- 6. characteristics (metal-dependent) ------------------------------ */
+  /* ---- specs: characteristics (metal-dependent) -------------------------- */
 
   // Weight and the cost breakdown for one metal, from the model's measured
   // volume (product.geometry, written by scripts/measure-models.js) and that
   // metal's constants in data/series.json's "metal-costs". Raw materials are
-  // the metal itself (weight x price per gram); manufacturing is whatever
+  // the metal bought, which is more than the finished piece weighs: the
+  // process loses a share of it (lost-wax casting, binder jetting), so it is
+  // weight x (1 + loss margin) x price per gram. Manufacturing is whatever
   // is left of the production cost (volume x production cost per cm3).
-  // Returns null if either input is missing.
+  // The weight shown stays the finished piece's. Returns null if either
+  // input is missing.
   function computeCosts(volumeCm3, costs) {
     if (!(volumeCm3 > 0) || !costs) return null;
     var weight = volumeCm3 * costs["density-g-cm3"];
     var production = volumeCm3 * costs["production-per-cm3"];
-    var raw = weight * costs["price-per-g"];
+    var raw = weight * (1 + costs["loss-margin"]) * costs["price-per-g"];
     return { weight: weight, raw: raw, manufacturing: production - raw, production: production };
   }
 
@@ -800,103 +834,90 @@
     return "€ " + amount.toFixed(2);
   }
 
+  // One group per figure, each placed at a corner of the model by
+  // css/style.css (the --key modifier names which). Read in this order, the
+  // breakdown sums: raw materials + manufacturing = production cost. The
+  // dimensions row is drawn on the model itself as brackets when the viewer
+  // can (.has-brackets), and stays here, visually hidden, for screen readers.
   function renderSpecs(product) {
     var geometry = product.geometry || {};
     var dims = geometry["dimensions-mm"];
     var costs = computeCosts(geometry["volume-cm3"], state.metalCosts[state.selectedMetal]);
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
-    appendSpecRow(dl, "Weight", costs ? costs.weight.toFixed(1) + " g" : "—");
-    appendSpecRow(dl, "Dimensions", dims && dims.length === 3 ? dims.join(" × ") + " mm" : "—");
-    appendSpecRow(dl, "Raw materials", costs ? formatEuros(costs.raw) : "—");
-    appendSpecRow(dl, "Manufacturing", costs ? formatEuros(costs.manufacturing) : "—");
-    appendSpecRow(dl, "Production cost", costs ? formatEuros(costs.production) : "—", "product-specs__total");
+    appendSpec(dl, "weight", "Weight", costs ? costs.weight.toFixed(1) + " g" : "—");
+    appendSpec(dl, "dimensions", "Dimensions", dims && dims.length === 3 ? dims.join(" × ") + " mm" : "—");
+    appendSpec(dl, "raw", "Raw materials", costs ? formatEuros(costs.raw) : "—");
+    appendSpec(dl, "manufacturing", "Manufacturing", costs ? formatEuros(costs.manufacturing) : "—");
+    appendSpec(dl, "production", "Production cost", costs ? formatEuros(costs.production) : "—");
   }
 
-  function appendSpecRow(dl, label, value, cls) {
-    dl.appendChild(el("dt", cls, label));
-    dl.appendChild(el("dd", cls, value));
+  function appendSpec(dl, key, label, value) {
+    var group = el("div", "product-specs__item product-specs__item--" + key);
+    group.appendChild(el("dt", null, label));
+    group.appendChild(el("dd", null, value));
+    dl.appendChild(group);
   }
 
-  /* ---- 5–7. expandable sections ------------------------------------------ */
+  /* ---- the three stages ---------------------------------------------------- */
 
-  // Each section is independent (opening one leaves the others alone). The
-  // button's aria-expanded drives the "+" → "-" in CSS; .is-open on its
-  // panel drives the reveal.
-  function wireDisclosures() {
-    document.querySelectorAll(".disclosure__toggle").forEach(function (btn) {
-      var panel = document.getElementById(btn.getAttribute("aria-controls"));
-      btn.addEventListener("click", function () {
-        var open = btn.getAttribute("aria-expanded") !== "true";
-        // Measured before the panel starts growing: its top doesn't move
-        // while it does, so the section's final bottom is known up front.
-        var scroll = open ? disclosureScrollPlan(btn, panel) : null;
-        btn.setAttribute("aria-expanded", String(open));
-        panel.classList.toggle("is-open", open);
-        if (scroll) glideScroll(panel, scroll);
-      });
-    });
+  // The show's scroll (js/product-stages.js) drives the CSS fades itself;
+  // this is the rest: the model's sweep from metal to wireframe (and, once
+  // it's out of sight in logistics, its drawing paused), and the carousel
+  // holding the model — the photos fade out as specs comes in, so the
+  // strip centres the model and stops paging until the visitor is back in
+  // presentation.
+  function wireStages() {
+    var stageEl = document.getElementById("productStage");
+    if (!stageEl || !window.EmjiveProductStages) return;
+    window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
   }
 
-  // How far to scroll (and what height the panel will settle at) so the
-  // opened section is fully visible between the header and the selection bar:
-  // just enough to bring its bottom above the bar — plus the next section's
-  // heading, when there's room for it with this section's own heading still
-  // in view — or, when it's too tall to fit there at all, its heading right
-  // under the header. null = no scroll.
-  function disclosureScrollPlan(btn, panel) {
-    // .disclosure__inner is clipped to 0 while closed; its one child isn't.
-    var content = panel.firstElementChild.firstElementChild;
-    var fullHeight = content.offsetHeight + parseFloat(getComputedStyle(content).marginBottom);
-    // The topmost of the two stacked bars: the glass Select bar, riding on
-    // the selection bar.
-    var barTop = window.innerHeight;
-    [".product-select-bar", ".selection-bar"].forEach(function (sel) {
-      var b = document.querySelector(sel);
-      if (b && !b.hidden) barTop = Math.min(barTop, b.getBoundingClientRect().top);
-    });
-    var headerBottom = document.querySelector(".site-header").getBoundingClientRect().bottom;
-    var top = btn.getBoundingClientRect().top;
-    var bottom = panel.getBoundingClientRect().top + fullHeight;
-
-    var nextToggle = btn.closest("section").nextElementSibling;
-    nextToggle = nextToggle && nextToggle.querySelector(".disclosure__toggle");
-    var withNext = bottom + (nextToggle ? nextToggle.offsetHeight : 0);
-    var room = barTop - headerBottom;
-
-    var delta;
-    if (withNext - top <= room) delta = Math.max(0, withNext - barTop);
-    else if (bottom - top <= room) delta = Math.max(0, bottom - barTop);
-    else delta = top - headerBottom;
-    return delta ? { delta: delta, fullHeight: fullHeight } : null;
+  function onStageChange(stage) {
+    state.toSpecs = stage.toSpecs;
+    state.toLogistics = stage.toLogistics;
+    applyStageToViewer();
+    var hold = stage.toSpecs > 0;
+    if (hold === state.carouselHeld) return;
+    state.carouselHeld = hold;
+    if (hold) carousel.center(0);
+    carousel.setLocked(hold);
   }
 
-  // Scrolls in step with the panel's growth, off its measured height rather
-  // than a timer — the page only gets tall enough to scroll that far as the
-  // panel opens, so a one-shot scrollTo would be clamped. Same approach as
-  // selection-bar.js's animateDrawerScroll.
-  var glideRun = 0;
+  function applyStageToViewer() {
+    if (!state.modelHandle) return;
+    state.modelHandle.setBlueprint(state.toSpecs);
+    state.modelHandle.setPaused(state.toLogistics >= 1);
+  }
 
-  function glideScroll(panel, plan) {
-    var run = ++glideRun;
-    var from = window.pageYOffset;
-    var until = performance.now() + 450;
-    function to(y) { window.scrollTo({ top: y, left: 0, behavior: "instant" }); }
-    function cancel() { glideRun++; }
-    // The visitor taking over the scroll ends the glide.
-    window.addEventListener("wheel", cancel, { passive: true, once: true });
-    window.addEventListener("touchstart", cancel, { passive: true, once: true });
-    function step() {
-      if (run !== glideRun) return;
-      var p = Math.min(1, panel.getBoundingClientRect().height / plan.fullHeight);
-      if (p >= 1 || performance.now() > until) {
-        to(from + plan.delta);
-        return;
-      }
-      to(from + plan.delta * p);
-      requestAnimationFrame(step);
+  // .has-brackets: the model shows its own dimensions, so the text row
+  // among the specs is left to screen readers (css/style.css).
+  function syncBracketsFlag() {
+    var stageEl = document.getElementById("productStage");
+    var live = !!(state.modelHandle && state.modelHandle.hasBrackets && state.modelHandle.hasBrackets());
+    if (stageEl) stageEl.classList.toggle("has-brackets", live);
+  }
+
+  function pageColor(token, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(token).trim() || fallback;
+  }
+
+  // The full-width inversion band that rides the cut of the metal ->
+  // wireframe sweep (the homepage hero's frontier band, on this page's
+  // scan). The viewer reports the cut's height in its own pixels; the band
+  // is fixed, so that is turned into the screen's.
+  function placeScanBand(scan) {
+    var band = document.getElementById("productScan");
+    if (!band) return;
+    if (scan.active && state.modelHandle) {
+      band.style.top = (state.modelHandle.el.getBoundingClientRect().top + scan.y).toFixed(1) + "px";
     }
-    requestAnimationFrame(step);
+    band.classList.toggle("is-on", scan.active);
+  }
+
+  function hideScanBand() {
+    var band = document.getElementById("productScan");
+    if (band) band.classList.remove("is-on");
   }
 
   /* ---- 4 + size modal + selection ---------------------------------------- */
@@ -943,6 +964,43 @@
     customUnit.textContent = unit;
 
     var modal = document.getElementById("sizeModal");
+
+    // The specs stage's own size: a slider from 40 to 70 and, left of it, a
+    // field to type an exact size in (any orderable size, in or out of the
+    // slider's range). The two follow each other. What the field holds is what
+    // the sheet opens with; it never works the other way round — the sheet
+    // doesn't write back — so a visitor who never gave a size in specs keeps
+    // getting an empty sheet, an earlier Add included. Same filtering as the
+    // sheet's field; Enter opens the sheet with it. The slider's range is in
+    // millimetres, the one unit with a size run today (a category with no
+    // unit never gets this row at all).
+    var specsSize = document.getElementById("productSizeInput");
+    var specsRange = document.getElementById("productSizeRange");
+    document.getElementById("productSizeUnit").textContent = unit;
+    document.getElementById("productSize").hidden = false;
+    // Until a size has been given the thumb rests mid-way, dimmed: there is
+    // no size yet, only somewhere to start from.
+    function syncRangeFromField() {
+      var size = parseFloat(specsSize.value);
+      var given = window.EmjiveSelection.isValidSize(specsSize.value) && isFinite(size);
+      specsRange.classList.toggle("is-unset", !given);
+      if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
+    }
+    specsRange.classList.add("is-unset");
+    specsRange.addEventListener("input", function () {
+      specsSize.value = String(Number(specsRange.value));
+      specsRange.classList.remove("is-unset");
+    });
+    specsSize.addEventListener("input", function () {
+      var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
+      if (cleaned !== specsSize.value) specsSize.value = cleaned;
+      syncRangeFromField();
+    });
+    specsSize.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (!modal.classList.contains("is-open")) openModal();
+    });
 
     // The glass Select bar's one button: "Select" (opens the sheet), then
     // "Add" while the sheet is up — the only way to confirm. Add is dimmed
@@ -993,7 +1051,9 @@
     });
 
     function openModal() {
-      customInput.value = "";
+      // Pre-filled from the specs stage when a size was given there (Add is
+      // then live straight away); otherwise empty, as it always was.
+      customInput.value = window.EmjiveSelection.isValidSize(specsSize.value) ? specsSize.value : "";
       guidePanel.classList.remove("is-open");
       guideToggle.setAttribute("aria-expanded", "false");
       modal.classList.add("is-open");

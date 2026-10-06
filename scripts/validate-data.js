@@ -113,10 +113,11 @@ const indexSchema = {
       type: "object",
       additionalProperties: {
         type: "object",
-        required: ["density-g-cm3", "price-per-g", "production-per-cm3"],
+        required: ["density-g-cm3", "price-per-g", "loss-margin", "production-per-cm3"],
         properties: {
           "density-g-cm3": { type: "number", exclusiveMinimum: 0 },
           "price-per-g": { type: "number", exclusiveMinimum: 0 },
+          "loss-margin": { type: "number", minimum: 0 },
           "production-per-cm3": { type: "number", exclusiveMinimum: 0 }
         }
       }
@@ -184,10 +185,25 @@ const productSchema = {
     // Written by `npm run measure-models`, never by hand.
     geometry: {
       type: "object",
-      required: ["volume-cm3", "dimensions-mm", "model-sha1"],
+      required: ["volume-cm3", "dimensions-mm", "min-box", "model-sha1"],
       properties: {
         "volume-cm3": { type: "number", exclusiveMinimum: 0 },
         "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+        // The minimum-volume box's pose: the product page's dimension
+        // brackets are drawn on it (js/three-viewer.js, options.blueprint).
+        "min-box": {
+          type: "object",
+          required: ["center", "axes"],
+          properties: {
+            center: { type: "array", items: num, minItems: 3, maxItems: 3 },
+            axes: {
+              type: "array",
+              minItems: 3,
+              maxItems: 3,
+              items: { type: "array", items: num, minItems: 3, maxItems: 3 }
+            }
+          }
+        },
         "model-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
       }
     },
@@ -269,7 +285,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
   }
   for (const [metal, c] of Object.entries(costs)) {
     if (!metals.has(metal)) fail("data/series.json", 'metal-costs has unknown metal "' + metal + '"');
-    else if (c["production-per-cm3"] < c["price-per-g"] * c["density-g-cm3"]) {
+    else if (c["production-per-cm3"] < c["price-per-g"] * c["density-g-cm3"] * (1 + c["loss-margin"])) {
       fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
     }
   }
@@ -367,6 +383,18 @@ if (index && validate("data/series.json", indexSchema, index)) {
           const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, product.assets.model))).digest("hex");
           if (sha1 !== product.geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
         }
+        // The brackets are built on these as a box: three unit axes at right
+        // angles. Anything else (a hand edit, a bad merge) draws a skewed box
+        // labelled with numbers it doesn't measure.
+        const boxAxes = product.geometry["min-box"].axes;
+        const dot3 = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+        const skew = Math.max(
+          ...boxAxes.map((a) => Math.abs(dot3(a, a) - 1)),
+          Math.abs(dot3(boxAxes[0], boxAxes[1])),
+          Math.abs(dot3(boxAxes[0], boxAxes[2])),
+          Math.abs(dot3(boxAxes[1], boxAxes[2]))
+        );
+        if (skew > 1e-3) fail(label, "geometry.min-box axes are not three unit vectors at right angles (run `npm run measure-models`)");
         checkPath(label + " assets.xray", product.assets.xray);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));

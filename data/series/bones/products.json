@@ -3,16 +3,16 @@
   "products": [
     {
       "id": "01",
-      "name": "Furcula",
+      "name": "furcula",
       "category": "ring",
-      "description": "A stacked ring cast from a study of the spine — each segment articulated like bone.",
+      "description": "The furcula bone is found among birds and some dinosaurs, and is commonly referred to as the wishbone. It is formed by the fusion of two clavicles and serves to strengthen the thoracic skeleton to withstand the rigors of flight.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel":  { "price": 220 },
         "silver": { "price": 350 },
         "bronze": { "price": 240 }
       },
-      "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "model-sha1": "62f26a2886471b85a003b898c233bcddb3ba6270" },
+      "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "model-sha1": "62f26a2886471b85a003b898c233bcddb3ba6270" },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {
@@ -41,16 +41,16 @@
     },
     {
       "id": "02",
-      "name": "Foramen",
+      "name": "foramen",
       "category": "ring",
-      "description": "",
+      "description": "A foramen is a hole in a bone that allows for the passage of nerves and blood vessels.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel":  { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 1.216, "dimensions-mm": [30.7, 25.2, 20.1], "model-sha1": "a4b09e9a81099702f95b2a1e9d82fd1ef9c27728" },
+      "geometry": { "volume-cm3": 1.216, "dimensions-mm": [30.7, 25.2, 20.1], "min-box": { "center": [-2.374, 1.719, -1.33], "axes": [[0.51229, -0.4405, 0.73724], [0.67922, 0.73316, -0.03391], [-0.52557, 0.51812, 0.67478]] }, "model-sha1": "a4b09e9a81099702f95b2a1e9d82fd1ef9c27728" },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
       "assets": {
@@ -78,14 +78,14 @@
       "id": "03",
       "name": "Disc",
       "category": "ring",
-      "description": "",
+      "description": "A disc is a flat, circular structure that can be found in various parts of the body, such as the spine. It serves as a cushion between bones and helps to absorb shock and maintain flexibility.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel":  { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.567, "dimensions-mm": [25.9, 23.8, 5.5], "model-sha1": "0bd13a6f148fd184f4c3ffac885aea7230f45741" },
+      "geometry": { "volume-cm3": 0.567, "dimensions-mm": [25.9, 23.8, 5.5], "min-box": { "center": [0, 0.02, 3.812], "axes": [[0.00077, 0.97803, 0.20848], [1, -0.00078, 0], [-0.00016, -0.20848, 0.97803]] }, "model-sha1": "0bd13a6f148fd184f4c3ffac885aea7230f45741" },
       "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
       "assets": {
@@ -113,14 +113,14 @@
       "id": "04",
       "name": "Marrow",
       "category": "ring",
-      "description": "",
+      "description": "The marrow is the soft, fatty tissue found inside bones. It plays a crucial role in producing blood cells.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel":  { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "model-sha1": "7c728c46b4f3fe32252b07b5da65fd5abcf338a5" },
+      "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "min-box": { "center": [1.141, 1.112, -5.501], "axes": [[0.81582, 0.5783, 0], [-0.5783, 0.81582, 0.00011], [0.00006, -0.00009, 1]] }, "model-sha1": "7c728c46b4f3fe32252b07b5da65fd5abcf338a5" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
       "assets": {
@@ -144,14 +144,14 @@
       "id": "05",
       "name": "suture",
       "category": "ring",
-      "description": "",
+      "description": "A suture is a fibrous joint between two bones of the skull, where the bones are united by a thin layer of fibrous connective tissue.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.49, "dimensions-mm": [27.1, 22.9, 9.6], "model-sha1": "40318e39acaf3c76333216a424279fe4379c5134" },
+      "geometry": { "volume-cm3": 0.49, "dimensions-mm": [27.1, 22.9, 9.6], "min-box": { "center": [0.051, 1.913, -0.678], "axes": [[0.03221, 0.87989, -0.47409], [0.99948, -0.02967, 0.01283], [0.00278, 0.47425, 0.88038]] }, "model-sha1": "40318e39acaf3c76333216a424279fe4379c5134" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
       "assets": {
@@ -179,14 +179,14 @@
       "id": "06",
       "name": "cartilage",
       "category": "ring",
-      "description": "",
+      "description": "Cartilage is a flexible connective tissue that serves as a cushion between bones and allows for smooth joint movement.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.921, "dimensions-mm": [35.7, 24, 15.4], "model-sha1": "0aadbcc4cff59623d7131b401e1836adba1dfa90" },
+      "geometry": { "volume-cm3": 0.921, "dimensions-mm": [35.7, 24, 15.4], "min-box": { "center": [0.014, 5.917, -5.737], "axes": [[0.00278, 1, 0.00054], [1, -0.00278, 0], [0, -0.00054, 1]] }, "model-sha1": "0aadbcc4cff59623d7131b401e1836adba1dfa90" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
       "assets": {
@@ -214,14 +214,14 @@
       "id": "07",
       "name": "rib-cage",
       "category": "ring",
-      "description": "",
+      "description": "The rib cage is a bony structure that protects the heart and lungs.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.594, "dimensions-mm": [24.8, 24.8, 13.9], "model-sha1": "36713c477f720fc9c4c125023711dd0211e2bc78" },
+      "geometry": { "volume-cm3": 0.594, "dimensions-mm": [24.8, 24.8, 13.9], "min-box": { "center": [-0.054, 1.695, -0.317], "axes": [[0.70258, -0.61479, 0.35835], [0.71154, 0.61398, -0.34168], [-0.00996, 0.49504, 0.86881]] }, "model-sha1": "36713c477f720fc9c4c125023711dd0211e2bc78" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 80 },
       "assets": {
@@ -249,14 +249,14 @@
       "id": "08",
       "name": "rib-cage-extended",
       "category": "ring",
-      "description": "",
+      "description": "An extended version of the rib-cage design.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "model-sha1": "c3b4e17decd3edd193eb7242a98804f6f40df0cd" },
+      "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.439, 0.796, -3.63], "axes": [[-0.45552, 0.8902, -0.00639], [0.77527, 0.39316, -0.49435], [0.43755, 0.23014, 0.86924]] }, "model-sha1": "c3b4e17decd3edd193eb7242a98804f6f40df0cd" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
       "assets": {
@@ -284,14 +284,14 @@
       "id": "09",
       "name": "joint",
       "category": "ring",
-      "description": "",
+      "description": "A joint is a connection between two bones that allows for movement and flexibility.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "model-sha1": "d9055605e2c2ff192f97e9a580295699e8e4f428" },
+      "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "model-sha1": "d9055605e2c2ff192f97e9a580295699e8e4f428" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
@@ -311,14 +311,14 @@
       "id": "10",
       "name": "omoplates-unified",
       "category": "ring",
-      "description": "",
+      "description": "Shoulder blades, also known as omoplates or scapulae, are flat, triangular bones located on the upper back. They connect the humerus (upper arm bone) with the clavicle (collarbone) and provide attachment points for various muscles that facilitate shoulder and arm movements.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "model-sha1": "840d4df47f95524689d9795fc38befe593786310" },
+      "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "min-box": { "center": [0, 1.856, 2.161], "axes": [[0, 0.18371, 0.98298], [1, 0, 0], [0, 0.98298, -0.18371]] }, "model-sha1": "840d4df47f95524689d9795fc38befe593786310" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
@@ -334,14 +334,14 @@
       "id": "11",
       "name": "omoplates-dual",
       "category": "ring",
-      "description": "",
+      "description": "A variation on the omoplates design.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 2.034, "dimensions-mm": [29.6, 28, 25.1], "model-sha1": "4c21beb1896e44e16c60acaea595c906194d61c7" },
+      "geometry": { "volume-cm3": 2.034, "dimensions-mm": [29.6, 28, 25.1], "min-box": { "center": [0, 1.161, 1.659], "axes": [[0, 0.03988, 0.9992], [1, 0, 0], [0, 0.9992, -0.03988]] }, "model-sha1": "4c21beb1896e44e16c60acaea595c906194d61c7" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {

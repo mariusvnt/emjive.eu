@@ -4,9 +4,9 @@
   "metals": ["steel", "silver", "bronze"],
 
   "metal-costs": {
-    "steel":  { "density-g-cm3": 8,     "price-per-g": 0.0011337, "production-per-cm3": 28.84 },
-    "silver": { "density-g-cm3": 10.36, "price-per-g": 1.923,     "production-per-cm3": 90.06 },
-    "bronze": { "density-g-cm3": 8.8,   "price-per-g": 0.016356,  "production-per-cm3": 25.9 }
+    "steel":  { "density-g-cm3": 8,     "price-per-g": 0.0486674736, "loss-margin": 0.25, "production-per-cm3": 28.84 },
+    "silver": { "density-g-cm3": 10.36, "price-per-g": 1.923,     "loss-margin": 0.1,  "production-per-cm3": 90.06 },
+    "bronze": { "density-g-cm3": 8.8,   "price-per-g": 0.016356,  "loss-margin": 0.1,  "production-per-cm3": 25.9 }
   },
 
   "categories": {

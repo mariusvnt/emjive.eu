@@ -8,9 +8,11 @@
 
    window.EmjiveCarousel(carouselEl) wires one .product-carousel (holding
    .product-carousel__viewport > .product-carousel__track) and returns
-   { sync(reset) }. Call sync(true) once the slides are in place and
-   measurable: it recounts them from the track and rests the strip on the
-   first slide, centered. A resize re-clamps on its own.
+   { sync(reset), center(index), setLocked(locked) }. Call sync(true) once
+   the slides are in place and measurable: it recounts them from the track
+   and rests the strip on the first slide, centered. A resize re-clamps on
+   its own. center() centres a slide as a tap would; setLocked(true) holds
+   the strip where it is and ignores drags, taps and keys until unlocked.
 
    window.EmjiveCarousel.imageSlide(src, alt) builds a plain image slide.
    It lives here rather than with either caller because what it guards
@@ -105,7 +107,35 @@
       if (slideCount === 0) return;
       var bounds = computeBounds();
       var target = reset ? bounds.max : Math.max(bounds.min, Math.min(bounds.max, scrollOffset));
+      // Locked, the strip stays on its slide however the tiles resize.
+      if (locked && !reset) target = Math.max(bounds.min, bounds.max - lockedIndex * measureTileWidth());
       applyOffset(target, false);
+    }
+
+    // setLocked(true): the strip stops responding to drags, taps and keys
+    // and holds the slide it's on (the product page's specs stage, which is
+    // about the model alone). The caller centres the slide it wants first.
+    var locked = false;
+    var lockedIndex = 0;
+    function currentIndex() {
+      var tile = measureTileWidth();
+      return tile ? Math.max(0, Math.round((computeBounds().max - scrollOffset) / tile)) : 0;
+    }
+    function setLocked(lock) {
+      lock = !!lock;
+      if (lock === locked) return;
+      locked = lock;
+      carouselEl.classList.toggle("is-locked", lock);
+      if (!lock) return;
+      lockedIndex = currentIndex();
+      // A drag under way when the lock lands just ends where it is.
+      if (trackedPointerId !== null) {
+        trackedPointerId = null;
+        if (dragging) {
+          dragging = false;
+          centerOnSlide(lockedIndex);
+        }
+      }
     }
 
     // Centers a given slide — either a direct tap on it, or where a phone's
@@ -165,7 +195,7 @@
       // A drag that starts on the 3D model slide should rotate the model
       // (the viewer's own TrackballControls, js/three-viewer.js), not page
       // the carousel.
-      if (slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
+      if (locked || slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
       dragBounds = computeBounds();
       trackedPointerId = e.pointerId;
       axisLocked = null;
@@ -339,7 +369,7 @@
     viewport.setAttribute("aria-label", "Product images");
     viewport.addEventListener("keydown", function (e) {
       var keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
-      if (!(e.key in keys) || slideCount <= 1) return;
+      if (locked || !(e.key in keys) || slideCount <= 1) return;
       var tile = measureTileWidth();
       if (!tile) return;
       var current = Math.round((computeBounds().max - scrollOffset) / tile);
@@ -364,7 +394,12 @@
       });
     });
 
-    return { sync: sync };
+    return {
+      sync: sync,
+      // Centres slide `index`, with the same transition a tap uses.
+      center: function (index) { centerOnSlide(index); },
+      setLocked: setLocked
+    };
   }
 
   // A plain full-bleed image slide. img.draggable = false because otherwise

@@ -52,6 +52,25 @@ function bool(b) {
   return !!b;
 }
 
+// The one "geometry" line of a product block, written by
+// scripts/measure-models.js and carried through unchanged by the JSON tool
+// (renderProductBlock below). Shared so the two can't drift: the tool used
+// to spell the fields out itself, and would have dropped any field the
+// measuring script added. "min-box" is the minimum-volume box's pose
+// (centre + axes, the axes in the same order as dimensions-mm) — the
+// product page draws its dimension brackets on it; omitted when absent.
+function geometryLine(g) {
+  const triple = (v) => "[" + (v || []).map(num).join(", ") + "]";
+  const box = g["min-box"];
+  return '      "geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
+    ', "dimensions-mm": ' + triple(g["dimensions-mm"]) +
+    (box
+      ? ', "min-box": { "center": ' + triple(box.center) +
+        ', "axes": [' + (box.axes || []).map(triple).join(", ") + "] }"
+      : "") +
+    ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
+}
+
 function slug(name) {
   return String(name).trim().toLowerCase().replace(/\s+/g, "-");
 }
@@ -361,12 +380,7 @@ function renderProductBlock(p, metals) {
   // carried through from the product object (the current on-disk one, see
   // json-tool-server.js), and a brand-new product simply has none until
   // `npm run measure-models` runs.
-  const g = p.geometry;
-  const geometry = g
-    ? '      "geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
-      ', "dimensions-mm": [' + (g["dimensions-mm"] || []).map(num).join(", ") +
-      '], "model-sha1": "' + esc(g["model-sha1"]) + '" },'
-    : null;
+  const geometry = p.geometry ? geometryLine(p.geometry) : null;
 
   const assets = p.assets || {};
   const hhv = p["hero-hand-visibility"] || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
@@ -446,6 +460,7 @@ module.exports = {
   esc,
   num,
   slug,
+  geometryLine,
   insertBeforeArrayClose,
   insertBeforeObjectClose,
   appendToInlineStringArray,

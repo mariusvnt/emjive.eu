@@ -3,12 +3,15 @@
    measure-models — measures every product's .glb and writes the result into
    that product's "geometry" key in its series' products.json:
 
-     "geometry": { "volume-cm3": 1.683, "dimensions-mm": [28.1, 25.3, 20.2], "model-sha1": "…" }
+     "geometry": { "volume-cm3": 1.683, "dimensions-mm": [28.1, 25.3, 20.2],
+                   "min-box": { "center": [x, y, z], "axes": [[…], […], […]] }, "model-sha1": "…" }
 
    What the product page does with it (js/product.js's renderSpecs): weight,
    raw-material cost and manufacturing cost are all derived from the volume
    and the per-metal constants in data/series.json's "metal-costs", so only
-   the metal-independent geometry is stored here.
+   the metal-independent geometry is stored here. Its specs stage also draws
+   dimension brackets on the box itself (js/three-viewer.js, options.blueprint),
+   which is what "min-box" is for.
 
    - volume-cm3: the enclosed volume of the mesh. Models are authored in
      millimetres (1 unit = 1 mm — the GLBs carry no scale, and a ring is
@@ -22,6 +25,10 @@
      (with its best in-plane rotation, a 2D rotating-calipers search) and
      then polishing the winner numerically; the rare "three mutually
      orthogonal edges" optimum is covered by that polish.
+   - min-box: where that box is — its centre (mm) and its three unit axes,
+     axes[k] being the direction dimensions-mm[k] runs along. Both in the
+     glTF scene's own space (node transforms applied), which is the space
+     the viewer's model sits in, untransformed.
    - model-sha1: hash of the .glb's bytes. scripts/validate-data.js compares
      it with the file on disk, so a model that changed (or was re-optimized)
      without being re-measured fails `npm run verify` instead of silently
@@ -184,7 +191,9 @@ function hull2d(pts) {
   return lower.concat(upper);
 }
 
-// Volume and extents of the box with axes (u, v, w) around `points`.
+// Volume and extents of the box with axes (u, v, w) around `points`, and
+// the middle of each extent along its own axis (what the box's centre is
+// rebuilt from — see minimumBox).
 function boxFor(points, u, v, w) {
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, w0 = Infinity, w1 = -Infinity;
   for (const p of points) {
@@ -194,7 +203,7 @@ function boxFor(points, u, v, w) {
     if (c < w0) w0 = c; if (c > w1) w1 = c;
   }
   const ex = [u1 - u0, v1 - v0, w1 - w0];
-  return { volume: ex[0] * ex[1] * ex[2], extents: ex };
+  return { volume: ex[0] * ex[1] * ex[2], extents: ex, mids: [(u0 + u1) / 2, (v0 + v1) / 2, (w0 + w1) / 2] };
 }
 
 // Best box that has one face flush with a plane of normal `n`: the rest is a
@@ -326,8 +335,22 @@ async function minimumBox(positions) {
     if (box && (!best || box.volume < best.volume)) best = box;
   }
   best = polishBox(hullPoints, best);
+  // Longest first, and each axis kept with its own extent, so axes[k] is
+  // the direction dimensions[k] was measured along — the product page
+  // labels its brackets that way. An axis' sign is arbitrary; it's flipped
+  // so its largest component is positive, which keeps a re-run's output
+  // identical rather than flipping at random.
+  const order = [0, 1, 2].sort((a, b) => best.extents[b] - best.extents[a]);
+  const axes = order.map((k) => {
+    const a = best.axes[k];
+    const big = a.reduce((m, x) => (Math.abs(x) > Math.abs(m) ? x : m), 0);
+    return big < 0 ? a.map((x) => -x) : a.slice();
+  });
+  const center = [0, 1, 2].map((d) => best.axes.reduce((s, a, k) => s + a[d] * best.mids[k], 0));
   return {
-    dimensions: best.extents.slice().sort((a, b) => b - a),
+    dimensions: order.map((k) => best.extents[k]),
+    axes,
+    center,
     volume: best.volume,
     axisAlignedVolume: boxFor(hullPoints, [1, 0, 0], [0, 1, 0], [0, 0, 1]).volume
   };
@@ -335,11 +358,9 @@ async function minimumBox(positions) {
 
 // ---- products.json patching ---------------------------------------------------
 
-function geometryLine(g) {
-  return '      "geometry": { "volume-cm3": ' + g["volume-cm3"] +
-    ', "dimensions-mm": [' + g["dimensions-mm"].join(", ") +
-    '], "model-sha1": "' + g["model-sha1"] + '" },';
-}
+// The line itself is json-tool-blocks.js's geometryLine(), which the JSON
+// tool also writes through, so neither can drop a field the other knows.
+const geometryLine = blocks.geometryLine;
 
 // Drops any existing "geometry" line from a product block, then inserts the
 // new one straight after its "per-metal-specs" object, in the file's own
@@ -396,6 +417,10 @@ async function main() {
       const geometry = {
         "volume-cm3": Number((volume.mm3 / 1000).toFixed(3)),
         "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
+        "min-box": {
+          center: box.center.map((c) => Number(c.toFixed(3))),
+          axes: box.axes.map((a) => a.map((x) => Number(x.toFixed(5))))
+        },
         "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
       };
 

@@ -602,7 +602,7 @@ Two things read it back:
 Both lists open the same **Modify sheet** (`js/modify-modal.js`): metal and
 size, with the item's own carousel, resting on the tapped row. While it's
 up, the page's bar turns into its **Unselect | Save** strip; Unselect
-removes the item and offers **Undo** in the bar for a few seconds. See
+removes the item and offers **Undo** on the item's own line in the list for a few seconds. See
 `client-scripts.md` for the mechanics.
 
 "Proceed to checkout" is still a stub — no Stripe session, no backend to

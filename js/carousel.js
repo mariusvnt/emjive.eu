@@ -26,9 +26,10 @@
    the slides are in place and measurable: it recounts them from the track
    and rests the strip on the first slide, centered. A resize re-clamps on
    its own. center() centres a slide as a tap would; goHome() takes the strip
-   back to its first slide that way, awayFromHome() says how far it is (0 to 1,
-   in slides); setLocked(true) holds the strip where it is and ignores drags,
-   taps and keys until unlocked.
+   back to its first slide, more gently; awayFromHome() says how far it is (0 to
+   1, in slides); setLocked(true) holds the strip where it is and ignores drags,
+   taps and keys until unlocked. With dragScroll, the frame is also told how far
+   the strip is paged on (--paged, 0 to 1, and .is-paged) — see publishPaged.
 
    window.EmjiveCarousel.imageSlide(src, alt) builds a plain image slide.
    It lives here rather than with either caller because what it guards
@@ -52,6 +53,14 @@
   // started on) rather than actually landing on a different one; see
   // settleDrag below.
   var CANCEL_TRANSITION = "transform 0.2s cubic-bezier(0.4, 0, 0.6, 1)";
+  // The strip's way home when the page takes it there (goHome): gentler than a
+  // tap's, as it runs while the page is being scrolled — a short glide over
+  // that reads as a snap, all the more where a frame or two get dropped.
+  var HOME_TRANSITION = "transform 0.5s cubic-bezier(0.4, 0, 0.6, 1)";
+
+  // How far, in tiles, the strip has to be paged on from the first slide for
+  // --paged to reach 1 (see publishPaged).
+  var PAGED_SPAN = 0.3;
 
   // Below this much pointer movement, a release counts as a tap (center
   // whichever slide it started on) rather than a drag — same threshold
@@ -124,9 +133,30 @@
     // transition, when given, overrides the default snap — see
     // CENTER_TRANSITION above, the sole caller that does.
     function applyOffset(offsetPx, animate, transition) {
-      track.style.transition = animate ? (transition || "transform 0.25s cubic-bezier(0.4, 0, 0.6, 1)") : "none";
+      var move = animate ? (transition || CENTER_TRANSITION) : "none";
+      track.style.transition = move;
       track.style.transform = "translateX(" + offsetPx + "px)";
       scrollOffset = offsetPx;
+      // Held (the page has taken the strip home to scroll on), what was paged
+      // away from stays away: the picker does not come back before the
+      // stage's own transition brings it (setLocked republishes on release).
+      if (dragScroll && host !== viewport && !locked) publishPaged(offsetPx, animate ? move.slice("transform ".length) : "");
+    }
+
+    // The product page's frame is told how far the strip is paged on from the
+    // first slide: --paged-px, in pixels, and --paged, 0 to 1 (PAGED_SPAN of a
+    // tile and it is 1). Both are tweened with the strip itself (the same
+    // timing, on registered properties in css/style.css), so what goes with it —
+    // the metal picker — moves in step. .is-paged says it is far enough along
+    // that what faded should not take taps.
+    function publishPaged(offsetPx, timing) {
+      var tile = measureTileWidth();
+      var px = tile ? Math.max(0, computeBounds().max - offsetPx) : 0;
+      var paged = tile ? Math.min(1, px / (tile * PAGED_SPAN)) : 0;
+      host.style.transition = timing ? "--paged " + timing + ", --paged-px " + timing : "none";
+      host.style.setProperty("--paged", paged.toFixed(4));
+      host.style.setProperty("--paged-px", px.toFixed(1) + "px");
+      host.classList.toggle("is-paged", paged > 0.5);
     }
 
     // reset (true right after the slides were (re)built) snaps to the
@@ -155,6 +185,7 @@
       if (lock === locked) return;
       locked = lock;
       carouselEl.classList.toggle("is-locked", lock);
+      if (!lock && dragScroll && host !== viewport) publishPaged(scrollOffset, CENTER_TRANSITION.slice("transform ".length));
       // A sideways drag under way when the lock lands just ends where it is
       // (a scrolling gesture is not affected).
       if (lock && dragging) {
@@ -530,7 +561,7 @@
       sync: sync,
       // Centres slide `index`, with the same transition a tap uses.
       center: function (index) { centerOnSlide(index); },
-      goHome: function () { centerOnSlide(0); },
+      goHome: function () { centerOnSlide(0, HOME_TRANSITION); },
       awayFromHome: awayFromHome,
       setLocked: setLocked
     };

@@ -23,6 +23,8 @@
   // scrolls the page (the model's circle apart, see createModelViewer).
   var carouselEl = document.getElementById("productCarousel");
   var carousel = window.EmjiveCarousel(carouselEl, { dragScroll: true });
+  // The frame around it (see carouselLoadHold).
+  var carouselFrameEl = document.getElementById("productCarouselFrame");
   // How far presentation's things have gone (--leave) when the carousel's strip
   // is held on the model.
   var HOLD_AT = 0.25;
@@ -87,10 +89,12 @@
   // fallback's waits all go through it (js/loader.js, "a loader shared by
   // several assets"), and it only shows while one of them is both loading and
   // on screen. A hold on it names the slide the asset appears in. null when
-  // there is no loader (js/loader.js missing, reduced motion).
+  // there is no loader (js/loader.js missing, reduced motion). It is mounted on
+  // the carousel's frame, not the carousel itself, which is a stacking context
+  // of its own: there it passed under the metal picker and the edge bands.
   function carouselLoadHold(slide) {
     if (!window.EmjiveLoader || !slide) return null;
-    var hold = window.EmjiveLoader.mount(carouselEl, { target: slide });
+    var hold = window.EmjiveLoader.mount(carouselFrameEl || carouselEl, { target: slide });
     return hold && typeof hold.done === "function" ? hold : null;
   }
 
@@ -563,7 +567,7 @@
     } else {
       var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
       if (fallbackIconSrc) {
-        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name, { loaderHost: carouselEl });
+        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name, { loaderHost: carouselFrameEl || carouselEl });
         // Kept so onMetalSelect can swap its src on a metal switch — this
         // slide isn't rebuilt then, only the 3D viewer path re-tints live,
         // so a static image needs its own explicit update.
@@ -805,7 +809,7 @@
   function buildPhotoSlide(photo, alt) {
     // Deferred: the photos are off screen, so they start downloading only
     // after the page's first paint (render() → loadRemainingAssets).
-    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true, loaderHost: carouselEl });
+    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true, loaderHost: carouselFrameEl || carouselEl });
     slide.classList.add("product-carousel__slide--photo");
     slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
     return slide;
@@ -1017,14 +1021,7 @@
     var stageEl = document.getElementById("productStage");
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
-    window.EmjiveProductStages.mount(stageEl, {
-      onChange: onStageChange,
-      // The first scrolling takes the carousel's strip home by itself, if the
-      // visitor had paged it on, and is buffered behind that
-      // (js/product-stages.js).
-      homeFraction: function () { return carousel.awayFromHome(); },
-      onHome: function () { carousel.goHome(); }
-    });
+    window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
     var resizeQueued = false;
     window.addEventListener("resize", function () {
       if (resizeQueued) return;
@@ -1058,17 +1055,19 @@
       }
     }
     if (stage.stage === "presentation" && state.closeGuide) state.closeGuide();
-    // Presentation's things start going with the first pixel of scrolling
-    // (past the buffer: js/product-stages.js), and slide out to the sides of a
-    // model that has to be centred. Until they are well on their way (HOLD_AT)
-    // the strip can still be paged; from then it is taken home, if it had been
-    // paged again, and held.
+    // Presentation's things start going with the first pixel of scrolling, and
+    // slide out to the sides of a model that has to be centred. Until they are
+    // well on their way (HOLD_AT) the strip stays where the visitor paged it
+    // to, whatever the page does; from then it is taken home, if it was paged
+    // on, and held.
     if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
     var hold = stage.toSpecs > 0 || stage.leave >= HOLD_AT;
     if (hold === state.carouselHeld) return;
     state.carouselHeld = hold;
-    if (hold) carousel.goHome();
+    // Locked first: a strip taken home while held leaves the picker where
+    // paging it put it (js/carousel.js).
     carousel.setLocked(hold);
+    if (hold) carousel.goHome();
   }
 
   // How far the show stands scrolled up by browsing a stage, in pixels (its

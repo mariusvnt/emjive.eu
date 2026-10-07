@@ -606,8 +606,7 @@ button, input, textarea {
 }
 
 .site-header__row {
-  max-width: var(--max);
-  margin: 0 auto;
+  /* Full width: the header is not held to --max (the page's content is). */
   /* env(safe-area-inset-top) keeps the logo/toggle clear of the iPhone
      notch/status bar now that viewport-fit=cover lets the white header
      background extend all the way up under it. */
@@ -694,8 +693,6 @@ button, input, textarea {
 .site-header__menu-inner { overflow: hidden; min-height: 0; }
 
 .site-header__nav {
-  max-width: var(--max);
-  margin: 0 auto;
   padding: var(--header-menu-pt) var(--edge-px) var(--header-menu-pb);
   display: flex;
   flex-direction: column;
@@ -1395,9 +1392,13 @@ button, input, textarea {
 }
 .order-item__undo-button {
   left: 0;
-  width: 25%;
+  width: var(--left-w);
   color: var(--white);
   pointer-events: none;
+}
+/* (Its padding is the shared button rule's 0 otherwise, which comes later.) */
+.order-item .order-item__undo-button {
+  padding-left: var(--inset);
 }
 .order-item.is-undo .order-item__undo-button {
   pointer-events: auto;
@@ -1429,7 +1430,7 @@ button, input, textarea {
   transition: opacity var(--fade-quick) ease;
 }
 .order-item.is-undo .order-item__undo-band {
-  width: 25%;
+  width: var(--left-w);
 }
 .order-item.is-undo .order-item__undo-label {
   opacity: 1;
@@ -2206,14 +2207,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: block;
   backdrop-filter: url(#emjiveAberration);
 }
-/* The picker's edge: the title bar's blur and chromatic aberration again, on
+/* The edges' bands: the title bar's blur and chromatic aberration again, on
    its side. From the screen's left edge, every layer is fully there (on a wide
-   screen too: the content's margin is under it) up to the mark --m — where the
-   chosen metal's name beside the picker starts (a square and 0.6rem right of
-   the picker's left edge, which is the content's) — and then fades out going
-   right, over a span --S: at least 3.5rem, as wide as the margin is, at most
-   200px. The screen's right edge has the band the other way round
-   (.product-edge-veil--right, below; --dir is the way a fade runs).
+   screen too: the content's margin is under it) up to the mark --m — 2rem
+   inside the content's edge — and then fades out going right, over a span
+   --S: at least 3.5rem, as wide as the margin is, at most 200px. The screen's
+   right edge has the band the other way round (.product-edge-veil--right,
+   below; --dir is the way a fade runs); both stand where they do whatever the
+   picker is doing.
    The blurs are spaced evenly along that span, the strongest nearest the mark:
    five layers, 1px, 3px, 6px, 12px and 24px, each fading out over .4 of the
    span (a cosine in five stops), each starting .15 of the span further in than
@@ -2234,8 +2235,8 @@ body:has(.order-checkout-bar:not([hidden])) {
    diagonal — so the blur spreads past the carousel as it nears the edge.
    Each layer is one tall element whose mask is three images added up: the
    band, the wedge above, the wedge below (--mc, --mt, --mb).
-   Presentation only, and at full strength until it ends: the photos and the
-   picker it stands over slide out of the screen as they fade (--out-ease), and
+   Presentation only, and at full strength until it ends: the photos slide out
+   of the screen as they fade (--out-ease), and
    the layers switch off, all at once, when --p-out reaches 0 — the moment
    those are out of the viewport (opacity: clamp(0, --p-out * 1000, 1)); no
    fade of their own — an opacity on a backdrop filter crossfades the filtered
@@ -2246,7 +2247,7 @@ body:has(.order-checkout-bar:not([hidden])) {
      a percentage, would be read against the layer it is used in): half the
      frame's width less half the content's. */
   --margin: max(0px, calc(50cqw - var(--sb-w, 0px) / 2 - var(--max) / 2));
-  --m: calc(var(--margin) + var(--edge-px) + var(--metal-square) + 0.6rem);
+  --m: calc(var(--margin) + 2rem);
   --S: clamp(3.5rem, var(--margin), 200px);
   --dir: to right;
   /* The way each wedge's fade runs: from its corner at the edge. */
@@ -2376,13 +2377,11 @@ body:has(.order-checkout-bar:not([hidden])) {
 .has-backdrop-svg .product-edge-veil > span:nth-child(8) {
   backdrop-filter: url(#emjiveAberrationX3);
 }
-/* The right edge's: the same band mirrored, with the same span; its mark is
-   2rem inside the content's right edge (--margin: the margin a wide screen
-   has, which is all under the band; none on a narrow one). Its colours split
-   outward, the other way round to the left edge's, and its wedges' corners are
-   at the right edge. */
+/* The right edge's: the same band mirrored, with the same span and mark
+   (--margin: the margin a wide screen has, which is all under the band; none
+   on a narrow one). Its colours split outward, the other way round to the left
+   edge's, and its wedges' corners are at the right edge. */
 .product-edge-veil--right {
-  --m: calc(var(--margin) + 2rem);
   --dir: to left;
   --dtop: to top left;
   --dbot: to bottom left;
@@ -2523,11 +2522,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   transform: translateY(calc(var(--lift) * -1));
 }
 .product-stage .product-carousel__xray {
-  opacity: var(--p-out);
+  /* Fading from the first pixel, and gone at the end of the first stage's
+     stretch of scrolling (--browse-0 reaching 1), where the transition to specs
+     begins. */
+  opacity: calc(1 - var(--browse-0));
 }
 /* The photos hold their opacity for the first fifth of the way out (they are
-   already sliding), and are gone at the same point as the x-ray, which starts
-   to fade with the first pixel. */
+   already sliding), and are gone where the rest of presentation's things are
+   (the x-ray, above, goes sooner). */
 .product-stage .product-carousel__slide--photo {
   opacity: clamp(0, calc(var(--p-out) / 0.8), 1);
 }
@@ -2558,7 +2560,11 @@ body:has(.order-checkout-bar:not([hidden])) {
    filmstrip. See js/product.js for the per-product src/hidden toggle
    (product.assets.xray). */
 .product-carousel__xray {
-  --xray-width: max(512px, calc(var(--tile) * 1.66));
+  /* 0.88 on a narrow screen (400px and under), 1.1 on a wide one (1440px and
+     over), a straight line between by the viewport's width: tan(atan2(a, b))
+     is the unitless a / b. */
+  --xray-scale: calc(0.88 + 0.22 * clamp(0, tan(atan2(100vw - 400px, 1040px)), 1));
+  --xray-width: calc(max(512px, calc(var(--tile) * 1.66)) * var(--xray-scale));
   /* The share of the picture's width the file in use keeps: 1 for the
      desktop versions, --xray-crop for the smartphone ones, which are cut down
      to the middle of the picture (a phone shows no more than that). The box
@@ -2623,6 +2629,11 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: flex;
   height: 100%;
   width: max-content;
+  /* Its own layer from the start, so that its glides (a tap, the way home) run
+     on the compositor and don't wait on the main thread: Safari, with the model's
+     canvas and the edge bands' backdrop filters around, otherwise drops the
+     frames of a glide and what is left reads as a snap. */
+  will-change: transform;
 }
 .product-carousel__slide {
   flex: 0 0 var(--tile);
@@ -2776,6 +2787,28 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-stage .product-metals {
   pointer-events: auto;
 }
+/* Paging the strip on to the photos (js/carousel.js sets --paged-px, how far
+   it has moved, and --paged, 0 to 1, on the frame, tweened with the strip)
+   takes the picker along with it, one for one, and fades it out by the time
+   the strip is 30% of a tile along. Not in the specs column, where the strip
+   is held at home. */
+@property --paged {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --paged-px {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+.product-stage:not(.is-specs-layout) .product-metals {
+  opacity: calc(1 - var(--paged));
+  translate: calc(var(--paged-px) * -1) 0;
+}
+.product-stage:not(.is-specs-layout) .product-carousel-frame.is-paged .product-metals {
+  pointer-events: none;
+}
 /* The specs stage's size: the label "Size" on the left, then — in the column
    where the printing technology's name stands — the slider and, to its right,
    the typed field (the size sheet's own, .size-modal__custom-*, the iOS
@@ -2826,7 +2859,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 /* The slider: a hairline track and the selection dot (--dot, the one that
    marks the picker's chosen name), both in --category-col (a field's underline
-   colour). What takes the grip is a box twice the dot's size, centred on it
+   colour). What takes the grip is a box four times the dot's size, centred on it
    (the thumb is that box, with the dot drawn in its middle) — a silent help,
    never drawn: no background, outline, shadow or tap highlight of its own;
    keyboard focus shows by the dot going black. The track runs exactly along the size field's
@@ -2835,7 +2868,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    is shifted down so that middle is the underline's line. Dimmed until a size
    has been given. */
 .product-size__range {
-  --hit: calc(var(--dot) * 2);
+  --hit: calc(var(--dot) * 4);
   --range-pad: 0.5rem;
   --tick: var(--category-col);
   -webkit-appearance: none;
@@ -2870,10 +2903,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: var(--hit);
   margin-top: calc((1px - var(--hit)) / 2);
   box-sizing: border-box;
-  /* The grip box is the dot with a transparent border of half its size all
-     round; the dot, drawn in the padding box, is a circle exactly like the
-     picker's (.product-metals__tag::before). */
-  border: calc(var(--dot) / 2) solid transparent;
+  /* The grip box is the dot with a transparent border of one and a half times
+     its size all round; the dot, drawn in the padding box, is a circle exactly
+     like the picker's (.product-metals__tag::before). */
+  border: calc((var(--hit) - var(--dot)) / 2) solid transparent;
   border-radius: 50%;
   background: var(--tick);
   background-clip: padding-box;
@@ -2885,7 +2918,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   width: var(--hit);
   height: var(--hit);
   box-sizing: border-box;
-  border: calc(var(--dot) / 2) solid transparent;
+  border: calc((var(--hit) - var(--dot)) / 2) solid transparent;
   border-radius: 50%;
   background: var(--tick);
   background-clip: padding-box;
@@ -3352,6 +3385,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   }
   .product-material__label {
     display: block;
+  }
+  /* The picker is in the column, not beside the model: paging the strip leaves
+     it be. */
+  .product-stage:not(.is-specs-layout) .product-carousel-frame.is-paged .product-metals,
+  .product-stage:not(.is-specs-layout) .product-metals {
+    opacity: 1;
+    translate: none;
+    pointer-events: auto;
   }
   .product-size,
   .product-specs,
@@ -3967,19 +4008,13 @@ body.has-series-hero .selection-bar {
 }
 
 /* ---- summary row: always visible ---- */
-/* max-width/margin/padding mirror .site-header__row exactly. The header's
-   own edge distance isn't a flat --edge-px — past --max width it caps
-   and centers, so the *effective* gap grows with the screen. Matching
-   that whole recipe (not just the --edge-px value in isolation) is
-   what keeps the bar's icons/Order link lined up with the header's
-   logo/menu-toggle at every viewport width, including past --max.
-   width: 100% is required here and .site-header__row doesn't need the
-   equivalent: that's a plain block (width: auto already means "fill
-   available width, then clamp to max-width"), but this is a flex item —
-   cross-axis margin: auto on a flex item shrinks it to its own content
-   width first and lets the margins absorb the rest, rather than
-   stretching to fill, so without an explicit width it never reaches
-   max-width to be clamped in the first place. */
+/* Held to the page's content span (--max, centered) like the rest of the
+   page's content — the header, which is full width, is not.
+   width: 100% is required: this is a flex item, and cross-axis margin: auto
+   on a flex item shrinks it to its own content width first and lets the
+   margins absorb the rest, rather than stretching to fill, so without an
+   explicit width it never reaches max-width to be clamped in the first
+   place. */
 /* position: relative — .selection-bar__empty-label below is positioned
    relative to *this*, not .selection-bar__toggle, specifically so it can
    reach the bar's true right edge (matching where "Order (N)" itself
@@ -4274,6 +4309,20 @@ body.has-series-hero .selection-bar {
    Surface leads in and trails out, buttons the reverse, per the sitewide
    rule that a bar with text on it appears first and disappears last.
    ========================================================================== */
+/* The strip's geometry follows the page's content span, not the screen: on a
+   wide screen --span (the content's width) is centred with --inset of blank
+   either side, and --q is a quarter of it. Unselect's quarter and Save's
+   three, their labels, and the bands (here, and the undo line's) are laid out
+   on that, the bands reaching the screen's edge from it. (Percentages here
+   are of the element they are used on, which is as wide as the screen in
+   all of these.) */
+.modify-strip,
+.order-item__undo {
+  --span: min(100%, var(--max));
+  --inset: calc((100% - var(--span)) / 2);
+  --q: calc(var(--span) / 4);
+  --left-w: calc(var(--inset) + var(--q));
+}
 .modify-strip {
   position: absolute;
   left: 0;
@@ -4339,14 +4388,14 @@ body.has-series-hero .selection-bar {
 .modify-strip__label {
   transition: opacity var(--fade-fast) ease;
 }
-/* Its tap area is the right three quarters, but its label sits in the
-   middle of the whole bar: padding-right (a percentage of the strip's
-   width) takes the button's content box to exactly 25%–75% of the strip,
-   and the label centers in that. */
+/* Its tap area is the right three quarters of the content span (and the
+   blank beyond it), but its label sits in the middle of the whole bar:
+   padding-right takes the button's content box to exactly the content's
+   25%–75%, and the label centers in that. */
 .modify-strip__save {
-  left: 25%;
+  left: var(--left-w);
   right: 0;
-  padding-right: 25%;
+  padding-right: var(--left-w);
   color: var(--white);
 }
 .modify-strip__save:disabled { cursor: default; }
@@ -4355,7 +4404,8 @@ body.has-series-hero .selection-bar {
    shows plain against the strip's own --black-bg. */
 .modify-strip__unselect {
   left: 0;
-  width: 25%;
+  width: var(--left-w);
+  padding-left: var(--inset);
   color: var(--white);
 }
 /* Same recipe as .order-item::before: a 1.2rem backdrop-filter: invert(1)
@@ -4368,7 +4418,7 @@ body.has-series-hero .selection-bar {
   position: absolute;
   top: 50%;
   right: 0;
-  width: 75%;
+  width: calc(100% - var(--left-w));
   height: 1.2rem;
   transform: translate(0, -50%);
   opacity: 1;
@@ -4628,6 +4678,18 @@ input:focus-visible,
   place-items: center;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* The product page's loader (js/product.js) is on the carousel's frame, over
+   the strip's own band of it, and over everything laid in the frame: the
+   picker, the edge bands, the size row. It goes up with the carousel. */
+.product-carousel-frame > .loader {
+  inset: 0 0 auto 0;
+  height: var(--tile);
+  z-index: 5;
+}
+.product-stage .product-carousel-frame > .loader {
+  transform: translateY(calc(var(--lift) * -1));
 }
 
 /* Created at mount, shown only after --loader-delay. */

@@ -8,7 +8,7 @@
    photos) — writing the right JSON fields and dispatching dropped files
    into the right folders automatically.
 
-   Deliberately has no swatch-scene editing at all (swatch-light) —
+   Deliberately has no swatch-scene editing at all (swatch-hdri, swatch-blur, swatch-camera) —
    scripts/scene-tool-server.js already owns
    that, with a live preview this file has no equivalent for. This file's
    GET /api/data still surfaces a read-only drift warning if the existing
@@ -200,13 +200,19 @@ function collectDriftWarnings(seriesIndex, seriesData) {
     }
   }
 
-  const swatchLight = seriesIndex["swatch-light"];
-  if (swatchLight !== undefined) {
-    const ok = swatchLight && typeof swatchLight === "object" &&
-      Array.isArray(swatchLight.position) && swatchLight.position.length === 3 &&
-      swatchLight.position.every((n) => typeof n === "number" && isFinite(n)) &&
-      typeof swatchLight.intensity === "number" && typeof swatchLight.environment === "number";
-    if (!ok) warnings.push('top-level "swatch-light" is ' + JSON.stringify(swatchLight) + ", not { position: [x, y, z], intensity, environment }");
+  const swatchHdri = seriesIndex["swatch-hdri"];
+  if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
+    warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
+  }
+  const swatchBlur = seriesIndex["swatch-blur"];
+  if (swatchBlur !== undefined && !(typeof swatchBlur === "number" && isFinite(swatchBlur) && swatchBlur >= 0)) {
+    warnings.push('top-level "swatch-blur" is ' + JSON.stringify(swatchBlur) + ", not a number of pixels (0 or more)");
+  }
+  const swatchCamera = seriesIndex["swatch-camera"];
+  if (swatchCamera !== undefined) {
+    const ok = swatchCamera && typeof swatchCamera === "object" &&
+      ["rotation", "tilt", "roll"].every((k) => typeof swatchCamera[k] === "number" && isFinite(swatchCamera[k]));
+    if (!ok) warnings.push('top-level "swatch-camera" is ' + JSON.stringify(swatchCamera) + ", not { rotation, tilt, roll } of numbers");
   }
   return warnings;
 }

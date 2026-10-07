@@ -53,7 +53,9 @@
     "white-room":     "assets/hdri/white-room_2k.hdr"
   },
 
-  "swatch-light": { "position": [4, 5, 9], "intensity": 150, "environment": 0.5 },
+  "swatch-hdri": "studio",
+  "swatch-blur": 30,
+  "swatch-camera": { "rotation": 170, "tilt": 142, "roll": 24 },
 
   "series": [
     {

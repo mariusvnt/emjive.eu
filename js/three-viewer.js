@@ -316,84 +316,58 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
   }
 
   // The metal swatches (scene-tool.html's swatch mode, and
-  // scripts/auto-render.js's swatch renderer): ONE scene holding a sphere per
-  // metal, evenly spaced along X in the order of the site's metal picker (the
-  // first metal at the left), one point light and a uniform environment, in
-  // place of a loaded GLTF model. Each swatch is that scene seen from straight
-  // in front of one sphere. The sphere is the same in all of them (radius 1),
-  // so is the camera's distance, and the light is one point in the world — a
-  // sphere further right is lit from further left, which is what makes the
-  // metals' highlights differ. Deliberately no material here: applyMaterial()'s
-  // mesh traversal (below) gives each sphere its own metal (userData.swatchMetal).
+  // scripts/auto-render.js's swatch renderer): ONE scene holding a single
+  // sphere in the middle, lit by an HDRI like any product, in place of a
+  // loaded GLTF model. Every swatch is that scene seen from the same camera,
+  // with the sphere's material changed between renders (applyMetal(), like any
+  // other viewer) — so the camera, the sphere and the HDRI are the same in all
+  // of them and only the metal differs. No material is set here:
+  // applyMaterial()'s mesh traversal (below) gives the sphere the current metal.
   var SWATCH_SPHERE_RADIUS = 1;
-  // Distance between neighbouring sphere centres: far enough that, whichever
-  // sphere the camera is in front of, the neighbours are well outside its
-  // (small) square frame.
-  var SWATCH_SPACING = 3;
   // How far the camera stands from the sphere's centre, in the sphere's radii:
   // a mild perspective (the disc seen is that of a sphere 12 radii away).
   var SWATCH_DISTANCE = 12;
-  // The light and the environment the scene starts with, until a caller gives
-  // its own (data/series.json's "swatch-light").
-  var SWATCH_LIGHT_DEFAULT = { position: [4, 5, 9], intensity: 150, environment: 0.5 };
 
-  // The sphere's centre along the stack axis (world X): the first metal at the
-  // negative end, a rising index going the other way.
-  function swatchX(index, count) {
-    return (index - (count - 1) / 2) * SWATCH_SPACING;
-  }
-
-  function buildSwatchStack(metals) {
+  function buildSwatchStack() {
     var group = new THREE.Group();
-    var geometry = new THREE.SphereGeometry(SWATCH_SPHERE_RADIUS, 96, 64);
-    metals.forEach(function (metal, i) {
-      var sphere = new THREE.Mesh(geometry);
-      sphere.position.x = swatchX(i, metals.length);
-      sphere.userData.swatchMetal = metal;
-      group.add(sphere);
-    });
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(SWATCH_SPHERE_RADIUS, 96, 64)));
     return group;
   }
 
-  // The group's bounding-sphere radius, which is what frameCamera() measures
-  // zoom against: that of its bounding BOX (half the box's diagonal) — the
-  // spheres' extent along X, and their own radius up and across.
-  function swatchGroupRadius(count) {
-    var halfWidth = ((count - 1) * SWATCH_SPACING) / 2 + SWATCH_SPHERE_RADIUS;
-    return Math.sqrt(halfWidth * halfWidth + 2 * SWATCH_SPHERE_RADIUS * SWATCH_SPHERE_RADIUS);
-  }
+  // The sphere's bounding-sphere radius as frameCamera() measures it: that of
+  // its bounding BOX (half the box's diagonal), which is sqrt(3) radii.
+  var SWATCH_GROUP_RADIUS = Math.sqrt(3) * SWATCH_SPHERE_RADIUS;
 
-  // The camera for sphere `index` of `count`: straight in front of it (eye
-  // level, looking down -Z at its centre) at SWATCH_DISTANCE radii, with a
+  // The camera, for the angles anyone gets to choose — `angles` is
+  // { rotation, tilt, roll } in degrees (data/series.json's "swatch-camera"),
+  // the same three the product cameras have: where the camera stands round the
+  // sphere (rotation: round the vertical axis; tilt: 90 is eye level, 0 is
+  // straight above; roll: the turn of the picture), always looking at its
+  // centre. Missing ones are 0, 90 and 0 — straight in front, eye level.
+  // The rest is solved: the camera stands SWATCH_DISTANCE radii away, with a
   // frame that is the BIGGEST SQUARE INSIDE THE DISC the sphere shows from
-  // there. Seen head-on from distance d the sphere's silhouette is a circle
-  // of angular radius a = asin(r / d) — on the image plane at unit distance,
-  // radius tan(a). A square inscribed in a circle has its corners on it: its
-  // half-diagonal is tan(a), its half-side tan(a) / sqrt(2), and a square
-  // frame (aspect 1) has that half-side at tan(fov / 2). So
+  // there (the same from every angle, a sphere being round). Seen from
+  // distance d the sphere's silhouette is a circle of angular radius
+  // a = asin(r / d) — on the image plane at unit distance, radius tan(a). A
+  // square inscribed in a circle has its corners on it: its half-diagonal is
+  // tan(a), its half-side tan(a) / sqrt(2), and a square frame (aspect 1) has
+  // that half-side at tan(fov / 2). So
   //   fov = 2 * atan(tan(asin(r / d)) / sqrt(2)).
   // frameCamera() puts the camera at sphereRadius / sin(fov / 2) * zoom / 100
-  // from the target, sphereRadius being the whole group's (swatchGroupRadius),
-  // so the zoom that makes that distance d is d * sin(fov / 2) / sphereRadius.
-  function swatchOrbit(index, count) {
-    count = count || 1;
-    index = index || 0;
+  // from the target, so the zoom that makes that distance d is
+  // d * sin(fov / 2) / sphereRadius.
+  function swatchOrbit(angles) {
+    var a = angles || {};
     var d = SWATCH_DISTANCE * SWATCH_SPHERE_RADIUS;
     var halfFov = Math.atan(Math.tan(Math.asin(SWATCH_SPHERE_RADIUS / d)) / Math.SQRT2);
     return {
-      rotation: 0,
-      tilt: 90,
-      roll: 0,
-      zoom: (100 * d * Math.sin(halfFov)) / swatchGroupRadius(count),
-      target: [swatchX(index, count), 0, 0],
+      rotation: typeof a.rotation === "number" ? a.rotation : 0,
+      tilt: typeof a.tilt === "number" ? a.tilt : 90,
+      roll: typeof a.roll === "number" ? a.roll : 0,
+      zoom: (100 * d * Math.sin(halfFov)) / SWATCH_GROUP_RADIUS,
+      target: [0, 0, 0],
       fov: (2 * halfFov * 180) / Math.PI
     };
-  }
-
-  // The tool's overview: all the spheres (and the light's marker) from the
-  // front, at the site's usual fov, the whole stack in view.
-  function swatchOverviewOrbit() {
-    return { rotation: 0, tilt: 90, roll: 0, zoom: 100, target: [0, 0, 0], fov: 30 };
   }
 
   function parseTargetString(str) {
@@ -634,7 +608,12 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
   // render into a dead context — wasted work, a "Context Lost" warning, and a
   // render target allocated only to be freed a moment later. Resolves to null
   // then, and the caller has nothing to attach.
-  function loadEnvironment(renderer, hdriSrc, isStale) {
+  // blurPx (optional, 0 or missing: none — every product): a gaussian blur of
+  // the HDRI itself, its sigma in pixels of the HDRI image (the swatch scene's
+  // "swatch-blur"). PMREMGenerator.fromEquirectangular() has no blur, so
+  // then the HDRI is the background of a throwaway scene and goes through
+  // fromScene(), which blurs by a sigma in radians before it prefilters.
+  function loadEnvironment(renderer, hdriSrc, isStale, blurPx) {
     var src = hdriSrc || DEFAULT_HDRI_SRC;
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
     // Synchronous, so a throw here would escape as an exception out of the
@@ -675,7 +654,17 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         // resources — so disposing the texture alone would leave the
         // target's framebuffer behind with nothing holding a reference
         // that could ever free it.
-        var renderTarget = pmremGenerator.fromEquirectangular(equirect);
+        var renderTarget;
+        if (blurPx > 0) {
+          // A full turn of longitude is image.width pixels. The cube faces
+          // are a quarter of that wide, as fromEquirectangular() makes them.
+          equirect.mapping = THREE.EquirectangularReflectionMapping;
+          var blurScene = new THREE.Scene();
+          blurScene.background = equirect;
+          renderTarget = pmremGenerator.fromScene(blurScene, (blurPx * 2 * Math.PI) / image.width, 0.1, 100, { size: Math.max(64, image.width / 4) });
+        } else {
+          renderTarget = pmremGenerator.fromEquirectangular(equirect);
+        }
         equirect.dispose();
         pmremGenerator.dispose();
         return renderTarget;
@@ -1125,25 +1114,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     var environmentTarget = null;
     // (options.environment === false: none — for a viewer that only ever
     // draws the flat blueprint, which no reflection touches.)
-    // The swatch scene's environment is not an HDRI but a uniform white one
-    // (what the metals reflect besides the light's highlight), made on the
-    // spot: a PMREM of a plain white scene, kept in environmentTarget like any
-    // other so dispose() frees it. Its strength is scene.environmentIntensity.
-    function uniformEnvironment() {
-      try {
-        var pmrem = new THREE.PMREMGenerator(renderer);
-        var white = new THREE.Scene();
-        white.background = new THREE.Color(1, 1, 1);
-        environmentTarget = pmrem.fromScene(white);
-        pmrem.dispose();
-        scene.environment = environmentTarget.texture;
-        return Promise.resolve();
-      } catch (err) {
-        console.error("emjive: failed to prepare the swatch environment", err);
-        return Promise.reject(err);
-      }
-    }
-    var environmentPromise = options.swatch ? uniformEnvironment() : options.environment === false ? Promise.resolve() : loadEnvironment(renderer, options.hdri, function () { return isDisposed; }).then(function (renderTarget) {
+    var environmentPromise = options.environment === false ? Promise.resolve() : loadEnvironment(renderer, options.hdri, function () { return isDisposed; }, options.environmentBlur).then(function (renderTarget) {
       // Arriving after teardown: the PMREM target is real GPU memory on a
       // renderer that's already been released, so it has to be freed here
       // rather than attached to a scene nothing will ever draw again. (Null
@@ -1368,10 +1339,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       if (!modelRoot) return;
       modelRoot.traverse(function (node) {
         if (!node.isMesh) return;
-        // A swatch scene's spheres each keep their own metal (see
-        // buildSwatchStack), whatever currentMetal says; read per mesh so
-        // the scene tool's live shader edits reach every sphere.
-        var params = metalToStandardMaterialParams(node.userData.swatchMetal || currentMetal);
+        var params = metalToStandardMaterialParams(currentMetal);
         // Always a fresh material, never mutating whatever the GLTF's own
         // mesh already had (GLTFLoader produces MeshStandardMaterial by
         // default, so a "reuse if already the right type" shortcut would
@@ -1885,24 +1853,10 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       bracketLabels.length = 0;
     }
 
-    var swatchLight = null;
-    var swatchMarker = null;
-    // { position: [x, y, z], intensity, environment }: any missing field is
-    // the default's. Used at build time and by handle.setSwatchLight().
-    function setSwatchLightState(config) {
-      var cfg = config || {};
-      var position = Array.isArray(cfg.position) && cfg.position.length === 3 ? cfg.position : SWATCH_LIGHT_DEFAULT.position;
-      var intensity = typeof cfg.intensity === "number" ? cfg.intensity : SWATCH_LIGHT_DEFAULT.intensity;
-      var environment = typeof cfg.environment === "number" ? cfg.environment : SWATCH_LIGHT_DEFAULT.environment;
-      swatchLight.position.set(position[0], position[1], position[2]);
-      swatchLight.intensity = intensity;
-      swatchMarker.position.copy(swatchLight.position);
-      scene.environmentIntensity = environment;
-    }
-
     // options.swatch (scene-tool.html's swatch mode, and
-    // scripts/auto-render.js's swatch renderer) is { metals: [...], light }, and
-    // swaps a loaded GLTF for the swatch spheres (plus the light and a uniform environment) — everything downstream (frameCamera's bounding-
+    // scripts/auto-render.js's swatch renderer) is truthy, and swaps a loaded
+    // GLTF for the swatch sphere (lit by options.hdri, as any model is) —
+    // everything downstream (frameCamera's bounding-
     // sphere measurement, applyMaterial's mesh traversal, controls, the
     // animate loop, freeOrbit, dispose) is already agnostic to how
     // modelRoot was built, so this is the only branch needed. `product` in
@@ -1911,22 +1865,9 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     // on this path.
     var modelPromise;
     if (options.swatch) {
-      modelRoot = buildSwatchStack(options.swatch.metals || []);
+      modelRoot = buildSwatchStack();
       applyMaterial();
       scene.add(modelRoot);
-      // The scene's one point light (physical units: candela, falling off
-      // with the square of the distance), and a small marker at it that only
-      // the tool's overview shows. Both are the options' `light`, or the
-      // defaults, and handle.setSwatchLight() changes them later.
-      swatchLight = new THREE.PointLight(0xffffff, 1, 0, 2);
-      scene.add(swatchLight);
-      swatchMarker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.15, 16, 12),
-        new THREE.MeshBasicMaterial({ color: 0xffd34d, toneMapped: false })
-      );
-      swatchMarker.visible = false;
-      scene.add(swatchMarker);
-      setSwatchLightState(options.swatch.light);
       modelPromise = Promise.resolve();
     } else {
       // Overlaps the Draco decoder's own ~336KB fetch with this model's
@@ -2188,23 +2129,6 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         frameCamera(orbitConfig);
         renderer.render(scene, camera);
       },
-      // Swatch scene only (options.swatch; a no-op otherwise): the point
-      // light's position and strength and the uniform environment's strength,
-      // { position: [x, y, z], intensity, environment }, drawn at once.
-      setSwatchLight: function (config) {
-        if (!swatchLight) return;
-        setSwatchLightState(config);
-        needsRender = true;
-        if (isStatic) renderer.render(scene, camera);
-      },
-      // Swatch scene only: show (or hide) the marker at the light, which is
-      // only there to be seen from the tool's overview.
-      setSwatchOverview: function (on) {
-        if (!swatchMarker) return;
-        swatchMarker.visible = !!on;
-        needsRender = true;
-        if (isStatic) renderer.render(scene, camera);
-      },
       // Blueprint viewers only (options.blueprint; a no-op otherwise): how
       // far the metal -> wireframe sweep has gone (`sweep`) and how far the
       // fit has (`fit`: the shrink that makes room for the brackets, which
@@ -2334,10 +2258,6 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         // no-op).
         disposeBlueprint();
         disposeObject3D(modelRoot);
-        if (swatchMarker) {
-          swatchMarker.geometry.dispose();
-          swatchMarker.material.dispose();
-        }
         releaseHeldCpuBytes();
         if (environmentTarget) environmentTarget.dispose();
         scene.environment = null;
@@ -2620,8 +2540,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
   // separate override-parameter mechanism needed. Never read by the
   // interactive site or by scripts/auto-render.js.
   window.EmjiveModelViewer.METAL_PRESETS = METAL_PRESETS;
-  // Tool/render-only, like the above: the swatch scene's cameras — in front
-  // of sphere `index` of `count`, and the overview of them all.
+  // Tool/render-only, like the above: the swatch scene's camera for a
+  // { rotation, tilt, roll }.
   window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
-  window.EmjiveModelViewer.swatchOverviewOrbit = swatchOverviewOrbit;
 })();

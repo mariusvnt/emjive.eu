@@ -2,9 +2,8 @@
 /* ==========================================================================
    scene-tool-server — bare static/API server for scene-tool.html, a
    standalone dev page for tuning a product's camera angle, a series' HDRI,
-   the swatch scene's point light (where it stands, how strong it and the
-   uniform environment are), and a metal's
-   shader — all as a live preview through the site's real
+   the swatch scene's HDRI, its blur and the camera angles (rotation, tilt, roll), and a
+   metal's shader — all as a live preview through the site's real
    window.EmjiveModelViewer (js/three-viewer.js), with a Save action that
    text-patches the relevant source file in place.
 
@@ -130,16 +129,30 @@ function updateSeriesHdriInText(text, seriesSlug, hdriKey) {
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// Replaces the top-level "swatch-light": { ... } block (a single object of
-// plain numbers and one array of three, so no nested braces) with `light`,
-// kept on one line like the file's own. Returns null if the block isn't
-// there, so nothing is written for a field that has to be added by hand first.
-function updateSwatchLightInText(text, light) {
-  var pattern = /"swatch-light":\s*\{[^{}]*\}/;
-  if (!pattern.test(text)) return null;
-  var block = '"swatch-light": { "position": [' + light.position.join(", ") + '], "intensity": ' + light.intensity +
-    ', "environment": ' + light.environment + " }";
-  return text.replace(pattern, function () { return block; });
+// Top-level fields only ("swatch-hdri"/"swatch-blur"/"swatch-camera"), no nesting — the
+// camera is one flat object of three numbers. Either update can be given
+// alone. Returns null if a field to replace isn't there, so nothing is written
+// for a field that has to be added by hand first.
+function updateSwatchSceneInText(text, updates) {
+  var result = text;
+  if (updates["swatch-hdri"] !== undefined) {
+    var hdriPattern = /"swatch-hdri":\s*"[^"]*"/;
+    if (!hdriPattern.test(result)) return null;
+    result = result.replace(hdriPattern, function () { return '"swatch-hdri": "' + updates["swatch-hdri"] + '"'; });
+  }
+  if (updates["swatch-blur"] !== undefined) {
+    var blurPattern = /"swatch-blur":\s*-?[0-9.]+/;
+    if (!blurPattern.test(result)) return null;
+    result = result.replace(blurPattern, function () { return '"swatch-blur": ' + updates["swatch-blur"]; });
+  }
+  if (updates["swatch-camera"] !== undefined) {
+    var cameraPattern = /"swatch-camera":\s*\{[^{}]*\}/;
+    if (!cameraPattern.test(result)) return null;
+    var camera = updates["swatch-camera"];
+    var block = '"swatch-camera": { "rotation": ' + camera.rotation + ', "tilt": ' + camera.tilt + ', "roll": ' + camera.roll + " }";
+    result = result.replace(cameraPattern, function () { return block; });
+  }
+  return result;
 }
 
 // Patches js/three-viewer.js's own METAL_PRESETS object — the one save
@@ -228,33 +241,63 @@ async function handleSaveSeriesHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
 }
 
-// The swatch scene's one point light — its position, its strength and the
-// uniform environment's strength — is all anyone gets to set: the frame, the
-// camera's place and the spheres' are solved (see swatchOrbit in
+// The swatch scene's camera angles are all anyone gets to set of its camera
+// — the distance, the fov and the frame are solved (see swatchOrbit in
 // js/three-viewer.js), so there is nothing else to accept or write.
-async function handleSaveSwatchLight(req, res) {
+async function handleSaveSwatchCamera(req, res) {
   var body = await readJsonBody(req);
-  var position = body.position;
-  if (!Array.isArray(position) || position.length !== 3 || !position.every(isFiniteNumber)) {
-    return sendJson(res, 400, { error: "position must be three finite numbers" });
+  if (![body.rotation, body.tilt, body.roll].every(isFiniteNumber)) {
+    return sendJson(res, 400, { error: "rotation/tilt/roll must be finite numbers" });
   }
-  if (!isFiniteNumber(body.intensity) || !isFiniteNumber(body.environment)) {
-    return sendJson(res, 400, { error: "intensity and environment must be finite numbers" });
-  }
-
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var light = {
-    position: position.map(function (n) { return Math.round(n * 100) / 100; }),
-    intensity: Math.round(body.intensity * 100) / 100,
-    environment: Math.round(body.environment * 100) / 100
+  var camera = {
+    rotation: Math.round(body.rotation * 100) / 100,
+    tilt: Math.round(body.tilt * 100) / 100,
+    roll: Math.round(body.roll * 100) / 100
   };
-  var patched = updateSwatchLightInText(text, light);
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var patched = updateSwatchSceneInText(text, { "swatch-camera": camera });
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-light\" in data/series.json — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-camera\" in data/series.json — add it by hand first" });
   }
 
   fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { "swatch-light": light } });
+  return sendJson(res, 200, { ok: true, saved: { "swatch-camera": camera } });
+}
+
+async function handleSaveSwatchHdri(req, res) {
+  var body = await readJsonBody(req);
+  var hdriKey = body.hdriKey;
+  if (!hdriKey) return sendJson(res, 400, { error: "hdriKey is required" });
+
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var seriesIndex = JSON.parse(text);
+  if (!Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, hdriKey)) {
+    return sendJson(res, 400, { error: "unknown hdri: " + hdriKey });
+  }
+  var patched = updateSwatchSceneInText(text, { "swatch-hdri": hdriKey });
+  if (!patched) {
+    return sendJson(res, 404, { error: "could not find \"swatch-hdri\" in data/series.json — add it by hand first" });
+  }
+
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { "swatch-hdri": hdriKey } });
+}
+
+// The swatch HDRI's blur: a gaussian sigma in pixels of the HDRI image.
+async function handleSaveSwatchBlur(req, res) {
+  var body = await readJsonBody(req);
+  if (!isFiniteNumber(body.blur) || body.blur < 0) {
+    return sendJson(res, 400, { error: "blur must be a finite number, 0 or more" });
+  }
+  var blur = Math.round(body.blur * 100) / 100;
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var patched = updateSwatchSceneInText(text, { "swatch-blur": blur });
+  if (!patched) {
+    return sendJson(res, 404, { error: "could not find \"swatch-blur\" in data/series.json — add it by hand first" });
+  }
+
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { "swatch-blur": blur } });
 }
 
 async function handleSaveMetalShader(req, res) {
@@ -291,7 +334,9 @@ async function handleSaveMetalShader(req, res) {
 const ROUTES = {
   "POST /api/save-product-camera": handleSaveProductCamera,
   "POST /api/save-series-hdri": handleSaveSeriesHdri,
-  "POST /api/save-swatch-light": handleSaveSwatchLight,
+  "POST /api/save-swatch-camera": handleSaveSwatchCamera,
+  "POST /api/save-swatch-hdri": handleSaveSwatchHdri,
+  "POST /api/save-swatch-blur": handleSaveSwatchBlur,
   "POST /api/save-metal-shader": handleSaveMetalShader
 };
 

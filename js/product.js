@@ -1334,6 +1334,9 @@
     function syncBar() {
       var isOpen = modal.classList.contains("is-open");
       setBarLabel(isOpen ? "Add" : "Select");
+      // Add mode: the sheet rests above the bar, so the bar gets a ground of
+      // its own (css/style.css .product-select-bar.is-add).
+      selectBar.classList.toggle("is-add", isOpen);
       var canAct = !isOpen || window.EmjiveSelection.isValidSize(customInput.value);
       selectBtn.setAttribute("aria-disabled", String(!canAct));
     }

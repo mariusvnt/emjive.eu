@@ -1653,7 +1653,7 @@ button, input, textarea {
    own height, the strongest the shortest — here as shares of the bar, half
    of it for the longest — so near the edge all three compound, further in two
    do, then one, and the last of it fades to nothing at the middle — all over
-   a uniform 1px frost across the whole bar, under them.
+   a uniform 2px frost across the whole bar, under them.
    The bar itself has no backdrop-filter, opacity or filter: any of them would
    make it the backdrop its layers see, which is nothing. isolation: isolate
    makes .glass its own stacking context, which is what lets .glass__blur sit
@@ -1671,17 +1671,17 @@ button, input, textarea {
      this is what keeps the bar visible there. The three layers compound
      toward the edge and follow their masks, so the bar is darkest at its edges
      and untouched at its middle. */
-  --glass-shade: 0.95;
+  --glass-shade: 0.96;
 }
-/* Under all the rest, over the whole bar alike: a 1px frost, which the sets'
+/* Under all the rest, over the whole bar alike: a 2px frost, which the sets'
    blurs then work on. (A pseudo-element comes before the sets in paint
    order.) */
 .glass__blur::before {
   content: "";
   position: absolute;
   inset: 0;
-  -webkit-backdrop-filter: blur(1px);
-  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
 }
 .glass__blur-set > span {
   position: absolute;
@@ -2739,7 +2739,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: var(--select-bar-height);
   /* Own compositor layer, same reasoning as .selection-bar's transform. */
   transform: translateZ(0);
-  transition: bottom 0.3s ease, opacity var(--fade-standard) ease;
+  transition: bottom 0.3s ease, opacity var(--fade-standard) ease, background-color var(--fade-standard) ease;
+}
+/* Add mode (js/product.js, while the size sheet is up): the sheet rests right
+   above the bar and slides out from behind it, so with nothing under the
+   blurs it would show through. The bar gets a ground in the page's background,
+   which its own blurs then work on (the edges still dim over it). */
+.product-select-bar.is-add {
+  background-color: var(--bg);
 }
 .product-select-bar.is-away,
 /* Also while an Add's peek has the newest row up out of the drawer

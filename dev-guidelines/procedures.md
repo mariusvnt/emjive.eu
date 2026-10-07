@@ -313,17 +313,17 @@ Each series picks its lighting environment via `"hdri"` (a key into
 
 Same tool: in `scene-tool.html`, pick that series' product, choose the HDRI
 from the dropdown to preview it live, tick "HDRI," and Save writes the key
-into that series' entry. The swatch renderer (metal-sample squares) has its
-own, separate `"swatch-hdri"` choice — see "Re-rendering icons and metal
-swatches" below.
+into that series' entry. The swatch renderer (metal-sample squares) uses no HDRI at all
+(a point light and a uniform environment) — see "Re-rendering icons and
+metal swatches" below.
 
 **Adding a brand-new `hdris` key** (rather than picking an existing one)
 isn't something `scene-tool.html` does — it only ever picks from the
 existing map. `npm run json-tool`'s Global tab is what does this: drop the
 `.hdr` file, type a key, Add. The same tab also has a Replace (drop a new
 file, overwrites the existing path in place — no JSON change needed) and
-Remove (deletes the mapping and the file, blocked if any series' `hdri` or
-the top-level `swatch-hdri` still points at it) for an existing key.
+Remove (deletes the mapping and the file, blocked if any series' `hdri`
+still points at it) for an existing key.
 
 ### Choosing a product's metal
 
@@ -347,7 +347,7 @@ entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
 / `roughnessFactor`, and a rendered swatch square for it (`assets/metal-sample_<metal>.webp`, named by `css/style.css`'s
 `.product-metals__option[data-metal="..."]` rule, see "Re-rendering icons and
 metal swatches" just below for how those are made; since all the squares come
-from one stack of tubes, adding a metal changes every metal's slot, so re-run
+from one row of spheres, adding a metal changes every metal's slot, so re-run
 `npm run auto-render -- --swatches-only` for all of them) — plus a
 `"metal-costs"` entry for it in `data/series.json` (density in g/cm³, price
 per gram, production cost per cm³: the Characteristics section's weight and
@@ -391,8 +391,8 @@ PBR material — not hand-picked colors or gradients — using the exact same
 `METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
 are each lit with whichever HDRI their own product's series resolved to
 (`data/series.json`'s per-series `"hdri"` — see "Choosing a series' HDRI"
-above); the swatch strips use their own separate `"swatch-hdri"` choice
-instead, since swatches aren't tied to any series. Top shots used to be lit
+above); the metal swatches use no HDRI (a point light and a uniform
+environment, `"swatch-light"`), since they aren't tied to any series. Top shots used to be lit
 with a plain `RoomEnvironment` regardless, but that override was removed
 since `window.EmjiveModelViewer` already sets the resolved HDRI before a
 render's `onReady` fires. If you change anything in `METAL_PRESETS`, or a
@@ -482,33 +482,27 @@ list, if none are given), across every series (or just one, with
 - **One metal sample square per metal**, regardless of whether any product
   defaults to it — saved as `assets/metal-sample_<metal>.webp`
   (**72×72**, 3× the picker's 1.5rem squares: `SWATCH_SIZE` in
-  `scripts/auto-render.js`). **Not** a render of any actual product — a long
-  tube lying across a 1600×48 frame and exactly filling its height, so the
-  capture shows the tube's whole cross-section (highlights, reflections); the
-  script then cuts out the part that is the metal itself (`SWATCH_CROP`, per
-  metal: the tube's top and bottom edges are near white and would melt into
-  the page) and squeezes it square — the tube is uniform along its length, so
-  nothing is lost. The picker shows the file as it is: no CSS crop or zoom.
-  All the squares come
-  from **one scene** (a tube per metal in `data/series.json`'s `metals`
-  order — the picker's order — with the camera aimed at each in turn), built
-  via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
-  {swatch: {metals}, ...})` (`options.swatch` — same `METAL_PRESETS` material
-  and HDRI machinery every other render uses, with a built-in mesh in place
-  of a loaded model; see `client-scripts.md`). Two top-level fields in
-  `data/series.json` are the whole configuration: `"swatch-hdri"` (which
-  HDRI) and `"swatch-rotation"` (how the stack is turned under it, i.e.
-  which reflections land on the tubes); `scene-tool.html` is how you preview
-  and set both (pick "Metal swatch (tube)" from the Model dropdown, drag the
-  rotation slider / pick the HDRI, tick "Rotation"/"HDRI," Save — the Metal
-  buttons just choose which tube you're looking at). Tilt, roll, zoom and
-  the aim are solved, so there is nothing else to tune there. The look of
-  the metals relative to each other is set by constants in `three-viewer.js`
-  (`SWATCH_VIEW_STEP` — how far round each successive metal is viewed from,
-  currently 90°, the knob if the metals' reflections look too alike — and
-  `SWATCH_FOV`), not by data. A new metal needs a `SWATCH_CROP` entry (a
-  default applies if it has none). Re-run
-  just these with `npm run auto-render -- --swatches-only`.
+  `scripts/auto-render.js`). **Not** a render of any actual product — a
+  sphere of the metal, seen from straight in front, in a frame that is **the
+  biggest square inside the disc the sphere shows**, so the square is the
+  render and nothing is cropped (captured at 2x, then scaled down). The picker
+  shows the file as it is: no CSS crop or zoom. All the squares come from
+  **one scene** (a sphere per metal in `data/series.json`'s `metals` order —
+  the picker's order — evenly spaced along X, one point light and a uniform
+  white environment, with the camera moved in front of each sphere in turn),
+  built via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
+  {swatch: {metals, light}, ...})` (`options.swatch` — same `METAL_PRESETS`
+  material machinery every other render uses, with built-in spheres in place
+  of a loaded model and no HDRI; see `client-scripts.md`). One top-level field
+  in `data/series.json` is the whole configuration: `"swatch-light"` — the
+  light's position and strength and the uniform environment's strength (so
+  which highlights land on the spheres); `scene-tool.html` is how you preview
+  and set it (pick "Metal swatch (three spheres)" from the Model dropdown,
+  type the light's x/y/z, strength and environment, tick the Overview box to
+  see all three spheres and the light's marker, tick "Light," Save — the Metal
+  buttons just choose which sphere's frame you're looking at). The camera, the
+  frame and the spheres' places are solved, so there is nothing else to tune
+  there. Re-run just these with `npm run auto-render -- --swatches-only`.
 
 All three are captured at 2x the final pixel size and downscaled with
 `sharp` — real GPU MSAA already handles edge antialiasing, this step is
@@ -536,7 +530,7 @@ leaving the catalog in a broken state:
   if it's the last metal left. Otherwise cascades through every product in
   every series (see "Choosing a product's metal" above).
 - **HDRI** — deletes the `.hdr` file too. Blocked if any series' `hdri` or
-  the top-level `swatch-hdri` still points at it.
+  still points at it.
 
 Doing any of these by hand instead means finding and deleting the right
 folder(s) *and* the right JSON entry *and* checking nothing else in the

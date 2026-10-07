@@ -313,9 +313,8 @@ Each series picks its lighting environment via `"hdri"` (a key into
 
 Same tool: in `scene-tool.html`, pick that series' product, choose the HDRI
 from the dropdown to preview it live, tick "HDRI," and Save writes the key
-into that series' entry. The swatch renderer (metal-sample squares) uses no HDRI at all
-(a point light and a uniform environment) — see "Re-rendering icons and
-metal swatches" below.
+into that series' entry. The swatch renderer (metal-sample squares) has an HDRI of its own, the
+top-level `"swatch-hdri"` — see "Re-rendering icons and metal swatches" below.
 
 **Adding a brand-new `hdris` key** (rather than picking an existing one)
 isn't something `scene-tool.html` does — it only ever picks from the
@@ -391,8 +390,8 @@ PBR material — not hand-picked colors or gradients — using the exact same
 `METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
 are each lit with whichever HDRI their own product's series resolved to
 (`data/series.json`'s per-series `"hdri"` — see "Choosing a series' HDRI"
-above); the metal swatches use no HDRI (a point light and a uniform
-environment, `"swatch-light"`), since they aren't tied to any series. Top shots used to be lit
+above); the metal swatches use their own (`"swatch-hdri"`, blurred by
+`"swatch-blur"`), since they aren't tied to any series. Top shots used to be lit
 with a plain `RoomEnvironment` regardless, but that override was removed
 since `window.EmjiveModelViewer` already sets the resolved HDRI before a
 render's `onReady` fires. If you change anything in `METAL_PRESETS`, or a
@@ -483,26 +482,27 @@ list, if none are given), across every series (or just one, with
   defaults to it — saved as `assets/metal-sample_<metal>.webp`
   (**72×72**, 3× the picker's 1.5rem squares: `SWATCH_SIZE` in
   `scripts/auto-render.js`). **Not** a render of any actual product — a
-  sphere of the metal, seen from straight in front, in a frame that is **the
-  biggest square inside the disc the sphere shows**, so the square is the
-  render and nothing is cropped (captured at 2x, then scaled down). The picker
-  shows the file as it is: no CSS crop or zoom. All the squares come from
-  **one scene** (a sphere per metal in `data/series.json`'s `metals` order —
-  the picker's order — evenly spaced along X, one point light and a uniform
-  white environment, with the camera moved in front of each sphere in turn),
-  built via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
-  {swatch: {metals, light}, ...})` (`options.swatch` — same `METAL_PRESETS`
-  material machinery every other render uses, with built-in spheres in place
-  of a loaded model and no HDRI; see `client-scripts.md`). One top-level field
-  in `data/series.json` is the whole configuration: `"swatch-light"` — the
-  light's position and strength and the uniform environment's strength (so
-  which highlights land on the spheres); `scene-tool.html` is how you preview
-  and set it (pick "Metal swatch (three spheres)" from the Model dropdown,
-  type the light's x/y/z, strength and environment, tick the Overview box to
-  see all three spheres and the light's marker, tick "Light," Save — the Metal
-  buttons just choose which sphere's frame you're looking at). The camera, the
-  frame and the spheres' places are solved, so there is nothing else to tune
-  there. Re-run just these with `npm run auto-render -- --swatches-only`.
+  sphere of the metal in a frame that is **the biggest square inside the disc
+  the sphere shows**, so the square is the render and nothing is cropped
+  (captured at 2x, then scaled down). The picker shows the file as it is: no
+  CSS crop or zoom. All the squares come from **one scene** — a single sphere
+  under an HDRI, seen by one camera, with only the sphere's metal changed
+  between renders — built via `js/three-viewer.js`'s
+  `buildThreeViewer(stubProduct, metalKey, {swatch: true, hdri, environmentBlur,
+  ...})` (`options.swatch` — same `METAL_PRESETS` material machinery every other
+  render uses, with a built-in sphere in place of a loaded model; see
+  `client-scripts.md`). Three top-level fields in `data/series.json` are the
+  whole configuration: `"swatch-hdri"` (which HDRI), `"swatch-blur"` (a
+  gaussian blur of it, in pixels of the HDRI image) and `"swatch-camera"`
+  (where the camera stands round the sphere: `rotation`, `tilt`, `roll`, so
+  which part of the HDRI the sphere reflects). `scene-tool.html` is how you
+  preview and set them (pick "Metal swatch (sphere)" from the Model dropdown:
+  the HDRI picker, a Blur slider and field, and a slider and a field each for
+  rotation, tilt and roll — the frame is exactly what is saved; tick "HDRI"
+  (saves the HDRI and the blur) and/or "Camera," Save; the Metal buttons
+  change the sphere's metal). The distance, fov and frame are solved, so there
+  is nothing else to tune there. Re-run just these with
+  `npm run auto-render -- --swatches-only`.
 
 All three are captured at 2x the final pixel size and downscaled with
 `sharp` — real GPU MSAA already handles edge antialiasing, this step is

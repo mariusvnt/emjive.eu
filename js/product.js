@@ -1036,7 +1036,9 @@
       }
     }
     if (stage.stage === "presentation" && state.closeGuide) state.closeGuide();
-    var hold = stage.toSpecs > 0;
+    // From the first pixel of scrolling (presentation's things start going
+    // then, and slide out to the sides of a model that has to be centred).
+    var hold = stage.toSpecs > 0 || stage.leave > 0;
     if (hold && !state.sizeSeeded && state.seedSize) state.seedSize();
     if (hold === state.carouselHeld) return;
     state.carouselHeld = hold;

@@ -57,14 +57,12 @@
     aberration("emjiveAberration", "dy");
     aberration("emjiveAberrationX", "dx");
     aberration("emjiveAberrationXR", "dx", true);
-    // The stronger ones the wide screens' margins add (css/style.css
-    // .product-edge-veil), as far as the blurs there are stronger.
+    // The edge bands' other strengths (css/style.css .product-edge-veil):
+    // 0.75px, and 3px (which only a screen with a margin shows).
     aberration("emjiveAberrationXS", "dx", false, 0.75);
     aberration("emjiveAberrationXRS", "dx", true, 0.75);
     aberration("emjiveAberrationX3", "dx", false, 3);
-    aberration("emjiveAberrationX6", "dx", false, 6);
     aberration("emjiveAberrationXR3", "dx", true, 3);
-    aberration("emjiveAberrationXR6", "dx", true, 6);
     document.body.appendChild(svg);
     document.documentElement.classList.add("has-backdrop-svg");
   })();

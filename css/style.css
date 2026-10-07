@@ -1868,7 +1868,9 @@ body:has(.order-checkout-bar:not([hidden])) {
    Nothing crossfades. What presentation shows fades out, there is a blank,
    and what specs shows fades in — each of those a phase of the transition, as
    a 0 -> 1 variable:
-     --p-out   presentation's things going (0 -> --t0 of --to-specs)
+     --p-out   presentation's things going: from the first pixel of scrolling
+               (--leave, linear in the scroll, js/product-stages.js) to the point
+               where --to-specs reaches --t0
      --s-in    specs' things arriving (--t1 -> 1)
    --t0 and --t1 are set by js/product.js from where the model is on screen
    (the blank is the model's own sweep from metal to wireframe, under the
@@ -1884,12 +1886,19 @@ body:has(.order-checkout-bar:not([hidden])) {
    exactly where the page does. */
 .product-stage {
   --to-specs: 0;
+  /* How far presentation's things have gone, linear in the scroll from its
+     first pixel; --t0 is where it ends, in --to-specs (js/product-stages.js). */
+  --leave: 0;
   --t0: 0.3;
   --t1: 0.6;
   --hold-ratio: 0.3;
-  --p-out: clamp(0, 1 - var(--to-specs) / var(--t0), 1);
+  --p-out: clamp(0, 1 - var(--leave), 1);
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
   --specs-on: var(--s-in);
+  /* How far presentation's side things have gone, eased in — slow at first,
+     faster toward the end (the square of how far --p-out has fallen): they
+     slide out to the screen's edge as they fade, one step per scroll. */
+  --out-ease: calc((1 - var(--p-out)) * (1 - var(--p-out)));
   --lift: 0px;
   /* The specs column's two vertical gaps, and only these two: the standard one
      between rows, and the separation one between clusters of them — the
@@ -1915,7 +1924,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   --browse-room: 0px;
   --browse-px: calc(var(--room-0) * var(--browse-0) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-1));
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
-  height: calc(var(--pin-h) + (2 * var(--hold-ratio) + 1) * var(--stage-step));
+  /* The first stretch and the transition, then the end stretch — as long as the
+     first unless js/product-stages.js has set --end-hold: the time it takes to
+     browse the specs column at a set pace. */
+  height: calc(var(--pin-h) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
 }
 .product-stage__pin {
   position: sticky;
@@ -2187,9 +2199,10 @@ body:has(.order-checkout-bar:not([hidden])) {
    a layer's fade starts, in spans.) The 12px and 24px only exist where there is
    a margin, and fade out from the margin's own inner edge (--margin), not from
    the mark: none at all on a screen with none. The aberration is spaced the
-   same way: four layers over the blurs, splitting the colours .75px, 1.5px,
-   3px and 6px, each on the shape (--q) of the 3px, 6px, 12px and 24px blur it
-   goes with, the last two gated by the margin as well.
+   same way, but one layer short — the last blur, the 24px, has none: three
+   layers over the blurs, splitting the colours .75px, 1.5px and 3px, each on
+   the shape (--q) of the 3px, 6px and 12px blur it goes with, the last gated
+   by the margin as well, so a narrow screen has two and a wide one three.
    The band is as tall as the carousel (it goes up with it, by --lift), over the
    carousel and under the picker (.product-below, later in the frame), and grows
    a wedge above and below it: a right triangle against the carousel's top (and
@@ -2198,15 +2211,13 @@ body:has(.order-checkout-bar:not([hidden])) {
    diagonal — so the blur spreads past the carousel as it nears the edge.
    Each layer is one tall element whose mask is three images added up: the
    band, the wedge above, the wedge below (--mc, --mt, --mb).
-   Presentation only. It goes the way the rest of presentation does, to the
-   page's background: the lowest layer carries a --bg fill, over the
-   backdrop, that grows as --p-out falls (the layers above blur and split it
-   like anything else, which a uniform colour doesn't show), so as the photos
-   fade the zone ends up plain --bg, rather than the blur being faded in
-   place — an opacity on a backdrop filter crossfades the filtered image over
-   the unfiltered one, which shows as ghosts and fringes. The layers
-   themselves only switch off once --p-out is nothing (and not on a parent: it
-   would starve them of the backdrop). */
+   Presentation only, and at full strength until it ends: the photos and the
+   picker it stands over slide out of the screen as they fade (--out-ease), and
+   the layers switch off, all at once, when --p-out reaches 0 — the moment
+   those are out of the viewport (opacity: clamp(0, --p-out * 1000, 1)); no
+   fade of their own — an opacity on a backdrop filter crossfades the filtered
+   image over the unfiltered one, which ghosts. Never an opacity on their
+   parent either (it would starve them of the backdrop). */
 .product-edge-veil {
   /* The page's margin on a wide screen, as a length (--edge-left, which holds
      a percentage, would be read against the layer it is used in): half the
@@ -2256,7 +2267,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   bottom: calc(var(--hmax) * -1);
   left: 0;
   width: var(--w);
-  /* 1 until --p-out is nothing, then 0 (it is 0 or 1 beyond the thousandth). */
+  /* 1 until --p-out is nothing, then 0 at once (it is 0 or 1 beyond the thousandth). */
   opacity: clamp(0, calc(var(--p-out) * 1000), 1);
   -webkit-mask-image: var(--mc), var(--mt), var(--mb);
   mask-image: var(--mc), var(--mt), var(--mb);
@@ -2269,8 +2280,6 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-edge-veil > span:nth-child(1) {
   --q: 0.6;
-  /* --bg, as much as presentation has gone. */
-  background-color: color-mix(in srgb, var(--bg) calc((1 - var(--p-out)) * 100%), transparent);
   -webkit-backdrop-filter: blur(1px);
   backdrop-filter: blur(1px);
 }
@@ -2288,8 +2297,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    margin (a width of a thousand margins, held to the layer's own). */
 .product-edge-veil > span:nth-child(4),
 .product-edge-veil > span:nth-child(5),
-.product-edge-veil > span:nth-child(8),
-.product-edge-veil > span:nth-child(9) {
+.product-edge-veil > span:nth-child(8) {
   --x: calc(var(--margin) + var(--q) * var(--S));
   --w: min(calc(var(--x) + var(--fr)), calc(var(--margin) * 1000));
 }
@@ -2312,8 +2320,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    wedges stop --D short of both ends. */
 .product-edge-veil > span:nth-child(6),
 .product-edge-veil > span:nth-child(7),
-.product-edge-veil > span:nth-child(8),
-.product-edge-veil > span:nth-child(9) {
+.product-edge-veil > span:nth-child(8) {
   display: none;
   --mc: linear-gradient(var(--dir), transparent 0, transparent var(--D), #000 calc(var(--D) + 4px), #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fe) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fe) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fe) * 0.75), transparent calc(var(--x) + var(--fe)));
 }
@@ -2329,14 +2336,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   --q: 0.15;
   --D: 5px;
 }
-.product-edge-veil > span:nth-child(9) {
-  --q: 0;
-  --D: 8px;
-}
 .has-backdrop-svg .product-edge-veil > span:nth-child(6),
 .has-backdrop-svg .product-edge-veil > span:nth-child(7),
-.has-backdrop-svg .product-edge-veil > span:nth-child(8),
-.has-backdrop-svg .product-edge-veil > span:nth-child(9) {
+.has-backdrop-svg .product-edge-veil > span:nth-child(8) {
   display: block;
 }
 .has-backdrop-svg .product-edge-veil > span:nth-child(6) {
@@ -2347,9 +2349,6 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .has-backdrop-svg .product-edge-veil > span:nth-child(8) {
   backdrop-filter: url(#emjiveAberrationX3);
-}
-.has-backdrop-svg .product-edge-veil > span:nth-child(9) {
-  backdrop-filter: url(#emjiveAberrationX6);
 }
 /* The right edge's: the same band mirrored, with the same span; its mark is
    2rem inside the content's right edge (--margin: the margin a wide screen
@@ -2376,9 +2375,6 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .has-backdrop-svg .product-edge-veil--right > span:nth-child(8) {
   backdrop-filter: url(#emjiveAberrationXR3);
-}
-.has-backdrop-svg .product-edge-veil--right > span:nth-child(9) {
-  backdrop-filter: url(#emjiveAberrationXR6);
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
@@ -2503,6 +2499,12 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-stage .product-carousel__slide--photo,
 .product-stage .product-carousel__xray {
   opacity: var(--p-out);
+}
+/* The photos stand to the right of the model (the carousel centres it as the
+   transition starts) and slide out to the screen's right edge as they fade,
+   a half screen by the end (--out-ease, linked to the scroll). */
+.product-stage .product-carousel__slide--photo {
+  transform: translateX(calc(var(--out-ease) * 50vw));
 }
 .product-stage .product-carousel__slide:not(.product-carousel__slide--photo) img {
   filter: grayscale(var(--to-specs));
@@ -2712,6 +2714,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   position: absolute;
   left: 0;
   top: calc(var(--tile) / 2 - var(--stack-h) / 2);
+  /* To the left edge of the screen as it fades: its own left is the content's
+     (the margin a wide screen has, plus the page margin) and 6rem more takes it
+     clear with its name. Not in the specs column: .is-specs-layout, below. */
+  transform: translateX(calc(var(--out-ease) * -1 * (max(0px, calc(50vw - var(--max) / 2)) + var(--edge-px) + 6rem)));
   /* Out with presentation, in with specs: never two of those at once (each
      phase waits for the one before). */
   opacity: calc(var(--p-out) + var(--specs-on));
@@ -2726,6 +2732,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-stage.is-specs-layout .product-material {
   position: static;
+  transform: none;
   /* The picker starts a cluster: the separation gap under the size. */
   margin-top: var(--gap-extra);
   display: grid;

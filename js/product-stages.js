@@ -19,14 +19,18 @@
      --to-specs       presentation -> specs
 
    as a custom property on the track — css/style.css fades everything from
-   it — and two more for the room to browse each stage: --browse-0 and
+   it — and --leave, 0 to 1, how far presentation's things have gone: it is
+   linear in the scroll and starts with the very first pixel of it (not once
+   the first stretch is over), and ends where --to-specs reaches --t0, where
+   presentation's fade used to end (so everything after that is as it was) —
+   and two more for the room to browse each stage: --browse-0 and
    --browse-1, 0 to 1 each, how far through that stage's stretch of scrolling
    the page is (0 before it, 1 from its end on) — css/style.css makes the show
    go up by that much of the room it has, and back down as the next stage
    comes in — plus data-stage (the nearest stage: "presentation" or "specs";
    "flow" on a screen too short to pin the stage, where the page is laid out
    as a plain column and none of this runs), and calls
-   onChange({ toSpecs, stage }) when they change, for what CSS can't do
+   onChange({ toSpecs, leave, stage }) when they change, for what CSS can't do
    (js/product.js: the model, the carousel lock).
 
    Returns { scrollToStage(index) }. Focus moving into an element marked
@@ -54,6 +58,38 @@
 
   var STAGES = ["presentation", "specs"];
 
+  // A stretch's entry: the show starts browsing from rest, speeding up over
+  // the first third of the screen's height of scrolling and going on at a
+  // constant pace after — the pace where it has got to, so there is no step in
+  // the speed (the transition before it has come to rest, and a browse at full
+  // pace from the first pixel was an abrupt start). `a` is the ramp's share of
+  // the stretch (the third of the screen over the stretch's length, at most
+  // all of it). Reaches 1 at u = 1, and is 0 at 0.
+  var ENTRY_SCREENS = 1 / 3;
+  // How fast the show browses once up to speed: 15px up for every 24px
+  // scrolled. The second stage's stretch is then as long as it takes to cover
+  // its room at that pace (plus the ramp), whatever the room is: the track is
+  // longer for a taller column (--end-hold, set below), instead of the show
+  // going faster to make it in a fixed stretch.
+  var BROWSE_PACE = 15 / 24;
+  function entry(u, a) {
+    var t = clamp01(u);
+    var y = t < a ? (t * t) / (2 * a) : t - a / 2;
+    return y / (1 - a / 2);
+  }
+
+  // The u that ease(u) = y: ease is increasing, so bisect.
+  function invEase(y) {
+    var lo = 0;
+    var hi = 1;
+    for (var i = 0; i < 30; i++) {
+      var mid = (lo + hi) / 2;
+      if (ease(mid) < y) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
   function clamp01(x) {
     return x < 0 ? 0 : x > 1 ? 1 : x;
   }
@@ -69,9 +105,47 @@
     var onChange = (options && options.onChange) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
-    var state = { toSpecs: -1, stage: "", browse: "" };
+    var state = { toSpecs: -1, leave: -1, stage: "", browse: "" };
     // Where each stage sits, in page scroll, as last measured.
     var stops = [0, 0];
+
+    // The screen's height as the CSS pin counts it — the small viewport
+    // (svh), which stays the same while the browser's toolbars come and go.
+    // window.innerHeight does not: on iOS Safari it changes as the toolbar
+    // collapses with the scrolling itself, which would stretch or shrink
+    // anything measured in screens (the entry's ramp) in the middle of a
+    // scroll. vh is the fallback (the large viewport on iOS: constant too).
+    var screenProbe = document.createElement("div");
+    screenProbe.setAttribute("aria-hidden", "true");
+    screenProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none";
+    document.body.appendChild(screenProbe);
+    function screenPx() {
+      return screenProbe.offsetHeight || window.innerHeight;
+    }
+    // --room-0, the first stage's room (the two bars and 4rem), in pixels.
+    var roomProbe = document.createElement("div");
+    roomProbe.setAttribute("aria-hidden", "true");
+    roomProbe.style.cssText = "position:absolute;width:0;height:var(--room-0);visibility:hidden;pointer-events:none";
+    stageEl.appendChild(roomProbe);
+
+    // The second stretch's length in scroll, in pixels, as last set on the
+    // track (--end-hold; 0: not set, the track's own, as long as the first).
+    // The room it has to cover is what js/product.js fits (--browse-room), and
+    // never less than the first stage's; at BROWSE_PACE after the ramp (which
+    // covers what a ramp of that length does: half its length at full pace).
+    var endHold = 0;
+    function syncEndHold() {
+      var want = 0;
+      if (!flow.matches) {
+        var room = Math.max(roomProbe.offsetHeight, parseFloat(getComputedStyle(stageEl).getPropertyValue("--browse-room")) || 0);
+        var ramp = screenPx() * ENTRY_SCREENS;
+        want = Math.max(ramp, room / BROWSE_PACE + ramp / 2);
+      }
+      if (Math.abs(want - endHold) < 0.5) return;
+      endHold = want;
+      if (want > 0) stageEl.style.setProperty("--end-hold", want.toFixed(1) + "px");
+      else stageEl.style.removeProperty("--end-hold");
+    }
 
     function measure() {
       var rect = stageEl.getBoundingClientRect();
@@ -83,31 +157,43 @@
       var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
       if (!(ratio >= 0)) ratio = 0.5;
       var travel = Math.max(0, stageEl.offsetHeight - pin.offsetHeight);
-      var move = travel / (2 * ratio + 1);
+      var move;
+      var hold2;
+      if (endHold > 0) {
+        // The end stretch is its own length (syncEndHold): the rest is the
+        // first stretch and the transition, in their ratio.
+        move = Math.max(0, travel - endHold) / (ratio + 1);
+        hold2 = endHold;
+      } else {
+        move = travel / (2 * ratio + 1);
+        hold2 = ratio * move;
+      }
       var hold = ratio * move;
       stops = [trackStart, trackStart + hold + move];
-      return { scrolled: scrolled, hold: hold, move: move };
+      return { scrolled: scrolled, hold: hold, move: move, hold2: hold2 };
     }
 
-    function publish(toSpecs, stage, browse) {
+    function publish(toSpecs, stage, browse, leave) {
       var key = browse.join(",");
-      if (toSpecs === state.toSpecs && stage === state.stage && key === state.browse) return;
-      state = { toSpecs: toSpecs, stage: stage, browse: key };
+      if (toSpecs === state.toSpecs && leave === state.leave && stage === state.stage && key === state.browse) return;
+      state = { toSpecs: toSpecs, leave: leave, stage: stage, browse: key };
       stageEl.style.setProperty("--to-specs", toSpecs.toFixed(4));
+      stageEl.style.setProperty("--leave", leave.toFixed(4));
       for (var k = 0; k < 2; k++) stageEl.style.setProperty("--browse-" + k, browse[k].toFixed(4));
       if (stageEl.getAttribute("data-stage") !== stage) stageEl.setAttribute("data-stage", stage);
-      onChange({ toSpecs: toSpecs, stage: stage });
+      onChange({ toSpecs: toSpecs, leave: leave, stage: stage });
     }
 
     function update() {
       ticking = false;
       if (flow.matches) {
-        publish(0, "flow", [0, 0]);
+        publish(0, "flow", [0, 0], 0);
         return;
       }
+      syncEndHold();
       var m = measure();
       if (!(m.move > 0)) {
-        publish(0, STAGES[0], [0, 0]);
+        publish(0, STAGES[0], [0, 0], 0);
         return;
       }
       var toSpecs = ease((m.scrolled - m.hold) / m.move);
@@ -116,8 +202,16 @@
       // the page is (each stretch is the hold before the stage's own
       // transition out; the last is the one at the end).
       var s = m.scrolled;
-      function through(from) { return m.hold > 0 ? clamp01((s - from) / m.hold) : 1; }
-      publish(toSpecs, stage, [through(0), through(m.hold + m.move)]);
+      function through(from, length) { return length > 0 ? clamp01((s - from) / length) : 1; }
+      // Presentation's things start going with the first pixel of scrolling,
+      // linearly, and are gone where the transition has reached --t0 (set by
+      // js/product.js from where the model is on screen).
+      var t0 = parseFloat(getComputedStyle(stageEl).getPropertyValue("--t0"));
+      if (!(t0 > 0)) t0 = 0.3;
+      var gone = m.hold + m.move * invEase(Math.min(t0, 1));
+      var leave = gone > 0 ? clamp01(m.scrolled / gone) : 0;
+      var ramp = m.hold2 > 0 ? Math.min(1, (screenPx() * ENTRY_SCREENS) / m.hold2) : 1;
+      publish(toSpecs, stage, [through(0, m.hold), entry(through(m.hold + m.move, m.hold2), ramp)], leave);
     }
 
     function requestUpdate() {

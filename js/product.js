@@ -61,6 +61,8 @@
     // Whether the specs size has been given its starting value (62).
     sizeSeeded: false,
     seedSize: null,
+    // Closes the specs stage's size guide (set once the size row is wired).
+    closeGuide: null,
     // Whether the carousel is held on the model (specs is coming in).
     carouselHeld: false
   };
@@ -802,7 +804,6 @@
     window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
       metals: state.metals,
       selected: state.selectedMetal,
-      layout: "stack",
       onSelect: function (metal) { onMetalSelect(product, metal); }
     });
   }
@@ -972,6 +973,7 @@
       if (stage.stage === "flow" || stage.toLogistics >= 0.999) costs.classList.add("is-built");
       else if (stage.toLogistics < 0.5) costs.classList.remove("is-built");
     }
+    if (stage.stage !== "specs" && state.closeGuide) state.closeGuide();
     var hold = stage.toSpecs > 0;
     if (hold && !state.sizeSeeded && state.seedSize) state.seedSize();
     if (hold === state.carouselHeld) return;
@@ -1125,6 +1127,11 @@
     var customUnit = document.getElementById("sizeModalCustomUnit");
     var guideToggle = document.getElementById("sizeModalGuideToggle");
     var guidePanel = document.getElementById("sizeModalGuide");
+    // The size guide, in the sheet (below the size field) and in the specs
+    // stage (under its size row): the category's own, if it has one.
+    var guide = info["size-guide"];
+    guideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(document.getElementById("sizeModalGuideContent"), guide);
+    var sheetGuide = window.EmjiveSelection.wireSizeGuide({ toggle: guideToggle, panel: guidePanel });
 
     var selectBar = document.getElementById("productSelectBar");
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
@@ -1174,6 +1181,31 @@
       if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
     }
     specsRange.classList.add("is-unset");
+    // The specs stage's own size guide, after the slider: opening it grows
+    // the column under the model, which then scrolls on its own down to the
+    // bars (it can't push the page — the stage is a screen, pinned). A click
+    // anywhere else, or leaving the stage, closes it.
+    var below = document.querySelector(".product-below");
+    var specsGuideToggle = document.getElementById("productSizeGuideToggle");
+    var specsGuidePanel = document.getElementById("productSizeGuide");
+    specsGuideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(document.getElementById("productSizeGuideContent"), guide);
+    var specsGuide = window.EmjiveSelection.wireSizeGuide({
+      toggle: specsGuideToggle,
+      panel: specsGuidePanel,
+      onToggle: function (open) {
+        below.classList.toggle("is-extended", open);
+        if (!open) {
+          below.scrollTop = 0;
+          return;
+        }
+        var barTop = document.getElementById("productSelectBar").getBoundingClientRect().top;
+        below.style.setProperty("--below-max", Math.max(120, barTop - below.getBoundingClientRect().top - 12) + "px");
+        // The column scrolls to put the size row at its top: the guide opens
+        // right under it.
+        setTimeout(function () { below.scrollTo({ top: document.getElementById("productSize").offsetTop, behavior: "smooth" }); }, 50);
+      }
+    });
+    state.closeGuide = specsGuide.close;
     // The first time specs comes in the field starts at the model's own size
     // (62), as if it had been given; from then on it is the visitor's.
     state.seedSize = function () {
@@ -1245,17 +1277,11 @@
       if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd(true);
     });
 
-    guideToggle.addEventListener("click", function () {
-      var isOpen = guidePanel.classList.toggle("is-open");
-      guideToggle.setAttribute("aria-expanded", String(isOpen));
-    });
-
     function openModal() {
       // Pre-filled from the specs stage when a size was given there (Add is
       // then live straight away); otherwise empty, as it always was.
       customInput.value = window.EmjiveSelection.isValidSize(specsSize.value) ? specsSize.value : "";
-      guidePanel.classList.remove("is-open");
-      guideToggle.setAttribute("aria-expanded", "false");
+      sheetGuide.close();
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();

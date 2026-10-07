@@ -83,6 +83,14 @@
      20px floor, never past it) was retired in favor of this one. */
   --edge-px: clamp(20px, 2.5vw, 28px);
 
+  /* The label | value tables of the product page's specs and logistics stages
+     and of the two size sheets: the first column (the label's) and the gap to
+     the value. And the metal picker's squares. */
+  --label-col: calc(6.25rem * var(--text-scale));
+  --label-gap: 1.5rem;
+  --metal-square: 1.5rem;
+  --metal-gap: 0.2rem;
+
   /* Global type-scale multiplier — every font-size declaration in the
      file reads through this rather than off the root element's own
      font-size, because rem is also used throughout for spacing/sizing
@@ -106,8 +114,6 @@
   --fade-fast: 0.075s;
   --fade-quick: 0.2s;
   --fade-standard: 0.3s;
-  /* The metal picker's bars growing/shrinking when another metal is picked. */
-  --metal-bar-resize: 0.25s;
 }
 
 /* Mobile is the tuned baseline; past the site's one breakpoint (see the
@@ -1795,7 +1801,8 @@ button, input, textarea {
 }
 .glass__stage .loader,
 .glass__stage .emjive-3d-viewer__nudge-hand,
-.glass__stage .emjive-3d-viewer__dim {
+.glass__stage .emjive-3d-viewer__dim,
+.glass__stage .emjive-3d-viewer__coin {
   display: none !important;
 }
 /* Reserves the same bottom space body:has(.selection-bar) does elsewhere —
@@ -2270,11 +2277,12 @@ body:has(.order-checkout-bar:not([hidden])) {
      the content starts (the bars carry on to the screen's edge from there,
      see .product-below). */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
-  /* The specs stage's two small tables — the size and the printing
-     technology — share their columns: the labels', and the gap to the
-     values. */
-  --label-col: calc(6.25rem * var(--text-scale));
-  --label-gap: 1.5rem;
+  /* Where the column under the model starts (the specs stage's, and the
+     logistics stage's in the same place): just under the model, which stands
+     on the first quarter of the screen in specs — its middle is --lift above
+     the tile's middle, and its brackets reach about a quarter of the tile
+     below that. */
+  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + 1rem);
 }
 /* The stages: the photos and the x-ray go as specs comes in (the model
    stays — it turns into its wireframe instead, js/three-viewer.js), and the
@@ -2456,45 +2464,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   .product-carousel__caption { font-size: 0.5rem; }
 }
 
-/* ---- 3. metal selection: laid out like the size field in the Modify
-   sheet (.size-modal__custom-row) — a "Material" label at the left, the
-   control flushed to the right. The control (js/metal-picker.js) is one
-   vertical bar per metal, side by side edge to edge, the first metal
-   leftmost; the selected bar is tall (--metal-bar-active), the rest short
-   (--metal-bar-idle) — growing from the middle, so it reaches out both ways
-   and shrinking pulls both ends in — and a dot + the selected metal's name
-   sit to the left of the stack, vertically centred on the bars' midline.
-   The picker's own height is the active bar's length (each bar sits in a
-   fixed-height slot), so it doesn't jump while one bar shrinks and another
-   grows. ---- */
-.product-metals {
-  --metal-bar-thickness: 1rem;
-  --metal-bar-idle: 2rem;
-  --metal-bar-active: 3rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  width: 100%;
-  /* Inset from the content edge, same as .size-modal__custom-row. */
-  padding-inline: 0.5rem;
-}
-/* Same label treatment as .size-modal__custom-label. Decorative here: the
-   group's own aria-label carries the name. */
-.product-metals__label {
-  flex: 0 0 auto;
-  font-family: var(--font-main);
-}
-/* flex: 0 0 auto + margin-left: auto — the field hugs its content (tag +
-   stack) and is flushed to the row's right edge, leaving the label alone at
-   the left, as .size-modal__custom-field does. The stack is the rightmost
-   thing, so it stays put while the tag's width follows the metal's name. */
-.product-metals__field {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
 /* Under the model in specs: everything that goes with it, in one column
    (product.html .product-below) — the metal picker, the size, the weight and
    the printing technology — from the content's left edge, each a table of
@@ -2505,9 +2474,6 @@ body:has(.order-checkout-bar:not([hidden])) {
    the tile below that. Transparent: the x-ray shows under it. Only what takes
    taps takes them (the picker, the size's field and slider). */
 .product-below {
-  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + 1rem);
-  --metal-square: 1.5rem;
-  --metal-gap: 0.2rem;
   --stack-h: calc(3 * var(--metal-square) + 2 * var(--metal-gap));
   position: absolute;
   z-index: 2;
@@ -2553,8 +2519,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: block;
 }
 .product-stage .product-metals {
-  width: auto;
-  padding: 0;
   pointer-events: auto;
 }
 /* The specs stage's size: the label "Size" on the left, then — in the column
@@ -2606,9 +2570,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: content-box;
-  flex: 0 1 auto;
-  min-width: 0;
-  width: clamp(6.5rem, 26vw, 12rem);
+  flex: 1 1 4rem;
+  min-width: 3.5rem;
+  max-width: 12rem;
   height: var(--hit-h);
   padding: var(--range-pad) 0;
   margin: 0 0 calc(var(--hit-h) / -2 - var(--range-pad) + 0.5px);
@@ -2653,16 +2617,73 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-size__range.is-unset::-webkit-slider-thumb { opacity: 0.35; }
 .product-size__range.is-unset::-moz-range-thumb { opacity: 0.35; }
-/* Dot + name of the selected metal (the dot's the same 0.25rem
-   --category-col one the rest of the site marks a selection with). One
-   element whose text js/metal-picker.js replaces on a pick — instantly, no
-   fade, so a change reads as the label being replaced, not cross-faded. */
+/* ---- the metal picker (js/metal-picker.js) ----
+   A stack of squares, --metal-gap apart, each showing its metal's swatch, and
+   the selected metal's name — a dot (the same 0.25rem --category-col one the
+   rest of the site marks a selection with) and the name — to the right. A
+   pick changes nothing about the squares, only where the name stands: each
+   row has its own name, the selected row's shown, so the name crossfades to
+   the new row.
+   Side by side (.product-metals--row: the Modify sheet's; and, for the
+   product page's specs stage, whatever .is-specs-layout sets on the stage) the
+   rows dissolve into the picker's own flow, so the squares sit in one line,
+   and the three names are laid on one spot to the right of the last square —
+   the selected one shown: one label, inline on the right.
+   The swatches are strips of a tube lit by the studio (assets/metal-sample_*):
+   their top and bottom edges are near white, which would melt into the page
+   and hide the gaps, so each square shows only a crop of the strip, the part
+   of it that is the metal itself. */
+.product-metals {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--metal-gap);
+}
+.product-metals__row {
+  display: flex;
+  align-items: center;
+  height: var(--metal-square);
+}
+.product-metals__option {
+  flex: none;
+  width: var(--metal-square);
+  height: var(--metal-square);
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  background: var(--metal-sample) var(--metal-pos) / 100% var(--metal-zoom) no-repeat;
+}
+/* The ring is drawn just inside the square rather than outside it: the
+   squares are only a few pixels apart. */
+.product-metals__option:focus-visible {
+  outline-offset: -2px;
+}
+.product-metals__option[data-metal="steel"] {
+  --metal-sample: url("../assets/metal-sample_steel.webp");
+  --metal-pos: 50% 100%;
+  --metal-zoom: 250%;
+}
+.product-metals__option[data-metal="silver"] {
+  --metal-sample: url("../assets/metal-sample_silver.webp");
+  --metal-pos: 50% 60%;
+  --metal-zoom: 180%;
+}
+.product-metals__option[data-metal="bronze"] {
+  --metal-sample: url("../assets/metal-sample_bronze.webp");
+  --metal-pos: 50% 15%;
+  --metal-zoom: 180%;
+}
 .product-metals__tag {
+  margin-left: 0.6rem;
   font-family: var(--font-secondary);
   font-size: calc(0.65rem * var(--text-scale));
   line-height: 1;
   color: var(--category-col);
   white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease;
 }
 .product-metals__tag::before {
   content: "";
@@ -2674,123 +2695,22 @@ body:has(.order-checkout-bar:not([hidden])) {
   border-radius: 50%;
   background: var(--category-col);
 }
-.product-metals__stack {
-  display: flex;
+.product-metals__row.is-selected .product-metals__tag {
+  opacity: 1;
 }
-/* One slot per bar: the bar's thickness wide and the active length tall,
-   always — the bar inside is turned and resized within it, so the slot (and
-   with it the stack's and the picker's size) never changes. A real width,
-   not just a flex-basis: Safari sizes the stack from the former and ignores
-   the latter once the slot has no in-flow content. */
-.product-metals__row {
-  position: relative;
-  flex: none;
-  width: var(--metal-bar-thickness);
-  height: var(--metal-bar-active);
+:is(.product-metals--row, .product-stage.is-specs-layout .product-metals) {
+  flex-direction: row;
+  align-items: center;
 }
-/* The bar is laid out lying down — long side as its width, so the grow/
-   shrink transition works on it — then centred in its slot and turned a
-   quarter-turn anticlockwise about its middle to stand up (the swatches' top
-   edge ends up on the left). A transform also carries its hit area and focus
-   ring round with it, and the swatch background with it. Out of the flow,
-   so its unturned length never counts towards the stack's width: Safari
-   sums it in (a flex item's overflow still props its container open there),
-   which left the slots stranded at the stack's left instead of the picker's
-   right edge. */
-.product-metals__option {
+:is(.product-metals--row, .product-stage.is-specs-layout .product-metals) .product-metals__row {
+  display: contents;
+}
+:is(.product-metals--row, .product-stage.is-specs-layout .product-metals) .product-metals__tag {
   position: absolute;
   top: 50%;
-  left: 50%;
-  width: var(--metal-bar-idle);
-  height: var(--metal-bar-thickness);
-  padding: 0;
-  border: none;
-  cursor: pointer;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  transition: width var(--metal-bar-resize) ease;
-}
-.product-metals__row.is-selected .product-metals__option {
-  width: var(--metal-bar-active);
-}
-/* The ring is drawn just inside the bar rather than outside it: the bars
-   are only 1rem thick and stacked edge to edge, so an outset ring would
-   paint over the neighbouring bars (like the selection bar's flush-edge
-   buttons below, which draw theirs inside for the same reason). */
-.product-metals__option:focus-visible {
-  outline-offset: -2px;
-}
-/* Real renders of each metal's actual PBR material (see METAL_PRESETS in
-   js/main.js) under the same studio HDRI the 3D models use — a long tube
-   lying across a 144x48 strip (captured through a 1600x48 frame), its whole
-   cross-section (highlights, reflections and all) filling the height — not
-   a hand-picked gradient, so the swatch is a faithful preview of the
-   finish. Produced (and reproduced whenever METAL_PRESETS changes) by
-   `npm run auto-render` — see README.md. The strip is kept that narrow on
-   purpose: a bar is at most 3rem (144 device px at 3x) long, and desktop
-   Chrome's GPU raster aliases badly when it shrinks a much wider image
-   under the bar's rotation (Safari filters it fine). The whole strip is
-   fitted to the bar (100% 100%), turned
-   with it, so the bar always shows the entire swatch rather than a
-   cropped-in part of it — the tube is uniform along its length, so the
-   lengthways squeeze is hardly visible, and the grow/shrink just rescales
-   it. */
-.product-metals__option[data-metal="steel"] {
-  background: url("../assets/metal-sample_steel.webp") center / 100% 100% no-repeat;
-}
-.product-metals__option[data-metal="silver"] {
-  background: url("../assets/metal-sample_silver.webp") center / 100% 100% no-repeat;
-}
-.product-metals__option[data-metal="bronze"] {
-  background: url("../assets/metal-sample_bronze.webp") center / 100% 100% no-repeat;
-}
-
-/* ---- the stack layout of the picker (js/metal-picker.js, layout "stack";
-   the product page's) ----
-   A vertical stack of squares, --metal-gap apart, each showing its metal's
-   swatch. Picking one changes nothing about the squares: the dot + name moves
-   to the picked row's right (each row has its own, the selected row's shown
-   — a pick fades one out and the other in at once, the name crossfading to
-   the new row). */
-.product-metals--stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--metal-gap);
-  width: auto;
-  padding: 0;
-  margin: 0;
-}
-.product-metals--stack .product-metals__row {
-  display: flex;
-  align-items: center;
-  width: auto;
-  height: var(--metal-square);
-}
-.product-metals--stack .product-metals__option,
-.product-metals--stack .product-metals__row.is-selected .product-metals__option {
-  position: relative;
-  top: auto;
-  left: auto;
-  flex: none;
-  width: var(--metal-square);
-  height: var(--metal-square);
-  transform: none;
-  transition: none;
-}
-.product-metals--stack .product-metals__option[data-metal] {
-  background: var(--metal-sample) center / cover no-repeat;
-}
-.product-metals--stack .product-metals__option[data-metal="steel"] { --metal-sample: url("../assets/metal-sample_steel.webp"); }
-.product-metals--stack .product-metals__option[data-metal="silver"] { --metal-sample: url("../assets/metal-sample_silver.webp"); }
-.product-metals--stack .product-metals__option[data-metal="bronze"] { --metal-sample: url("../assets/metal-sample_bronze.webp"); }
-.product-metals--stack .product-metals__tag {
-  margin-left: 0.6rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--fade-standard) ease;
-}
-.product-metals--stack .product-metals__row.is-selected .product-metals__tag {
-  opacity: 1;
+  left: calc(var(--metal-count, 3) * (var(--metal-square) + var(--metal-gap)) - var(--metal-gap) + 0.6rem);
+  margin-left: 0;
+  transform: translateY(-50%);
 }
 
 /* ---- 4. Select / Add bar: a liquid-glass strip (the glass recipe is shared
@@ -2864,6 +2784,19 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    brackets (js/three-viewer.js); their row here is for screen readers while
    those are drawn (.has-brackets), and stands under the weight when they
    aren't (no model, or no WebGL). Arrives with specs (--specs-on). */
+/* While the size guide is open the column has grown past the screen: it
+   scrolls on its own, from the top of it down to the bars (js/product.js
+   sets --below-max). */
+.product-below.is-extended {
+  max-height: var(--below-max);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+.product-below.is-extended::-webkit-scrollbar {
+  display: none;
+}
 .product-specs {
   width: max-content;
   max-width: 100%;
@@ -2928,64 +2861,65 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* ---- logistics: shipping & returns ----
-   Laid over the same room as the carousel, which has gone by the time this
-   arrives. Centred, the description's measure. */
+/* ---- logistics: cost, shipping & returns ----
+   The last stage is laid out as the specs one is: the same column, from the
+   same left edge and the same place under where the model stood, each block a
+   label and its text in the two columns the specs' tables share — the label
+   in black, the text in --category-col, both 12px DINish. For the cost the
+   label is "Cost breakdown" and the whole chart is its text. */
 .product-logistics {
   position: absolute;
-  inset: 0;
   z-index: 2;
-  max-width: 640px;
-  margin: 0 auto;
+  left: calc(var(--edge-left) + var(--edge-px));
+  top: var(--below-top);
+  width: calc(100vw - 2 * var(--edge-px));
+  max-width: 36rem;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 1.75rem;
+  gap: 1.25rem;
   pointer-events: none;
   opacity: var(--l-in);
 }
-.product-logistics__title {
-  margin: 0 0 0.5rem;
-  font-family: var(--font-main);
-  font-size: calc(0.65rem * var(--text-scale));
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--category-col);
+.product-logistics__block {
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
 }
-/* The cost chart, a cascade: one row per figure — the label on the left, the
-   amount on the right, and between them a track the bar lies in. The bars
-   share one scale (js/product.js renderSpecs sets --from and --to on each row
-   as shares of the track, so they move with the size). The raw materials
-   start at the left of the track; the manufacturing starts where they end,
-   a thin line dropping from one bar's end to the next's start; the
-   production cost they make together, in black, runs from the left to where
-   the manufacturing ends. The bar and the line are the row's own ::before
-   and ::after, laid in the track's column. It builds, a step after the
-   other, once the stage has arrived (.is-built, js/product.js): each bar
-   grows from its start, then its line drops and the next one grows. Nothing
+.product-logistics__title {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--black);
+}
+/* The cost chart, a cascade, in the logistics block's text column: one row per
+   figure — its label on the left and its amount on the right of one line, the
+   bar under it. The bars share one scale (js/product.js renderSpecs sets
+   --from and --to on each row, as shares of the row's width, so they move with
+   the size). The raw materials start at the left; the manufacturing starts
+   where they end; the production cost they make together, in black, runs from
+   the left to where the manufacturing ends. The bar is the row's ::before. It
+   builds, a step after the other, once the stage has arrived (.is-built,
+   js/product.js): each bar grows from its start, then the next one. Nothing
    shows of it before. */
 .product-costs {
   --bar-h: 0.3rem;
-  --row-gap: 0.7rem;
-  --row-h: calc(1.4 * 12px * var(--text-scale) + 0.2rem);
   --grow: 0.5s;
 }
 .product-costs__list {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--row-gap);
-  max-width: 28rem;
+  gap: 0.6rem;
 }
 .product-costs__row {
   position: relative;
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr) auto;
-  column-gap: 0.75rem;
-  align-items: center;
-  height: var(--row-h);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0;
+  padding-bottom: calc(var(--bar-h) + 0.25rem);
   --from: 0;
   --to: 0;
 }
@@ -2996,78 +2930,48 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   font-size: calc(12px * var(--text-scale));
   line-height: 1.4;
 }
-.product-costs__row dt {
-  grid-area: 1 / 1;
-  color: var(--category-col);
-}
+.product-costs__row dt { color: var(--category-col); }
 .product-costs__row dd {
-  grid-area: 1 / 3;
   color: var(--black);
-  text-align: right;
   opacity: 0;
   transition: opacity var(--fade-quick) ease;
 }
-/* The bar. */
 .product-costs__row::before {
   content: "";
   position: absolute;
-  grid-column: 2;
-  grid-row: 1;
+  bottom: 0;
   left: calc(var(--from) * 100%);
-  top: calc(50% - var(--bar-h) / 2);
   width: 0;
   height: var(--bar-h);
   background: var(--category-col);
   transition: left var(--fade-quick) ease, width var(--fade-quick) ease;
 }
 .product-costs__row--production::before { background: var(--black); }
-/* The line from the end of a bar down to the start of the next. */
-.product-costs__row--raw::after,
-.product-costs__row--manufacturing::after {
-  content: "";
-  position: absolute;
-  grid-column: 2;
-  grid-row: 1;
-  left: calc(var(--to) * 100%);
-  top: calc(50% + var(--bar-h) / 2);
-  width: 1px;
-  height: calc(var(--row-h) + var(--row-gap) - var(--bar-h));
-  background: var(--category-col);
-  opacity: 0;
-  transition: opacity var(--fade-quick) ease, left var(--fade-quick) ease;
-}
 .product-costs.is-built .product-costs__row::before {
   width: calc((var(--to) - var(--from)) * 100%);
   transition: left var(--fade-quick) ease, width var(--grow) cubic-bezier(0.3, 0, 0.2, 1);
 }
-.product-costs.is-built .product-costs__row dd,
-.product-costs.is-built .product-costs__row::after {
+.product-costs.is-built .product-costs__row dd {
   opacity: 1;
 }
 .product-costs.is-built .product-costs__row--raw::before,
 .product-costs.is-built .product-costs__row--raw dd {
   transition-delay: 0.15s;
 }
-.product-costs.is-built .product-costs__row--raw::after {
-  transition-delay: 0.7s;
-}
 .product-costs.is-built .product-costs__row--manufacturing::before,
 .product-costs.is-built .product-costs__row--manufacturing dd {
-  transition-delay: 0.85s;
-}
-.product-costs.is-built .product-costs__row--manufacturing::after {
-  transition-delay: 1.4s;
+  transition-delay: 0.65s;
 }
 .product-costs.is-built .product-costs__row--production::before,
 .product-costs.is-built .product-costs__row--production dd {
-  transition-delay: 1.55s;
+  transition-delay: 1.15s;
 }
 .product-logistics p {
   margin: 0;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
-  line-height: 1.7;
-  color: var(--black);
+  line-height: 1.5;
+  color: var(--category-col);
 }
 
 /* ---- a screen too short to pin the stage (a phone on its side) ----
@@ -3107,6 +3011,10 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-stage .product-carousel__xray {
     top: calc(var(--tile) / 2);
   }
+  .product-below.is-extended {
+    max-height: none;
+    overflow: visible;
+  }
   .product-below {
     position: static;
     width: auto;
@@ -3132,8 +3040,10 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-logistics {
     position: static;
     opacity: 1;
-    width: 100%;
-    padding: 2rem 0 3rem;
+    width: auto;
+    margin-left: calc(var(--edge-left) + var(--edge-px));
+    align-self: flex-start;
+    padding-bottom: 3rem;
   }
 }
 
@@ -3141,7 +3051,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    One per bracket the specs stage draws on the model (js/three-viewer.js
    positions them over the canvas every time the view moves), in the brackets'
    own colour. No background: the x-ray shows under them. */
-.emjive-3d-viewer__dim {
+.emjive-3d-viewer__dim,
+.emjive-3d-viewer__coin {
   position: absolute;
   top: 0;
   left: 0;
@@ -3347,43 +3258,42 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal--modify .size-modal__content {
   padding-top: 3rem;
 }
-/* The Modify sheet's metal picker, above the size field: same gap as the
-   size row's own margin-bottom below it. Scoped to this container
-   (.size-modal__content, not .product-metals directly) so product.html's
-   own metal picker — in the stage's controls row —
-   isn't affected. */
-.size-modal__content .product-metals {
-  margin-bottom: 1.5rem;
-}
 
-/* ---- the size field: label + underlined input + unit ----
-   The only way to give a size now — no standard-size list to pick from.
-   container-type here (on the row, not a nested wrapper) is what the
-   input's cqw-based width below scales against. */
+/* ---- the sheets' rows: a label, a gap, the control — anchored to the left,
+   in the same two columns as the product page's specs stage (--label-col,
+   --label-gap), the label in black 12px DINish. The material row (the Modify
+   sheet's) holds the metal picker, side by side with its name on the right;
+   the size row holds the size field and, inline to the right of it, the size
+   guide's button. The size field is the only way to give a size now — no
+   standard-size list to pick from. container-type here (on the row, not a
+   nested wrapper) is what the input's cqw-based width below scales against. */
 .size-modal__custom-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+  align-items: baseline;
   margin-bottom: 1.5rem;
-  /* Inset from the content edge, same as .product-metals. */
-  padding-inline: 0.5rem;
   container-type: inline-size;
 }
 /* A real <label for="…">, so the field has an accessible name. */
 .size-modal__custom-label {
-  flex: 0 0 auto;
   font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  color: var(--black);
 }
-/* flex: 0 0 auto (not 1) — the field hugs just its own content (input +
-   unit) rather than stretching the underline across empty row space;
-   margin-left: auto then flushes this compact field to the row's right
-   edge, leaving the label alone at the left. The border-bottom "underline"
-   itself lives on .size-modal__custom-underline (input + unit only). */
+/* The material row's label stands on the first square's line. */
+.size-modal__custom-row--material {
+  align-items: start;
+}
+.size-modal__custom-row--material .size-modal__custom-label {
+  line-height: var(--metal-square);
+}
 .size-modal__custom-field {
-  flex: 0 0 auto;
-  margin-left: auto;
+  min-width: 0;
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
+  gap: 0.9rem;
 }
 /* flex-end, not baseline — see .size-modal__custom-input just below: its
    text is laid out at 16px and scaled down, and baseline alignment would
@@ -3443,49 +3353,82 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* ---- size guide: its own full-bleed row under the size field, inside the
-   panel — the guide itself first and its toggle last (see both sheets'
-   markup), so it opens between the field and the button: the sheet grows
-   upward while the button stays put, right above the bar, where it can be
-   tapped again to close. The reveal is the same 0fr/1fr technique
-   .site-header__menu uses. ---- */
-.size-modal__guide {
-  width: 100%;
-}
-/* The label sits 1.5rem above the bar — the sheets' one gap (the size row
-   above keeps the same 1.5rem to it). That gap is the button's own bottom
-   padding rather than space outside it, so a tap anywhere between the
-   label and the bar still reaches it. */
-.size-modal__guide-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 0 var(--edge-px) 1.5rem;
+/* ---- size guide ----
+   Its button stands inline to the right of the size field (the sheets', and
+   the product page's specs stage, where it comes after the slider with a gap
+   between). In the sheets the guide itself is the panel's last row, so it
+   opens at the bottom of the sheet: the sheet grows upward, the bar below it
+   staying put; the button, or a click anywhere else, closes it. In the
+   specs stage it opens under the field's row (.product-size__guide). The
+   reveal is the same 0fr/1fr technique .site-header__menu uses. Its content
+   is built by js/selection.js's fillSizeGuide from the category's "size-guide"
+   in data/series.json: a few words on how to measure, and a table. ---- */
+.size-modal__guide-toggle,
+.product-size__guide-toggle {
+  flex: none;
+  padding: 0 0 0.3rem;
   border: none;
   background: none;
   font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: calc(0.75rem * var(--text-scale));
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.4;
   color: var(--black);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: var(--category-col);
   cursor: pointer;
 }
-.size-modal__guide-panel {
+.size-modal__guide-toggle[hidden],
+.product-size__guide-toggle[hidden] {
+  display: none;
+}
+.size-modal__guide {
+  width: 100%;
+}
+.size-modal__guide-panel,
+.product-size__guide {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.3s ease;
 }
-.size-modal__guide-panel.is-open { grid-template-rows: 1fr; }
-.size-modal__guide-panel-inner { overflow: hidden; min-height: 0; }
+.size-modal__guide-panel.is-open,
+.product-size__guide.is-open { grid-template-rows: 1fr; }
+.size-modal__guide-panel-inner,
+.product-size__guide-inner { overflow: hidden; min-height: 0; }
 .size-modal__guide-content {
   max-width: var(--size-modal-max);
   margin: 0 auto;
-  padding: 0 var(--edge-px) 1.5rem;
+  padding: 0 var(--edge-px) 1.5rem calc(var(--edge-px) + var(--label-col) + var(--label-gap));
+}
+.product-size__guide {
+  grid-column: 2;
+}
+.product-size__guide-inner {
+  padding-top: 0.9rem;
+}
+.size-guide__how {
+  margin: 0 0 0.75rem;
   font-family: var(--font-main);
-  font-size: calc(0.75rem * var(--text-scale));
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
   color: var(--category-col);
+}
+.size-guide__table {
+  border-collapse: collapse;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+}
+.size-guide__table th {
+  padding: 0 1.5rem 0.2rem 0;
+  font-weight: 400;
+  text-align: left;
+  color: var(--category-col);
+}
+.size-guide__table td {
+  padding: 0 1.5rem 0 0;
+  color: var(--black);
 }
 
 /* ---- the Modify sheet's small carousel ----

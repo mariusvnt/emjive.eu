@@ -2,31 +2,31 @@
    em·ji·ve — metal picker
 
    Shared by the product page (js/product.js) and the Modify sheet
-   (js/modify-modal.js, built on every page): a "Material" label at the
-   left (the size field's layout), and at the right one vertical bar per
-   metal, side by side, the active one stretched and the others shrunk, with
-   a dot + the metal's name to the left of the stack. Both used to build and
-   update the same markup separately; loaded on all seven pages for the same reason
-   js/modify-modal.js is, ahead of it.
+   (js/modify-modal.js, built on every page): one square per metal, showing
+   its swatch, and the selected metal's name — a dot + the name — beside
+   them. The squares never change on a pick; only the name moves. Both used
+   to build and update the same markup separately; loaded on all seven pages
+   for the same reason js/modify-modal.js is, ahead of it.
 
-   window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, layout })
+   window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, row })
    fills `container` (the .product-metals box) and returns { select(metal) }.
 
-   layout: "stack" (the product page's) is the other arrangement of the same
-   control: a vertical stack of squares, and each row carries its own dot +
-   name to the right of its square — the active row's shown, the others'
-   hidden, so a pick crossfades the name from one row to the next. The
-   squares themselves never change. No "Material" label here (the page has
-   its own).
-   The default layout is the Modify sheet's.
+   The squares stack vertically, and each row carries its own name to the
+   right of its square — the selected row's shown, the others' hidden, so a
+   pick crossfades the name from one row to the next. With `row: true` (the
+   Modify sheet) the squares lie side by side instead, and the name is shown
+   once, to the right of the last of them — css/style.css lays the three
+   names on one spot there; the product page switches the same markup to that
+   arrangement for its specs stage (.is-specs-layout, js/product.js). The
+   page puts the "Material" label by it, in the label | value tables the
+   specs and the two size sheets share.
+
    A click calls onSelect(metal) at once — the model, price and images behind
    the picker must not wait on an animation — and the picker moves
-   .is-selected to the new bar in the same tick: the dot + label switch
-   instantly (no fade), and only the bars animate, resizing via a CSS
-   transition (see css/style.css). Updated in place, never rebuilt, so
-   keyboard focus stays on the bar just pressed. aria-pressed flips with it.
-   select(metal) is the same change without the onSelect call, for callers
-   that already know the metal.
+   .is-selected to the new square in the same tick. Updated in place, never
+   rebuilt, so keyboard focus stays on the square just pressed. aria-pressed
+   flips with it. select(metal) is the same change without the onSelect call,
+   for callers that already know the metal.
    ========================================================================== */
 
 (function () {
@@ -43,29 +43,13 @@
     var metals = opts.metals || [];
     var selected = opts.selected;
     var onSelect = opts.onSelect || function () {};
-    var edge = opts.layout === "stack";
     var rows = [];
 
     container.innerHTML = "";
-    container.classList.toggle("product-metals--stack", edge);
+    container.classList.toggle("product-metals--row", !!opts.row);
+    container.style.setProperty("--metal-count", String(metals.length));
     container.setAttribute("role", "group");
     container.setAttribute("aria-label", "Material");
-
-    // The one tag (retexted on a pick) of the default layout; the edge layout
-    // has a tag per row instead.
-    var tag = null;
-    var stack = container;
-    if (!edge) {
-      var label = el("span", "product-metals__label", "Material");
-      label.setAttribute("aria-hidden", "true");
-      var field = el("div", "product-metals__field");
-      tag = el("span", "product-metals__tag");
-      stack = el("div", "product-metals__stack");
-      field.appendChild(tag);
-      field.appendChild(stack);
-      container.appendChild(label);
-      container.appendChild(field);
-    }
 
     metals.forEach(function (metal) {
       var row = el("div", "product-metals__row");
@@ -81,9 +65,9 @@
         onSelect(metal);
       });
       row.appendChild(btn);
-      if (edge) row.appendChild(el("span", "product-metals__tag", metal));
+      row.appendChild(el("span", "product-metals__tag", metal));
 
-      stack.appendChild(row);
+      container.appendChild(row);
       rows.push({ metal: metal, row: row, btn: btn });
     });
     paintAria();
@@ -99,7 +83,6 @@
       rows.forEach(function (r) {
         r.row.classList.toggle("is-selected", r.metal === selected);
       });
-      if (tag) tag.textContent = selected || "";
     }
 
     function select(metal) {

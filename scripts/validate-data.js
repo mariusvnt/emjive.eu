@@ -136,7 +136,22 @@ const indexSchema = {
       additionalProperties: {
         type: "object",
         required: ["sizes", "unit"],
-        properties: { sizes: { type: "array", items: str }, unit: str }
+        properties: {
+          sizes: { type: "array", items: str },
+          unit: str,
+          // The size guide the product page and the two size sheets show: a
+          // few words on how to measure, and a table (js/selection.js's
+          // fillSizeGuide).
+          "size-guide": {
+            type: "object",
+            required: ["how", "head", "rows"],
+            properties: {
+              how: str,
+              head: { type: "array", items: str, minItems: 1 },
+              rows: { type: "array", items: { type: "array", items: str } }
+            }
+          }
+        }
       }
     },
     hdris: strMap,
@@ -298,6 +313,15 @@ if (index && validate("data/series.json", indexSchema, index)) {
       fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
     }
   }
+  // A size guide's rows are as wide as its head.
+  for (const [cat, info] of Object.entries(index.categories)) {
+    const guide = info["size-guide"];
+    if (!guide) continue;
+    for (const row of guide.rows) {
+      if (row.length !== guide.head.length) fail("data/series.json", 'categories "' + cat + '" size-guide: a row has ' + row.length + " cells, the head has " + guide.head.length);
+    }
+  }
+
   // The printing technology of each metal (the specs stage's section under
   // the model): every metal names one, and it has to be described.
   const technologies = index["printing-technologies"];

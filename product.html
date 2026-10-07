@@ -179,6 +179,14 @@
                     <span class="size-modal__custom-unit" id="productSizeUnit"></span>
                   </span>
                   <input class="product-size__range" id="productSizeRange" type="range" min="40" max="70" step="0.1" value="62" aria-label="Size" />
+                  <button class="product-size__guide-toggle" id="productSizeGuideToggle" type="button" aria-expanded="false" aria-controls="productSizeGuide" hidden>Size guide</button>
+                </div>
+                <!-- The size guide, opening under the field's row: the column
+                     grows (and scrolls on its own while it is open). -->
+                <div class="product-size__guide" id="productSizeGuide">
+                  <div class="product-size__guide-inner">
+                    <div class="size-guide" id="productSizeGuideContent"></div>
+                  </div>
                 </div>
               </div>
 
@@ -200,40 +208,40 @@
               </section>
 
             </div>
+
+            <!-- Logistics: the last stage, in the same column as specs, from the
+                 same place: the cost of the piece at the chosen size (a
+                 cascading chart of horizontal bars, js/product.js renderSpecs —
+                 the raw materials, the manufacturing that follows them, and the
+                 production cost they make together; it builds once the stage
+                 has arrived, .is-built), then shipping and returns (static,
+                 the same on every product). Each a label and its text. -->
+            <section class="product-logistics" aria-labelledby="productLogisticsHeading">
+              <h2 class="visually-hidden" id="productLogisticsHeading">Shipping &amp; Returns</h2>
+              <div class="product-logistics__block product-costs" id="productCosts">
+                <h3 class="product-logistics__title">Cost breakdown</h3>
+                <dl class="product-costs__list">
+                  <div class="product-costs__row product-costs__row--raw">
+                    <dt>Raw materials</dt><dd id="productCostRaw">—</dd>
+                  </div>
+                  <div class="product-costs__row product-costs__row--manufacturing">
+                    <dt>Manufacturing</dt><dd id="productCostManufacturing">—</dd>
+                  </div>
+                  <div class="product-costs__row product-costs__row--production">
+                    <dt>Production cost</dt><dd id="productCostProduction">—</dd>
+                  </div>
+                </dl>
+              </div>
+              <div class="product-logistics__block">
+                <h3 class="product-logistics__title">Shipping</h3>
+                <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
+              </div>
+              <div class="product-logistics__block">
+                <h3 class="product-logistics__title">Returns</h3>
+                <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+              </div>
+            </section>
           </div>
-
-          <!-- Logistics: shipping & returns (static, same on every product) -->
-          <section class="product-logistics" aria-labelledby="productLogisticsHeading">
-            <h2 class="visually-hidden" id="productLogisticsHeading">Shipping &amp; Returns</h2>
-
-            <!-- The production cost of the piece at the chosen size, as a
-                 cascading chart of horizontal bars (js/product.js renderSpecs):
-                 the raw materials, the manufacturing that follows them, and
-                 the production cost they make together. It builds when the
-                 stage has arrived (.is-built). -->
-            <div class="product-logistics__block product-costs" id="productCosts">
-              <h3 class="product-logistics__title">Cost breakdown</h3>
-              <dl class="product-costs__list">
-                <div class="product-costs__row product-costs__row--raw">
-                  <dt>Raw materials</dt><dd id="productCostRaw">—</dd>
-                </div>
-                <div class="product-costs__row product-costs__row--manufacturing">
-                  <dt>Manufacturing</dt><dd id="productCostManufacturing">—</dd>
-                </div>
-                <div class="product-costs__row product-costs__row--production">
-                  <dt>Production cost</dt><dd id="productCostProduction">—</dd>
-                </div>
-              </dl>
-            </div>
-            <div class="product-logistics__block">
-              <h3 class="product-logistics__title">Shipping</h3>
-              <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
-            </div>
-            <div class="product-logistics__block">
-              <h3 class="product-logistics__title">Returns</h3>
-              <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
-            </div>
-          </section>
         </div>
 
         <!-- The scan band: a full-screen-width inversion band riding the cut
@@ -273,9 +281,9 @@
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <!-- .size-modal__sheet carries the slide transform (see
        .size-modal--drawer .size-modal__sheet in css/style.css). The size
-       guide is its own row under the size field, with the guide itself
-       ahead of its toggle: it opens between the two, so the sheet grows
-       upward while the button stays put right above the bar. -->
+       guide's button stands inline to the right of the size field, and the
+       guide itself is the panel's last row: it opens at the bottom of the
+       sheet, which grows upward while the bar stays put. -->
   <div class="size-modal__sheet">
     <div class="size-modal__panel">
       <div class="size-modal__content">
@@ -286,16 +294,16 @@
               <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />
               <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
             </span>
+            <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-expanded="false" aria-controls="sizeModalGuide" hidden>Size guide</button>
           </div>
         </div>
       </div>
       <div class="size-modal__guide">
         <div class="size-modal__guide-panel" id="sizeModalGuide">
           <div class="size-modal__guide-panel-inner">
-            <div class="size-modal__guide-content" id="sizeModalGuideContent"></div>
+            <div class="size-modal__guide-content size-guide" id="sizeModalGuideContent"></div>
           </div>
         </div>
-        <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-expanded="false" aria-controls="sizeModalGuide">Size guide</button>
       </div>
     </div>
   </div>

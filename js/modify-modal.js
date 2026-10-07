@@ -15,8 +15,13 @@
        the model's poster image, and the viewer is built once it has slid
        in (scheduleViewer);
      - the metal picker, which re-tints that model in place;
-     - the size field, pre-filled with the item's current size;
-     - the size guide, which opens above its own button.
+     - the size field, pre-filled with the item's current size, with the size
+       guide's button inline to its right;
+     - the size guide, which opens at the bottom of the sheet (it grows
+       upward); the button, or a click anywhere else, closes it.
+     Laid out as the product page's specs stage is: each row a label, a gap and
+     its control, anchored to the left, the metal picker's squares side by
+     side with the metal's name to their right.
 
    Its buttons aren't in it: while it's open, the page's bar turns into
    them — the "strip" built below, handed to the bar through options.bar:
@@ -121,7 +126,14 @@
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
 
+  var materialRow = el("div", "size-modal__custom-row size-modal__custom-row--material");
+  var materialLabel = el("span", "size-modal__custom-label", "Material");
+  materialLabel.setAttribute("aria-hidden", "true");
+  var materialField = el("div", "size-modal__custom-field");
   var metalsRow = el("div", "product-metals");
+  materialField.appendChild(metalsRow);
+  materialRow.appendChild(materialLabel);
+  materialRow.appendChild(materialField);
 
   var sizeRow = el("div", "size-modal__custom-row");
   var sizeLabel = el("label", "size-modal__custom-label", "Size");
@@ -138,27 +150,29 @@
   sizeUnderline.appendChild(sizeInput);
   sizeUnderline.appendChild(sizeUnit);
   sizeField.appendChild(sizeUnderline);
+  // The size guide's button, inline to the right of the field.
+  var guideToggle = el("button", "size-modal__guide-toggle", "Size guide");
+  guideToggle.type = "button";
+  guideToggle.hidden = true;
+  guideToggle.setAttribute("aria-expanded", "false");
+  guideToggle.setAttribute("aria-controls", "modifyModalGuide");
+  sizeField.appendChild(guideToggle);
   sizeRow.appendChild(sizeLabel);
   sizeRow.appendChild(sizeField);
 
-  content.appendChild(metalsRow);
+  content.appendChild(materialRow);
   content.appendChild(sizeRow);
 
-  // Guide ahead of its toggle: it opens between the size row and the
-  // button, so the sheet grows upward while the button stays put, right
-  // above the bar, where it can be tapped again to close.
+  // The guide itself is the panel's last row: it opens at the bottom of the
+  // sheet, which grows upward while the bar stays put.
   var guide = el("div", "size-modal__guide");
   var guidePanel = el("div", "size-modal__guide-panel");
   guidePanel.id = "modifyModalGuide";
   var guideInner = el("div", "size-modal__guide-panel-inner");
-  guideInner.appendChild(el("div", "size-modal__guide-content"));
+  var guideContent = el("div", "size-modal__guide-content size-guide");
+  guideInner.appendChild(guideContent);
   guidePanel.appendChild(guideInner);
-  var guideToggle = el("button", "size-modal__guide-toggle", "Size guide");
-  guideToggle.type = "button";
-  guideToggle.setAttribute("aria-expanded", "false");
-  guideToggle.setAttribute("aria-controls", "modifyModalGuide");
   guide.appendChild(guidePanel);
-  guide.appendChild(guideToggle);
 
   panel.appendChild(content);
   panel.appendChild(guide);
@@ -349,6 +363,7 @@
     window.EmjiveMetalPicker.mount(metalsRow, {
       metals: window.EmjiveSeries.metals || [],
       selected: state.selectedMetal,
+      row: true,
       onSelect: selectMetal
     });
   }
@@ -671,10 +686,7 @@
     save(true);
   });
 
-  guideToggle.addEventListener("click", function () {
-    var isOpen = guidePanel.classList.toggle("is-open");
-    guideToggle.setAttribute("aria-expanded", String(isOpen));
-  });
+  var sizeGuide = window.EmjiveSelection.wireSizeGuide({ toggle: guideToggle, panel: guidePanel });
 
   backdrop.addEventListener("click", function () { close(); });
 
@@ -712,8 +724,8 @@
     renderMetalOptions();
     sizeUnit.textContent = window.EmjiveSeries.categoryInfo(item.category).unit || "";
     sizeInput.value = window.EmjiveSelection.normalizeSize(item.size);
-    guidePanel.classList.remove("is-open");
-    guideToggle.setAttribute("aria-expanded", "false");
+    sizeGuide.close();
+    guideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(guideContent, window.EmjiveSeries.categoryInfo(item.category)["size-guide"]);
     buildSlides();
     // Normally already in place (attach); mounted before the mode is set
     // either way, so it's laid out (see mountStrip) before anything on it

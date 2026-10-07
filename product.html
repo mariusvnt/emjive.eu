@@ -114,14 +114,18 @@
 
     <!-- The show: a tall track (.product-stage) holding one sticky stage.
          Scrolling down the track doesn't move the page, it moves the show
-         on, presentation -> specs -> logistics (js/product-stages.js, which
-         publishes --to-specs / --to-logistics for css/style.css to fade
-         everything from). The title bar stays at the top throughout. -->
+         on, presentation -> specs (js/product-stages.js, which publishes
+         --to-specs for css/style.css to fade everything from). The title bar stays at the top throughout. -->
     <div class="product-stage" id="productStage" data-stage="presentation">
       <div class="product-stage__pin">
 
         <!-- 1. Product label -->
         <div class="product-detail__label-bar">
+          <!-- Behind the bar's own elements, over everything else: a panel in
+               the page's background above the bar, and a blur under it (the
+               three spans: three stacked layers, softer going down), so what slides up under the bar doesn't clash with it
+               (css/style.css .product-detail__label-veil). -->
+          <span class="product-detail__label-veil" aria-hidden="true"><span></span><span></span><span></span></span>
           <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
           <h1 class="product-detail__label-text">
             <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
@@ -153,33 +157,27 @@
             </div>
 
             <!-- Under the model in specs, everything that goes with it, in one
-                 column (css/style.css .product-below): the metal picker, the
-                 size and the printing technology, each a table of two columns
+                 column (css/style.css .product-below): the size, the metal
+                 picker and the printing technology, each a table of two columns
                  — a label and its value. In presentation the picker is the one
                  thing shown, beside the model. -->
             <div class="product-below">
 
-              <!-- Metal selection: a stack of squares, built by
-                   js/metal-picker.js. Beside the model in presentation; in
-                   specs it is under it, with its label (it fades out and in
-                   between, js/product.js). -->
-              <div class="product-material">
-                <span class="product-material__label" aria-hidden="true">Material</span>
-                <div class="product-metals" id="productMetals"></div>
-              </div>
-
-              <!-- The size, from specs on — the field to type an exact size in
-                   and the slider from 40 to 70 (js/product.js). The Select
+              <!-- The size, from specs on — the slider from 40 to 70 and the
+                   field to type an exact size in, with the size guide's "?" at
+                   its top right corner (js/product.js). The Select
                    sheet opens with it. Hidden for a category with no unit. -->
-              <div class="product-size" id="productSize" data-stage-owner="specs logistics" hidden>
+              <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
                 <label class="product-size__label" for="productSizeInput">Size</label>
                 <div class="product-size__controls">
-                  <span class="size-modal__custom-underline">
-                    <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
-                    <span class="size-modal__custom-unit" id="productSizeUnit"></span>
-                  </span>
                   <input class="product-size__range" id="productSizeRange" type="range" min="40" max="70" step="0.1" value="62" aria-label="Size" />
-                  <button class="product-size__guide-toggle" id="productSizeGuideToggle" type="button" aria-expanded="false" aria-controls="productSizeGuide" hidden>Size guide</button>
+                  <span class="product-size__field">
+                    <span class="size-modal__custom-underline">
+                      <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
+                      <span class="size-modal__custom-unit" id="productSizeUnit"></span>
+                    </span>
+                    <button class="product-size__guide-toggle" id="productSizeGuideToggle" type="button" aria-label="Size guide" aria-expanded="false" aria-controls="productSizeGuide" hidden>?</button>
+                  </span>
                 </div>
                 <!-- The size guide, opening under the field's row: the column
                      grows (and scrolls on its own while it is open). -->
@@ -190,9 +188,18 @@
                 </div>
               </div>
 
-              <!-- What stands under the picker and the size, one stage's at a
-                   time (they lie in one place, and fade in and out): specs'
-                   figures and printing technology, then logistics. -->
+              <!-- Metal selection: a stack of squares, built by
+                   js/metal-picker.js. Beside the model in presentation; in
+                   specs it is under it, with its label (it fades out and in
+                   between, js/product.js). -->
+              <div class="product-material">
+                <span class="product-material__label" aria-hidden="true">Material</span>
+                <div class="product-metals" id="productMetals"></div>
+              </div>
+
+              <!-- What stands under the picker and the size, in order: specs'
+                   figures, the printing technology, then the cost, shipping
+                   and returns. -->
               <div class="product-below__stage">
                 <!-- Specs: the dimensions of the piece at the chosen size, in
                      centimetres (js/product.js renderSpecs). They are drawn on
@@ -212,8 +219,8 @@
                   <p class="product-printing__text" id="productPrintingText"></p>
                 </section>
 
-                <!-- Logistics: the last stage, in the same column as specs, from the
-                     same place: the cost of the piece at the chosen size (a
+                <!-- Cost, shipping and returns, last in the column: the cost of
+                     the piece at the chosen size (a
                      cascading chart of horizontal bars, js/product.js renderSpecs —
                      the raw materials, the manufacturing that follows them, and,
                      under a short line, the production cost they make together;
@@ -294,20 +301,28 @@
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <!-- .size-modal__sheet carries the slide transform (see
        .size-modal--drawer .size-modal__sheet in css/style.css). The size
-       guide's button stands inline to the right of the size field, and the
+       guide's "?" button stands outside the size field's top right corner, and the
        guide itself is the panel's last row: it opens at the bottom of the
        sheet, which grows upward while the bar stays put. -->
   <div class="size-modal__sheet">
     <div class="size-modal__panel">
       <div class="size-modal__content">
+        <!-- The material, first: the page's own picker (js/product.js keeps
+             the two in step), side by side as in the Modify sheet. -->
+        <div class="size-modal__custom-row size-modal__custom-row--material">
+          <span class="size-modal__custom-label" aria-hidden="true">Material</span>
+          <div class="size-modal__custom-field">
+            <div class="product-metals" id="sizeModalMetals"></div>
+          </div>
+        </div>
         <div class="size-modal__custom-row">
           <label class="size-modal__custom-label" for="sizeModalCustomInput">Size</label>
           <div class="size-modal__custom-field">
             <span class="size-modal__custom-underline">
               <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />
               <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
+              <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-label="Size guide" aria-expanded="false" aria-controls="sizeModalGuide" hidden>?</button>
             </span>
-            <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-expanded="false" aria-controls="sizeModalGuide" hidden>Size guide</button>
           </div>
         </div>
       </div>

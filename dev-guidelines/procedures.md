@@ -130,7 +130,7 @@ the model/icon and a `Name.category` label; `description` and
 Reload the page and the new card appears automatically.
 
 `per-metal-specs` holds one entry per metal in the top-level `"metals"` list,
-each with just `price` (a plain number — `0` renders as "Price on request", so
+each with just `price` (a plain number — `0` renders as "TBD", so
 leave it `0` until you have a real price rather than inventing one). It is the
 selling price, shown in the product page's label bar. The Characteristics
 section is not hand-written: it shows weight, size and a cost breakdown

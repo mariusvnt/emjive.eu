@@ -150,13 +150,14 @@
   sizeUnderline.appendChild(sizeInput);
   sizeUnderline.appendChild(sizeUnit);
   sizeField.appendChild(sizeUnderline);
-  // The size guide's button, inline to the right of the field.
-  var guideToggle = el("button", "size-modal__guide-toggle", "Size guide");
+  // The size guide's "?", outside the field's top right corner.
+  var guideToggle = el("button", "size-modal__guide-toggle", "?");
   guideToggle.type = "button";
+  guideToggle.setAttribute("aria-label", "Size guide");
   guideToggle.hidden = true;
   guideToggle.setAttribute("aria-expanded", "false");
   guideToggle.setAttribute("aria-controls", "modifyModalGuide");
-  sizeField.appendChild(guideToggle);
+  sizeUnderline.appendChild(guideToggle);
   sizeRow.appendChild(sizeLabel);
   sizeRow.appendChild(sizeField);
 

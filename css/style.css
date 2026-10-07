@@ -1945,8 +1945,8 @@ body:has(.order-checkout-bar:not([hidden])) {
      is stuck from the very first scroll pixel, so the title bar never moves.
      Never above the header's own bottom edge. */
   --stage-top: max(clamp(4rem, 10vw, 7rem), var(--header-height));
-  /* How much scrolling each transition (presentation -> specs -> logistics)
-     takes — the knob for how long the show is. */
+  /* How much scrolling the transition (presentation -> specs) takes — the
+     knob for how long the show is. */
   --stage-step: 200svh;
   max-width: var(--max);
   margin: 0 auto;
@@ -1960,58 +1960,65 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
-/* ---- the show: three stages on one sticky stage ----
+/* ---- the show: two stages on one sticky stage ----
    .product-stage is a tall track and .product-stage__pin the one screen
-   that sticks inside it while the track scrolls by: presentation, specs,
-   logistics (product.html). js/product-stages.js publishes how far along the
-   show is as two eased numbers on the track, --to-specs and --to-logistics
-   (0 -> 1 each); the track is a stretch of scrolling in each stage (nothing
-   changes in it) and a transition between each two, a stretch being
-   --hold-ratio of a transition.
-   Nothing crossfades. What a stage shows fades out, there is a blank, and
-   what the next shows fades in — each of those a phase of the transition,
-   as a 0 -> 1 variable:
+   that sticks inside it while the track scrolls by: presentation, then specs
+   (product.html). js/product-stages.js publishes how far along the show is as
+   one eased number on the track, --to-specs (0 -> 1); the track is a stretch
+   of scrolling in each stage (in which the show browses, see --browse below)
+   and the transition between them, a stretch being --hold-ratio of the
+   transition.
+   Nothing crossfades. What presentation shows fades out, there is a blank,
+   and what specs shows fades in — each of those a phase of the transition, as
+   a 0 -> 1 variable:
      --p-out   presentation's things going (0 -> --t0 of --to-specs)
      --s-in    specs' things arriving (--t1 -> 1)
-     --s-out   specs' things going (0 -> 0.3 of --to-logistics)
-     --l-in    logistics' things arriving (0.6 -> 1)
    --t0 and --t1 are set by js/product.js from where the model is on screen
-   (the blank of presentation -> specs is the model's own sweep from metal to
-   wireframe, under the inversion band); --lift is how far the model stands
-   higher on the page in specs, its middle on the first quarter of the
-   screen (also js/product.js). --specs-on is what specs
-   alone shows.
+   (the blank is the model's own sweep from metal to wireframe, under the
+   inversion band); --lift is how far the model stands higher on the page in
+   specs, its middle on the first quarter of the screen (also js/product.js).
+   --specs-on is what specs shows.
    data-stage (the nearest stage) only decides what takes taps.
 
    The pin fills the screen between the stick point and the two bars at the
    bottom, measured in svh — the smallest viewport — so iOS Safari's toolbar
    collapsing never resizes it (and with it the 3D canvas). The track is that
-   plus the scrolling of the three stretches and two transitions, and ends
+   plus the scrolling of the two stretches and the transition, and ends
    exactly where the page does. */
 .product-stage {
   --to-specs: 0;
-  --to-logistics: 0;
   --t0: 0.3;
   --t1: 0.6;
   --hold-ratio: 0.3;
   --p-out: clamp(0, 1 - var(--to-specs) / var(--t0), 1);
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
-  --s-out: clamp(0, 1 - var(--to-logistics) / 0.3, 1);
-  --l-in: clamp(0, (var(--to-logistics) - 0.6) / 0.4, 1);
-  --specs-on: calc(var(--s-in) * var(--s-out));
+  --specs-on: var(--s-in);
   --lift: 0px;
-  /* The coin beside the model (.product-coin): its box, the gap to the
-     model's, the model's box's width; none until it is there. */
-  --coin-w: 0px;
-  --coin-h: 0px;
-  --coin-gap: 0px;
-  --ring-w: 0px;
-  /* How far the column under the model is taken up in the last stage, so all
-     of it clears the Select bar (js/product.js fitLogistics; 0 when it
-     already does). */
-  --l-shift: 0px;
+  /* The specs column's two vertical gaps, and only these two: the standard one
+     between rows, and the separation one between clusters of them — the
+     model and the size; the picker and the printing technology; the
+     production cost; shipping and returns. Each cluster's first row (but the
+     first) carries --gap-extra, what the separation has over the standard. */
+  --gap-row: 1.25rem;
+  --gap-group: 4rem;
+  --gap-extra: calc(var(--gap-group) - var(--gap-row));
+  /* Room to browse a stage (js/product-stages.js): how far through each
+     stage's stretch of scrolling the page is. The show goes up by that much of
+     the stage's room: the two bottom bars' height and a blank (--room-0) in
+     presentation, which it
+     holds through the fade to specs until the model's fit begins (--s-in) —
+     the model's own rise — and then comes back down; in specs, whatever it
+     takes for the end of the column to clear the bars, and no less than they
+     are tall (--browse-room, js/product.js fitBrowse). */
+  --bars-h: calc(var(--selection-bar-height) + var(--select-bar-height));
+  /* The first stage's room: the bars' height and a blank, 4rem, more. */
+  --room-0: calc(var(--bars-h) + 4rem);
+  --browse-0: 0;
+  --browse-1: 0;
+  --browse-room: 0px;
+  --browse-px: calc(var(--room-0) * var(--browse-0) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-1));
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
-  height: calc(var(--pin-h) + (3 * var(--hold-ratio) + 2) * var(--stage-step));
+  height: calc(var(--pin-h) + (2 * var(--hold-ratio) + 1) * var(--stage-step));
 }
 .product-stage__pin {
   position: sticky;
@@ -2021,7 +2028,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   flex-direction: column;
   align-items: center;
 }
-/* The loop at the end of logistics (js/product-stages.js): the whole stage
+/* The loop at the end of specs (js/product-stages.js): the whole stage
    fades to the page's background, and back. */
 .product-stage__pin {
   transition: opacity 0.55s ease;
@@ -2049,9 +2056,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-size: calc(12px * var(--text-scale));
   line-height: 1.7;
   opacity: var(--p-out);
+  /* It goes up with the show. */
+  transform: translateY(calc(var(--browse-0) * -1 * var(--room-0)));
   /* No background of its own, and above the show's x-ray backdrop, which
      reaches up behind it and shows through. */
   position: relative;
+  /* 1.5rem higher than its place in the column, which the show under it
+     keeps. */
+  top: -1.5rem;
   z-index: 1;
 }
 
@@ -2072,12 +2084,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Scrolled up as a stage is browsed, by up to the height of the two bars at
+     the bottom: whatever stands under them is brought into view. */
+  transform: translateY(calc(var(--browse-px) * -1));
 }
 
 /* What takes taps: only what its stage is showing. (Focus still reaches
    everything; js/product-stages.js scrolls to the stage it's in.) */
 .product-stage[data-stage="specs"] .product-carousel__slide--photo,
-.product-stage[data-stage="logistics"] .product-carousel,
 .product-stage[data-stage="presentation"] .product-size__controls {
   pointer-events: none;
 }
@@ -2182,6 +2196,64 @@ body:has(.order-checkout-bar:not([hidden])) {
   transform: translate(-50%, -50%);
   pointer-events: none;
   background: var(--black-bg-inverted);
+}
+/* What slides up under the title bar (the show browsing a stage, the
+   description) mustn't clash with it. Two things on the bar's own box, full
+   screen width, behind its elements (and behind its inverted band: z-index
+   -2, under ::after's -1) but over everything else, since the bar is a
+   stacking context of its own above the rest of the stage:
+   - ::before, a panel in the page's background from the header down to the
+     top of the bar's inverted band;
+   - the three spans, from the bottom of the band, a blur made of three
+     stacked layers that tapers to nothing going down (below). */
+.product-detail__label-veil {
+  position: absolute;
+  z-index: -2;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 100vw;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.product-detail__label-veil::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--stage-top) * -1);
+  /* Down to the top of the inverted band (1.2rem tall, on the bar's middle). */
+  bottom: calc(50% + 0.6rem);
+  background: var(--bg);
+}
+/* The blur is three layers, from the bottom of the band down: the blur gets
+   stronger toward the bar as well as more opaque. Each is a backdrop blur
+   under a mask that eases out over its own height (a cosine, in five stops),
+   the strongest the shortest — so near the bar all three compound, further
+   down two do, then one, and the last of it fades to nothing. One blur under
+   one mask only changes how much of it shows, and its ends read as edges. */
+.product-detail__label-veil > span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% + 0.6rem);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
+}
+.product-detail__label-veil > span:nth-child(1) {
+  height: 3.5rem;
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+.product-detail__label-veil > span:nth-child(2) {
+  height: 2.4rem;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.product-detail__label-veil > span:nth-child(3) {
+  height: 1.3rem;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
@@ -2293,17 +2365,15 @@ body:has(.order-checkout-bar:not([hidden])) {
      on the first quarter of the screen in specs — its middle is --lift above
      the tile's middle, and its brackets reach about a quarter of the tile
      below that. */
-  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + 1rem);
+  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + var(--gap-row));
 }
 /* The stages: the photos and the x-ray go as specs comes in (the model
    stays — it turns into its wireframe instead, js/three-viewer.js), and the
-   whole strip goes with logistics. A model that isn't live (its poster, the
+   whole strip is the model alone. A model that isn't live (its poster, the
    icon fallback) turns grey with it rather than staying in metal. */
 .product-stage .product-carousel {
-  opacity: var(--s-out);
-  /* Up by the lift; left by half of what the coin and its gap take, as the
-     model's fit comes in (--s-in), to centre the pair. */
-  transform: translate(calc(var(--s-in) * (var(--coin-w) + var(--coin-gap)) / -2), calc(var(--lift) * -1));
+  /* Up by the lift. */
+  transform: translateY(calc(var(--lift) * -1));
 }
 .product-stage .product-carousel__slide--photo,
 .product-stage .product-carousel__xray {
@@ -2446,32 +2516,6 @@ body:has(.order-checkout-bar:not([hidden])) {
     height: 66%;
   }
 }
-/* The coin, in specs: a viewer of its own (js/product.js ensureCoin), beside
-   the model's, --coin-gap (2rem) from it, the two together centred in the
-   frame — the carousel is shifted left by half the coin's room as specs
-   comes in, and the coin's box stands where that leaves the room: against the
-   model's box (--ring-w wide) and the gap, level with its middle. --coin-w
-   and --coin-h are its size (set by the script, with the scale the two
-   viewers share). It fades in with specs' own things, and takes drags only in
-   the stage. */
-.product-coin {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  top: calc(var(--tile) / 2 - var(--lift) - var(--coin-h) / 2);
-  width: var(--coin-w);
-  height: var(--coin-h);
-  transform: translateX(calc(var(--ring-w) / 2 + var(--coin-gap) - (var(--coin-gap) + var(--coin-w)) / 2 * var(--s-in)));
-  opacity: var(--specs-on);
-  pointer-events: none;
-}
-.product-stage[data-stage="specs"] .product-coin {
-  pointer-events: auto;
-}
-.product-coin .emjive-3d-viewer {
-  width: 100%;
-  height: 100%;
-}
 /* A real product photo (product.assets.photos), unlike the model/icon
    slide above, carries its own "on display:" caption naming which
    finish/context that shot is showing — js/product.js's buildPhotoSlide.
@@ -2529,7 +2573,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 1.25rem;
+  gap: var(--gap-row);
   pointer-events: none;
 }
 /* The picker: in presentation, a stack of squares beside the model, its middle
@@ -2543,9 +2587,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   position: absolute;
   left: 0;
   top: calc(var(--tile) / 2 - var(--stack-h) / 2);
-  /* Out with presentation, in with specs, out with specs, in with logistics:
-     never two of those at once (each phase waits for the one before). */
-  opacity: calc(var(--p-out) + var(--specs-on) + var(--l-in));
+  /* Out with presentation, in with specs: never two of those at once (each
+     phase waits for the one before). */
+  opacity: calc(var(--p-out) + var(--specs-on));
 }
 .product-material__label {
   display: none;
@@ -2557,9 +2601,8 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-stage.is-specs-layout .product-material {
   position: static;
-  /* More room than the empty row the other sections have (1.5rem) between the
-     model, with its dimensions, and the picker. */
-  margin-top: 3rem;
+  /* The picker starts a cluster: the separation gap under the size. */
+  margin-top: var(--gap-extra);
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
@@ -2572,15 +2615,16 @@ body:has(.order-checkout-bar:not([hidden])) {
   pointer-events: auto;
 }
 /* The specs stage's size: the label "Size" on the left, then — in the column
-   where the printing technology's name stands — the typed field (the size
-   sheet's own, .size-modal__custom-*, the iOS no-zoom input included) and,
-   to its right, the slider. In and out with specs. */
+   where the printing technology's name stands — the slider and, to its right,
+   the typed field (the size sheet's own, .size-modal__custom-*, the iOS
+   no-zoom input included) with the size guide's "?" at its top right corner.
+   In and out with specs. */
 .product-size {
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
   align-items: baseline;
-  opacity: calc(var(--specs-on) + var(--l-in));
+  opacity: var(--specs-on);
 }
 .product-size[hidden] {
   display: none;
@@ -2597,13 +2641,26 @@ body:has(.order-checkout-bar:not([hidden])) {
   /* The slider's line is the field's underline (see below), so the two share
      a bottom edge. */
   align-items: flex-end;
-  /* The picker's gap (--metal-gap) between the field and the slider, and the
-     label's own (--label-gap) between the slider and the guide's button. */
+  /* The picker's gap (--metal-gap) between the slider and the field. */
   gap: var(--metal-gap);
   min-width: 0;
 }
-.product-size__controls .product-size__guide-toggle {
-  margin-left: calc(var(--label-gap) - var(--metal-gap));
+/* The field, its underline and, standing outside its top right corner, the
+   size guide's "?" (see "size guide" below; out of the flow, so the field and
+   the slider stay where they are whether it is there or not). */
+.product-size__field {
+  position: relative;
+  flex: none;
+  display: flex;
+  /* The room the "?" takes outside the field's right corner (its glyph and
+     padding), so that it stays inside the column — the slider, which gives
+     way as the row narrows, is what pays for it. */
+  margin-right: 1.4rem;
+  /* The row's baseline is the field's, so that the label lines up with its
+     figures (a row's baseline comes from its first item, and the slider,
+     first now, has no text). The field is the tallest item, so it still sits
+     at the row's bottom beside the slider. */
+  align-self: baseline;
 }
 /* The slider: a hairline track and the selection dot (--dot, the one that
    marks the picker's chosen name), both in --category-col (a field's underline
@@ -2623,7 +2680,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   appearance: none;
   box-sizing: content-box;
   flex: 1 1 4rem;
-  min-width: 3.5rem;
+  min-width: 3rem;
   max-width: 12rem;
   height: var(--hit);
   padding: var(--range-pad) 0;
@@ -2673,6 +2730,13 @@ body:has(.order-checkout-bar:not([hidden])) {
   box-shadow: none;
   outline: none;
   transition: opacity var(--fade-quick) ease;
+}
+/* On the narrowest screens (the row leaves the slider under about 5rem) it goes
+   altogether, leaving the field and its "?". */
+@media (max-width: 19.99rem) {
+  .product-size__range {
+    display: none;
+  }
 }
 .product-size__range.is-unset::-webkit-slider-thumb { opacity: 0.35; }
 .product-size__range.is-unset::-moz-range-thumb { opacity: 0.35; }
@@ -2833,6 +2897,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-below.is-extended::-webkit-scrollbar {
   display: none;
 }
+.has-brackets .product-specs {
+  /* Its one row is hidden (below), for screen readers: no part of the column,
+     so no gap is made for it. */
+  position: absolute;
+}
 .product-specs {
   width: max-content;
   max-width: 100%;
@@ -2872,7 +2941,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    label and the name black, the explanation --category-col. Arrives with
    specs; the text is replaced as the metal changes. */
 .product-printing {
-  margin-top: 1.5rem;
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
@@ -2898,15 +2966,15 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* What stands under the picker and the size: specs' figures and printing
-   technology, and logistics, in one place — each fading in with its own
-   stage — so the grid puts them all in its one cell. */
+/* What stands under the picker and the size: specs' figures (for screen
+   readers), the printing technology, then the cost, shipping and returns, in
+   one column. */
 .product-below__stage {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
 }
 .product-below__stage > * {
-  grid-area: 1 / 1;
-  align-self: start;
   min-width: 0;
 }
 
@@ -2919,14 +2987,16 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-logistics {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  /* An empty row — a row of the tables here is 1.5rem — more than the column's
-     usual gap, between the size and the costs (this margin) and between the
-     costs and shipping (.product-costs's); shipping and returns are one
-     family of information, a normal gap apart. */
-  margin-top: 1.5rem;
+  gap: var(--gap-row);
   pointer-events: none;
-  opacity: var(--l-in);
+  opacity: var(--specs-on);
+}
+/* The cost is a cluster of its own, and shipping and returns another: the
+   separation gap before each (shipping and returns, one family of
+   information, the standard one apart). */
+.product-logistics > .product-costs,
+.product-logistics > .product-costs + .product-logistics__block {
+  margin-top: var(--gap-extra);
 }
 .product-logistics__block {
   display: grid;
@@ -2957,7 +3027,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   --bar-h: 0.3rem;
   --grow: 0.5s;
   --resize: 0.4s;
-  margin-bottom: 1.5rem;
 }
 .product-costs__list {
   margin: 0;
@@ -3062,9 +3131,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     top: var(--header-height);
     background: var(--bg);
   }
+  /* Nothing slides under the bar in the plain column. */
+  .product-detail__label-veil {
+    display: none;
+  }
   .product-stage__show {
     display: block;
     container-type: normal;
+    transform: none;
   }
   .product-stage .product-carousel-frame {
     --tile: min(560px, 100cqw - 4rem, 70svh);
@@ -3105,11 +3179,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-specs,
   .product-printing {
     opacity: 1;
-  }
-  .product-below__stage {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
   }
   .product-logistics {
     opacity: 1;
@@ -3370,6 +3439,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    same line-height and the same (visual) bottom padding as the unit, the
    two share one baseline by construction. */
 .size-modal__custom-underline {
+  /* The size guide's "?" is anchored to its top right corner. */
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 0.2rem;
@@ -3424,31 +3495,32 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 
 /* ---- size guide ----
-   Its button stands inline to the right of the size field (the sheets', and
-   the product page's specs stage, where it comes after the slider with a gap
-   between). In the sheets the guide itself is the panel's last row, so it
-   opens at the bottom of the sheet: the sheet grows upward, the bar below it
-   staying put; the button, or a click anywhere else, closes it. In the
+   Its button, everywhere, is a "?" in --black standing outside the size
+   field's top right corner (the sheets', where it is the underline's last
+   child, and the product page's specs stage, where it is in .product-size__field,
+   which wraps the underline). In the sheets the guide itself is the panel's
+   last row, so it opens at the bottom of the sheet: the sheet grows upward,
+   the bar below it staying put; the button, or a click anywhere else, closes it. In the
    specs stage it opens under the field's row (.product-size__guide). The
    reveal is the same 0fr/1fr technique .site-header__menu uses. Its content
    is built by js/selection.js's fillSizeGuide from the category's "size-guide"
    in data/series.json: a few words on how to measure, and a table. ---- */
 .size-modal__guide-toggle,
 .product-size__guide-toggle {
-  flex: none;
-  padding: 0 0 0.3rem;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  transform: translateY(-50%);
+  padding: 0.3rem 0.4rem;
   border: none;
   background: none;
-  /* The Select button's format (.product-select-bar__button), in
-     --category-col, at 12px on any screen. */
+  /* The Select button's format (.product-select-bar__button), at 12px on any
+     screen. */
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: 12px;
-  letter-spacing: var(--button-letter-spacing);
-  text-transform: var(--button-text-transform);
-  line-height: 1.4;
-  white-space: nowrap;
-  color: var(--category-col);
+  line-height: 1;
+  color: var(--black);
   cursor: pointer;
   transition: opacity var(--fade-quick) ease;
 }
@@ -3493,12 +3565,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .product-size__guide-inner {
   overflow: visible;
-}
-/* The last stage: the picker, the size and the rest, taken up as far as it
-   takes for the last of them to clear the Select bar. It moves while nothing
-   shows (data-stage changes in the middle of the blank between the two). */
-.product-stage[data-stage="logistics"] .product-below {
-  top: calc(var(--l-shift) * -1);
 }
 /* The room above the guide is its own, inside the reveal: closed, it takes
    none. */

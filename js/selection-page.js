@@ -176,17 +176,21 @@
   // from the shipping buttons' own click handler, since changing carrier
   // changes this without touching storage at all.
   //
-  // A `price: 0` item contributes 0 rather than poisoning the whole sum:
-  // that's today's "Price on request" placeholder, which is transitional —
-  // every product carries a real price at launch. See data.md's
-  // per-metal-specs notes.
+  // A `price: 0` item (today's "TBD" placeholder, which is transitional —
+  // every product carries a real price at launch; see data.md's
+  // per-metal-specs notes) makes the total TBD too: a sum that left it out
+  // would be a figure that's wrong.
   function updateCheckoutSummary() {
     var items = window.EmjiveSelection.getSelection();
     checkoutBar.hidden = !items.length && !stripShown && !stripFading;
     checkoutBar.classList.toggle("is-empty", !items.length);
     var total = selectedShippingOption().price || 0;
-    items.forEach(function (item) { total += item.price || 0; });
-    checkoutTotalEl.textContent = window.EmjiveSelection.formatPrice(total);
+    var unpriced = false;
+    items.forEach(function (item) {
+      total += item.price || 0;
+      if (!(item.price > 0)) unpriced = true;
+    });
+    checkoutTotalEl.textContent = unpriced ? "TBD" : window.EmjiveSelection.formatPrice(total);
   }
 
   /* ---- list <-> empty state ------------------------------------------------ */

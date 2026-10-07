@@ -1,39 +1,43 @@
 /* ==========================================================================
-   em·ji·ve — the product page's three stages
+   em·ji·ve — the product page's two stages
    product.html's show is one tall track (.product-stage) holding one sticky
    stage (.product-stage__pin): scrolling down the track doesn't move the
    page, it moves the show along — presentation (description, carousel,
-   metal picker), then specs (the model as a wireframe with its dimensions,
-   the cost breakdown, a size field), then logistics (shipping and returns).
-   Free scrub, no snapping, and not linear: each stage is a stretch of
-   scrolling in which nothing changes (so there is room to scroll about in
-   it), and each transition between two is eased at both ends, so the page
-   eases out of one stage and into the next. The track's length is the three
-   stretches plus the two transitions; their proportion is --hold-ratio in
-   css/style.css (a stretch is that share of a transition).
+   metal picker), then specs (the model as a wireframe with its dimensions, a
+   size field, the printing technology, the cost breakdown, shipping and
+   returns). Free scrub, no snapping, and not linear: each stage is a stretch
+   of scrolling in which the show browses (it goes up by the room its stage
+   needs, see below), and the transition between the two is eased at both
+   ends, so the page eases out of one stage and into the next. The track's
+   length is the two stretches plus the transition; their proportion is
+   --hold-ratio in css/style.css (a stretch is that share of the transition).
 
    window.EmjiveProductStages.mount(stageEl, { onChange }) reads the track's
    position on every scroll frame (the technique series/bones/hero.js uses
-   for the homepage wipe) and publishes two eased numbers, 0 to 1:
+   for the homepage wipe) and publishes one eased number, 0 to 1:
 
      --to-specs       presentation -> specs
-     --to-logistics   specs -> logistics
 
-   as custom properties on the track — css/style.css fades everything from
-   them — plus data-stage (the nearest stage: "presentation", "specs" or
-   "logistics"; "flow" on a screen too short to pin the stage, where the
-   page is laid out as a plain column and none of this runs), and calls
-   onChange({ toSpecs, toLogistics, stage }) when they change, for what
-   CSS can't do (js/product.js: the model, the carousel lock).
+   as a custom property on the track — css/style.css fades everything from
+   it — and two more for the room to browse each stage: --browse-0 and
+   --browse-1, 0 to 1 each, how far through that stage's stretch of scrolling
+   the page is (0 before it, 1 from its end on) — css/style.css makes the show
+   go up by that much of the room it has, and back down as the next stage
+   comes in — plus data-stage (the nearest stage: "presentation" or "specs";
+   "flow" on a screen too short to pin the stage, where the page is laid out
+   as a plain column and none of this runs), and calls
+   onChange({ toSpecs, stage }) when they change, for what CSS can't do
+   (js/product.js: the model, the carousel lock).
 
    Returns { scrollToStage(index) }. Focus moving into an element marked
-   data-stage-owner="presentation|specs|logistics" (or two, space apart) while
-   another stage is showing scrolls to that one (the first), so the keyboard can reach everything — but
-   only focus a keyboard put there (:focus-visible). A click on the model
-   focuses the carousel's viewport (a tab stop) without any such intent, and
-   used to throw the page back to the stage that viewport belongs to.
+   data-stage-owner="presentation|specs" (or two, space apart) while another
+   stage is showing scrolls to that one (the first), so the keyboard can reach
+   everything — but only focus a keyboard put there (:focus-visible). A click
+   on the model focuses the carousel's viewport (a tab stop) without any such
+   intent, and used to throw the page back to the stage that viewport belongs
+   to.
 
-   The show loops: scrolling on at the very end of logistics — a fresh wheel
+   The show loops: scrolling on at the very end of specs — a fresh wheel
    gesture, swipe or key, never the tail of the one that got there — takes
    the show back to the start: everything fades out to the page's background
    (.is-veiled, css/style.css), the page jumps to the top while nothing shows,
@@ -48,7 +52,7 @@
   // plain column instead. Same query as the "flow" block in css/style.css.
   var FLOW_QUERY = "(max-height: 560px)";
 
-  var STAGES = ["presentation", "specs", "logistics"];
+  var STAGES = ["presentation", "specs"];
 
   function clamp01(x) {
     return x < 0 ? 0 : x > 1 ? 1 : x;
@@ -65,9 +69,9 @@
     var onChange = (options && options.onChange) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
-    var state = { toSpecs: -1, toLogistics: -1, stage: "" };
+    var state = { toSpecs: -1, stage: "", browse: "" };
     // Where each stage sits, in page scroll, as last measured.
-    var stops = [0, 0, 0];
+    var stops = [0, 0];
 
     function measure() {
       var rect = stageEl.getBoundingClientRect();
@@ -75,40 +79,45 @@
       var stickAt = parseFloat(getComputedStyle(pin).top) || 0;
       var scrolled = stickAt - rect.top;
       var trackStart = window.pageYOffset - scrolled;
-      // hold, transition, hold, transition, hold.
+      // hold, transition, hold.
       var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
       if (!(ratio >= 0)) ratio = 0.5;
       var travel = Math.max(0, stageEl.offsetHeight - pin.offsetHeight);
-      var move = travel / (3 * ratio + 2);
+      var move = travel / (2 * ratio + 1);
       var hold = ratio * move;
-      stops = [trackStart, trackStart + hold + move, trackStart + 2 * hold + 2 * move];
+      stops = [trackStart, trackStart + hold + move];
       return { scrolled: scrolled, hold: hold, move: move };
     }
 
-    function publish(toSpecs, toLogistics, stage) {
-      if (toSpecs === state.toSpecs && toLogistics === state.toLogistics && stage === state.stage) return;
-      state = { toSpecs: toSpecs, toLogistics: toLogistics, stage: stage };
+    function publish(toSpecs, stage, browse) {
+      var key = browse.join(",");
+      if (toSpecs === state.toSpecs && stage === state.stage && key === state.browse) return;
+      state = { toSpecs: toSpecs, stage: stage, browse: key };
       stageEl.style.setProperty("--to-specs", toSpecs.toFixed(4));
-      stageEl.style.setProperty("--to-logistics", toLogistics.toFixed(4));
+      for (var k = 0; k < 2; k++) stageEl.style.setProperty("--browse-" + k, browse[k].toFixed(4));
       if (stageEl.getAttribute("data-stage") !== stage) stageEl.setAttribute("data-stage", stage);
-      onChange({ toSpecs: toSpecs, toLogistics: toLogistics, stage: stage });
+      onChange({ toSpecs: toSpecs, stage: stage });
     }
 
     function update() {
       ticking = false;
       if (flow.matches) {
-        publish(0, 0, "flow");
+        publish(0, "flow", [0, 0]);
         return;
       }
       var m = measure();
       if (!(m.move > 0)) {
-        publish(0, 0, STAGES[0]);
+        publish(0, STAGES[0], [0, 0]);
         return;
       }
       var toSpecs = ease((m.scrolled - m.hold) / m.move);
-      var toLogistics = ease((m.scrolled - 2 * m.hold - m.move) / m.move);
-      var stage = toLogistics >= 0.5 ? STAGES[2] : toSpecs >= 0.5 ? STAGES[1] : STAGES[0];
-      publish(toSpecs, toLogistics, stage);
+      var stage = toSpecs >= 0.5 ? STAGES[1] : STAGES[0];
+      // Room to browse each stage: how far through its stretch of scrolling
+      // the page is (each stretch is the hold before the stage's own
+      // transition out; the last is the one at the end).
+      var s = m.scrolled;
+      function through(from) { return m.hold > 0 ? clamp01((s - from) / m.hold) : 1; }
+      publish(toSpecs, stage, [through(0), through(m.hold + m.move)]);
     }
 
     function requestUpdate() {
@@ -122,7 +131,7 @@
     function scrollToStage(index) {
       if (flow.matches) return;
       measure();
-      var top = stops[Math.max(0, Math.min(2, index))];
+      var top = stops[Math.max(0, Math.min(1, index))];
       window.scrollTo({ top: Math.max(0, Math.round(top)), left: 0 });
     }
 
@@ -150,7 +159,7 @@
     var touchY = null;
 
     function atEnd() {
-      return !flow.matches && state.stage === "logistics" &&
+      return !flow.matches && state.stage === "specs" &&
         window.pageYOffset >= document.documentElement.scrollHeight - window.innerHeight - 2;
     }
 

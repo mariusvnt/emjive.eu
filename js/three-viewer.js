@@ -29,6 +29,9 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 (function () {
   "use strict";
@@ -242,29 +245,21 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // A line shorter than this on screen (its axis pointing at the camera) has
   // no room for its label, and is hidden.
   var BRACKET_MIN_PX = 28;
-  // The length of a dot of the dotted dimension lines, as a share of the
-  // box's longest side.
-  var BRACKET_DASH = 0.009;
-  // And the space between two of them: wide enough for the dots, a few pixels
-  // each, to stay apart rather than blur into a line.
-  var BRACKET_DASH_GAP = 0.0264;
+  // How thick the dimension lines are, in device pixels: a plain GL line is
+  // one, so half of that is a screen-space line (LineMaterial) thinner than a
+  // pixel, which the multisampling draws as a fainter, finer line.
+  var BRACKET_LINE_DEVICE_PX = 0.5;
   // How much better (in NDC) another run of edges has to be before the
   // brackets move to it — otherwise two near-equal candidates flicker while rotating.
   var BRACKET_HYSTERESIS = 0.06;
   // The brackets fade in over the later part of the fit.
   var BRACKET_FADE_FROM = 0.35;
+  // The box the brackets measure, drawn as a faint tinted volume: its
+  // opacity at full (it fades in with the brackets).
+  var BOX_OPACITY = 0.07;
   // The largest size the page scales the model to (70 over its base size,
   // 62): the fit leaves room for it, so brackets never leave the canvas.
   var BLUEPRINT_SIZE_MAX = 70 / 62;
-  // A dotted ruler drawn under a model (options.blueprint.measure — the
-  // product page's coin), as dotted as the brackets are at the ring's usual
-  // size: the lengths of a dot and of the space between two, in the model's
-  // own units (millimetres); it is hidden, figure and all, if it is shorter
-  // than MEASURE_MIN_PX on screen.
-  var BRACKET_DASH_MM = 0.26;
-  var BRACKET_DASH_GAP_MM = 0.76;
-  var MEASURE_MIN_PX = 14;
-
   // A length in millimetres, as the page shows it: centimetres, two places.
   function formatCm(mm) {
     return (Math.round(mm * 10 + 1e-6) / 100).toFixed(2) + " cm";
@@ -1197,6 +1192,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       currentWidth = w;
       currentHeight = h;
       renderer.setSize(w, h, false); // false: don't fight the existing CSS sizing
+      if (bracketLines) bracketLines.material.resolution.set(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       // A resize repaints nothing by itself, and the render-on-demand loop
@@ -1455,14 +1451,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var wireCpuBytes = 0;
     var minBox = null;
     var bracketLines = null;
+    var boxMesh = null;
     var bracketLabels = [];
-    // The page's chosen scale (handle.setPxPerMm): CSS pixels to a millimetre
-    // of the model, so that two viewers draw at one scale. 0: the fit's own.
-    var pxPerMm = 0;
-    // The one line measured across the model (buildMeasure), if the page asks
-    // for it: { line, label, a, b }.
-    var measure = null;
-
     // polygonOffset pushes the fill back a hair so the edges, which lie
     // exactly on its triangles, win the depth test rather than flicker
     // through it; the edges on the far side still lose to the near fill.
@@ -1579,25 +1569,49 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // The run of edges the lines are on now (see updateBrackets).
         chain: ""
       };
-      var lineGeometry = new THREE.BufferGeometry();
-      lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage));
-      // Dotted: short dashes with longer gaps, in the box's own units (a share
-      // of its longest side).
-      var longest = Math.max(dims[0], dims[1], dims[2]);
-      bracketLines = new THREE.LineSegments(lineGeometry, new THREE.LineDashedMaterial({
+      // Three segments, rewritten in place whenever the view changes: the
+      // geometry's own buffer (start and end, six numbers a segment) is what
+      // updateBrackets fills, and instanceCount how many of them are drawn.
+      var lineGeometry = new LineSegmentsGeometry();
+      lineGeometry.setPositions(new Float32Array(3 * 2 * 3));
+      lineGeometry.attributes.instanceStart.data.setUsage(THREE.DynamicDrawUsage);
+      bracketLines = new LineSegments2(lineGeometry, new LineMaterial({
         color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
-        dashSize: longest * BRACKET_DASH,
-        gapSize: longest * BRACKET_DASH_GAP,
+        // In CSS pixels, against the viewer's size (see applySize).
+        linewidth: BRACKET_LINE_DEVICE_PX / renderer.getPixelRatio(),
         transparent: true,
         opacity: 0,
         depthTest: false,
         depthWrite: false,
         toneMapped: false
       }));
+      bracketLines.material.resolution.set(currentWidth, currentHeight);
       bracketLines.frustumCulled = false;
       bracketLines.renderOrder = 10;
       bracketLines.visible = false;
       fitGroup.add(bracketLines);
+      // The box itself: a unit cube stretched onto the minimum-volume box,
+      // translucent and unlit, in the lines' colour. Depth-tested (the model
+      // stands in front of its far faces) but writing no depth, so it never
+      // hides the model or the edges.
+      boxMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        toneMapped: false
+      }));
+      boxMesh.matrixAutoUpdate = false;
+      boxMesh.matrix.makeBasis(
+        minBox.axes[0].clone().multiplyScalar(dims[0]),
+        minBox.axes[1].clone().multiplyScalar(dims[1]),
+        minBox.axes[2].clone().multiplyScalar(dims[2])
+      ).setPosition(minBox.center);
+      boxMesh.frustumCulled = false;
+      boxMesh.renderOrder = 5;
+      boxMesh.visible = false;
+      fitGroup.add(boxMesh);
       dims.forEach(function () {
         var label = document.createElement("span");
         label.className = "emjive-3d-viewer__dim";
@@ -1640,12 +1654,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       fitScale = Math.min(1, room / (reach * BLUEPRINT_SIZE_MAX));
     }
 
-    // World units to a pixel of the canvas, at the orbit's target.
-    function worldPerPx() {
-      var fov = (camera.fov * Math.PI) / 180;
-      return (2 * camera.position.distanceTo(controls.target) * Math.tan(fov / 2)) / Math.max(1, currentHeight);
-    }
-
     var bpCenter = new THREE.Vector3();
     var bpScratch = new THREE.Vector3();
     var bpUp = new THREE.Vector3();
@@ -1661,7 +1669,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       var sweep = blueprintSweep;
       // The scale the fit goes to: the page's (px to a mm, brought to world
       // units), or the one that makes the box and its brackets fit.
-      var target = (pxPerMm > 0 ? pxPerMm * worldPerPx() : fitScale) * sizeFactor;
+      var target = fitScale * sizeFactor;
       var scale = 1 + (target - 1) * blueprintFit;
       fitGroup.scale.setScalar(scale);
       fitGroup.position.copy(controls.target).multiplyScalar(1 - scale);
@@ -1685,7 +1693,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 
       var fade = smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit);
       if (minBox) updateBrackets(fade);
-      if (measure) updateMeasure(fade);
     }
 
     // A dimension label beside its line, on screen: from the line's middle,
@@ -1701,73 +1708,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
         "px) translate(-50%, -50%)";
       label.style.opacity = String(opacity);
-    }
-
-    // One dotted ruler under the model, from options.blueprint.measure:
-    // { length, offset, label } — `length` millimetres long, `offset`
-    // millimetres under the model's middle, level on the screen whichever way
-    // the model is turned (a coin's width is the same from any side: it is a
-    // true length at the scale the model is drawn at), with its figure under
-    // it. In the scene, not in the fit group, so it can follow the camera; its
-    // size is the fit's.
-    function buildMeasure() {
-      var m = blueprint && blueprint.measure;
-      if (!m || measure) return;
-      var geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3).setUsage(THREE.DynamicDrawUsage));
-      var line = new THREE.LineSegments(geometry, new THREE.LineDashedMaterial({
-        color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
-        dashSize: BRACKET_DASH_MM,
-        gapSize: BRACKET_DASH_GAP_MM,
-        transparent: true,
-        opacity: 0,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false
-      }));
-      line.frustumCulled = false;
-      line.renderOrder = 10;
-      line.visible = false;
-      scene.add(line);
-      var label = document.createElement("span");
-      label.className = "emjive-3d-viewer__dim";
-      label.setAttribute("aria-hidden", "true");
-      label.textContent = m.label || "";
-      wrapper.appendChild(label);
-      measure = { line: line, label: label, length: m.length, offset: m.offset };
-    }
-
-    var bpMeasureRight = new THREE.Vector3();
-    var bpMeasureDown = new THREE.Vector3();
-    function updateMeasure(opacity) {
-      var s = fitGroup.scale.x;
-      bpMeasureRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-      bpMeasureDown.setFromMatrixColumn(camera.matrixWorld, 1).normalize().negate();
-      var positions = measure.line.geometry.attributes.position.array;
-      bpA.copy(bpCenter).addScaledVector(bpMeasureDown, measure.offset * s).addScaledVector(bpMeasureRight, -measure.length * s / 2);
-      positions[0] = bpA.x; positions[1] = bpA.y; positions[2] = bpA.z;
-      var ax = toPxWorld(bpA, bpPxA).x, ay = bpPxA.y;
-      bpA.addScaledVector(bpMeasureRight, measure.length * s);
-      positions[3] = bpA.x; positions[4] = bpA.y; positions[5] = bpA.z;
-      toPxWorld(bpA, bpPxB);
-      measure.line.geometry.attributes.position.needsUpdate = true;
-      measure.line.computeLineDistances();
-      measure.line.material.dashSize = BRACKET_DASH_MM * s;
-      measure.line.material.gapSize = BRACKET_DASH_GAP_MM * s;
-      measure.line.material.opacity = opacity;
-      var c = toPxWorld(bpCenter, bpPxC);
-      var shown = opacity > 0 && Math.hypot(bpPxB.x - ax, bpPxB.y - ay) >= MEASURE_MIN_PX;
-      measure.line.visible = shown;
-      if (shown) placeLabel(measure.label, ax, ay, bpPxB.x, bpPxB.y, c.x, c.y, opacity);
-      else measure.label.style.opacity = "0";
-    }
-
-    // World-space point -> pixels from the viewer's top-left, into `out`.
-    function toPxWorld(point, out) {
-      bpNdc.copy(point).project(camera);
-      out.x = (bpNdc.x + 1) / 2 * currentWidth;
-      out.y = (1 - bpNdc.y) / 2 * currentHeight;
-      return out;
     }
 
     // Model-space point -> pixels from the viewer's top-left, into `out`.
@@ -1815,6 +1755,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     }
 
     function updateBrackets(opacity) {
+      boxMesh.material.opacity = opacity * BOX_OPACITY;
+      boxMesh.visible = opacity > 0;
       bracketLines.material.opacity = opacity;
       bracketLines.visible = opacity > 0;
       if (opacity <= 0) {
@@ -1882,12 +1824,15 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           best = { run: run, key: key };
         }
       }
-      var positions = bracketLines.geometry.attributes.position.array;
+      var lineBuffer = bracketLines.geometry.attributes.instanceStart.data;
+      var positions = lineBuffer.array;
       positions.fill(0);
+      var segments = 0;
       bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
       if (!best) {
         minBox.chain = "";
-        bracketLines.geometry.attributes.position.needsUpdate = true;
+        bracketLines.geometry.instanceCount = 0;
+        lineBuffer.needsUpdate = true;
         return;
       }
       if (keptScore < bestScore + BRACKET_HYSTERESIS * 3) {
@@ -1916,17 +1861,15 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         var llen = Math.sqrt(lx * lx + ly * ly);
         if (llen < BRACKET_MIN_PX) continue;
         drawn[edge.axis] = true;
-        var o = d * 6;
+        var o = segments++ * 6;
         positions[o] = bpCornerPos[edge.a].x; positions[o + 1] = bpCornerPos[edge.a].y; positions[o + 2] = bpCornerPos[edge.a].z;
         positions[o + 3] = bpCornerPos[edge.b].x; positions[o + 4] = bpCornerPos[edge.b].y; positions[o + 5] = bpCornerPos[edge.b].z;
 
         // The label goes beside its line, away from the model.
         placeLabel(label, sx, sy, endPx.x, endPx.y, middle.x, middle.y, opacity);
       }
-      // The dots run from the start of each line, so they are laid again
-      // whenever the lines move.
-      bracketLines.computeLineDistances();
-      bracketLines.geometry.attributes.position.needsUpdate = true;
+      bracketLines.geometry.instanceCount = segments;
+      lineBuffer.needsUpdate = true;
     }
 
     function disposeBlueprint() {
@@ -1943,15 +1886,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         bracketLines.material.dispose();
         bracketLines = null;
       }
+      if (boxMesh) {
+        boxMesh.geometry.dispose();
+        boxMesh.material.dispose();
+        boxMesh = null;
+      }
       bracketLabels.forEach(function (label) { if (label.parentNode) label.parentNode.removeChild(label); });
       bracketLabels.length = 0;
-      if (measure) {
-        scene.remove(measure.line);
-        measure.line.geometry.dispose();
-        measure.line.material.dispose();
-        if (measure.label.parentNode) measure.label.parentNode.removeChild(measure.label);
-        measure = null;
-      }
     }
 
     // options.swatch (scene-tool.html's swatch mode, and
@@ -2035,7 +1976,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // way the rest will be.
         if (blueprint) {
           computeFit();
-          buildMeasure();
           updateBlueprint();
         }
 
@@ -2243,21 +2183,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         blueprintSweep = sweep;
         blueprintFit = fit;
         needsRender = true;
-      },
-      // Blueprint viewers only: draw at this many CSS pixels to a millimetre
-      // of the model (0: at the scale that makes it fit), so that the page can
-      // put two viewers at one scale — the ring and the coin.
-      setPxPerMm: function (value) {
-        if (!blueprint) return;
-        value = Math.max(0, Number(value) || 0);
-        if (value === pxPerMm) return;
-        pxPerMm = value;
-        needsRender = true;
-      },
-      // The px/mm at which this model, with its brackets and the largest size
-      // the page scales it to, just fits the viewer (0 until it is in).
-      fitPxPerMm: function () {
-        return framedRadius && modelLoaded ? fitScale / worldPerPx() : 0;
       },
       // The chosen ring size over the model's base size: the model (once the
       // fit has been made) and its dimension labels scale with it.

@@ -2,7 +2,7 @@
    J&MV — product detail page
    Resolves ?id= against the active series' products.json and renders the label, carousel,
    metal picker, description, characteristics and size/selection flow — the
-   three stages of product.html's show (presentation, specs, logistics), whose
+   two stages of product.html's show (presentation, specs), whose
    scrolling js/product-stages.js drives; this file reacts to it for the parts
    CSS can't do (the model's wireframe sweep, the carousel holding the model).
    ========================================================================== */
@@ -43,11 +43,10 @@
     xrayWatching: false,
     iconFallbackImg: null,
     // How far the show has gone (js/product-stages.js): presentation ->
-    // specs, specs -> logistics, 0 to 1 each — and what that makes of the
-    // model (refreshStage). Kept so a viewer built later (first mount, after
-    // the Modify sheet, after Back) starts where the page is.
+    // specs, 0 to 1 — and what that makes of the model (refreshStage). Kept so
+    // a viewer built later (first mount, after the Modify sheet, after Back)
+    // starts where the page is.
     toSpecs: 0,
-    toLogistics: 0,
     sweep: 0,
     fit: 0,
     // The chosen ring size over the model's base size (setModelSize), and
@@ -65,15 +64,7 @@
     closeGuide: null,
     // Whether the carousel is held on the model (specs is coming in).
     carouselHeld: false,
-    // The coin beside the model in specs ({ handle, box }, ensureCoin), and
-    // whether it could not be had.
-    coin: null,
-    coinFailed: false,
-    // The pixels to a millimetre the two viewers share (layoutCoin); 0 before.
-    pxPerMm: 0,
-    // How far the last stage's column is taken up (fitLogistics); the timer
-    // that marks the cost chart as played out.
-    logisticsShift: 0,
+    // The timer that marks the cost chart as played out.
     settleTimer: 0
   };
 
@@ -536,7 +527,6 @@
         onReady: function () {
           settleViewer();
           syncBracketsFlag();
-          layoutCoin();
         },
         // The specs stage's wireframe sweep and dimension brackets (see
         // onStageChange). The fill is the page's own background, so the
@@ -611,7 +601,7 @@
       modelSlide.innerHTML = "";
       modelSlide.appendChild(handle.el);
       // Wherever the show is now — a rebuild after the Modify sheet or Back
-      // can land in specs, or out of sight in logistics.
+      // can land in specs.
       applyStageToViewer();
     }
 
@@ -688,7 +678,6 @@
        --------------------------------------------------------------------- */
     function releaseModelViewer() {
       hideScanBand();
-      disposeCoin();
       if (!state.modelHandle) return;
       state.modelHandle.dispose();
       if (state.modelHandle.el.parentNode) {
@@ -811,12 +800,30 @@
   /* ---- 3. metal selection ------------------------------------------------ */
 
   // The bars, their selected state and the change animation are
-  // js/metal-picker.js; this just reacts to a pick.
+  // js/metal-picker.js; this just reacts to a pick. There are two pickers —
+  // the page's own and the Select sheet's first row — each moving the other
+  // along with it, so whichever is looked at shows the metal chosen.
   function renderMetalOptions(product) {
-    window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
+    var pagePicker = null;
+    var sheetPicker = null;
+    pagePicker = window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
       metals: state.metals,
       selected: state.selectedMetal,
-      onSelect: function (metal) { onMetalSelect(product, metal); }
+      onSelect: function (metal) {
+        if (sheetPicker) sheetPicker.select(metal);
+        onMetalSelect(product, metal);
+      }
+    });
+    var sheetMetals = document.getElementById("sizeModalMetals");
+    if (!sheetMetals) return;
+    sheetPicker = window.EmjiveMetalPicker.mount(sheetMetals, {
+      metals: state.metals,
+      selected: state.selectedMetal,
+      row: true,
+      onSelect: function (metal) {
+        pagePicker.select(metal);
+        onMetalSelect(product, metal);
+      }
     });
   }
 
@@ -887,7 +894,7 @@
   // The figures that follow the chosen size: the dimensions, in
   // centimetres (drawn on the model itself as brackets when the viewer can,
   // .has-brackets — their row stays here, visually hidden, for screen
-  // readers) and, in the logistics stage, the cost diagram. A piece scaled
+  // readers) and the cost diagram. A piece scaled
   // by a factor weighs and costs that factor cubed (the model is scaled the
   // same on every axis); the diagram's bars are shares of that cost — the raw
   // materials', the manufacturing's — so they always fill their column, and
@@ -900,14 +907,15 @@
     var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
-    appendSpec(dl, "dimensions", "Dimensions", dims && dims.length === 3 ?
-      dims.map(function (d) { return (Math.round(d * f * 10 + 1e-6) / 100).toFixed(2); }).join(" × ") + " cm" : "—");
+    var haveDims = Array.isArray(dims) && dims.length === 3 && dims.every(function (d) { return typeof d === "number" && isFinite(d); });
+    appendSpec(dl, "dimensions", "Dimensions", haveDims ?
+      dims.map(function (d) { return (Math.round(d * f * 10 + 1e-6) / 100).toFixed(2); }).join(" × ") + " cm" : "n/a");
 
     var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
     Object.keys(figures).forEach(function (key) {
       var dd = document.getElementById(figures[key]);
       var row = dd.parentNode;
-      dd.textContent = costs ? formatEuros(costs[key]) : "—";
+      dd.textContent = costs ? formatEuros(costs[key]) : "TBD";
       // The bars are shares of the production cost, so together they always
       // fill the column: the raw materials from 0 to their share, the
       // manufacturing from there to the whole.
@@ -965,7 +973,6 @@
       resizeQueued = true;
       requestAnimationFrame(function () {
         resizeQueued = false;
-        layoutCoin();
         refreshStage();
       });
     });
@@ -973,21 +980,20 @@
 
   function onStageChange(stage) {
     state.toSpecs = stage.toSpecs;
-    state.toLogistics = stage.toLogistics;
     state.flow = stage.stage === "flow";
     refreshStage();
     // The cost chart builds once the last stage is fully in, and starts over
     // when it has been left (everything shows at once in the flow layout).
     var costs = document.getElementById("productCosts");
     if (costs) {
-      if ((stage.stage === "flow" || stage.toLogistics >= 0.999) && !costs.classList.contains("is-built")) {
+      if ((stage.stage === "flow" || stage.toSpecs >= 0.999) && !costs.classList.contains("is-built")) {
         costs.classList.add("is-built");
         // Once the cascade has played out (css/style.css: its last step ends
         // by 1.65 s), a change of the figures — another metal — moves the bars
         // all at once, not by the cascade's steps.
         clearTimeout(state.settleTimer);
         state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 1800);
-      } else if (stage.stage !== "flow" && stage.toLogistics < 0.5 && costs.classList.contains("is-built")) {
+      } else if (stage.stage !== "flow" && stage.toSpecs < 0.5 && costs.classList.contains("is-built")) {
         clearTimeout(state.settleTimer);
         costs.classList.remove("is-built", "is-settled");
       }
@@ -999,6 +1005,31 @@
     state.carouselHeld = hold;
     if (hold) carousel.center(0);
     carousel.setLocked(hold);
+  }
+
+  // How far the show stands scrolled up by browsing a stage, in pixels (its
+  // transform, css/style.css .product-stage__show); what is measured on it
+  // is measured at its place without that.
+  function browsePx() {
+    var show = document.querySelector(".product-stage__show");
+    if (!show) return 0;
+    var t = getComputedStyle(show).transform;
+    if (!t || t === "none") return 0;
+    return -new DOMMatrix(t).m42;
+  }
+
+  // The height of the two bars at the bottom, in pixels: what a stage's
+  // stretch of browsing takes the show up by (css/style.css --bars-h), read off
+  // a probe that is as tall.
+  var barsProbe = null;
+  function barsPx() {
+    if (!barsProbe) {
+      barsProbe = el("div", null);
+      barsProbe.setAttribute("aria-hidden", "true");
+      barsProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--room-0)";
+      document.getElementById("productStage").appendChild(barsProbe);
+    }
+    return barsProbe.offsetHeight;
   }
 
   function clamp(x, lo, hi) {
@@ -1023,8 +1054,7 @@
     return { top: mid - r.height * 0.33, bottom: mid + r.height * 0.33 };
   }
 
-  // Works the whole of the show out from state.toSpecs and state.toLogistics
-  // and where the model is: the phases' timing, the band, and what the model
+  // Works the whole of the show out from state.toSpecs and where the model is: the phases' timing, the band, and what the model
   // does. Run on every change of the scroll and of the screen's size, and
   // whenever a viewer arrives.
   function refreshStage() {
@@ -1037,9 +1067,17 @@
     var sweep = 0;
     var barOn = false;
     var span = state.flow ? null : modelSpan();
-    // The model's own place, before the lift it is under now (the lift
-    // follows from the timing worked out from it).
-    if (span) { span.top += state.lift; span.bottom += state.lift; }
+    // The model's place as the transition starts: before the lift it is under
+    // now (the lift follows from the timing worked out from it), and as the
+    // show stands when that stretch of browsing has been scrolled to its end
+    // (css/style.css --browse), the height of the two bars up — the model
+    // debuts there, whatever the show stands at now.
+    var browsed = browsePx();
+    if (span) {
+      var debut = state.lift + browsed - barsPx();
+      span.top += debut;
+      span.bottom += debut;
+    }
     if (span && span.bottom > span.top) {
       var viewport = window.innerHeight;
       var h = band ? band.offsetHeight : 0;
@@ -1068,169 +1106,47 @@
       var titleBar = document.querySelector(".product-detail__label-bar");
       // (The model, with its dimensions, stands about this tall: the share
       // of the tile it fills at the size it is fitted to.)
-      // (Or the coin's, beside it, if that is taller.)
-      var half = Math.max(SPECS_HALF_HEIGHT * box.height, state.coin ? (COIN_DIAMETER_MM / 2) * state.pxPerMm + 4 : 0);
+      var half = SPECS_HALF_HEIGHT * box.height;
       var middle = Math.max(SPECS_ANCHOR * window.innerHeight, titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0);
-      lift = Math.max(0, box.top + box.height / 2 + state.lift - middle);
+      lift = Math.max(0, box.top + box.height / 2 + state.lift + browsed - middle);
     }
     state.lift = state.fit * lift;
     stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
     stageEl.style.setProperty("--t0", t0.toFixed(4));
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
-    fitLogistics(stageEl);
+    fitBrowse(stageEl);
     applyStageToViewer();
   }
 
-  // The last stage's column (picker, size, costs, shipping, returns) is
-  // tall, and starts under where the model stood: on a short phone its end
-  // would be under the Select bar, out of reach (the page doesn't scroll
-  // there). So in that stage it is taken up by what it takes for the end to
-  // clear the bar by LOGISTICS_CLEAR px — no further than just under the
-  // title bar. Measured as it would stand unshifted, so it holds still once
-  // it has been shifted.
-  var LOGISTICS_CLEAR = 16;
-  function fitLogistics(stageEl) {
-    var shift = 0;
+  // The specs stage's column (size, picker, printing technology, costs, shipping,
+  // returns) is tall, and starts under where the model stands: its end can be
+  // under the bars at the bottom of the screen, out of reach (the page doesn't
+  // scroll there). So the stage's stretch of scrolling takes the show up by
+  // what it takes for the end to clear the bars by BROWSE_CLEAR_REM (a blank
+  // four separation gaps tall) — never less than the two bars' own height
+  // (css/style.css --browse-room). Measured as the column would stand
+  // unshifted, so it holds still once it has moved.
+  var BROWSE_CLEAR_REM = 16;
+  var browseRoom = 0;
+  function fitBrowse(stageEl) {
+    var room = 0;
     var blocks = stageEl.querySelectorAll(".product-logistics__block");
-    var material = stageEl.querySelector(".product-material");
     var bar = document.getElementById("productSelectBar");
-    var title = stageEl.querySelector(".product-detail__label-bar");
-    if (!state.flow && blocks.length && material && bar && title) {
-      // (It stands shifted only in the last stage.)
-      var now = stageEl.getAttribute("data-stage") === "logistics" ? state.logisticsShift : 0;
-      var bottom = blocks[blocks.length - 1].getBoundingClientRect().bottom + now;
-      var top = material.getBoundingClientRect().top + now;
-      var wanted = bottom - (bar.getBoundingClientRect().top - LOGISTICS_CLEAR);
-      var room = top - (title.getBoundingClientRect().bottom + LOGISTICS_CLEAR);
-      shift = Math.max(0, Math.min(wanted, room));
+    if (!state.flow && blocks.length && bar) {
+      var clear = BROWSE_CLEAR_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+      var bottom = blocks[blocks.length - 1].getBoundingClientRect().bottom + browsePx();
+      room = Math.max(0, bottom - (bar.getBoundingClientRect().top - clear));
     }
-    if (Math.abs(shift - state.logisticsShift) < 0.5) return;
-    state.logisticsShift = shift;
-    stageEl.style.setProperty("--l-shift", shift.toFixed(1) + "px");
+    if (Math.abs(room - browseRoom) < 0.5) return;
+    browseRoom = room;
+    stageEl.style.setProperty("--browse-room", room.toFixed(1) + "px");
   }
 
   function applyStageToViewer() {
     if (!state.modelHandle) return;
     state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeFactor);
-    // Out of sight once specs' own fade-out is over (css/style.css --s-out).
-    state.modelHandle.setPaused(state.toLogistics >= 0.35);
-    if (state.sweep > 0) ensureCoin();
-    if (state.coin) {
-      state.coin.handle.setBlueprint(1, state.fit);
-      state.coin.handle.setPaused(state.toLogistics >= 0.35);
-    }
-  }
-
-  /* ---- the coin ---------------------------------------------------------- */
-
-  // A 2 € coin for size comparison, in a viewer of its own beside the model's
-  // (specs only): it turns on its own, and is drawn at the same scale — the
-  // same pixels to a millimetre — as the model. Its file is asked for when the
-  // sweep begins. The viewer is the blueprint kind (the model's fill and
-  // faint edges) with a dotted ruler under it, as long as the coin is wide.
-  var COIN_PRODUCT = {
-    name: "2 € coin",
-    assets: { model: "assets/coin_2-euro.glb" },
-    // Face on, turned a little about the vertical so its rim shows.
-    "3d-viewer-camera-default": { rotation: 23, tilt: 90, zoom: 120 }
-  };
-  var COIN_DIAMETER_MM = 25.75;
-  var COIN_RULER_OFFSET_MM = 16;
-  // Room, in pixels, under the ruler for its figure; and the share of the
-  // coin's width the box has to spare.
-  var COIN_LABEL_ROOM_PX = 22;
-  var COIN_WIDTH_SPARE = 1.1;
-  var COIN_GAP_REM = 2;
-
-  function ensureCoin() {
-    if (state.coin || state.coinFailed || state.flow || !state.modelHandle) return;
-    if (typeof window.EmjiveModelViewer !== "function") return;
-    var handle = null;
-    try {
-      handle = window.EmjiveModelViewer(COIN_PRODUCT, "steel", {
-        environment: false,
-        loader: false,
-        poster: false,
-        nudge: false,
-        onError: function () {
-          state.coinFailed = true;
-          disposeCoin();
-          layoutCoin();
-        },
-        blueprint: {
-          fill: pageColor("--bg", "#f8f8f8"),
-          lineColor: pageColor("--category-col", "#727272"),
-          measure: { length: COIN_DIAMETER_MM, offset: COIN_RULER_OFFSET_MM, label: formatCm(COIN_DIAMETER_MM) }
-        }
-      });
-    } catch (err) {
-      console.error("emjive: the comparison coin could not start:", err);
-    }
-    if (!handle) {
-      state.coinFailed = true;
-      return;
-    }
-    var box = el("div", "product-coin");
-    box.appendChild(handle.el);
-    document.getElementById("productCarouselFrame").appendChild(box);
-    state.coin = { handle: handle, box: box };
-    layoutCoin();
-  }
-
-  function disposeCoin() {
-    var coin = state.coin;
-    if (!coin) return;
-    state.coin = null;
-    coin.handle.dispose();
-    if (coin.box.parentNode) coin.box.parentNode.removeChild(coin.box);
-  }
-
-  // A length in millimetres, in centimetres, two places.
-  function formatCm(mm) {
-    return (Math.round(mm * 10 + 1e-6) / 100).toFixed(2) + " cm";
-  }
-
-  // The scale the two viewers share, and the coin's box. The model's own
-  // viewer keeps its box; the scale is the largest at which the model (with
-  // its dimensions, at the largest size) fits it and the coin's box fits
-  // beside it — with COIN_GAP_REM between the two boxes — on the screen. The
-  // stage's custom properties then put the coin's box there and shift the
-  // pair to the middle (css/style.css .product-coin).
-  function layoutCoin() {
-    var stageEl = document.getElementById("productStage");
-    var ring = state.modelHandle;
-    var coin = state.coin;
-    if (!stageEl) return;
-    if (!ring || !coin) {
-      stageEl.style.setProperty("--coin-gap", "0px");
-      stageEl.style.setProperty("--coin-w", "0px");
-      if (ring) ring.setPxPerMm(0);
-      return;
-    }
-    var fitted = ring.fitPxPerMm();
-    if (!fitted) return;
-    var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    var edge = Math.max(20, Math.min(28, window.innerWidth * 0.025));
-    var ringBox = ring.el.getBoundingClientRect();
-    var frameWidth = document.getElementById("productCarouselFrame").clientWidth;
-    var gap = COIN_GAP_REM * rem;
-    var spare = frameWidth - 2 * edge - ringBox.width - gap;
-    var scale = Math.max(1, Math.min(fitted, spare / (COIN_DIAMETER_MM * COIN_WIDTH_SPARE)));
-    var width = COIN_DIAMETER_MM * COIN_WIDTH_SPARE * scale;
-    var height = 2 * (COIN_RULER_OFFSET_MM * scale + COIN_LABEL_ROOM_PX);
-    // The model's lift allows for how tall the coin stands (refreshStage), so it
-    // is worked out again when the scale first comes, or changes.
-    if (Math.abs(scale - state.pxPerMm) > 0.01) requestAnimationFrame(refreshStage);
-    state.pxPerMm = scale;
-    ring.setPxPerMm(scale);
-    coin.handle.setPxPerMm(scale);
-    stageEl.style.setProperty("--px-per-mm", scale.toFixed(3));
-    stageEl.style.setProperty("--ring-w", ringBox.width.toFixed(1) + "px");
-    stageEl.style.setProperty("--coin-gap", gap + "px");
-    stageEl.style.setProperty("--coin-w", width.toFixed(1) + "px");
-    stageEl.style.setProperty("--coin-h", height.toFixed(1) + "px");
   }
 
   // The model is drawn at the chosen ring size: the specs stage's size field
@@ -1323,7 +1239,7 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The specs stage's own size: a slider from 40 to 70 and, left of it, a
+    // The specs stage's own size: a slider from 40 to 70 and, right of it, a
     // field to type an exact size in (any orderable size, in or out of the
     // slider's range). The two follow each other. What the field holds is what
     // the sheet opens with; it never works the other way round — the sheet
@@ -1345,7 +1261,7 @@
       if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
     }
     specsRange.classList.add("is-unset");
-    // The specs stage's own size guide, after the slider: opening it grows
+    // The specs stage's own size guide, behind the field's "?": opening it grows
     // the column under the model, which then scrolls on its own down to the
     // bars (it can't push the page — the stage is a screen, pinned). A click
     // anywhere else, or leaving the stage, closes it.

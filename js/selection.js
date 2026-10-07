@@ -203,7 +203,7 @@
   }
 
   function formatPrice(price) {
-    return price > 0 ? "€ " + price : "Price on request";
+    return price > 0 ? "€ " + price : "TBD";
   }
 
   /* ---- sizes ---------------------------------------------------------------

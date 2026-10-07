@@ -14,11 +14,11 @@
   "printing-technologies": {
     "binder-jetting": {
       "name": "HP Metal Binder Jetting",
-      "description": "A printer spreads a bed of fine steel powder and glues the shape of each layer into it with droplets of binder. The printed piece is then sintered in a furnace, where the powder fuses into solid steel."
+      "description": "A printhead selectively deposits a liquid binding agent onto successive layers of metal powder in a powder bed, solidifying the material layer-by-layer. This first step creates a fragile \"green part\" version of the 3D model. The printed part then undergoes debinding to remove the remaining agent components, followed by high-temperature sintering to fuse the metal particles together into a dense, solid piece."
     },
     "lost-wax": {
       "name": "Lost-wax casting",
-      "description": "The piece is printed in wax, coated in a ceramic shell and heated until the wax melts away. Molten metal is poured into the empty mould, and the shell is broken to free the piece."
+      "description": "A wax pattern of the item is 3D printed layer-by-layer and encased in a refractory plaster material to form a mold shell. Next, the mold is heated to melt out the printed wax. Liquid metal is then poured inside, taking the shape of the model as it solidifies."
     }
   },
 

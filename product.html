@@ -122,10 +122,26 @@
         <!-- 1. Product label -->
         <div class="product-detail__label-bar">
           <!-- Behind the bar's own elements, over everything else: a panel in
-               the page's background above the bar, and a blur under it (the
-               three spans: three stacked layers, softer going down), so what slides up under the bar doesn't clash with it
-               (css/style.css .product-detail__label-veil). -->
-          <span class="product-detail__label-veil" aria-hidden="true"><span></span><span></span><span></span></span>
+               the page's background above the bar, and under it a blur made of
+               three stacked layers (softer going down) and a fourth that
+               splits the colour channels apart a little (chromatic
+               aberration, an SVG filter on the backdrop: Chromium only, see
+               js/product.js), so what slides up under the bar doesn't clash
+               with it (css/style.css .product-detail__label-veil). -->
+          <span class="product-detail__label-veil" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+            <svg width="0" height="0" focusable="false">
+              <filter id="emjiveAberration" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+                <feColorMatrix in="SourceGraphic" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r" />
+                <feOffset in="r" dy="-1.5" result="rShifted" />
+                <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g" />
+                <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b" />
+                <feOffset in="b" dy="1.5" result="bShifted" />
+                <feBlend in="rShifted" in2="g" mode="screen" result="rg" />
+                <feBlend in="rg" in2="bShifted" mode="screen" />
+              </filter>
+            </svg>
+          </span>
           <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
           <h1 class="product-detail__label-text">
             <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>

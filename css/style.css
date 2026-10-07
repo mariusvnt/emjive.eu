@@ -2255,6 +2255,22 @@ body:has(.order-checkout-bar:not([hidden])) {
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
+/* Chromatic aberration, over the blur: the fourth layer splits red and blue
+   a pixel and a half either way, vertically, on the backdrop — an SVG filter
+   (#emjiveAberration in product.html), which only Chromium runs on a
+   backdrop, so js/product.js adds .has-backdrop-svg there and it is off
+   everywhere else (the blur alone). A mask that is nothing at both ends hides
+   the filter's edge rows, where an offset channel has nothing to show. */
+.product-detail__label-veil > span:nth-child(4) {
+  display: none;
+  height: 2.6rem;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+}
+.has-backdrop-svg .product-detail__label-veil > span:nth-child(4) {
+  display: block;
+  backdrop-filter: url(#emjiveAberration);
+}
 .product-detail__label-thumb {
   flex: 0 0 auto;
   width: 3rem;

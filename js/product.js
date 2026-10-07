@@ -177,7 +177,19 @@
   // x-ray backdrop is the page's largest image; it used to be requested only
   // after the chunk had arrived and then fought the HDRI and the model for
   // bandwidth.
+  // The title bar's chromatic aberration is an SVG filter on the backdrop
+  // (product.html #emjiveAberration), which only Chromium draws: a browser
+  // with that engine is told by its brands (Chrome, Edge, Brave...; none of
+  // the WebKit browsers, iPhone's Chrome among them, has them).
+  function markBackdropSvg() {
+    var data = navigator.userAgentData;
+    if (data && data.brands && data.brands.some(function (b) { return b.brand === "Chromium"; })) {
+      document.documentElement.classList.add("has-backdrop-svg");
+    }
+  }
+
   function init() {
+    markBackdropSvg();
     window.EmjiveSeries.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];

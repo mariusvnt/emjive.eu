@@ -931,10 +931,47 @@
   function renderPrinting() {
     var section = document.getElementById("productPrinting");
     var tech = state.technologies[state.metalTechnology[state.selectedMetal]];
+    var wasShown = !section.hidden;
+    var from = wasShown ? section.offsetHeight : 0;
     section.hidden = !tech;
     if (!tech) return;
     document.getElementById("productPrintingName").textContent = tech.name;
     document.getElementById("productPrintingText").textContent = tech.description;
+    // A different text can be a different height, and the rows under it follow:
+    // glide from the old height to the new one instead of snapping.
+    if (wasShown && from > 0) tweenHeight(section, from);
+  }
+
+  // Animates `node`'s height from `from` px to `to` (default: what it is now;
+  // css/style.css .is-resizing owns the transition): pins the old height, lets
+  // the next frame set the new one, and hands the height back to the layout
+  // once it has arrived, then calls `after`. Called again mid-flight (read the
+  // height off `node.offsetHeight` for `from` then), it starts over from
+  // there, and the first call's `after` is dropped.
+  function tweenHeight(node, from, to, after) {
+    if (node._tween) {
+      clearTimeout(node._tween);
+      node._tween = null;
+    }
+    node.classList.remove("is-resizing");
+    node.style.height = "";
+    if (to === undefined) to = node.offsetHeight;
+    if (Math.abs(to - from) < 1) {
+      if (after) after();
+      return;
+    }
+    node.style.height = from + "px";
+    node.classList.add("is-resizing");
+    void node.offsetHeight;
+    node.style.height = to + "px";
+    // transitionend can be skipped (display: none, a cancelled transition), so
+    // a timer past the longest the transition runs does the clean-up too.
+    node._tween = setTimeout(function () {
+      node._tween = null;
+      node.classList.remove("is-resizing");
+      node.style.height = "";
+      if (after) after();
+    }, 260);
   }
 
   function appendSpec(dl, key, label, value) {
@@ -1273,16 +1310,29 @@
       toggle: specsGuideToggle,
       panel: specsGuidePanel,
       onToggle: function (open) {
-        below.classList.toggle("is-extended", open);
         if (!open) {
-          below.scrollTop = 0;
+          // Closing glides: the guide stays displayed (.is-closing) while its
+          // height runs down to nothing, and the column gives up its own
+          // scroll (.is-extended) only once it is gone.
+          specsGuidePanel.classList.add("is-closing");
+          var openHeight = specsGuidePanel.offsetHeight;
+          below.scrollTo({ top: 0, behavior: "smooth" });
+          tweenHeight(specsGuidePanel, openHeight, 0, function () {
+            specsGuidePanel.classList.remove("is-closing");
+            below.classList.remove("is-extended");
+            below.scrollTop = 0;
+          });
           return;
         }
+        // Opening grows from nothing (or from where a closing had got to).
+        var fromHeight = specsGuidePanel._tween ? specsGuidePanel.offsetHeight : 0;
+        specsGuidePanel.classList.remove("is-closing");
+        below.classList.add("is-extended");
+        tweenHeight(specsGuidePanel, fromHeight);
         var barTop = document.getElementById("productSelectBar").getBoundingClientRect().top;
         below.style.setProperty("--below-max", Math.max(120, barTop - below.getBoundingClientRect().top - 28) + "px");
-        // The column scrolls to put the size row at its top: the guide opens
-        // right under it.
-        setTimeout(function () { below.scrollTo({ top: document.getElementById("productSize").offsetTop, behavior: "smooth" }); }, 50);
+        // No scroll: the size row is the column's first, so the guide opens
+        // right under it, in view, and the column stays where it is.
       }
     });
     state.closeGuide = specsGuide.close;

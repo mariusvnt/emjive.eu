@@ -2133,7 +2133,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 0.6rem);
+  /* One pixel up, under the band (which is over this, z-index -1): a rem that
+     lands between two device pixels would otherwise leave a fringe of
+     unblurred page along the band's lower edge. */
+  top: calc(50% + 0.6rem - 1px);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
 }
@@ -2167,6 +2170,215 @@ body:has(.order-checkout-bar:not([hidden])) {
 .has-backdrop-svg .product-detail__label-veil > span:nth-child(4) {
   display: block;
   backdrop-filter: url(#emjiveAberration);
+}
+/* The picker's edge: the title bar's blur and chromatic aberration again, on
+   its side. From the screen's left edge, every layer is fully there (on a wide
+   screen too: the content's margin is under it) up to the mark --m — where the
+   chosen metal's name beside the picker starts (a square and 0.6rem right of
+   the picker's left edge, which is the content's) — and then fades out going
+   right, over a span --S: at least 3.5rem, as wide as the margin is, at most
+   200px. The screen's right edge has the band the other way round
+   (.product-edge-veil--right, below; --dir is the way a fade runs).
+   The blurs are spaced evenly along that span, the strongest nearest the mark:
+   five layers, 1px, 3px, 6px, 12px and 24px, each fading out over .4 of the
+   span (a cosine in five stops), each starting .15 of the span further in than
+   the one before — so going in from the mark the 24px goes first, then the 12px,
+   and so on, the 1px last, at the span's far end. (--q is how far past the mark
+   a layer's fade starts, in spans.) The 12px and 24px only exist where there is
+   a margin, and fade out from the margin's own inner edge (--margin), not from
+   the mark: none at all on a screen with none. The aberration is spaced the
+   same way: four layers over the blurs, splitting the colours .75px, 1.5px,
+   3px and 6px, each on the shape (--q) of the 3px, 6px, 12px and 24px blur it
+   goes with, the last two gated by the margin as well.
+   The band is as tall as the carousel (it goes up with it, by --lift), over the
+   carousel and under the picker (.product-below, later in the frame), and grows
+   a wedge above and below it: a right triangle against the carousel's top (and
+   bottom) edge, its right angle at the screen's edge, as high as .45 of its own
+   width (--hw) but never more than the span, the effect fading out along its
+   diagonal — so the blur spreads past the carousel as it nears the edge.
+   Each layer is one tall element whose mask is three images added up: the
+   band, the wedge above, the wedge below (--mc, --mt, --mb).
+   Presentation only. It goes the way the rest of presentation does, to the
+   page's background: the lowest layer carries a --bg fill, over the
+   backdrop, that grows as --p-out falls (the layers above blur and split it
+   like anything else, which a uniform colour doesn't show), so as the photos
+   fade the zone ends up plain --bg, rather than the blur being faded in
+   place — an opacity on a backdrop filter crossfades the filtered image over
+   the unfiltered one, which shows as ghosts and fringes. The layers
+   themselves only switch off once --p-out is nothing (and not on a parent: it
+   would starve them of the backdrop). */
+.product-edge-veil {
+  /* The page's margin on a wide screen, as a length (--edge-left, which holds
+     a percentage, would be read against the layer it is used in): half the
+     frame's width less half the content's. */
+  --margin: max(0px, calc(50cqw - var(--sb-w, 0px) / 2 - var(--max) / 2));
+  --m: calc(var(--margin) + var(--edge-px) + var(--metal-square) + 0.6rem);
+  --S: clamp(3.5rem, var(--margin), 200px);
+  --dir: to right;
+  /* The way each wedge's fade runs: from its corner at the edge. */
+  --dtop: to top right;
+  --dbot: to bottom right;
+  /* How far the widest wedge reaches above (and below) the carousel. */
+  --hmax: min(calc((var(--m) + var(--S)) * 0.45), var(--S));
+  position: absolute;
+  z-index: 2;
+  /* The frame is 100vw wide, which takes in the scrollbar, so it sticks out
+     half of it on each side (--sb-w, js/main.js): the band starts at the edge
+     that is seen, which its edge masking counts on. */
+  left: calc(var(--sb-w, 0px) / 2);
+  top: 0;
+  width: calc(var(--m) + var(--S));
+  height: var(--tile);
+  transform: translateY(calc(var(--lift) * -1));
+  pointer-events: none;
+}
+.product-edge-veil > span {
+  --q: 0;
+  --fr: calc(var(--S) * 0.4);
+  /* Where this layer's flat part ends, its width, and the height of its
+     wedges. */
+  --x: calc(var(--m) + var(--q) * var(--S));
+  --w: calc(var(--x) + var(--fr));
+  --hw: min(calc(var(--w) * 0.45), var(--S));
+  /* How far in from each end its mask starts to show: the aberration layers
+     hide their edge columns this way (below), at the screen's edge and at the
+     inner end alike (--fe: the fade, short of that end). --ox is where the
+     wedges' masks start, from this layer's left, and they stop --D short of
+     the other end. */
+  --D: 0px;
+  --fe: calc(var(--fr) - var(--D));
+  --ox: var(--D);
+  --mc: linear-gradient(var(--dir), #000 0, #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fr) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fr) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fr) * 0.75), transparent calc(var(--x) + var(--fr)));
+  --mt: linear-gradient(var(--dtop), #000 0%, rgba(0, 0, 0, 0.854) 12.5%, rgba(0, 0, 0, 0.5) 25%, rgba(0, 0, 0, 0.146) 37.5%, transparent 50%);
+  --mb: linear-gradient(var(--dbot), #000 0%, rgba(0, 0, 0, 0.854) 12.5%, rgba(0, 0, 0, 0.5) 25%, rgba(0, 0, 0, 0.146) 37.5%, transparent 50%);
+  position: absolute;
+  top: calc(var(--hmax) * -1);
+  bottom: calc(var(--hmax) * -1);
+  left: 0;
+  width: var(--w);
+  /* 1 until --p-out is nothing, then 0 (it is 0 or 1 beyond the thousandth). */
+  opacity: clamp(0, calc(var(--p-out) * 1000), 1);
+  -webkit-mask-image: var(--mc), var(--mt), var(--mb);
+  mask-image: var(--mc), var(--mt), var(--mb);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% var(--tile), calc(100% - 2 * var(--D)) var(--hw), calc(100% - 2 * var(--D)) var(--hw);
+  mask-size: 100% var(--tile), calc(100% - 2 * var(--D)) var(--hw), calc(100% - 2 * var(--D)) var(--hw);
+  -webkit-mask-position: 0 var(--hmax), var(--ox) calc(var(--hmax) - var(--hw)), var(--ox) calc(var(--hmax) + var(--tile));
+  mask-position: 0 var(--hmax), var(--ox) calc(var(--hmax) - var(--hw)), var(--ox) calc(var(--hmax) + var(--tile));
+}
+.product-edge-veil > span:nth-child(1) {
+  --q: 0.6;
+  /* --bg, as much as presentation has gone. */
+  background-color: color-mix(in srgb, var(--bg) calc((1 - var(--p-out)) * 100%), transparent);
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+.product-edge-veil > span:nth-child(2) {
+  --q: 0.45;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.product-edge-veil > span:nth-child(3) {
+  --q: 0.3;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+/* The strong ones, from the margin's inner edge, and none where there is no
+   margin (a width of a thousand margins, held to the layer's own). */
+.product-edge-veil > span:nth-child(4),
+.product-edge-veil > span:nth-child(5),
+.product-edge-veil > span:nth-child(8),
+.product-edge-veil > span:nth-child(9) {
+  --x: calc(var(--margin) + var(--q) * var(--S));
+  --w: min(calc(var(--x) + var(--fr)), calc(var(--margin) * 1000));
+}
+.product-edge-veil > span:nth-child(4) {
+  --q: 0.15;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.product-edge-veil > span:nth-child(5) {
+  --q: 0;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+}
+/* Chromium only, as the title bar's (.has-backdrop-svg, js/main.js): red and
+   blue split sideways. A layer's edge columns — the first --D px at each end,
+   as far as it shifts and a little more — have lost a channel (red and green
+   with no blue reads as a yellow band; no red, a cyan line, which even a few
+   percent of the mask shows against a light page), so its masks show nothing
+   there: the band fades in after --D and out before the inner end, and the
+   wedges stop --D short of both ends. */
+.product-edge-veil > span:nth-child(6),
+.product-edge-veil > span:nth-child(7),
+.product-edge-veil > span:nth-child(8),
+.product-edge-veil > span:nth-child(9) {
+  display: none;
+  --mc: linear-gradient(var(--dir), transparent 0, transparent var(--D), #000 calc(var(--D) + 4px), #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fe) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fe) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fe) * 0.75), transparent calc(var(--x) + var(--fe)));
+}
+.product-edge-veil > span:nth-child(6) {
+  --q: 0.45;
+  --D: 2px;
+}
+.product-edge-veil > span:nth-child(7) {
+  --q: 0.3;
+  --D: 3px;
+}
+.product-edge-veil > span:nth-child(8) {
+  --q: 0.15;
+  --D: 5px;
+}
+.product-edge-veil > span:nth-child(9) {
+  --q: 0;
+  --D: 8px;
+}
+.has-backdrop-svg .product-edge-veil > span:nth-child(6),
+.has-backdrop-svg .product-edge-veil > span:nth-child(7),
+.has-backdrop-svg .product-edge-veil > span:nth-child(8),
+.has-backdrop-svg .product-edge-veil > span:nth-child(9) {
+  display: block;
+}
+.has-backdrop-svg .product-edge-veil > span:nth-child(6) {
+  backdrop-filter: url(#emjiveAberrationXS);
+}
+.has-backdrop-svg .product-edge-veil > span:nth-child(7) {
+  backdrop-filter: url(#emjiveAberrationX);
+}
+.has-backdrop-svg .product-edge-veil > span:nth-child(8) {
+  backdrop-filter: url(#emjiveAberrationX3);
+}
+.has-backdrop-svg .product-edge-veil > span:nth-child(9) {
+  backdrop-filter: url(#emjiveAberrationX6);
+}
+/* The right edge's: the same band mirrored, with the same span; its mark is
+   2rem inside the content's right edge (--margin: the margin a wide screen
+   has, which is all under the band; none on a narrow one). Its colours split
+   outward, the other way round to the left edge's, and its wedges' corners are
+   at the right edge. */
+.product-edge-veil--right {
+  --m: calc(var(--margin) + 2rem);
+  --dir: to left;
+  --dtop: to top left;
+  --dbot: to bottom left;
+  left: auto;
+  right: calc(var(--sb-w, 0px) / 2);
+}
+.product-edge-veil--right > span {
+  left: auto;
+  right: 0;
+}
+.has-backdrop-svg .product-edge-veil--right > span:nth-child(6) {
+  backdrop-filter: url(#emjiveAberrationXRS);
+}
+.has-backdrop-svg .product-edge-veil--right > span:nth-child(7) {
+  backdrop-filter: url(#emjiveAberrationXR);
+}
+.has-backdrop-svg .product-edge-veil--right > span:nth-child(8) {
+  backdrop-filter: url(#emjiveAberrationXR3);
+}
+.has-backdrop-svg .product-edge-veil--right > span:nth-child(9) {
+  backdrop-filter: url(#emjiveAberrationXR6);
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
@@ -2870,6 +3082,15 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-printing[hidden] {
   display: none;
 }
+/* The text changes with the metal and so does its height, which moves
+   everything under it: js/product.js renderPrinting tweens the height from the
+   old one to the new one (set inline), clipping the text while it does. The
+   specs stage's size guide opening and closing is tweened the same way. */
+.product-printing.is-resizing,
+.product-size__guide.is-resizing {
+  overflow: hidden;
+  transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
+}
 .product-printing__label,
 .product-printing__name,
 .product-printing__text {
@@ -3475,12 +3696,15 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 /* In the specs stage the guide is simply there or not: no 0fr -> 1fr reveal
    (a grid track sized by its content, which a scroller inside it can
-   short-change), so its height is always the whole of its content. */
+   short-change), so its height is always the whole of its content. It still
+   glides open and shut: js/product.js tweens its height (.is-resizing), and
+   keeps it displayed while it closes (.is-closing). */
 .product-size__guide {
   display: none;
   transition: none;
 }
-.product-size__guide.is-open {
+.product-size__guide.is-open,
+.product-size__guide.is-closing {
   display: block;
 }
 .product-size__guide-inner {

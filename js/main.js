@@ -14,7 +14,8 @@
   /* ---- chromatic aberration (Chromium only) ------------------------------
      The blurred strips (the product page's title bar, the Select bar, the
      checkout bar: css/style.css) split red and blue a pixel and a half apart,
-     vertically, with an SVG filter used as a backdrop-filter — which only
+     vertically (the metal picker's edge blur, sideways: two filters, one for
+     each way), with an SVG filter used as a backdrop-filter — which only
      Chromium runs on a backdrop. A browser with that engine says so in its
      brands (Chrome, Edge, Brave...; none of the WebKit browsers, iPhone's
      Chrome among them, has them): it gets the filter in the page and
@@ -35,17 +36,56 @@
     }
     var svg = node("svg", { width: "0", height: "0", "aria-hidden": "true", focusable: "false" });
     svg.style.position = "absolute";
-    var filter = node("filter", { id: "emjiveAberration", x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" }, svg);
-    node("feColorMatrix", channel("r", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
-    node("feOffset", { "in": "r", dy: "-1.5", result: "rShifted" }, filter);
-    node("feColorMatrix", channel("g", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
-    node("feColorMatrix", channel("b", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"), filter);
-    node("feOffset", { "in": "b", dy: "1.5", result: "bShifted" }, filter);
-    node("feBlend", { "in": "rShifted", in2: "g", mode: "screen", result: "rg" }, filter);
-    node("feBlend", { "in": "rg", in2: "bShifted", mode: "screen" }, filter);
+    // Red goes one way and blue the other, along `axis`: "dy" splits them
+    // vertically, "dx" sideways; `flip` swaps which goes which way; `amount`
+    // is how far each goes, in px (1.5 unless given).
+    function aberration(id, axis, flip, amount) {
+      var d = String(amount || 1.5);
+      var filter = node("filter", { id: id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" }, svg);
+      var red = { "in": "r", result: "rShifted" };
+      var blue = { "in": "b", result: "bShifted" };
+      red[axis] = flip ? d : "-" + d;
+      blue[axis] = flip ? "-" + d : d;
+      node("feColorMatrix", channel("r", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
+      node("feOffset", red, filter);
+      node("feColorMatrix", channel("g", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
+      node("feColorMatrix", channel("b", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"), filter);
+      node("feOffset", blue, filter);
+      node("feBlend", { "in": "rShifted", in2: "g", mode: "screen", result: "rg" }, filter);
+      node("feBlend", { "in": "rg", in2: "bShifted", mode: "screen" }, filter);
+    }
+    aberration("emjiveAberration", "dy");
+    aberration("emjiveAberrationX", "dx");
+    aberration("emjiveAberrationXR", "dx", true);
+    // The stronger ones the wide screens' margins add (css/style.css
+    // .product-edge-veil), as far as the blurs there are stronger.
+    aberration("emjiveAberrationXS", "dx", false, 0.75);
+    aberration("emjiveAberrationXRS", "dx", true, 0.75);
+    aberration("emjiveAberrationX3", "dx", false, 3);
+    aberration("emjiveAberrationX6", "dx", false, 6);
+    aberration("emjiveAberrationXR3", "dx", true, 3);
+    aberration("emjiveAberrationXR6", "dx", true, 6);
     document.body.appendChild(svg);
     document.documentElement.classList.add("has-backdrop-svg");
   })();
+
+  /* ---- scrollbar width ------------------------------------------------------
+     Published as --sb-w on <html> (0 wherever scrollbars float over the page).
+     The 100vw breakouts (the product page's carousel frame, and the blurred
+     bands anchored to its two ends) are as wide as the window including the
+     scrollbar, so they stick out half of it past each edge of the page: the
+     bands' edge masking (css/style.css .product-edge-veil) has to know it to
+     line up with the edge that is actually seen. */
+  function publishScrollbarWidth() {
+    var root = document.documentElement;
+    root.style.setProperty("--sb-w", Math.max(0, window.innerWidth - root.clientWidth) + "px");
+  }
+  publishScrollbarWidth();
+  window.addEventListener("resize", publishScrollbarWidth);
+  // A scrollbar comes and goes as the page grows past the window or shrinks
+  // back (content arriving after load, a sheet locking the scroll): the root's
+  // own width is what changes then, and a window resize doesn't say so.
+  if (window.ResizeObserver) new ResizeObserver(publishScrollbarWidth).observe(document.documentElement);
 
   /* ---- header menu toggle ------------------------------------------------- */
 

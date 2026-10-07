@@ -161,6 +161,23 @@
               </div>
             </div>
 
+            <!-- Presentation only: a band from the screen's left edge to the
+                 start of the chosen metal's name beside the picker, in the
+                 same blur and chromatic aberration as the title bar's
+                 (css/style.css .product-edge-veil), fading out past it, so
+                 what slides in under the picker (the photos, the model) goes
+                 soft there. Over the carousel, under the picker. -->
+            <span class="product-edge-veil" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </span>
+            <!-- And the same the other way round at the right edge: full from 2rem
+                 inside the content's right edge (the whole margin of a wide
+                 screen included) to the screen's edge, fading in over the same
+                 span. -->
+            <span class="product-edge-veil product-edge-veil--right" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </span>
+
             <!-- Under the model in specs, everything that goes with it, in one
                  column (css/style.css .product-below): the size, the metal
                  picker and the printing technology, each a table of two columns

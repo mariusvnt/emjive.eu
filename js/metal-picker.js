@@ -9,8 +9,15 @@
    update the same markup separately; loaded on all seven pages for the same reason
    js/modify-modal.js is, ahead of it.
 
-   window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect })
+   window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, layout })
    fills `container` (the .product-metals box) and returns { select(metal) }.
+
+   layout: "edge" (the product page's) is the other arrangement of the same
+   control: the bars lie down and stack, anchored to the left edge of the
+   screen as if poking in from it, and each row carries its own dot + name
+   to the right of its bar — the active row's shown, the others' hidden, so a
+   pick crossfades the name from one row to the next. No "Material" label.
+   The default layout is the Modify sheet's.
    A click calls onSelect(metal) at once — the model, price and images behind
    the picker must not wait on an animation — and the picker moves
    .is-selected to the new bar in the same tick: the dot + label switch
@@ -35,21 +42,29 @@
     var metals = opts.metals || [];
     var selected = opts.selected;
     var onSelect = opts.onSelect || function () {};
+    var edge = opts.layout === "edge";
     var rows = [];
 
     container.innerHTML = "";
+    container.classList.toggle("product-metals--edge", edge);
     container.setAttribute("role", "group");
     container.setAttribute("aria-label", "Material");
 
-    var label = el("span", "product-metals__label", "Material");
-    label.setAttribute("aria-hidden", "true");
-    var field = el("div", "product-metals__field");
-    var tag = el("span", "product-metals__tag");
-    var stack = el("div", "product-metals__stack");
-    field.appendChild(tag);
-    field.appendChild(stack);
-    container.appendChild(label);
-    container.appendChild(field);
+    // The one tag (retexted on a pick) of the default layout; the edge layout
+    // has a tag per row instead.
+    var tag = null;
+    var stack = container;
+    if (!edge) {
+      var label = el("span", "product-metals__label", "Material");
+      label.setAttribute("aria-hidden", "true");
+      var field = el("div", "product-metals__field");
+      tag = el("span", "product-metals__tag");
+      stack = el("div", "product-metals__stack");
+      field.appendChild(tag);
+      field.appendChild(stack);
+      container.appendChild(label);
+      container.appendChild(field);
+    }
 
     metals.forEach(function (metal) {
       var row = el("div", "product-metals__row");
@@ -65,6 +80,7 @@
         onSelect(metal);
       });
       row.appendChild(btn);
+      if (edge) row.appendChild(el("span", "product-metals__tag", metal));
 
       stack.appendChild(row);
       rows.push({ metal: metal, row: row, btn: btn });
@@ -82,7 +98,7 @@
       rows.forEach(function (r) {
         r.row.classList.toggle("is-selected", r.metal === selected);
       });
-      tag.textContent = selected || "";
+      if (tag) tag.textContent = selected || "";
     }
 
     function select(metal) {

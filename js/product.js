@@ -28,6 +28,10 @@
     metals: [],
     // data/series.json's "metal-costs", keyed by metal (see computeCosts).
     metalCosts: {},
+    // data/series.json's "metal-technology" (metal -> technology) and
+    // "printing-technologies" (technology -> { name, description }).
+    metalTechnology: {},
+    technologies: {},
     selectedMetal: null,
     modelHandle: null,
     // The model slide's poster <img> while the viewer isn't in yet.
@@ -39,11 +43,25 @@
     xrayWatching: false,
     iconFallbackImg: null,
     // How far the show has gone (js/product-stages.js): presentation ->
-    // specs, specs -> logistics, 0 to 1 each. Kept so a viewer built later
-    // (first mount, after the Modify sheet, after Back) starts where the
-    // page is.
+    // specs, specs -> logistics, 0 to 1 each — and what that makes of the
+    // model (refreshStage). Kept so a viewer built later (first mount, after
+    // the Modify sheet, after Back) starts where the page is.
     toSpecs: 0,
     toLogistics: 0,
+    sweep: 0,
+    fit: 0,
+    // The chosen ring size over the model's base size (setModelSize), and
+    // the size as it stands in the specs field when it is a valid one ("" if
+    // none: the label bar then shows no size).
+    sizeFactor: 1,
+    sizeText: "",
+    // How far the model is lifted on the page in specs, in pixels
+    // (refreshStage).
+    lift: 0,
+    rowLift: 0,
+    // Whether the specs size has been given its starting value (62).
+    sizeSeeded: false,
+    seedSize: null,
     // Whether the carousel is held on the model (specs is coming in).
     carouselHeld: false
   };
@@ -162,6 +180,8 @@
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
         state.metalCosts = ctx.index["metal-costs"] || {};
+        state.metalTechnology = ctx.index["metal-technology"] || {};
+        state.technologies = ctx.index["printing-technologies"] || {};
         return findProduct(ctx.slug, getRequest());
       })
       .then(function (found) {
@@ -221,6 +241,7 @@
     var carouselParts = renderCarousel(product);
     renderMetalOptions(product);
     renderSpecs(product);
+    renderPrinting();
     // Plain text under the title — no heading, nothing to open. A product
     // without one shows nothing there rather than a placeholder.
     var description = document.getElementById("productDescription");
@@ -372,10 +393,21 @@
     renderLabelPrice(product);
   }
 
-  // ".category.metal", like the rows' label in the selection lists.
+  // ".category.metal", like the rows' label in the selection lists — and
+  // ".size" once one is held in the specs field.
   function labelTypeText(product) {
     return (product.category ? "." + product.category.toLowerCase() : "") +
-      (state.selectedMetal ? "." + state.selectedMetal : "");
+      (state.selectedMetal ? "." + state.selectedMetal : "") +
+      (state.sizeText ? "." + state.sizeText : "");
+  }
+
+  function renderLabelType(product) {
+    var node = document.getElementById("productLabelType");
+    var text = labelTypeText(product);
+    if (node.textContent === text) return;
+    node.textContent = text;
+    // Text changing in place under the bar's invert band.
+    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
   }
 
   // Always the icon (not a photos[0] fallback) — this thumbnail sits right
@@ -491,9 +523,7 @@
         // The specs stage's wireframe sweep and dimension brackets (see
         // onStageChange). The fill is the page's own background, so the
         // filled model disappears into it and only its lines read.
-        blueprint: { fill: pageColor("--bg", "#f8f8f8"), lineColor: pageColor("--category-col", "#727272") },
-        // Where the sweep's cut is on screen, for the scan band.
-        onScan: placeScanBand
+        blueprint: { fill: pageColor("--bg", "#f8f8f8"), lineColor: pageColor("--category-col", "#727272") }
       });
     }
 
@@ -767,6 +797,7 @@
     window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
       metals: state.metals,
       selected: state.selectedMetal,
+      layout: "edge",
       onSelect: function (metal) { onMetalSelect(product, metal); }
     });
   }
@@ -792,7 +823,7 @@
   function onMetalSelect(product, metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
-    document.getElementById("productLabelType").textContent = labelTypeText(product);
+    renderLabelType(product);
     renderLabelPrice(product);
     // The text and thumbnail under the label bar's invert band would show
     // their old value a moment longer in Safari otherwise.
@@ -808,6 +839,7 @@
     // whichever metal is selected when it arrives.
     if (state.posterImg) state.posterImg.src = posterSrcFor(product, metal);
     renderSpecs(product);
+    renderPrinting();
     tintAfterPaint();
   }
 
@@ -834,22 +866,53 @@
     return "€ " + amount.toFixed(2);
   }
 
-  // One group per figure, each placed at a corner of the model by
-  // css/style.css (the --key modifier names which). Read in this order, the
-  // breakdown sums: raw materials + manufacturing = production cost. The
-  // dimensions row is drawn on the model itself as brackets when the viewer
-  // can (.has-brackets), and stays here, visually hidden, for screen readers.
+  // The figures that follow the chosen size: the weight under the picker
+  // (specs stage), the dimensions (drawn on the model itself as brackets
+  // when the viewer can, .has-brackets — their row stays here, visually
+  // hidden, for screen readers) and, in the logistics stage, the cost
+  // diagram. A piece scaled by a factor weighs and costs that factor cubed
+  // (the model is scaled the same on every axis); the diagram's bars are
+  // measured against the dearest piece there can be — the largest size in
+  // the dearest metal — so they move with the size and the metal alike.
   function renderSpecs(product) {
     var geometry = product.geometry || {};
     var dims = geometry["dimensions-mm"];
-    var costs = computeCosts(geometry["volume-cm3"], state.metalCosts[state.selectedMetal]);
+    var f = state.sizeFactor;
+    var volume = geometry["volume-cm3"] * f * f * f;
+    var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
     appendSpec(dl, "weight", "Weight", costs ? costs.weight.toFixed(1) + " g" : "—");
-    appendSpec(dl, "dimensions", "Dimensions", dims && dims.length === 3 ? dims.join(" × ") + " mm" : "—");
-    appendSpec(dl, "raw", "Raw materials", costs ? formatEuros(costs.raw) : "—");
-    appendSpec(dl, "manufacturing", "Manufacturing", costs ? formatEuros(costs.manufacturing) : "—");
-    appendSpec(dl, "production", "Production cost", costs ? formatEuros(costs.production) : "—");
+    appendSpec(dl, "dimensions", "Dimensions", dims && dims.length === 3 ?
+      dims.map(function (d) { return +(d * f).toFixed(1); }).join(" × ") + " mm" : "—");
+
+    var ref = 0;
+    var top = SIZE_MAX_MM / SIZE_BASE_MM;
+    Object.keys(state.metalCosts).forEach(function (metal) {
+      var worst = computeCosts(geometry["volume-cm3"] * top * top * top, state.metalCosts[metal]);
+      if (worst && worst.production > ref) ref = worst.production;
+    });
+    var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
+    Object.keys(figures).forEach(function (key) {
+      var dd = document.getElementById(figures[key]);
+      var row = dd.parentNode;
+      dd.textContent = costs ? formatEuros(costs[key]) : "—";
+      // The bar runs from `from` to `to`, as shares of the whole scale.
+      var from = !costs || !ref ? 0 : key === "manufacturing" ? costs.raw / ref : 0;
+      var to = !costs || !ref ? 0 : (key === "raw" ? costs.raw : costs.production) / ref;
+      row.style.setProperty("--from", from.toFixed(4));
+      row.style.setProperty("--to", to.toFixed(4));
+    });
+  }
+
+  // The specs stage's printing technology: how the chosen metal is made.
+  function renderPrinting() {
+    var section = document.getElementById("productPrinting");
+    var tech = state.technologies[state.metalTechnology[state.selectedMetal]];
+    section.hidden = !tech;
+    if (!tech) return;
+    document.getElementById("productPrintingName").textContent = tech.name;
+    document.getElementById("productPrintingText").textContent = tech.description;
   }
 
   function appendSpec(dl, key, label, value) {
@@ -861,33 +924,152 @@
 
   /* ---- the three stages ---------------------------------------------------- */
 
-  // The show's scroll (js/product-stages.js) drives the CSS fades itself;
-  // this is the rest: the model's sweep from metal to wireframe (and, once
-  // it's out of sight in logistics, its drawing paused), and the carousel
-  // holding the model — the photos fade out as specs comes in, so the
-  // strip centres the model and stops paging until the visitor is back in
-  // presentation.
+  // The show's scroll (js/product-stages.js) gives two eased numbers, and
+  // css/style.css fades everything from them — in phases, never crossfading:
+  // what a stage shows fades out, there is a blank, then what the next shows
+  // fades in. This is the rest: the model, and the carousel holding it.
+  //
+  // Presentation -> specs is the one with the model in it, and its blank is
+  // the model's own change. A full-width inversion band (the hero's frontier
+  // band) travels the whole height of the screen over the transition, from
+  // under the page to over it, and the model's metal -> wireframe sweep is
+  // that band's passage across it: it starts when the band reaches the
+  // model's foot and ends when it leaves its head, the cut under the band
+  // all the way. So the first fade ends (--t0) as the band reaches the
+  // model, the second begins (--t1) as it leaves it, and the model's fit
+  // (the shrink that makes room for its dimensions, and the size scale)
+  // follows from there on. The three are worked out from where the model is
+  // on screen, so they hold on any screen.
   function wireStages() {
     var stageEl = document.getElementById("productStage");
     if (!stageEl || !window.EmjiveProductStages) return;
     window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
+    var resizeQueued = false;
+    window.addEventListener("resize", function () {
+      if (resizeQueued) return;
+      resizeQueued = true;
+      requestAnimationFrame(function () {
+        resizeQueued = false;
+        refreshStage();
+      });
+    });
   }
 
   function onStageChange(stage) {
     state.toSpecs = stage.toSpecs;
     state.toLogistics = stage.toLogistics;
-    applyStageToViewer();
+    state.flow = stage.stage === "flow";
+    refreshStage();
     var hold = stage.toSpecs > 0;
+    if (hold && !state.sizeSeeded && state.seedSize) state.seedSize();
     if (hold === state.carouselHeld) return;
     state.carouselHeld = hold;
     if (hold) carousel.center(0);
     carousel.setLocked(hold);
   }
 
+  function clamp(x, lo, hi) {
+    return x < lo ? lo : x > hi ? hi : x;
+  }
+
+  // Where the model is on screen, as the top and bottom of its sweep in
+  // viewport pixels — the viewer's own figures once it is in, else the
+  // model slide's (the poster standing in), which is close enough to time
+  // the fades by.
+  function modelSpan() {
+    var handle = state.modelHandle;
+    var own = handle && handle.scanSpan();
+    if (own) {
+      var top = handle.el.getBoundingClientRect().top;
+      return { top: top + own.top, bottom: top + own.bottom };
+    }
+    var slide = document.querySelector(".product-carousel__slide--model");
+    if (!slide) return null;
+    var r = slide.getBoundingClientRect();
+    var mid = r.top + r.height / 2;
+    return { top: mid - r.height * 0.33, bottom: mid + r.height * 0.33 };
+  }
+
+  // Works the whole of the show out from state.toSpecs and state.toLogistics
+  // and where the model is: the phases' timing, the band, and what the model
+  // does. Run on every change of the scroll and of the screen's size, and
+  // whenever a viewer arrives.
+  function refreshStage() {
+    var stageEl = document.getElementById("productStage");
+    var band = document.getElementById("productScan");
+    if (!stageEl) return;
+    var t = state.toSpecs;
+    var t0 = 0.3;
+    var t1 = 0.6;
+    var sweep = 0;
+    var barOn = false;
+    var span = state.flow ? null : modelSpan();
+    // The model's own place, before the lift it is under now (the lift
+    // follows from the timing worked out from it).
+    if (span) { span.top += state.lift; span.bottom += state.lift; }
+    if (span && span.bottom > span.top) {
+      var viewport = window.innerHeight;
+      var h = band ? band.offsetHeight : 0;
+      // The band's middle: just under the screen at t = 0, just over it at 1.
+      var barY = -h / 2 + (viewport + h) * (1 - t);
+      sweep = clamp((span.bottom - barY) / (span.bottom - span.top), 0, 1);
+      t0 = clamp(1 - (span.bottom + h / 2) / (viewport + h), 0.08, 0.7);
+      t1 = clamp(1 - (span.top + h / 2) / (viewport + h), t0 + 0.1, 0.92);
+      barOn = t > 0 && t < 1;
+      if (band && barOn) band.style.top = barY.toFixed(1) + "px";
+    }
+    state.sweep = sweep;
+    state.fit = clamp((t - t1) / (1 - t1), 0, 1);
+    // In specs the model stands higher on the page, by a fifth of its tile,
+    // from where the sweep leaves it (the same stretch as its fit).
+    var slide = document.querySelector(".product-carousel__slide--model");
+    var tile = slide ? slide.getBoundingClientRect().height : 0;
+    state.lift = state.flow ? 0 : state.fit * SPECS_LIFT * tile;
+    stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
+    // The size row rides up with the model, but stops short of the title bar.
+    var row = document.getElementById("productSize");
+    var bar = document.querySelector(".product-detail__label-bar");
+    var rowLift = state.lift;
+    if (row && bar && !row.hidden && !state.flow) {
+      var room = row.getBoundingClientRect().top + state.rowLift - bar.getBoundingClientRect().bottom - 12;
+      rowLift = clamp(room, 0, state.lift);
+    }
+    state.rowLift = rowLift;
+    stageEl.style.setProperty("--lift-row", rowLift.toFixed(1) + "px");
+    stageEl.style.setProperty("--t0", t0.toFixed(4));
+    stageEl.style.setProperty("--t1", t1.toFixed(4));
+    if (band) band.classList.toggle("is-on", barOn);
+    applyStageToViewer();
+  }
+
   function applyStageToViewer() {
     if (!state.modelHandle) return;
-    state.modelHandle.setBlueprint(state.toSpecs);
-    state.modelHandle.setPaused(state.toLogistics >= 1);
+    state.modelHandle.setBlueprint(state.sweep, state.fit);
+    state.modelHandle.setSize(state.sizeFactor);
+    // Out of sight once specs' own fade-out is over (css/style.css --s-out).
+    state.modelHandle.setPaused(state.toLogistics >= 0.35);
+  }
+
+  // The model is drawn at the chosen ring size: the specs stage's size field
+  // and slider call this with what they hold. Its base size is 62 (what the
+  // model files are authored at, and what the field starts at when specs
+  // first comes in); the slider's own range bounds how far it scales, and no
+  // size (or a half-typed one) is the base. The size also goes to the label
+  // bar, and to the weight, the dimensions and the cost diagram.
+  var SPECS_LIFT = 0.2;
+  var SIZE_BASE_MM = 62;
+  var SIZE_MIN_MM = 40;
+  var SIZE_MAX_MM = 70;
+  function setModelSize(raw) {
+    var mm = parseFloat(raw);
+    var given = window.EmjiveSelection.isValidSize(raw) && isFinite(mm);
+    state.sizeFactor = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) / SIZE_BASE_MM : 1;
+    state.sizeText = given ? String(raw).trim() : "";
+    if (state.modelHandle) state.modelHandle.setSize(state.sizeFactor);
+    if (state.product) {
+      renderSpecs(state.product);
+      renderLabelType(state.product);
+    }
   }
 
   // .has-brackets: the model shows its own dimensions, so the text row
@@ -900,19 +1082,6 @@
 
   function pageColor(token, fallback) {
     return getComputedStyle(document.documentElement).getPropertyValue(token).trim() || fallback;
-  }
-
-  // The full-width inversion band that rides the cut of the metal ->
-  // wireframe sweep (the homepage hero's frontier band, on this page's
-  // scan). The viewer reports the cut's height in its own pixels; the band
-  // is fixed, so that is turned into the screen's.
-  function placeScanBand(scan) {
-    var band = document.getElementById("productScan");
-    if (!band) return;
-    if (scan.active && state.modelHandle) {
-      band.style.top = (state.modelHandle.el.getBoundingClientRect().top + scan.y).toFixed(1) + "px";
-    }
-    band.classList.toggle("is-on", scan.active);
   }
 
   function hideScanBand() {
@@ -987,14 +1156,27 @@
       if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
     }
     specsRange.classList.add("is-unset");
+    // The first time specs comes in the field starts at the model's own size
+    // (62), as if it had been given; from then on it is the visitor's.
+    state.seedSize = function () {
+      state.sizeSeeded = true;
+      state.seedSize = null;
+      if (specsSize.value !== "") return;
+      specsSize.value = String(SIZE_BASE_MM);
+      syncRangeFromField();
+      setModelSize(specsSize.value);
+    };
     specsRange.addEventListener("input", function () {
-      specsSize.value = String(Number(specsRange.value));
+      // Every tenth of a millimetre between the ends.
+      specsSize.value = Number(specsRange.value).toFixed(1);
       specsRange.classList.remove("is-unset");
+      setModelSize(specsSize.value);
     });
     specsSize.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
       if (cleaned !== specsSize.value) specsSize.value = cleaned;
       syncRangeFromField();
+      setModelSize(specsSize.value);
     });
     specsSize.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;

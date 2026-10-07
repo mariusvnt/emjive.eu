@@ -105,7 +105,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "metal-technology", "printing-technologies", "categories", "hdris", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -120,6 +120,15 @@ const indexSchema = {
           "loss-margin": { type: "number", minimum: 0 },
           "production-per-cm3": { type: "number", exclusiveMinimum: 0 }
         }
+      }
+    },
+    "metal-technology": strMap,
+    "printing-technologies": {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        required: ["name", "description"],
+        properties: { name: str, description: str }
       }
     },
     categories: {
@@ -288,6 +297,17 @@ if (index && validate("data/series.json", indexSchema, index)) {
     else if (c["production-per-cm3"] < c["price-per-g"] * c["density-g-cm3"] * (1 + c["loss-margin"])) {
       fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
     }
+  }
+  // The printing technology of each metal (the specs stage's section under
+  // the model): every metal names one, and it has to be described.
+  const technologies = index["printing-technologies"];
+  for (const metal of metals) {
+    const id = index["metal-technology"][metal];
+    if (!id) fail("data/series.json", 'metal-technology has no "' + metal + '"');
+    else if (!technologies[id]) fail("data/series.json", 'metal-technology "' + metal + '" names "' + id + '", which is not in printing-technologies');
+  }
+  for (const metal of Object.keys(index["metal-technology"])) {
+    if (!metals.has(metal)) fail("data/series.json", 'metal-technology has unknown metal "' + metal + '"');
   }
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);

@@ -232,23 +232,24 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // lines darken each other, which is what makes grazing angles read as
   // shading.
   var BLUEPRINT_WIRE_OPACITY = 0.1;
-  // The dimension brackets, in units of the box's longest side: how far
-  // out from the box edge the dimension line runs (BRACKET_GAP), and — as a
-  // share of that — how far each end tick reaches to either side of the
-  // line's end (so a tick is twice BRACKET_TICK long, and centred on the end
-  // it caps). The label sits BRACKET_LABEL_PX (screen pixels, clear of its
-  // own box) from the line.
+  // The dimension brackets, in units of the box's longest side: how far out
+  // from the box the three dimension lines are pushed (BRACKET_GAP) — they
+  // run along three consecutive edges of the outline of the box, which is
+  // scaled up a little about its centre, so they join end to end; each label
+  // sits BRACKET_LABEL_PX (screen pixels, clear of its own box) from its line.
   var BRACKET_GAP = 0.12;
-  var BRACKET_TICK = 0.106;
   var BRACKET_LABEL_PX = 7;
-  // A bracket whose edge is shorter than this on screen (its axis pointing
-  // at the camera) has no room for its label, and is hidden.
+  // A line shorter than this on screen (its axis pointing at the camera) has
+  // no room for its label, and is hidden.
   var BRACKET_MIN_PX = 28;
-  // How much better (in NDC) another edge has to be before a bracket moves
-  // to it — otherwise two near-equal candidates flicker while rotating.
+  // How much better (in NDC) another run of edges has to be before the
+  // brackets move to it — otherwise two near-equal candidates flicker while rotating.
   var BRACKET_HYSTERESIS = 0.06;
-  // The brackets fade in over the end of the sweep.
-  var BRACKET_FADE_FROM = 0.7;
+  // The brackets fade in over the later part of the fit.
+  var BRACKET_FADE_FROM = 0.35;
+  // The largest size the page scales the model to (70 over its base size,
+  // 62): the fit leaves room for it, so brackets never leave the canvas.
+  var BLUEPRINT_SIZE_MAX = 70 / 62;
 
   function smoothstep01(edge0, edge1, x) {
     var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -875,8 +876,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var preserveBuffer = !!options.transparentBackground;
     // js/product.js only: { fill: "<the page's background colour>" }. Turns
     // on the metal -> wireframe sweep, the dimension brackets and the fit
-    // scale behind them, all driven by handle.setBlueprint(amount); amount
-    // 0 (where it starts) draws exactly what a viewer without it does.
+    // scale behind them, all driven by handle.setBlueprint(sweep, fit);
+    // 0, 0 (where it starts) draws exactly what a viewer without it does.
     var blueprint = options.blueprint && !options.swatch ? options.blueprint : null;
 
     var wrapper = document.createElement("div");
@@ -1388,20 +1389,27 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     }
 
     /* ---- blueprint (options.blueprint) ------------------------------------
-       Everything the product page's specs stage draws, driven by one number,
-       handle.setBlueprint(amount), 0 to 1:
+       Everything the product page's specs stage draws, driven by two
+       numbers, handle.setBlueprint(sweep, fit), 0 to 1 each (the page makes
+       the second start where the first ends), and handle.setSize(factor):
        - the sweep: BLUEPRINT_FRAGMENT on every mesh's material, the cut at
          uScanY (view space) going from under the model (0: all metal) to
-         over it (1: all fill);
+         over it (1: all fill); handle.scanSpan() says where on screen that
+         is, so the page can ride a band on it;
        - the edges: one LineSegments per mesh, clipped to below the cut, so
          they draw in behind it;
-       - the brackets: three dimension brackets on the minimum-volume box
-         (product.geometry["min-box"], scripts/measure-models.js), fading in
-         over the end of the sweep, each labelled in HTML;
        - the fit: the model, edges and brackets shrink together about the
-         orbit target so the brackets and their labels fit the canvas.
+         orbit target so the brackets and their labels fit the canvas — and
+         scale with the size factor (the chosen ring size over the model's
+         base size), so a bigger size draws a bigger model;
+       - the brackets: three dimension lines meeting at one corner of the
+         minimum-volume box (product.geometry["min-box"],
+         scripts/measure-models.js), fading in over the end of the fit, each
+         labelled in HTML.
        None of it exists without options.blueprint. --------------------- */
-    var blueprintAmount = 0;
+    var blueprintSweep = 0;
+    var blueprintFit = 0;
+    var sizeFactor = 1;
     var viewerPaused = false;
     var bpUniforms = null;
     if (blueprint) {
@@ -1520,10 +1528,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       });
     }
 
-    // Three brackets — one per box axis, axes[k] measured as
-    // dimensions-mm[k] — in one pre-allocated LineSegments (three segments
-    // each: the dimension line and its two legs), rewritten whenever the
-    // view changes. Drawn over everything (depthTest off): an annotation
+    // Three dimension lines — one per box axis, axes[k] measured as
+    // dimensions-mm[k] — in one pre-allocated LineSegments, rewritten whenever
+    // the view changes. Drawn over everything (depthTest off): an annotation
     // that the model could hide wouldn't be one. No box (an old products
     // file, a missing field) means no brackets; the page then shows the
     // dimensions as text instead (handle.hasBrackets).
@@ -1536,12 +1543,17 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         center: new THREE.Vector3().fromArray(pose.center),
         axes: pose.axes.map(function (a) { return new THREE.Vector3().fromArray(a).normalize(); }),
         half: dims.map(function (d) { return d / 2; }),
+        dims: dims.slice(),
         gap: BRACKET_GAP * Math.max(dims[0], dims[1], dims[2]),
-        // The edge each bracket is on now, as [si, sj] (see updateBrackets).
-        choice: [null, null, null]
+        // The distance from the centre to any corner, which the box is scaled
+        // by (to make the gap) about the centre.
+        outScale: 1 + BRACKET_GAP * Math.max(dims[0], dims[1], dims[2]) /
+          Math.sqrt(dims[0] * dims[0] / 4 + dims[1] * dims[1] / 4 + dims[2] * dims[2] / 4),
+        // The run of edges the lines are on now (see updateBrackets).
+        chain: ""
       };
       var lineGeometry = new THREE.BufferGeometry();
-      lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 6 * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage));
       bracketLines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({
         color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
         transparent: true,
@@ -1554,20 +1566,30 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       bracketLines.renderOrder = 10;
       bracketLines.visible = false;
       fitGroup.add(bracketLines);
-      dims.forEach(function (d) {
+      dims.forEach(function () {
         var label = document.createElement("span");
         label.className = "emjive-3d-viewer__dim";
         label.setAttribute("aria-hidden", "true");
-        label.textContent = Number(d).toFixed(1) + " mm";
         wrapper.appendChild(label);
         bracketLabels.push(label);
+      });
+      paintLabels();
+    }
+
+    // The labels read what is drawn: the box's own dimensions times the size
+    // factor.
+    function paintLabels() {
+      if (!minBox) return;
+      bracketLabels.forEach(function (label, k) {
+        label.textContent = (minBox.dims[k] * sizeFactor).toFixed(1) + " mm";
       });
     }
 
     // The shrink that makes room for the brackets: the farthest a bracket
-    // line reaches from the orbit target, against the radius the view fits.
-    // The labels aren't counted — they're HTML, free to sit past the
-    // canvas' edge. Measured once the camera is framed.
+    // line reaches from the orbit target, against the radius the view fits —
+    // at the largest size the page scales to. The labels aren't counted:
+    // they're HTML, free to sit past the canvas' edge. Measured once the
+    // camera is framed.
     function computeFit() {
       fitScale = 1;
       if (!minBox || !framedRadius) return;
@@ -1578,26 +1600,24 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         for (var k = 0; k < 3; k++) corner.addScaledVector(minBox.axes[k], (s & (1 << k) ? 1 : -1) * minBox.half[k]);
         reach = Math.max(reach, corner.distanceTo(controls.target));
       }
-      reach += minBox.gap * (1 + BRACKET_TICK);
-      fitScale = Math.min(1, (framedRadius * 0.95) / reach);
+      reach += minBox.gap;
+      fitScale = Math.min(1, (framedRadius * 0.95) / (reach * BLUEPRINT_SIZE_MAX));
     }
 
     var bpCenter = new THREE.Vector3();
     var bpScratch = new THREE.Vector3();
     var bpUp = new THREE.Vector3();
-    var bpCamLocal = new THREE.Vector3();
     var bpNdc = new THREE.Vector3();
     var bpA = new THREE.Vector3();
-    var bpB = new THREE.Vector3();
-    var bpOut = new THREE.Vector3();
+    var bpCamLocal = new THREE.Vector3();
 
     // Called right before every draw of a blueprint viewer (and before its
-    // very first): the view decides the cut's height on screen and which box
-    // edges the brackets sit on, so both follow every orbit frame.
+    // very first): the view decides the cut's height on screen and which
+    // corner the brackets meet at, so both follow every orbit frame.
     function updateBlueprint() {
       if (!fitGroup || !frameSphere) return;
-      var amount = blueprintAmount;
-      var scale = 1 + (fitScale - 1) * amount;
+      var sweep = blueprintSweep;
+      var scale = 1 + (fitScale * sizeFactor - 1) * blueprintFit;
       fitGroup.scale.setScalar(scale);
       fitGroup.position.copy(controls.target).multiplyScalar(1 - scale);
       fitGroup.updateMatrixWorld(true);
@@ -1607,33 +1627,18 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       // sphere to just over it.
       bpCenter.copy(frameSphere.center).applyMatrix4(fitGroup.matrixWorld);
       var radius = frameSphere.radius * scale * 1.02;
-      var cutY = bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).y + (2 * amount - 1) * radius;
+      var cutY = bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).y + (2 * sweep - 1) * radius;
       bpUniforms.uScanY.value = cutY;
-      var sweeping = amount > 0 && amount < 1;
-      bpUniforms.uScanOn.value = sweeping ? 1 : 0;
-      reportScan(sweeping, cutY);
+      bpUniforms.uScanOn.value = sweep > 0 && sweep < 1 ? 1 : 0;
       // The same plane for the edges, in world space: through the view-space
       // point (0, cutY, 0), facing down — three keeps the side its normal
       // points to.
       bpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
       bpScratch.copy(camera.position).addScaledVector(bpUp, cutY);
       wirePlane.setFromNormalAndCoplanarPoint(bpUp.negate(), bpScratch);
-      wireLines.forEach(function (lines) { lines.visible = amount > 0; });
+      wireLines.forEach(function (lines) { lines.visible = sweep > 0; });
 
-      if (minBox) updateBrackets(smoothstep01(BRACKET_FADE_FROM, 1, amount));
-    }
-
-    // Tells options.onScan where the cut is on screen — pixels from the top
-    // of this viewer — while the sweep is under way, and once more when it
-    // ends. The cut is level in view space, so on screen it isn't quite
-    // level; this is where it crosses the middle of the model.
-    var scanWasOn = false;
-    function reportScan(sweeping, cutY) {
-      if (!options.onScan || (!sweeping && !scanWasOn)) return;
-      scanWasOn = sweeping;
-      var depth = -bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).z;
-      var ndcY = depth > 0 ? camera.projectionMatrix.elements[5] * cutY / depth : 0;
-      options.onScan({ active: sweeping, y: (1 - ndcY) / 2 * currentHeight });
+      if (minBox) updateBrackets(smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit));
     }
 
     // Model-space point -> pixels from the viewer's top-left, into `out`.
@@ -1652,12 +1657,34 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       return bpNdc.copy(point).applyMatrix4(fitGroup.matrixWorld).project(camera);
     }
 
-    // For each axis, its bracket goes on one of the four box edges running
-    // along it: one on the box's outline (exactly one of the edge's two
-    // faces turned to the camera), the bottom-most of those — or, for an
-    // axis running up the screen, the right-most — so the brackets sit under
-    // and beside the model like a drawing's. Hysteresis keeps a bracket on
-    // its edge until another is clearly better.
+    // The brackets are three dimension lines that join end to end, outside
+    // the model: three consecutive edges of the outline of the box as seen,
+    // with the box scaled up a little about its centre (outScale) to leave
+    // the gap, so the lines are parallel to the real edges and meet at the
+    // outline's corners. Which three: the run lowest on screen, leaning right
+    // (the left of the model is where the page's own figures stand), and
+    // it stays put until another is clearly better, so the lines don't
+    // flicker between two while the model turns. A line whose edge points at
+    // the camera is too short to read and goes, label and all.
+    //
+    // A corner is a number 0-7, a bit per axis for which side of the centre
+    // it is on; an edge runs along one axis between two corners that differ
+    // in that bit only.
+    var bpEdges = [];
+    var bpCornerPos = [];
+    for (var cm = 0; cm < 8; cm++) bpCornerPos.push(new THREE.Vector3());
+
+    function cornerSign(m, axis) {
+      return m & (1 << axis) ? 1 : -1;
+    }
+
+    // Whether the face of the box on one side of an axis turns to the camera
+    // (bpScratch is free for it).
+    function faceToCamera(axis, sign, camLocal) {
+      bpScratch.copy(camLocal).sub(minBox.center).addScaledVector(minBox.axes[axis], -sign * minBox.half[axis]);
+      return bpScratch.dot(minBox.axes[axis]) * sign > 0;
+    }
+
     function updateBrackets(opacity) {
       bracketLines.material.opacity = opacity;
       bracketLines.visible = opacity > 0;
@@ -1665,84 +1692,110 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
         return;
       }
+      var c = minBox.center;
+      for (var m = 0; m < 8; m++) {
+        bpCornerPos[m].copy(c);
+        for (var k = 0; k < 3; k++) bpCornerPos[m].addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k] * minBox.outScale);
+      }
+      fitGroup.worldToLocal(bpCamLocal.copy(camera.position));
+
+      // The edges on the outline: one of the two faces beside it turns to
+      // the camera, the other away.
+      bpEdges.length = 0;
+      for (var axis = 0; axis < 3; axis++) {
+        var i = (axis + 1) % 3;
+        var j = (axis + 2) % 3;
+        for (var low = 0; low < 8; low++) {
+          if (low & (1 << axis)) continue;
+          var faceI = faceToCamera(i, cornerSign(low, i), bpCamLocal);
+          var faceJ = faceToCamera(j, cornerSign(low, j), bpCamLocal);
+          if (faceI !== faceJ) bpEdges.push({ axis: axis, a: low, b: low | (1 << axis) });
+        }
+      }
+
+      // Walk the outline round: corner to corner along its edges.
+      var loop = [];
+      if (bpEdges.length >= 4) {
+        var used = [];
+        var first = bpEdges[0];
+        loop.push({ corner: first.a, edge: first });
+        var at = first.b;
+        used[0] = true;
+        for (var guard = 0; guard < bpEdges.length; guard++) {
+          var next = -1;
+          for (var e = 0; e < bpEdges.length; e++) {
+            if (!used[e] && (bpEdges[e].a === at || bpEdges[e].b === at)) { next = e; break; }
+          }
+          if (next < 0) break;
+          used[next] = true;
+          loop.push({ corner: at, edge: bpEdges[next] });
+          at = bpEdges[next].a === at ? bpEdges[next].b : bpEdges[next].a;
+        }
+      }
+
+      // Each run of three edges, scored by how low and right its edges sit.
+      var best = null;
+      var bestScore = Infinity;
+      var keptScore = Infinity;
+      var n = loop.length;
+      for (var start = 0; start < n && n >= 4; start++) {
+        var run = [loop[start].edge, loop[(start + 1) % n].edge, loop[(start + 2) % n].edge];
+        var total = 0;
+        var key = "";
+        for (var r = 0; r < 3; r++) {
+          toNdc(bpA.copy(bpCornerPos[run[r].a]).add(bpCornerPos[run[r].b]).multiplyScalar(0.5));
+          total += bpNdc.y - 0.35 * bpNdc.x;
+          key += run[r].axis + ":" + run[r].a + ",";
+        }
+        if (key === minBox.chain) keptScore = total;
+        if (total < bestScore) {
+          bestScore = total;
+          best = { run: run, key: key };
+        }
+      }
       var positions = bracketLines.geometry.attributes.position.array;
       positions.fill(0);
-      fitGroup.worldToLocal(bpCamLocal.copy(camera.position));
-      var c = minBox.center;
-      for (var k = 0; k < 3; k++) {
-        var i = (k + 1) % 3;
-        var j = (k + 2) % 3;
-        var ak = minBox.axes[k], ai = minBox.axes[i], aj = minBox.axes[j];
-        var hk = minBox.half[k], hi = minBox.half[i], hj = minBox.half[j];
-        var label = bracketLabels[k];
-
-        // How the axis runs on screen, in pixels.
-        var x0 = toNdc(bpA.copy(c).addScaledVector(ak, -hk)).x;
-        var y0 = bpNdc.y;
-        var x1 = toNdc(bpA.copy(c).addScaledVector(ak, hk)).x;
-        var y1 = bpNdc.y;
-        var dx = (x1 - x0) * currentWidth / 2;
-        var dy = (y1 - y0) * currentHeight / 2;
-        if (Math.sqrt(dx * dx + dy * dy) < BRACKET_MIN_PX) {
-          minBox.choice[k] = null;
-          label.style.opacity = "0";
-          continue;
+      bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
+      if (!best) {
+        minBox.chain = "";
+        bracketLines.geometry.attributes.position.needsUpdate = true;
+        return;
+      }
+      if (keptScore < bestScore + BRACKET_HYSTERESIS * 3) {
+        // Rebuild the kept run from its key.
+        for (var s0 = 0; s0 < n; s0++) {
+          var cand = [loop[s0].edge, loop[(s0 + 1) % n].edge, loop[(s0 + 2) % n].edge];
+          var ckey = "";
+          for (var q = 0; q < 3; q++) ckey += cand[q].axis + ":" + cand[q].a + ",";
+          if (ckey === minBox.chain) { best = { run: cand, key: ckey }; break; }
         }
-        var vertical = Math.abs(dy) > Math.abs(dx);
+      }
+      minBox.chain = best.key;
 
-        var best = null;
-        var bestScore = Infinity;
-        var keptScore = Infinity;
-        var kept = minBox.choice[k];
-        for (var si = -1; si <= 1; si += 2) {
-          for (var sj = -1; sj <= 1; sj += 2) {
-            var facesI = bpScratch.copy(bpCamLocal).sub(c).addScaledVector(ai, -si * hi).dot(ai) * si > 0;
-            var facesJ = bpScratch.copy(bpCamLocal).sub(c).addScaledVector(aj, -sj * hj).dot(aj) * sj > 0;
-            if (facesI === facesJ) continue;
-            toNdc(bpA.copy(c).addScaledVector(ai, si * hi).addScaledVector(aj, sj * hj));
-            // Lower is better: the right-most edge for an axis running up
-            // the screen, else the bottom-most, leaning right — the left of
-            // the model is where the page's own figures stand.
-            var score = vertical ? -bpNdc.x : bpNdc.y - 0.35 * bpNdc.x;
-            if (kept && kept[0] === si && kept[1] === sj) keptScore = score;
-            if (score < bestScore) {
-              bestScore = score;
-              best = [si, sj];
-            }
-          }
-        }
-        if (!best) {
-          minBox.choice[k] = null;
-          label.style.opacity = "0";
-          continue;
-        }
-        if (keptScore < bestScore + BRACKET_HYSTERESIS) best = kept;
-        minBox.choice[k] = best;
+      var middle = toPx(bpScratch.copy(c), bpPxC);
+      var drawn = [false, false, false];
+      for (var d = 0; d < 3; d++) {
+        var edge = best.run[d];
+        // A run that comes round on itself (an outline of four) repeats an
+        // axis; each axis is drawn once.
+        if (drawn[edge.axis]) continue;
+        var label = bracketLabels[edge.axis];
+        var startPx = toPx(bpCornerPos[edge.a], bpPxA);
+        var sx = startPx.x, sy = startPx.y;
+        var endPx = toPx(bpCornerPos[edge.b], bpPxB);
+        var lx = endPx.x - sx, ly = endPx.y - sy;
+        var llen = Math.sqrt(lx * lx + ly * ly);
+        if (llen < BRACKET_MIN_PX) continue;
+        drawn[edge.axis] = true;
+        var o = d * 6;
+        positions[o] = bpCornerPos[edge.a].x; positions[o + 1] = bpCornerPos[edge.a].y; positions[o + 2] = bpCornerPos[edge.a].z;
+        positions[o + 3] = bpCornerPos[edge.b].x; positions[o + 4] = bpCornerPos[edge.b].y; positions[o + 5] = bpCornerPos[edge.b].z;
 
-        // The edge's two ends, and the way out from it (between its two
-        // faces). The dimension line runs between the two ends pushed out by
-        // one gap; a short tick across each end, centred on it, caps it.
-        bpA.copy(c).addScaledVector(ai, best[0] * hi).addScaledVector(aj, best[1] * hj).addScaledVector(ak, -hk);
-        bpB.copy(bpA).addScaledVector(ak, 2 * hk);
-        bpOut.copy(ai).multiplyScalar(best[0]).addScaledVector(aj, best[1]).normalize().multiplyScalar(minBox.gap);
-        var o = k * 18;
-        writePoint(positions, o, bpA, bpOut, 1);
-        writePoint(positions, o + 3, bpB, bpOut, 1);
-        writePoint(positions, o + 6, bpA, bpOut, 1 - BRACKET_TICK);
-        writePoint(positions, o + 9, bpA, bpOut, 1 + BRACKET_TICK);
-        writePoint(positions, o + 12, bpB, bpOut, 1 - BRACKET_TICK);
-        writePoint(positions, o + 15, bpB, bpOut, 1 + BRACKET_TICK);
-
-        // The label goes beside the dimension line, on screen: from the
-        // line's middle, perpendicular to it, away from the model, far
-        // enough that the label's own box clears the line.
-        var endA = toPx(bpScratch.copy(bpA).add(bpOut), bpPxA);
-        var endB = toPx(bpScratch.copy(bpB).add(bpOut), bpPxB);
-        var middle = toPx(bpScratch.copy(c), bpPxC);
-        var lx = endB.x - endA.x, ly = endB.y - endA.y;
-        var llen = Math.sqrt(lx * lx + ly * ly) || 1;
+        // The label goes beside its line, on screen: from the line's middle,
+        // perpendicular to it, away from the model, far enough that the
+        // label's own box clears the line.
         var px = -ly / llen, py = lx / llen;
-        var mx = (endA.x + endB.x) / 2, my = (endA.y + endB.y) / 2;
+        var mx = (endPx.x + sx) / 2, my = (endPx.y + sy) / 2;
         if ((mx - middle.x) * px + (my - middle.y) * py < 0) { px = -px; py = -py; }
         var reach = BRACKET_LABEL_PX + Math.abs(px) * label.offsetWidth / 2 + Math.abs(py) * label.offsetHeight / 2;
         label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
@@ -1750,12 +1803,6 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         label.style.opacity = String(opacity);
       }
       bracketLines.geometry.attributes.position.needsUpdate = true;
-    }
-
-    function writePoint(positions, at, base, out, along) {
-      positions[at] = base.x + out.x * along;
-      positions[at + 1] = base.y + out.y * along;
-      positions[at + 2] = base.z + out.z * along;
     }
 
     function disposeBlueprint() {
@@ -2052,15 +2099,46 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         renderer.render(scene, camera);
       },
       // Blueprint viewers only (options.blueprint; a no-op otherwise): how
-      // far the metal -> wireframe sweep has gone, 0 to 1, the brackets
-      // fading in over its end. Can be set before the model has arrived —
-      // its first frame is then drawn at that amount.
-      setBlueprint: function (amount) {
+      // far the metal -> wireframe sweep has gone (`sweep`) and how far the
+      // fit has (`fit`: the shrink that makes room for the brackets, which
+      // fade in over its end), 0 to 1 each. Can be set before the model has
+      // arrived — its first frame is then drawn at those amounts.
+      setBlueprint: function (sweep, fit) {
         if (!blueprint) return;
-        amount = Math.max(0, Math.min(1, Number(amount) || 0));
-        if (amount === blueprintAmount) return;
-        blueprintAmount = amount;
+        sweep = Math.max(0, Math.min(1, Number(sweep) || 0));
+        fit = Math.max(0, Math.min(1, Number(fit) || 0));
+        if (sweep === blueprintSweep && fit === blueprintFit) return;
+        blueprintSweep = sweep;
+        blueprintFit = fit;
         needsRender = true;
+      },
+      // The chosen ring size over the model's base size: the model (once the
+      // fit has been made) and its dimension labels scale with it.
+      setSize: function (factor) {
+        if (!blueprint) return;
+        factor = Math.max(0.3, Math.min(1.5, Number(factor) || 1));
+        if (factor === sizeFactor) return;
+        sizeFactor = factor;
+        paintLabels();
+        needsRender = true;
+      },
+      // Where the sweep's cut is on screen — pixels from the top of this
+      // viewer — when it is at the very bottom of the model (`bottom`) and
+      // at the very top (`top`), for the model as it is before the fit. The
+      // cut moves in a straight line between the two with `sweep`. null
+      // until the model is in.
+      scanSpan: function () {
+        if (!blueprint || !frameSphere || !modelLoaded) return null;
+        camera.updateMatrixWorld();
+        var v = bpScratch.copy(frameSphere.center).applyMatrix4(camera.matrixWorldInverse);
+        var depth = -v.z;
+        if (!(depth > 0)) return null;
+        var r = frameSphere.radius * 1.02;
+        var k = camera.projectionMatrix.elements[5] / depth;
+        return {
+          bottom: (1 - (v.y - r) * k) / 2 * currentHeight,
+          top: (1 - (v.y + r) * k) / 2 * currentHeight
+        };
       },
       // The viewer is out of sight: no drawing and no idle nudge until it's
       // back (it then redraws once, in case the canvas was discarded).

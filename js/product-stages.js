@@ -5,9 +5,12 @@
    page, it moves the show along — presentation (description, carousel,
    metal picker), then specs (the model as a wireframe with its dimensions,
    the cost breakdown, a size field), then logistics (shipping and returns).
-   Free scrub, no snapping, but not linear: each transition lingers at both
-   ends and goes through its middle quickly, so the page eases out of one
-   stage and into the next.
+   Free scrub, no snapping, and not linear: each stage is a stretch of
+   scrolling in which nothing changes (so there is room to scroll about in
+   it), and each transition between two is eased at both ends, so the page
+   eases out of one stage and into the next. The track's length is the three
+   stretches plus the two transitions; their proportion is --hold-ratio in
+   css/style.css (a stretch is that share of a transition).
 
    window.EmjiveProductStages.mount(stageEl, { onChange }) reads the track's
    position on every scroll frame (the technique series/bones/hero.js uses
@@ -43,10 +46,6 @@
   // plain column instead. Same query as the "flow" block in css/style.css.
   var FLOW_QUERY = "(max-height: 560px)";
 
-  // The share of each transition's scroll spent at either end with nothing
-  // moving yet — the dwell that makes a stage feel like a place.
-  var DWELL = 0.15;
-
   var STAGES = ["presentation", "specs", "logistics"];
 
   function clamp01(x) {
@@ -55,7 +54,7 @@
 
   // Zero speed and zero acceleration at both ends (Perlin's smootherstep).
   function ease(u) {
-    var t = clamp01((u - DWELL) / (1 - 2 * DWELL));
+    var t = clamp01(u);
     return t * t * t * (t * (t * 6 - 15) + 10);
   }
 
@@ -74,16 +73,14 @@
       var stickAt = parseFloat(getComputedStyle(pin).top) || 0;
       var scrolled = stickAt - rect.top;
       var trackStart = window.pageYOffset - scrolled;
+      // hold, transition, hold, transition, hold.
+      var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
+      if (!(ratio >= 0)) ratio = 0.5;
       var travel = Math.max(0, stageEl.offsetHeight - pin.offsetHeight);
-      var step = travel / 2;
-      // The page can end a little short of the track's own end — iOS
-      // Safari's toolbar collapsing makes the window taller than the
-      // smallest viewport the track is sized from — so the last stage is
-      // reached at whichever comes first: the track's end or the page's.
-      var maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      var end = Math.max(step + 1, Math.min(travel, maxScroll - trackStart));
-      stops = [trackStart, trackStart + step, trackStart + end];
-      return { scrolled: scrolled, step: step, end: end };
+      var move = travel / (3 * ratio + 2);
+      var hold = ratio * move;
+      stops = [trackStart, trackStart + hold + move, trackStart + 2 * hold + 2 * move];
+      return { scrolled: scrolled, hold: hold, move: move };
     }
 
     function publish(toSpecs, toLogistics, stage) {
@@ -102,12 +99,12 @@
         return;
       }
       var m = measure();
-      if (!(m.step > 0)) {
+      if (!(m.move > 0)) {
         publish(0, 0, STAGES[0]);
         return;
       }
-      var toSpecs = ease(m.scrolled / m.step);
-      var toLogistics = ease((m.scrolled - m.step) / (m.end - m.step));
+      var toSpecs = ease((m.scrolled - m.hold) / m.move);
+      var toLogistics = ease((m.scrolled - 2 * m.hold - m.move) / m.move);
       var stage = toLogistics >= 0.5 ? STAGES[2] : toSpecs >= 0.5 ? STAGES[1] : STAGES[0];
       publish(toSpecs, toLogistics, stage);
     }
@@ -152,18 +149,33 @@
         window.pageYOffset >= document.documentElement.scrollHeight - window.innerHeight - 2;
     }
 
+    // The rewind: the page eased back up to the top over LOOP_MS (the
+    // browser's own smooth scroll takes a time that grows with the distance,
+    // which is the whole show here), or straight there under reduced motion.
+    // A touch, a click or a key during it hands the page back; wheel events
+    // don't — a trackpad's momentum goes on past the moment the loop began.
+    var LOOP_MS = 1400;
     function loop() {
       if (looping) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        return;
+      }
       looping = true;
-      window.scrollTo({ top: 0, left: 0 });
-      // Done once back at the top, or give up after the longest a smooth
-      // scroll takes.
-      var until = performance.now() + 3000;
-      (function wait() {
-        if (window.pageYOffset < 2 || performance.now() > until) looping = false;
-        else requestAnimationFrame(wait);
-      })();
+      var from = window.pageYOffset;
+      var started = performance.now();
+      (function step(now) {
+        if (!looping) return;
+        var p = clamp01((now - started) / LOOP_MS);
+        var eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        window.scrollTo({ top: from * (1 - eased), left: 0, behavior: "instant" });
+        if (p < 1) requestAnimationFrame(step);
+        else looping = false;
+      })(started);
     }
+    ["touchstart", "pointerdown", "keydown"].forEach(function (type) {
+      window.addEventListener(type, function () { looping = false; }, { passive: true, capture: true });
+    });
 
     // Anything that moves or tries to move the page restarts the quiet
     // clock; a gesture at the end counts only if the clock had run out

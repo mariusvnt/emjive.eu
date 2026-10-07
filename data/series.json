@@ -9,6 +9,19 @@
     "bronze": { "density-g-cm3": 8.8,   "price-per-g": 0.016356,  "loss-margin": 0.1,  "production-per-cm3": 25.9 }
   },
 
+  "metal-technology": { "steel": "binder-jetting", "silver": "lost-wax", "bronze": "lost-wax" },
+
+  "printing-technologies": {
+    "binder-jetting": {
+      "name": "HP Metal Binder Jetting",
+      "description": "A printer spreads a bed of fine steel powder and glues the shape of each layer into it with droplets of binder. The printed piece is then sintered in a furnace, where the powder fuses into solid steel."
+    },
+    "lost-wax": {
+      "name": "Lost-wax casting",
+      "description": "The piece is printed in wax, coated in a ceramic shell and heated until the wax melts away. Molten metal is poured into the empty mould, and the shell is broken to free the piece."
+    }
+  },
+
   "categories": {
     "ring":  { "sizes": ["52", "55", "57", "60", "62"], "unit": "mm" },
     "neck":  { "sizes": [], "unit": "" },

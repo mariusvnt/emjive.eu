@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /* ==========================================================================
    scene-tool-server — bare static/API server for scene-tool.html, a
-   standalone dev page for tuning a product's camera angle, a series'/the
-   swatch renderer's HDRI, the swatch's rotation, and a metal's
+   standalone dev page for tuning a product's camera angle, a series' HDRI,
+   the swatch scene's point light (where it stands, how strong it and the
+   uniform environment are), and a metal's
    shader — all as a live preview through the site's real
    window.EmjiveModelViewer (js/three-viewer.js), with a Save action that
    text-patches the relevant source file in place.
@@ -129,25 +130,16 @@ function updateSeriesHdriInText(text, seriesSlug, hdriKey) {
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// Top-level fields only ("swatch-hdri"/"swatch-rotation"), no
-// id/slug-anchoring needed — each is a single, unique key in
-// data/series.json. `updates` may carry either or both; only the keys
-// present get patched, applied to the same text in sequence. Returns
-// null (without writing anything from `updates` at all) if ANY requested
-// key's field isn't found, so a partial patch never lands silently.
-function updateSwatchSceneInText(text, updates) {
-  var result = text;
-  if (updates["swatch-hdri"] !== undefined) {
-    var hdriPattern = /"swatch-hdri":\s*"[^"]*"/;
-    if (!hdriPattern.test(result)) return null;
-    result = result.replace(hdriPattern, '"swatch-hdri": "' + updates["swatch-hdri"] + '"');
-  }
-  if (updates["swatch-rotation"] !== undefined) {
-    var rotationPattern = /"swatch-rotation":\s*-?[0-9.]+/;
-    if (!rotationPattern.test(result)) return null;
-    result = result.replace(rotationPattern, '"swatch-rotation": ' + updates["swatch-rotation"]);
-  }
-  return result;
+// Replaces the top-level "swatch-light": { ... } block (a single object of
+// plain numbers and one array of three, so no nested braces) with `light`,
+// kept on one line like the file's own. Returns null if the block isn't
+// there, so nothing is written for a field that has to be added by hand first.
+function updateSwatchLightInText(text, light) {
+  var pattern = /"swatch-light":\s*\{[^{}]*\}/;
+  if (!pattern.test(text)) return null;
+  var block = '"swatch-light": { "position": [' + light.position.join(", ") + '], "intensity": ' + light.intensity +
+    ', "environment": ' + light.environment + " }";
+  return text.replace(pattern, function () { return block; });
 }
 
 // Patches js/three-viewer.js's own METAL_PRESETS object — the one save
@@ -236,44 +228,33 @@ async function handleSaveSeriesHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
 }
 
-// The swatch's rotation is the only camera value anyone gets to set — tilt,
-// roll and zoom are solved from the tube's geometry (see swatchOrbit in
-// js/three-viewer.js), so there's nothing else to accept or write.
-async function handleSaveSwatchRotation(req, res) {
+// The swatch scene's one point light — its position, its strength and the
+// uniform environment's strength — is all anyone gets to set: the frame, the
+// camera's place and the spheres' are solved (see swatchOrbit in
+// js/three-viewer.js), so there is nothing else to accept or write.
+async function handleSaveSwatchLight(req, res) {
   var body = await readJsonBody(req);
-  if (!isFiniteNumber(body.rotation)) {
-    return sendJson(res, 400, { error: "rotation must be a finite number" });
+  var position = body.position;
+  if (!Array.isArray(position) || position.length !== 3 || !position.every(isFiniteNumber)) {
+    return sendJson(res, 400, { error: "position must be three finite numbers" });
+  }
+  if (!isFiniteNumber(body.intensity) || !isFiniteNumber(body.environment)) {
+    return sendJson(res, 400, { error: "intensity and environment must be finite numbers" });
   }
 
   var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var rotation = Math.round(body.rotation);
-  var patched = updateSwatchSceneInText(text, { "swatch-rotation": rotation });
+  var light = {
+    position: position.map(function (n) { return Math.round(n * 100) / 100; }),
+    intensity: Math.round(body.intensity * 100) / 100,
+    environment: Math.round(body.environment * 100) / 100
+  };
+  var patched = updateSwatchLightInText(text, light);
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-rotation\" in data/series.json — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-light\" in data/series.json — add it by hand first" });
   }
 
   fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { "swatch-rotation": rotation } });
-}
-
-async function handleSaveSwatchHdri(req, res) {
-  var body = await readJsonBody(req);
-  var hdriKey = body.hdriKey;
-  if (!hdriKey) return sendJson(res, 400, { error: "hdriKey is required" });
-
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var seriesIndex = JSON.parse(text);
-  if (!Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, hdriKey)) {
-    return sendJson(res, 400, { error: "unknown hdri: " + hdriKey });
-  }
-
-  var patched = updateSwatchSceneInText(text, { "swatch-hdri": hdriKey });
-  if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-hdri\" in data/series.json — add it by hand first" });
-  }
-
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { "swatch-hdri": hdriKey } });
+  return sendJson(res, 200, { ok: true, saved: { "swatch-light": light } });
 }
 
 async function handleSaveMetalShader(req, res) {
@@ -310,8 +291,7 @@ async function handleSaveMetalShader(req, res) {
 const ROUTES = {
   "POST /api/save-product-camera": handleSaveProductCamera,
   "POST /api/save-series-hdri": handleSaveSeriesHdri,
-  "POST /api/save-swatch-rotation": handleSaveSwatchRotation,
-  "POST /api/save-swatch-hdri": handleSaveSwatchHdri,
+  "POST /api/save-swatch-light": handleSaveSwatchLight,
   "POST /api/save-metal-shader": handleSaveMetalShader
 };
 

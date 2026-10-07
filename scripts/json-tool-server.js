@@ -8,8 +8,8 @@
    photos) — writing the right JSON fields and dispatching dropped files
    into the right folders automatically.
 
-   Deliberately has no swatch-scene editing at all (swatch-hdri/
-   swatch-rotation) — scripts/scene-tool-server.js already owns
+   Deliberately has no swatch-scene editing at all (swatch-light) —
+   scripts/scene-tool-server.js already owns
    that, with a live preview this file has no equivalent for. This file's
    GET /api/data still surfaces a read-only drift warning if the existing
    swatch-scene data looks broken, but nothing here can write to it.
@@ -200,13 +200,13 @@ function collectDriftWarnings(seriesIndex, seriesData) {
     }
   }
 
-  const swatchHdri = seriesIndex["swatch-hdri"];
-  if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
-    warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
-  }
-  const swatchRotation = seriesIndex["swatch-rotation"];
-  if (swatchRotation !== undefined && typeof swatchRotation !== "number") {
-    warnings.push('top-level "swatch-rotation" is ' + JSON.stringify(swatchRotation) + ", not a number");
+  const swatchLight = seriesIndex["swatch-light"];
+  if (swatchLight !== undefined) {
+    const ok = swatchLight && typeof swatchLight === "object" &&
+      Array.isArray(swatchLight.position) && swatchLight.position.length === 3 &&
+      swatchLight.position.every((n) => typeof n === "number" && isFinite(n)) &&
+      typeof swatchLight.intensity === "number" && typeof swatchLight.environment === "number";
+    if (!ok) warnings.push('top-level "swatch-light" is ' + JSON.stringify(swatchLight) + ", not { position: [x, y, z], intensity, environment }");
   }
   return warnings;
 }
@@ -353,17 +353,12 @@ async function handleGlobalCategory(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Where an hdri key is still relied on: any series' own "hdri" field, or
-// the top-level "swatch-hdri" (that field isn't editable from this tool —
-// see the file header — but removing the .hdr file out from under it
-// would still silently break scene-tool.html's swatch preview, so it's
-// still worth blocking on).
+// Where an hdri key is still relied on: any series' own "hdri" field.
 function findHdriUsages(seriesIndex, key) {
   const usages = [];
   for (const s of seriesIndex.series || []) {
     if (s.hdri === key) usages.push('series "' + s.slug + '" uses it');
   }
-  if (seriesIndex["swatch-hdri"] === key) usages.push('the top-level "swatch-hdri" uses it');
   return usages;
 }
 

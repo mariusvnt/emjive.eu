@@ -1,12 +1,14 @@
 <!--
   scene-tool.html — standalone dev page: preview a product (or the metal
-  swatch stack) under a chosen HDRI/metal, set a camera angle (drag the
+  swatch scene) under a chosen HDRI/metal, set a camera angle (drag the
   model, or type exact rotation/tilt/roll/zoom values directly), tweak that
   metal's shader live, then tick which of {HDRI, camera, metal shader} to
-  save and click Save. The swatch is the exception on the camera: its only
-  setting is its rotation (a slider/field); tilt, roll, zoom and the aim at
-  each metal's tube are solved so the tube exactly fills the frame, and are
-  shown but not editable. The metal buttons pick which tube the strip shows.
+  save and click Save. The swatch scene is the exception: three spheres (a
+  metal each), one point light and a uniform environment, no HDRI. Its only
+  settings are the light's x/y/z and strength and the environment's strength;
+  the camera (in front of the sphere, the frame the biggest square inside its
+  disc) is solved. The metal buttons pick which sphere the square frame shows;
+  "Overview" pulls back to all three and the light's marker.
 
   Not part of the built site — never added to vite.config.js's
   rollupOptions.input, so `npm run build` never ships it. Served (and
@@ -56,6 +58,8 @@
   }
   .controls section { display: flex; flex-direction: column; gap: 6px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  /* [hidden] loses to the display rules above, which set it themselves. */
+  .controls section[hidden], .controls label[hidden] { display: none; }
   select, input[type="number"], input[type="color"] { font: inherit; padding: 4px 6px; }
   .metal-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
   .metal-buttons button {
@@ -102,25 +106,23 @@
     padding: 16px;
   }
   #viewerContainer .emjive-3d-viewer { width: 100%; height: 100%; }
-  /* Swatch mode: the box takes the real aspect of the swatch render
-     (SWATCH_WIDTH x SWATCH_HEIGHT below — a 33:1 strip), up to its true
-     pixel width, instead of the 520px square. The camera's fov is
-     vertical, so the vertical framing would match in a square too, but the
-     reflections change along the tube, and only the real aspect shows what
-     the render will actually contain. The aspect-ratio itself is set from
-     JS; the viewer is absolutely placed because a percentage height won't
-     resolve against a box whose height comes from aspect-ratio. Not
-     draggable: a drag would change tilt/roll, which are fixed. */
-  #viewerContainer.is-strip {
+  /* Swatch mode: the box is the swatch's own frame — a square, the biggest
+     one inside the sphere's disc (what scripts/auto-render.js saves), 360px
+     here — or, in the overview, a 2:1 box holding all three spheres. The
+     viewer is absolutely placed because a percentage height won't resolve
+     against a box whose height comes from aspect-ratio. Not draggable: the
+     camera is solved. */
+  #viewerContainer.is-swatch {
     display: block;
     position: relative;
-    width: 100%;
-    max-width: 1600px;
+    width: 360px;
+    max-width: 100%;
+    aspect-ratio: 1 / 1;
     height: auto;
     padding: 0;
   }
-  #viewerContainer.is-strip .emjive-3d-viewer { position: absolute; inset: 0; pointer-events: none; }
-  #rotationSlider { width: 100%; }
+  #viewerContainer.is-swatch.is-overview { width: 100%; max-width: 900px; aspect-ratio: 2 / 1; }
+  #viewerContainer.is-swatch .emjive-3d-viewer { position: absolute; inset: 0; pointer-events: none; }
   #statusMessage { font-size: 13px; opacity: 0.75; min-height: 1.2em; }
 
   /* Minimal subset of css/style.css's own .emjive-3d-viewer rules — this
@@ -140,7 +142,7 @@
       <h1>Scene tool</h1>
     </section>
 
-    <section>
+    <section id="hdriSection">
       <label>HDRI
         <select id="hdriSelect"></select>
       </label>
@@ -167,8 +169,22 @@
         <span class="orbit-field">Roll: <input type="number" id="rollInput" step="1"> &deg;</span>
         <span class="orbit-field">Zoom: <input type="number" id="zoomInput" step="any"> %</span>
       </div>
-      <input type="range" id="rotationSlider" min="-180" max="180" step="1" hidden aria-label="Swatch rotation">
       <button type="button" id="resetCameraBtn">Reset to saved default</button>
+    </section>
+
+    <section id="lightSection" hidden>
+      <h2>Swatch light</h2>
+      <div class="readout">
+        <span class="orbit-field">x: <input type="number" id="lightX" step="0.1"></span>
+        <span class="orbit-field">y: <input type="number" id="lightY" step="0.1"></span>
+        <span class="orbit-field">z: <input type="number" id="lightZ" step="0.1"></span>
+      </div>
+      <div class="readout">
+        <span class="orbit-field">Strength: <input type="number" id="lightIntensity" min="0" step="5"></span>
+        <span class="orbit-field">Environment: <input type="number" id="lightEnvironment" min="0" step="0.05"></span>
+      </div>
+      <label><input type="checkbox" id="overviewCheck"> Overview (all three spheres + the light)</label>
+      <button type="button" id="resetLightBtn">Reset to saved default</button>
     </section>
 
     <section id="shaderSection">
@@ -192,7 +208,7 @@
 
     <section id="saveSection">
       <h2>Save</h2>
-      <label><input type="checkbox" id="saveHdri"> HDRI</label>
+      <label id="saveHdriLabel"><input type="checkbox" id="saveHdri"> HDRI</label>
       <label><input type="checkbox" id="saveCamera"> <span id="saveCameraLabel">Camera</span></label>
       <label><input type="checkbox" id="saveShader"> Metal shader</label>
       <div>
@@ -212,10 +228,6 @@
 <script type="module">
 import * as THREE from "three";
 
-// The swatch render's size — scripts/auto-render.js's SWATCH_WIDTH/
-// SWATCH_HEIGHT. Only the aspect matters here; keep the two in step.
-const SWATCH_WIDTH = 1600;
-const SWATCH_HEIGHT = 48;
 // Mirrors js/three-viewer.js's own module-scope WORLD_UP — readCurrentOrbit()
 // below needs it for the same "level up" projection frameCamera() uses.
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -226,7 +238,8 @@ const state = {
   mode: null,       // "product" | "swatch"
   seriesSlug: null,
   product: null,
-  swatchRotation: 0, // swatch mode's one setting — everything else about its camera is solved
+  swatchLight: null, // swatch mode's settings: { position: [x, y, z], intensity, environment }
+  overview: false,   // swatch mode: all three spheres instead of the one frame
   metal: null,
   handle: null,
   lastOrbit: null,
@@ -236,7 +249,9 @@ const state = {
 const els = {};
 [
   "hdriSelect", "modelSelect", "metalButtons", "viewerContainer", "statusMessage",
-  "rotationInput", "tiltInput", "zoomInput", "rollInput", "rotationSlider", "resetCameraBtn", "saveCameraLabel",
+  "rotationInput", "tiltInput", "zoomInput", "rollInput", "resetCameraBtn", "saveCameraLabel",
+  "hdriSection", "cameraSection", "lightSection", "lightX", "lightY", "lightZ", "lightIntensity", "lightEnvironment",
+  "overviewCheck", "resetLightBtn", "saveHdriLabel",
   "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
   "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults"
 ].forEach((id) => { els[id] = document.getElementById(id); });
@@ -305,7 +320,7 @@ function populateModelSelect() {
   swatchGroup.label = "Swatch";
   const swatchOpt = document.createElement("option");
   swatchOpt.value = "swatch";
-  swatchOpt.textContent = "Metal swatch (tube)";
+  swatchOpt.textContent = "Metal swatch (three spheres)";
   swatchGroup.appendChild(swatchOpt);
   els.modelSelect.appendChild(swatchGroup);
 
@@ -348,18 +363,68 @@ function wireEvents() {
   els.tiltInput.addEventListener("change", onOrbitInputChange);
   els.zoomInput.addEventListener("change", onOrbitInputChange);
   els.rollInput.addEventListener("change", onOrbitInputChange);
-  els.rotationSlider.addEventListener("input", () => onSwatchRotationChange(parseFloat(els.rotationSlider.value)));
+  [els.lightX, els.lightY, els.lightZ, els.lightIntensity, els.lightEnvironment].forEach((input) => {
+    input.addEventListener("input", onLightChange);
+  });
+  els.overviewCheck.addEventListener("change", onOverviewChange);
+  els.resetLightBtn.addEventListener("click", onResetLight);
   els.resetCameraBtn.addEventListener("click", onResetCamera);
   els.saveBtn.addEventListener("click", onSaveClick);
   els.copyJsonBtn.addEventListener("click", onCopyJsonClick);
 }
 
-// The swatch camera for a metal's tube in the stack — see swatchOrbit in
-// js/three-viewer.js. The stack holds every metal in picker order, so a
-// tube's slot is that metal's place in data/series.json's "metals".
+// The swatch camera for a metal's sphere in the row — see swatchOrbit in
+// js/three-viewer.js. The row holds every metal in picker order, so a
+// sphere's slot is that metal's place in data/series.json's "metals". The
+// overview is the one camera over all of them.
 function swatchOrbitFor(metal) {
   const metals = state.seriesIndex.metals;
-  return window.EmjiveModelViewer.swatchOrbit(state.swatchRotation, metals.indexOf(metal), metals.length);
+  if (state.overview) return window.EmjiveModelViewer.swatchOverviewOrbit();
+  return window.EmjiveModelViewer.swatchOrbit(metals.indexOf(metal), metals.length);
+}
+
+// The saved light (or the renderer's own default, if none is saved), as a
+// fresh object the inputs can edit.
+function savedSwatchLight() {
+  const saved = state.seriesIndex["swatch-light"];
+  const ok = saved && Array.isArray(saved.position) && saved.position.length === 3 &&
+    typeof saved.intensity === "number" && typeof saved.environment === "number";
+  const source = ok ? saved : { position: [4, 5, 9], intensity: 150, environment: 0.5 };
+  return { position: source.position.slice(), intensity: source.intensity, environment: source.environment };
+}
+
+function fillLightInputs() {
+  const light = state.swatchLight;
+  els.lightX.value = light.position[0];
+  els.lightY.value = light.position[1];
+  els.lightZ.value = light.position[2];
+  els.lightIntensity.value = light.intensity;
+  els.lightEnvironment.value = light.environment;
+}
+
+// Any light field committing a value: read all five, and light the scene
+// with them at once. A half-typed (non-numeric) field leaves things as they are.
+function onLightChange() {
+  const values = [els.lightX, els.lightY, els.lightZ, els.lightIntensity, els.lightEnvironment].map((input) => parseFloat(input.value));
+  if (!values.every(Number.isFinite)) return;
+  state.swatchLight = { position: [values[0], values[1], values[2]], intensity: values[3], environment: values[4] };
+  if (state.handle) state.handle.setSwatchLight(state.swatchLight);
+}
+
+function onOverviewChange() {
+  state.overview = els.overviewCheck.checked;
+  els.viewerContainer.classList.toggle("is-overview", state.overview);
+  if (!state.handle) return;
+  state.handle.setSwatchOverview(state.overview);
+  // The box changes shape: the viewer follows it on its next resize, and
+  // the camera for the new view is set straight away.
+  state.handle.setCameraOrbit(swatchOrbitFor(state.metal));
+}
+
+function onResetLight() {
+  state.swatchLight = savedSwatchLight();
+  fillLightInputs();
+  if (state.handle) state.handle.setSwatchLight(state.swatchLight);
 }
 
 function onMetalButtonClick(metal) {
@@ -367,8 +432,8 @@ function onMetalButtonClick(metal) {
   updateMetalButtonStates();
   populateShaderControls();
   if (!state.handle) return;
-  // Swatch: every tube already has its own metal, so this just moves the
-  // camera to that metal's tube. Product: re-tint the one model in place —
+  // Swatch: every sphere already has its own metal, so this just moves the
+  // camera in front of that metal's sphere. Product: re-tint the one model in place —
   // fast path, no rebuild.
   if (state.mode === "swatch") state.handle.setCameraOrbit(swatchOrbitFor(metal));
   else state.handle.applyMetal(metal);
@@ -428,10 +493,7 @@ async function rebuildViewer() {
   state.mode = sel.mode;
   state.seriesSlug = sel.seriesSlug || null;
   state.product = sel.product || null;
-  if (sel.mode === "swatch") {
-    const saved = state.seriesIndex["swatch-rotation"];
-    state.swatchRotation = typeof saved === "number" ? saved : 0;
-  }
+  if (sel.mode === "swatch" && !state.swatchLight) state.swatchLight = savedSwatchLight();
   if (!state.metal) {
     state.metal = (sel.mode === "product" && sel.product["default-metal"]) || state.seriesIndex.metals[0];
   }
@@ -442,15 +504,21 @@ async function rebuildViewer() {
   state.lastOrbit = null;
   els.viewerContainer.innerHTML = "";
   els.statusMessage.textContent = "";
-  els.viewerContainer.classList.toggle("is-strip", sel.mode === "swatch");
-  els.viewerContainer.style.aspectRatio = sel.mode === "swatch" ? SWATCH_WIDTH + " / " + SWATCH_HEIGHT : "";
-  els.rotationSlider.hidden = sel.mode !== "swatch";
-  els.saveCameraLabel.textContent = sel.mode === "swatch" ? "Rotation" : "Camera";
-  if (sel.mode === "swatch") {
+  const swatch = sel.mode === "swatch";
+  els.viewerContainer.classList.toggle("is-swatch", swatch);
+  els.viewerContainer.classList.toggle("is-overview", swatch && state.overview);
+  els.hdriSection.hidden = swatch;
+  els.saveHdriLabel.hidden = swatch;
+  els.cameraSection.hidden = swatch;
+  els.lightSection.hidden = !swatch;
+  els.saveCameraLabel.textContent = swatch ? "Light" : "Camera";
+  if (swatch) {
+    fillLightInputs();
+    els.overviewCheck.checked = state.overview;
     els.statusMessage.textContent =
-      "Swatch strip, at the render's real " + SWATCH_WIDTH + "x" + SWATCH_HEIGHT + " aspect (shown at up to true size). " +
-      "One scene, a tube per metal in picker order — the metal buttons pick which one is shown. " +
-      "Only the rotation is yours to set; tilt, roll, zoom and the aim are solved so the tube exactly fills the frame.";
+      "Swatch scene: three spheres (a metal each, in picker order), one point light and a uniform environment — no HDRI. " +
+      "The metal buttons move the camera in front of that sphere; the frame is the biggest square inside its disc, exactly what is saved " +
+      "as the swatch. Only the light is yours to set; the camera is solved.";
   }
 
   const hdriKey = els.hdriSelect.value;
@@ -480,10 +548,10 @@ async function rebuildViewer() {
     };
     handle = window.EmjiveModelViewer(stubProduct, state.metal, {
       freeOrbit: true,
-      hdri: hdriPath,
-      swatch: { metals: state.seriesIndex.metals },
+      swatch: { metals: state.seriesIndex.metals, light: state.swatchLight },
       onReady: () => { if (token === state.buildToken) setControlsDisabled(false); }
     });
+    if (handle && state.overview) handle.setSwatchOverview(true);
   }
 
   if (!handle) {
@@ -504,14 +572,10 @@ function setControlsDisabled(disabled) {
 }
 
 function setCameraControlsEnabled(enabled) {
-  // The swatch's tilt/roll/zoom are solved (js/three-viewer.js's
-  // swatchOrbit) — shown in their fields, never editable.
-  const solved = state.mode === "swatch";
   els.rotationInput.disabled = !enabled;
-  els.rotationSlider.disabled = !enabled;
-  els.tiltInput.disabled = !enabled || solved;
-  els.zoomInput.disabled = !enabled || solved;
-  els.rollInput.disabled = !enabled || solved;
+  els.tiltInput.disabled = !enabled;
+  els.zoomInput.disabled = !enabled;
+  els.rollInput.disabled = !enabled;
   els.resetCameraBtn.disabled = !enabled;
   els.saveCamera.disabled = !enabled;
   if (!enabled) els.saveCamera.checked = false;
@@ -570,20 +634,14 @@ function readCurrentOrbit(handle) {
 
 function readoutLoop() {
   requestAnimationFrame(readoutLoop);
-  if (!state.handle) return;
+  // The swatch scene's camera is solved: nothing to read back.
+  if (!state.handle || state.mode === "swatch") return;
   const orbit = readCurrentOrbit(state.handle);
   if (!orbit) return;
   state.lastOrbit = orbit;
   // Skip whichever field the user is actively typing into, so the live
-  // drag-driven readout doesn't fight their keystrokes. The swatch's
-  // rotation is state, not read back off the camera (no drag can change it,
-  // and the read-back would flip 180 to -180 at the seam).
-  if (state.mode === "swatch") {
-    if (document.activeElement !== els.rotationInput) els.rotationInput.value = state.swatchRotation;
-    els.rotationSlider.value = state.swatchRotation;
-  } else if (document.activeElement !== els.rotationInput) {
-    els.rotationInput.value = orbit.rotation;
-  }
+  // drag-driven readout doesn't fight their keystrokes.
+  if (document.activeElement !== els.rotationInput) els.rotationInput.value = orbit.rotation;
   if (document.activeElement !== els.tiltInput) els.tiltInput.value = orbit.tilt;
   if (document.activeElement !== els.zoomInput) els.zoomInput.value = orbit.zoom;
   if (document.activeElement !== els.rollInput) els.rollInput.value = orbit.roll;
@@ -595,7 +653,6 @@ function readoutLoop() {
 // scripts/auto-render.js's top-shot render already uses.
 function onOrbitInputChange() {
   if (!state.handle) return;
-  if (state.mode === "swatch") return onSwatchRotationChange(parseFloat(els.rotationInput.value));
   const rotation = parseFloat(els.rotationInput.value);
   const tilt = parseFloat(els.tiltInput.value);
   const zoom = parseFloat(els.zoomInput.value);
@@ -604,20 +661,8 @@ function onOrbitInputChange() {
   state.handle.setCameraOrbit({ rotation, tilt, zoom, roll });
 }
 
-// The swatch's whole camera, from its one free value (see swatchOrbit in
-// js/three-viewer.js). Whole degrees: that's all the save keeps.
-function onSwatchRotationChange(rotation) {
-  if (!state.handle || !Number.isFinite(rotation)) return;
-  state.swatchRotation = Math.round(rotation);
-  state.handle.setCameraOrbit(swatchOrbitFor(state.metal));
-}
-
 function onResetCamera() {
   if (!state.handle) return;
-  if (state.mode === "swatch") {
-    const saved = state.seriesIndex["swatch-rotation"];
-    return onSwatchRotationChange(typeof saved === "number" ? saved : 0);
-  }
   state.handle.setCameraOrbit(state.product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 });
 }
 
@@ -664,13 +709,10 @@ async function onSaveClick() {
     }
   } else {
     if (els.saveCamera.checked) {
-      await attempt("Swatch rotation", "/api/save-swatch-rotation", { rotation: state.swatchRotation });
+      await attempt("Swatch light", "/api/save-swatch-light", state.swatchLight);
       // So "Reset to saved default" means what was just saved, not what the
       // page loaded with.
-      if (results[results.length - 1].ok) state.seriesIndex["swatch-rotation"] = state.swatchRotation;
-    }
-    if (els.saveHdri.checked) {
-      await attempt("HDRI", "/api/save-swatch-hdri", { hdriKey: els.hdriSelect.value });
+      if (results[results.length - 1].ok) state.seriesIndex["swatch-light"] = JSON.parse(JSON.stringify(state.swatchLight));
     }
   }
 
@@ -704,10 +746,10 @@ function renderSaveResults(results) {
 }
 
 function onCopyJsonClick() {
-  if (!state.lastOrbit) return;
+  if (state.mode === "product" && !state.lastOrbit) return;
   const snippet = state.mode === "product"
     ? JSON.stringify({ "3d-viewer-camera-default": state.lastOrbit }, null, 2)
-    : JSON.stringify({ "swatch-rotation": state.swatchRotation }, null, 2);
+    : JSON.stringify({ "swatch-light": state.swatchLight }, null, 2);
   navigator.clipboard.writeText(snippet).catch(() => {});
 }
 </script>

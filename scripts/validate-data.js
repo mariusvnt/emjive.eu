@@ -155,8 +155,16 @@ const indexSchema = {
       }
     },
     hdris: strMap,
-    "swatch-hdri": str,
-    "swatch-rotation": num,
+    "swatch-light": {
+      type: "object",
+      required: ["position", "intensity", "environment"],
+      additionalProperties: false,
+      properties: {
+        position: { type: "array", items: num, minItems: 3, maxItems: 3 },
+        intensity: num,
+        environment: num
+      }
+    },
     series: {
       type: "array",
       minItems: 1,
@@ -333,7 +341,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
   for (const metal of Object.keys(index["metal-technology"])) {
     if (!metals.has(metal)) fail("data/series.json", 'metal-technology has unknown metal "' + metal + '"');
   }
-  if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
 
   // An item is addressed by emjive.eu/<slug> (scripts/slugs.js), flat at the

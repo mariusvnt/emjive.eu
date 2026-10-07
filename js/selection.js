@@ -278,7 +278,7 @@
 
   // The size guide (the product page's specs stage, the two size sheets):
   // `guide` is the category's "size-guide" in data/series.json — { how, head,
-  // rows } — built into `container` as a few words and a table. Returns
+  // rows: one a size } — built into `container` as a few words and a table. Returns
   // whether there was anything to build (a category with no guide gets no
   // button).
   function fillSizeGuide(container, guide) {
@@ -288,30 +288,33 @@
     how.className = "size-guide__how";
     how.textContent = guide.how || "";
     container.appendChild(how);
+    // Turned: the data has a row a size (and a head naming the columns), the
+    // table a row a fact — its label first, then one column a size: three
+    // rows. Wider than its room, it scrolls on its own.
     var table = document.createElement("table");
     table.className = "size-guide__table";
-    var head = document.createElement("tr");
-    (guide.head || []).forEach(function (cell) {
-      var th = document.createElement("th");
-      th.scope = "col";
-      th.textContent = cell;
-      head.appendChild(th);
-    });
-    var thead = document.createElement("thead");
-    thead.appendChild(head);
-    table.appendChild(thead);
     var tbody = document.createElement("tbody");
-    guide.rows.forEach(function (row) {
+    (guide.head || []).forEach(function (label, column) {
       var tr = document.createElement("tr");
-      row.forEach(function (cell) {
+      var th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = label;
+      tr.appendChild(th);
+      guide.rows.forEach(function (row) {
         var td = document.createElement("td");
-        td.textContent = cell;
+        td.textContent = row[column];
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-    container.appendChild(table);
+    var scroll = document.createElement("div");
+    scroll.className = "size-guide__scroll";
+    scroll.tabIndex = 0;
+    scroll.setAttribute("role", "region");
+    scroll.setAttribute("aria-label", "Size chart");
+    scroll.appendChild(table);
+    container.appendChild(scroll);
     return true;
   }
 

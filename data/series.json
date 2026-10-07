@@ -27,19 +27,19 @@
       "sizes": ["52", "55", "57", "60", "62"],
       "unit": "mm",
       "size-guide": {
-        "how": "Wrap a strip of paper around the base of your finger, mark where it overlaps and measure its length in millimetres: that number is your size. Measure at the end of the day, when fingers are at their largest.",
-        "head": ["Size", "Diameter", "US"],
+        "how": "Wrap a strip of paper around the base of your finger, mark where it overlaps and measure its length in millimetres: that number is your size.",
+        "head": ["Size", "Diameter (mm)", "US"],
         "rows": [
-          ["44", "14.0 mm", "3"],
-          ["48", "15.3 mm", "4.5"],
-          ["52", "16.6 mm", "6"],
-          ["55", "17.5 mm", "7"],
-          ["57", "18.1 mm", "8"],
-          ["60", "19.1 mm", "9"],
-          ["62", "19.7 mm", "10"],
-          ["64", "20.4 mm", "11"],
-          ["66", "21.0 mm", "11.5"],
-          ["70", "22.3 mm", "13"]
+          ["44", "14.0", "3"],
+          ["48", "15.3", "4.5"],
+          ["52", "16.6", "6"],
+          ["55", "17.5", "7"],
+          ["57", "18.1", "8"],
+          ["60", "19.1", "9"],
+          ["62", "19.7", "10"],
+          ["64", "20.4", "11"],
+          ["66", "21.0", "11.5"],
+          ["70", "22.3", "13"]
         ]
       }
     },

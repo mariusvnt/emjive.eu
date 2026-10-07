@@ -68,12 +68,14 @@
      composited onto a hand image. Saved as 1024x1024 WebP alongside the
      icon, indexed in the same products.json under that product's
      "assets.top-shot" object (keyed by metal), mirroring "icons".
-   - One metal sample strip per metal, captured through a 1600x48 frame and
-     saved as a 144x48 WebP at assets/metal-sample_<metal>.webp (see
-     SWATCH_OUTPUT_WIDTH) — a long tube lying across the frame and exactly
-     filling its height, which .product-metals__option in css/style.css
-     lays behind each metal bar, turned with it (the bars are 1rem thick,
-     so the strip's whole height is what shows). All the strips come from ONE
+   - One metal square per metal for the metal picker, captured through a
+     1600x48 frame and saved as a 72x72 WebP at
+     assets/metal-sample_<metal>.webp (see SWATCH_SIZE) — a long tube lying
+     across the frame and exactly filling its height, of which the part that
+     is the metal itself (SWATCH_CROP: the tube's top and bottom edges are
+     near white and would melt into the page) is cut out and squeezed square,
+     so .product-metals__option in css/style.css shows the file as it is, at
+     the square's size, with nothing to crop or scale. All the squares come from ONE
      scene: a tube per metal (all of data/series.json's "metals", whichever
      ones were asked for), stacked in the metal picker's order, with the
      camera aimed at each tube in turn from a shared viewpoint — which is
@@ -109,20 +111,26 @@ const ICON_SIZE = 512;
 // fallback-img saved at this size never needs to be scaled by the browser.
 const FALLBACK_IMG_SIZE = ICON_SIZE;
 const TOP_SHOT_SIZE = 1024;
-// A strip, not a square: see the header. scene-tool.html's swatch-mode
-// preview mirrors this aspect (its own SWATCH_WIDTH/SWATCH_HEIGHT) — keep
-// the two in step.
+// A strip: the tube lies across it. scene-tool.html's swatch-mode preview
+// mirrors this aspect (its own SWATCH_WIDTH/SWATCH_HEIGHT) — keep the two in
+// step.
 const SWATCH_WIDTH = 1600;
 const SWATCH_HEIGHT = 48;
 // The frame above is only what the scene is captured through (the camera's
-// zoom is solved for its aspect); the saved file is much narrower. A bar is
-// at most 3rem (48 CSS px, 144 device px at 3x) long, and desktop Chrome
-// (GPU raster) downscales a 1600px image to that, under the bar's rotation,
-// with no real filtering — visibly pixelated. Saved at 144px wide, the one
-// big downscale is done here, by sharp, instead (the tube is uniform along
-// its length, so nothing is lost). Keep in step with the picker's active
-// length in css/style.css (--metal-bar-active).
-const SWATCH_OUTPUT_WIDTH = 144;
+// zoom is solved for its aspect); the saved file is a square, 3x the picker's
+// 1.5rem squares (--metal-square in css/style.css) so it is sharp on a 3x
+// screen and never scaled up. The one big downscale is done here, by sharp
+// (the tube is uniform along its length, so squeezing it loses nothing).
+const SWATCH_SIZE = 72;
+// The part of the tube's height each metal's square shows, as shares of it
+// from the top: the metal's own colour, without the near-white edges where
+// the tube meets the studio's light.
+const SWATCH_CROP = {
+  steel: { top: 0.6, height: 0.4 },
+  silver: { top: 0.2667, height: 0.5556 },
+  bronze: { top: 0.0667, height: 0.5 }
+};
+const SWATCH_CROP_DEFAULT = { top: 0.2, height: 0.6 };
 // Captured at 2x the final pixel size (real GPU MSAA already handles edge
 // aliasing — this is purely for retina-sharp source pixels before the
 // final downscale) then resized down with sharp.
@@ -635,7 +643,11 @@ async function renderSwatches(page, allMetals, wantedMetals, hdriRelPath, rotati
     await page.evaluate((r, i, n) => window.__aimSwatch(r, i, n), rotation, index, allMetals.length);
     const handle = await page.$("#target");
     const buffer = await handle.screenshot({ omitBackground: true });
-    await writeWebp(sharp(buffer).resize(SWATCH_OUTPUT_WIDTH, SWATCH_HEIGHT), path.join(ROOT, relPath));
+    const crop = SWATCH_CROP[metal] || SWATCH_CROP_DEFAULT;
+    const meta = await sharp(buffer).metadata();
+    const top = Math.round(crop.top * meta.height);
+    const region = { left: 0, top: top, width: meta.width, height: Math.min(meta.height - top, Math.round(crop.height * meta.height)) };
+    await writeWebp(sharp(buffer).extract(region).resize(SWATCH_SIZE, SWATCH_SIZE, { fit: "fill" }), path.join(ROOT, relPath));
     // Superseded by the naming/format above, if a product ever gets
     // re-rendered under this tool for the first time.
     deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));
@@ -764,7 +776,7 @@ async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
   const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
-  // Just the metal-sample strips — no product icons/top shots, no
+  // Just the metal-sample squares — no product icons/top shots, no
   // products.json writes. The loop for tuning the swatch scene
   // (scene-tool.html's swatch mode) without re-rendering the catalog.
   const swatchesOnly = args.includes("--swatches-only");

@@ -27,8 +27,8 @@
    CSS can't do (js/product.js: the model, the carousel lock).
 
    Returns { scrollToStage(index) }. Focus moving into an element marked
-   data-stage-owner="presentation|specs|logistics" while another stage is
-   showing scrolls to that one, so the keyboard can reach everything — but
+   data-stage-owner="presentation|specs|logistics" (or two, space apart) while
+   another stage is showing scrolls to that one (the first), so the keyboard can reach everything — but
    only focus a keyboard put there (:focus-visible). A click on the model
    focuses the carousel's viewport (a tab stop) without any such intent, and
    used to throw the page back to the stage that viewport belongs to.
@@ -131,8 +131,11 @@
       if (!e.target.matches(":focus-visible")) return;
       var owner = e.target.closest("[data-stage-owner]");
       if (!owner) return;
-      var index = STAGES.indexOf(owner.getAttribute("data-stage-owner"));
-      if (index !== -1 && STAGES[index] !== state.stage) scrollToStage(index);
+      // One stage, or several (space apart): inside one of them, nowhere to go.
+      var owned = owner.getAttribute("data-stage-owner").split(/\s+/);
+      if (owned.indexOf(state.stage) !== -1) return;
+      var index = STAGES.indexOf(owned[0]);
+      if (index !== -1) scrollToStage(index);
     });
 
     /* ---- looping ------------------------------------------------------- */

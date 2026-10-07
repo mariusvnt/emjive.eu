@@ -313,7 +313,7 @@ Each series picks its lighting environment via `"hdri"` (a key into
 
 Same tool: in `scene-tool.html`, pick that series' product, choose the HDRI
 from the dropdown to preview it live, tick "HDRI," and Save writes the key
-into that series' entry. The swatch renderer (metal-sample strips) has its
+into that series' entry. The swatch renderer (metal-sample squares) has its
 own, separate `"swatch-hdri"` choice — see "Re-rendering icons and metal
 swatches" below.
 
@@ -337,16 +337,16 @@ its 3D model, overriding whatever materials the model file itself has:
 
 `default-metal` should be one of the values listed in the top-level `"metals"`
 array in `data/series.json` — that list is global (not per-series) and is
-the source of truth for what metals exist, and it's also what the metal picker's bars (and their
-swatch strips) are generated from. The actual presets live in `METAL_PRESETS` in
+the source of truth for what metals exist, and it's also what the metal picker's squares (and their
+swatch images) are generated from. The actual presets live in `METAL_PRESETS` in
 `js/three-viewer.js`: `"steel"` (the fallback preset for an unrecognized
 metal, and what the product page's picker starts on when `default-metal` is
 omitted — it takes the first of the `"metals"` list), `"silver"` and `"bronze"`. To add another finish, add it to
 **three** places — the `"metals"` list in `data/series.json`, a matching
 entry in `METAL_PRESETS` with its own `baseColorFactor` / `metallicFactor`
-/ `roughnessFactor`, and a rendered swatch strip for it in `css/style.css`
-(`.product-metals__option[data-metal="..."]`, see "Re-rendering icons and
-metal swatches" just below for how those are made; since all the strips come
+/ `roughnessFactor`, and a rendered swatch square for it (`assets/metal-sample_<metal>.webp`, named by `css/style.css`'s
+`.product-metals__option[data-metal="..."]` rule, see "Re-rendering icons and
+metal swatches" just below for how those are made; since all the squares come
 from one stack of tubes, adding a metal changes every metal's slot, so re-run
 `npm run auto-render -- --swatches-only` for all of them) — plus a
 `"metal-costs"` entry for it in `data/series.json` (density in g/cm³, price
@@ -385,7 +385,7 @@ same model in place instead of reloading it or resetting the camera angle.
 ### Re-rendering icons and metal swatches after a shader change
 
 A product's `assets.icons`, its poster images (`assets.fallback-img`), its
-top shots (`assets.top-shot`), and the metal picker's swatch strips (`css/style.css`'s
+top shots (`assets.top-shot`), and the metal picker's swatch squares (`css/style.css`'s
 `.product-metals__option[data-metal="..."]`) are all real renders of the
 PBR material — not hand-picked colors or gradients — using the exact same
 `METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
@@ -405,7 +405,7 @@ field(s); it never itself re-runs `auto-render`.
 npm install               # first time only — pulls in puppeteer-core + sharp
 npm run auto-render                  # every metal
 npm run auto-render -- steel bronze  # only these metals
-npm run auto-render -- --swatches-only  # just the metal swatch strips (no product renders)
+npm run auto-render -- --swatches-only  # just the metal swatch squares (no product renders)
 npm run auto-render -- --image-variants # render nothing: only rewrite the generated
                                         # versions of the x-ray/hero/icon images
 ```
@@ -479,14 +479,17 @@ list, if none are given), across every series (or just one, with
   product is updated in place the same way `icons`/`fallback-img` are — and read live
   by the homepage hero's ring-on-hand overlay, see the product's own
   `hero-hand-visibility` field (`data.md`) and `pages.md`'s `index.html` section.
-- **One metal sample strip per metal**, regardless of whether any product
+- **One metal sample square per metal**, regardless of whether any product
   defaults to it — saved as `assets/metal-sample_<metal>.webp`
-  (**144×48** — captured through a 1600×48 frame, then downscaled once
-  by `sharp`, `SWATCH_OUTPUT_WIDTH` in `scripts/auto-render.js`, which has to
-  stay in step with the bar's active length in `css/style.css`,
-  `--metal-bar-active`). **Not** a render of any actual product — a long tube lying
-  across the frame and exactly filling its height, so the strip shows the
-  tube's whole cross-section (highlights, reflections). All the strips come
+  (**72×72**, 3× the picker's 1.5rem squares: `SWATCH_SIZE` in
+  `scripts/auto-render.js`). **Not** a render of any actual product — a long
+  tube lying across a 1600×48 frame and exactly filling its height, so the
+  capture shows the tube's whole cross-section (highlights, reflections); the
+  script then cuts out the part that is the metal itself (`SWATCH_CROP`, per
+  metal: the tube's top and bottom edges are near white and would melt into
+  the page) and squeezes it square — the tube is uniform along its length, so
+  nothing is lost. The picker shows the file as it is: no CSS crop or zoom.
+  All the squares come
   from **one scene** (a tube per metal in `data/series.json`'s `metals`
   order — the picker's order — with the camera aimed at each in turn), built
   via `js/three-viewer.js`'s `buildThreeViewer(stubProduct, metalKey,
@@ -503,9 +506,8 @@ list, if none are given), across every series (or just one, with
   the metals relative to each other is set by constants in `three-viewer.js`
   (`SWATCH_VIEW_STEP` — how far round each successive metal is viewed from,
   currently 90°, the knob if the metals' reflections look too alike — and
-  `SWATCH_FOV`), not by data. CSS lays each strip behind its bar, fitted to the whole bar and turned
-  with it (see `styling.md`); stretching it lengthways is invisible since
-  the tube is uniform along its length. Re-run
+  `SWATCH_FOV`), not by data. A new metal needs a `SWATCH_CROP` entry (a
+  default applies if it has none). Re-run
   just these with `npm run auto-render -- --swatches-only`.
 
 All three are captured at 2x the final pixel size and downscaled with

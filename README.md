@@ -182,6 +182,7 @@ assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
 scripts/measure-models.js                       Each model's volume + size, written into products.json (npm run measure-models)
+scripts/prepare-coin.js                         The 2 € coin model the product page draws beside the ring (node scripts/prepare-coin.js <in> <out>)
 scripts/slugs.js                                An item's address (/<name>) and the names it may not take
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)

@@ -256,21 +256,19 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // The largest size the page scales the model to (70 over its base size,
   // 62): the fit leaves room for it, so brackets never leave the canvas.
   var BLUEPRINT_SIZE_MAX = 70 / 62;
-  // The coin drawn beside the model for size comparison: a 2 € coin, 25.75 mm
-  // across and 2.2 mm thick, at its real size whatever size the ring is
-  // drawn at (the model's units are millimetres). COIN_GAP is the space
-  // between the ring and the coin, in millimetres; COIN_RING_SHARE is how far
-  // from its middle the ring is taken to reach, as a share of its bounding
-  // sphere; COIN_TILT turns the coin from facing the opening view, so its rim
-  // shows (radians).
-  var COIN_RADIUS = 12.875;
-  var COIN_THICKNESS = 2.2;
-  var COIN_GAP = 4;
-  var COIN_RING_SHARE = 0.9;
-  var COIN_TILT = 0.55;
-  // The coin has a few lines, not the ring's dense mesh, so each is drawn darker.
-  var COIN_WIRE_OPACITY = 0.3;
-  var COIN_LABEL = "2 € coin · 25.75 mm";
+  // A dotted ruler drawn under a model (options.blueprint.measure — the
+  // product page's coin), as dotted as the brackets are at the ring's usual
+  // size: the lengths of a dot and of the space between two, in the model's
+  // own units (millimetres); it is hidden, figure and all, if it is shorter
+  // than MEASURE_MIN_PX on screen.
+  var BRACKET_DASH_MM = 0.26;
+  var BRACKET_DASH_GAP_MM = 0.76;
+  var MEASURE_MIN_PX = 14;
+
+  // A length in millimetres, as the page shows it: centimetres, two places.
+  function formatCm(mm) {
+    return (Math.round(mm * 10 + 1e-6) / 100).toFixed(2) + " cm";
+  }
 
   function smoothstep01(edge0, edge1, x) {
     var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
@@ -1161,7 +1159,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     // .texture) so dispose() can free the whole render target — see
     // loadEnvironment's own comment.
     var environmentTarget = null;
-    var environmentPromise = loadEnvironment(renderer, options.hdri, function () { return isDisposed; }).then(function (renderTarget) {
+    // (options.environment === false: none — for a viewer that only ever
+    // draws the flat blueprint, which no reflection touches.)
+    var environmentPromise = options.environment === false ? Promise.resolve() : loadEnvironment(renderer, options.hdri, function () { return isDisposed; }).then(function (renderTarget) {
       // Arriving after teardown: the PMREM target is real GPU memory on a
       // renderer that's already been released, so it has to be freed here
       // rather than attached to a scene nothing will ever draw again. (Null
@@ -1456,14 +1456,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var minBox = null;
     var bracketLines = null;
     var bracketLabels = [];
-    // The comparison coin (buildCoin): { group, fill, wire, label } — it
-    // stands beside the ring on whichever side of the screen is the right,
-    // not in the group the fit scales, since it keeps its size when the
-    // ring's changes.
-    var coin = null;
-    // How far, from the orbit target, the brackets reach — the left side of
-    // what the specs stage shows (computeFit).
-    var bracketReach = 0;
+    // The page's chosen scale (handle.setPxPerMm): CSS pixels to a millimetre
+    // of the model, so that two viewers draw at one scale. 0: the fit's own.
+    var pxPerMm = 0;
+    // The one line measured across the model (buildMeasure), if the page asks
+    // for it: { line, label, a, b }.
+    var measure = null;
 
     // polygonOffset pushes the fill back a hair so the edges, which lie
     // exactly on its triangles, win the depth test rather than flicker
@@ -1615,7 +1613,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     function paintLabels() {
       if (!minBox) return;
       bracketLabels.forEach(function (label, k) {
-        label.textContent = (minBox.dims[k] * sizeFactor).toFixed(1) + " mm";
+        label.textContent = formatCm(minBox.dims[k] * sizeFactor);
       });
     }
 
@@ -1638,18 +1636,14 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         }
         reach += minBox.gap;
       }
-      bracketReach = reach;
       var room = framedRadius * 0.95;
       fitScale = Math.min(1, room / (reach * BLUEPRINT_SIZE_MAX));
-      if (coin) {
-        // The ring (and its brackets) on the left, the coin on the right:
-        // together as wide as the canvas allows. The coin doesn't grow with
-        // the size, the ring does.
-        var share = frameSphere.radius * COIN_RING_SHARE;
-        var span = (reach + share) * BLUEPRINT_SIZE_MAX + COIN_GAP + 2 * COIN_RADIUS;
-        var aspect = currentWidth / Math.max(1, currentHeight);
-        fitScale = Math.min(fitScale, (2 * room * Math.max(1, aspect)) / span);
-      }
+    }
+
+    // World units to a pixel of the canvas, at the orbit's target.
+    function worldPerPx() {
+      var fov = (camera.fov * Math.PI) / 180;
+      return (2 * camera.position.distanceTo(controls.target) * Math.tan(fov / 2)) / Math.max(1, currentHeight);
     }
 
     var bpCenter = new THREE.Vector3();
@@ -1665,7 +1659,10 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     function updateBlueprint() {
       if (!fitGroup || !frameSphere) return;
       var sweep = blueprintSweep;
-      var scale = 1 + (fitScale * sizeFactor - 1) * blueprintFit;
+      // The scale the fit goes to: the page's (px to a mm, brought to world
+      // units), or the one that makes the box and its brackets fit.
+      var target = (pxPerMm > 0 ? pxPerMm * worldPerPx() : fitScale) * sizeFactor;
+      var scale = 1 + (target - 1) * blueprintFit;
       fitGroup.scale.setScalar(scale);
       fitGroup.position.copy(controls.target).multiplyScalar(1 - scale);
       fitGroup.updateMatrixWorld(true);
@@ -1686,123 +1683,91 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       wirePlane.setFromNormalAndCoplanarPoint(bpUp.negate(), bpScratch);
       wireLines.forEach(function (lines) { lines.visible = sweep > 0; });
 
-      updateCoin(scale);
-      if (minBox) updateBrackets(smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit));
+      var fade = smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit);
+      if (minBox) updateBrackets(fade);
+      if (measure) updateMeasure(fade);
     }
 
-    // The coin: beside the ring on the right of the screen, whatever way the
-    // model is turned (it stays where the camera's right is), its own
-    // orientation fixed in the scene like the ring's, so turning the view
-    // turns both. Its size is the fit's, without the ring's size factor. The
-    // two together — the ring with its brackets, and the coin — are then
-    // centred in the canvas by shifting the view sideways (a view offset: the
-    // orbit's pivot stays on the ring).
-    var bpRight = new THREE.Vector3();
-    function updateCoin(ringScale) {
-      var offset = 0;
-      if (coin) {
-        var fade = smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit);
-        var coinScale = 1 + (fitScale - 1) * blueprintFit;
-        bpRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
-        var ringReach = frameSphere.radius * COIN_RING_SHARE * ringScale;
-        var d = ringReach + (COIN_GAP + COIN_RADIUS) * coinScale;
-        coin.group.position.copy(controls.target).addScaledVector(bpRight, d);
-        coin.group.scale.setScalar(coinScale);
-        coin.group.visible = fade > 0;
-        coin.fill.material.opacity = fade;
-        coin.wire.material.opacity = COIN_WIRE_OPACITY * fade;
-
-        // Centred as a pair: the far edge of the coin against the far edge of
-        // the brackets.
-        var half = (d + COIN_RADIUS * coinScale - bracketReach * ringScale) / 2;
-        var fov = (camera.fov * Math.PI) / 180;
-        var worldPerPx = (2 * camera.position.distanceTo(controls.target) * Math.tan(fov / 2)) / Math.max(1, currentHeight);
-        offset = Math.round((half / worldPerPx) * blueprintFit);
-
-        // Its name, under it.
-        bpNdc.copy(coin.group.position).project(camera);
-        var cx = (bpNdc.x + 1) / 2 * currentWidth;
-        var cy = (1 - bpNdc.y) / 2 * currentHeight;
-        bpA.copy(coin.group.position).addScaledVector(bpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize(), COIN_RADIUS * coinScale);
-        bpNdc.copy(bpA).project(camera);
-        var radiusPx = Math.abs(cy - (1 - bpNdc.y) / 2 * currentHeight);
-        coin.label.style.transform = "translate(" + cx.toFixed(1) + "px, " + (cy + radiusPx + BRACKET_LABEL_PX * 1.5).toFixed(1) + "px) translate(-50%, 0)";
-        coin.label.style.opacity = String(fade);
-      }
-      if (offset !== bpViewOffset) {
-        bpViewOffset = offset;
-        if (offset) camera.setViewOffset(currentWidth, currentHeight, offset, 0, currentWidth, currentHeight);
-        else camera.clearViewOffset();
-      }
+    // A dimension label beside its line, on screen: from the line's middle,
+    // perpendicular to it, away from the point (cx, cy) the line measures —
+    // far enough that the label's own box clears the line.
+    function placeLabel(label, ax, ay, bx, by, cx, cy, opacity) {
+      var lx = bx - ax, ly = by - ay;
+      var len = Math.sqrt(lx * lx + ly * ly) || 1;
+      var px = -ly / len, py = lx / len;
+      var mx = (ax + bx) / 2, my = (ay + by) / 2;
+      if ((mx - cx) * px + (my - cy) * py < 0) { px = -px; py = -py; }
+      var reach = BRACKET_LABEL_PX + Math.abs(px) * label.offsetWidth / 2 + Math.abs(py) * label.offsetHeight / 2;
+      label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
+        "px) translate(-50%, -50%)";
+      label.style.opacity = String(opacity);
     }
-    var bpViewOffset = 0;
 
-    // The coin itself: a short cylinder drawn the way the ring is — a fill in
-    // the page's own colour that hides what is behind it, and the mesh's
-    // edges faintly over it.
-    function buildCoin() {
-      var geometry = new THREE.CylinderGeometry(COIN_RADIUS, COIN_RADIUS, COIN_THICKNESS, 40, 1);
-      var fill = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-        color: new THREE.Color().setStyle(blueprint.fill || "#f8f8f8"),
+    // One dotted ruler under the model, from options.blueprint.measure:
+    // { length, offset, label } — `length` millimetres long, `offset`
+    // millimetres under the model's middle, level on the screen whichever way
+    // the model is turned (a coin's width is the same from any side: it is a
+    // true length at the scale the model is drawn at), with its figure under
+    // it. In the scene, not in the fit group, so it can follow the camera; its
+    // size is the fit's.
+    function buildMeasure() {
+      var m = blueprint && blueprint.measure;
+      if (!m || measure) return;
+      var geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3).setUsage(THREE.DynamicDrawUsage));
+      var line = new THREE.LineSegments(geometry, new THREE.LineDashedMaterial({
+        color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
+        dashSize: BRACKET_DASH_MM,
+        gapSize: BRACKET_DASH_GAP_MM,
         transparent: true,
         opacity: 0,
-        toneMapped: false
-      }));
-      // A hair smaller than the edges drawn over it, so they win the depth
-      // test where they lie on its faces, and lose it on the far side.
-      fill.scale.set(0.997, 0.94, 0.997);
-      // Its edges: the rim of each face and the inner border a coin has, joined
-      // by spokes, and the lines up the side.
-      var edges = [];
-      var half = COIN_THICKNESS / 2;
-      var around = 64;
-      function ring(radius, y) {
-        for (var i = 0; i < around; i++) {
-          var a0 = (i / around) * Math.PI * 2;
-          var a1 = ((i + 1) / around) * Math.PI * 2;
-          edges.push(radius * Math.cos(a0), y, radius * Math.sin(a0), radius * Math.cos(a1), y, radius * Math.sin(a1));
-        }
-      }
-      [half, -half].forEach(function (y) {
-        ring(COIN_RADIUS, y);
-        ring(COIN_RADIUS * 0.8, y);
-        for (var j = 0; j < 24; j++) {
-          var a = (j / 24) * Math.PI * 2;
-          edges.push(COIN_RADIUS * 0.8 * Math.cos(a), y, COIN_RADIUS * 0.8 * Math.sin(a), COIN_RADIUS * Math.cos(a), y, COIN_RADIUS * Math.sin(a));
-        }
-      });
-      for (var k = 0; k < 48; k++) {
-        var b = (k / 48) * Math.PI * 2;
-        edges.push(COIN_RADIUS * Math.cos(b), half, COIN_RADIUS * Math.sin(b), COIN_RADIUS * Math.cos(b), -half, COIN_RADIUS * Math.sin(b));
-      }
-      var wireGeometry = new THREE.BufferGeometry();
-      wireGeometry.setAttribute("position", new THREE.Float32BufferAttribute(edges, 3));
-      var wire = new THREE.LineSegments(wireGeometry, new THREE.LineBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: 0,
+        depthTest: false,
         depthWrite: false,
         toneMapped: false
       }));
-      // Both are transparent (they fade), so the order is told: the fill
-      // first, the edges over it.
-      fill.renderOrder = 1;
-      wire.renderOrder = 2;
-      var group = new THREE.Group();
-      group.add(fill);
-      group.add(wire);
-      // Facing the opening view, turned a little about the camera's up.
-      var axis = bpScratch.copy(defaultCameraPosition).sub(controls.target).normalize();
-      axis.applyAxisAngle(bpUp.copy(defaultCameraUp).normalize(), COIN_TILT);
-      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
-      group.visible = false;
-      scene.add(group);
+      line.frustumCulled = false;
+      line.renderOrder = 10;
+      line.visible = false;
+      scene.add(line);
       var label = document.createElement("span");
-      label.className = "emjive-3d-viewer__coin";
+      label.className = "emjive-3d-viewer__dim";
       label.setAttribute("aria-hidden", "true");
-      label.textContent = COIN_LABEL;
+      label.textContent = m.label || "";
       wrapper.appendChild(label);
-      coin = { group: group, fill: fill, wire: wire, label: label };
+      measure = { line: line, label: label, length: m.length, offset: m.offset };
+    }
+
+    var bpMeasureRight = new THREE.Vector3();
+    var bpMeasureDown = new THREE.Vector3();
+    function updateMeasure(opacity) {
+      var s = fitGroup.scale.x;
+      bpMeasureRight.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+      bpMeasureDown.setFromMatrixColumn(camera.matrixWorld, 1).normalize().negate();
+      var positions = measure.line.geometry.attributes.position.array;
+      bpA.copy(bpCenter).addScaledVector(bpMeasureDown, measure.offset * s).addScaledVector(bpMeasureRight, -measure.length * s / 2);
+      positions[0] = bpA.x; positions[1] = bpA.y; positions[2] = bpA.z;
+      var ax = toPxWorld(bpA, bpPxA).x, ay = bpPxA.y;
+      bpA.addScaledVector(bpMeasureRight, measure.length * s);
+      positions[3] = bpA.x; positions[4] = bpA.y; positions[5] = bpA.z;
+      toPxWorld(bpA, bpPxB);
+      measure.line.geometry.attributes.position.needsUpdate = true;
+      measure.line.computeLineDistances();
+      measure.line.material.dashSize = BRACKET_DASH_MM * s;
+      measure.line.material.gapSize = BRACKET_DASH_GAP_MM * s;
+      measure.line.material.opacity = opacity;
+      var c = toPxWorld(bpCenter, bpPxC);
+      var shown = opacity > 0 && Math.hypot(bpPxB.x - ax, bpPxB.y - ay) >= MEASURE_MIN_PX;
+      measure.line.visible = shown;
+      if (shown) placeLabel(measure.label, ax, ay, bpPxB.x, bpPxB.y, c.x, c.y, opacity);
+      else measure.label.style.opacity = "0";
+    }
+
+    // World-space point -> pixels from the viewer's top-left, into `out`.
+    function toPxWorld(point, out) {
+      bpNdc.copy(point).project(camera);
+      out.x = (bpNdc.x + 1) / 2 * currentWidth;
+      out.y = (1 - bpNdc.y) / 2 * currentHeight;
+      return out;
     }
 
     // Model-space point -> pixels from the viewer's top-left, into `out`.
@@ -1955,16 +1920,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         positions[o] = bpCornerPos[edge.a].x; positions[o + 1] = bpCornerPos[edge.a].y; positions[o + 2] = bpCornerPos[edge.a].z;
         positions[o + 3] = bpCornerPos[edge.b].x; positions[o + 4] = bpCornerPos[edge.b].y; positions[o + 5] = bpCornerPos[edge.b].z;
 
-        // The label goes beside its line, on screen: from the line's middle,
-        // perpendicular to it, away from the model, far enough that the
-        // label's own box clears the line.
-        var px = -ly / llen, py = lx / llen;
-        var mx = (endPx.x + sx) / 2, my = (endPx.y + sy) / 2;
-        if ((mx - middle.x) * px + (my - middle.y) * py < 0) { px = -px; py = -py; }
-        var reach = BRACKET_LABEL_PX + Math.abs(px) * label.offsetWidth / 2 + Math.abs(py) * label.offsetHeight / 2;
-        label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
-          "px) translate(-50%, -50%)";
-        label.style.opacity = String(opacity);
+        // The label goes beside its line, away from the model.
+        placeLabel(label, sx, sy, endPx.x, endPx.y, middle.x, middle.y, opacity);
       }
       // The dots run from the start of each line, so they are laid again
       // whenever the lines move.
@@ -1988,14 +1945,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       }
       bracketLabels.forEach(function (label) { if (label.parentNode) label.parentNode.removeChild(label); });
       bracketLabels.length = 0;
-      if (coin) {
-        scene.remove(coin.group);
-        coin.fill.geometry.dispose();
-        coin.fill.material.dispose();
-        coin.wire.geometry.dispose();
-        coin.wire.material.dispose();
-        if (coin.label.parentNode) coin.label.parentNode.removeChild(coin.label);
-        coin = null;
+      if (measure) {
+        scene.remove(measure.line);
+        measure.line.geometry.dispose();
+        measure.line.material.dispose();
+        if (measure.label.parentNode) measure.label.parentNode.removeChild(measure.label);
+        measure = null;
       }
     }
 
@@ -2079,8 +2034,8 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         // rebuild after the Modify sheet), so the first frame is drawn the
         // way the rest will be.
         if (blueprint) {
-          buildCoin();
           computeFit();
+          buildMeasure();
           updateBlueprint();
         }
 
@@ -2172,7 +2127,7 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
     var nudgePlays = 0;
     function scheduleIdleNudge() {
       clearIdleTimer();
-      if (interactionSuppressed || isStatic || noAutoMotion() || viewerPaused) return;
+      if (options.nudge === false || interactionSuppressed || isStatic || noAutoMotion() || viewerPaused) return;
       if (touchDevice && nudgePlays >= NUDGE_MAX_PLAYS_TOUCH) return;
       idleTimeoutId = setTimeout(function () {
         idleTimeoutId = null;
@@ -2288,6 +2243,21 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
         blueprintSweep = sweep;
         blueprintFit = fit;
         needsRender = true;
+      },
+      // Blueprint viewers only: draw at this many CSS pixels to a millimetre
+      // of the model (0: at the scale that makes it fit), so that the page can
+      // put two viewers at one scale — the ring and the coin.
+      setPxPerMm: function (value) {
+        if (!blueprint) return;
+        value = Math.max(0, Number(value) || 0);
+        if (value === pxPerMm) return;
+        pxPerMm = value;
+        needsRender = true;
+      },
+      // The px/mm at which this model, with its brackets and the largest size
+      // the page scales it to, just fits the viewer (0 until it is in).
+      fitPxPerMm: function () {
+        return framedRadius && modelLoaded ? fitScale / worldPerPx() : 0;
       },
       // The chosen ring size over the model's base size: the model (once the
       // fit has been made) and its dimension labels scale with it.

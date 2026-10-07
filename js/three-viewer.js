@@ -965,6 +965,23 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     nudgeHandEl.className = "emjive-3d-viewer__nudge-hand";
     wrapper.appendChild(nudgeHandEl);
 
+    // options.hitCircle (js/product.js): the share of the viewer's width left
+    // as a margin around the part of it that answers to a drag — a circle
+    // (0.25: a circle whose radius is three quarters of the viewer's own).
+    // A transparent overlay clipped to that circle carries the controls
+    // instead of the canvas; CSS clip-path clips hit-testing too, so a press
+    // inside the circle is the model's and a press outside it falls through
+    // to whatever is under the viewer (the carousel, which pages or scrolls).
+    // Without it the whole canvas is the model's, as it is everywhere else.
+    var hitEl = null;
+    if (typeof options.hitCircle === "number" && !isStatic) {
+      hitEl = document.createElement("div");
+      hitEl.className = "emjive-3d-viewer__hit";
+      hitEl.style.setProperty("--hit-r", ((1 - options.hitCircle) * 50).toFixed(2) + "%");
+      wrapper.appendChild(hitEl);
+      wrapper.classList.add("has-hit-circle");
+    }
+
     var scene = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
 
@@ -1193,7 +1210,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     });
     resizeObserver.observe(wrapper);
 
-    var controls = new TrackballControls(camera, renderer.domElement);
+    var controls = new TrackballControls(camera, hitEl || renderer.domElement);
     // Rotation only — matches the old disable-zoom behavior.
     controls.noZoom = true;
     controls.noPan = true;

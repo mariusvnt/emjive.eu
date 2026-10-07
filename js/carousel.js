@@ -6,13 +6,29 @@
    free on a wide screen, one slide per swipe on a phone. Slide DOM is the
    caller's business; this only moves the track.
 
-   window.EmjiveCarousel(carouselEl) wires one .product-carousel (holding
-   .product-carousel__viewport > .product-carousel__track) and returns
-   { sync(reset), center(index), setLocked(locked) }. Call sync(true) once
+   window.EmjiveCarousel(carouselEl, { dragScroll }) wires one .product-carousel
+   (holding .product-carousel__viewport > .product-carousel__track) and returns
+   { sync(reset), center(index), goHome(), awayFromHome(), setLocked(locked) }.
+
+   Every drag is read here, mouse, pen and touch alike, on the carousel's frame
+   (.product-carousel-frame, which holds the carousel and whatever is laid over
+   it) rather than on the strip alone, so nothing stacked over the strip can
+   hide one; the strip's own band of the frame is what counts. Whichever axis
+   the movement is nearer to, from its first few pixels, is the gesture's for
+   good: within 45° of horizontal it pages the strip, within 45° of vertical
+   (with dragScroll, the product page's) it scrolls the page. By touch that
+   scroll is the browser's own (touch-action: pan-y on the strip: a scripted
+   one fought the compositor's sticky stage on iOS Safari); with a mouse or a
+   pen, which have no native drag scroll, it is scripted, grab-style, and
+   glides on after a flick. The 3D model has the one exception: a press inside
+   its circle (.emjive-3d-viewer__hit, js/three-viewer.js) is the model's, and
+   a press anywhere else is this. Call sync(true) once
    the slides are in place and measurable: it recounts them from the track
    and rests the strip on the first slide, centered. A resize re-clamps on
-   its own. center() centres a slide as a tap would; setLocked(true) holds
-   the strip where it is and ignores drags, taps and keys until unlocked.
+   its own. center() centres a slide as a tap would; goHome() takes the strip
+   back to its first slide that way, awayFromHome() says how far it is (0 to 1,
+   in slides); setLocked(true) holds the strip where it is and ignores drags,
+   taps and keys until unlocked.
 
    window.EmjiveCarousel.imageSlide(src, alt) builds a plain image slide.
    It lives here rather than with either caller because what it guards
@@ -45,6 +61,12 @@
   // than two competing ones.
   var TAP_THRESHOLD = 6;
 
+  // How far the strip moves for each pixel a finger does sideways: less than
+  // one, so a swipe reads as heavier and it takes a longer sweep to cross a
+  // tile (the phone's paging goes by the finger's own distance, not this). A
+  // mouse or a pen is 1:1.
+  var TOUCH_GAIN = 0.7;
+
   // WebKit-style rubber-band damping for drag-past-the-bounds overshoot,
   // at either end — the further past a bound you drag, the harder it gets
   // to pull further, rather than tracking the pointer 1:1.
@@ -60,9 +82,20 @@
     return global.matchMedia("(max-width: 640px)").matches;
   }
 
-  function createCarousel(carouselEl) {
+  // A press on one of these is theirs, not a drag's.
+  var INTERACTIVE = "button, a, input, select, textarea, label, summary, [role=slider]";
+  // How long a flick's glide takes to lose most of its speed (e-folding time,
+  // ms), and the speed below which it ends (px/ms).
+  var GLIDE_TAU = 350;
+  var GLIDE_MIN = 0.02;
+
+  function createCarousel(carouselEl, options) {
+    var dragScroll = !!(options && options.dragScroll);
     var viewport = carouselEl.querySelector(".product-carousel__viewport");
     var track = carouselEl.querySelector(".product-carousel__track");
+    // Where the drags are read: the frame around the carousel when it has
+    // one (the product page's), else the strip itself.
+    var host = carouselEl.closest(".product-carousel-frame") || viewport;
     var slideCount = 0;
     var scrollOffset = 0;
 
@@ -107,35 +140,35 @@
       if (slideCount === 0) return;
       var bounds = computeBounds();
       var target = reset ? bounds.max : Math.max(bounds.min, Math.min(bounds.max, scrollOffset));
-      // Locked, the strip stays on its slide however the tiles resize.
-      if (locked && !reset) target = Math.max(bounds.min, bounds.max - lockedIndex * measureTileWidth());
+      // Locked, the strip is held home (the first slide centred) however the
+      // tiles resize.
+      if (locked && !reset) target = bounds.max;
       applyOffset(target, false);
     }
 
     // setLocked(true): the strip stops responding to drags, taps and keys
-    // and holds the slide it's on (the product page's specs stage, which is
-    // about the model alone). The caller centres the slide it wants first.
+    // (the product page's stage, once the photos are leaving: it is about the
+    // model alone). The caller takes it home first (goHome).
     var locked = false;
-    var lockedIndex = 0;
-    function currentIndex() {
-      var tile = measureTileWidth();
-      return tile ? Math.max(0, Math.round((computeBounds().max - scrollOffset) / tile)) : 0;
-    }
     function setLocked(lock) {
       lock = !!lock;
       if (lock === locked) return;
       locked = lock;
       carouselEl.classList.toggle("is-locked", lock);
-      if (!lock) return;
-      lockedIndex = currentIndex();
-      // A drag under way when the lock lands just ends where it is.
-      if (trackedPointerId !== null) {
+      // A sideways drag under way when the lock lands just ends where it is
+      // (a scrolling gesture is not affected).
+      if (lock && dragging) {
+        dragging = false;
         trackedPointerId = null;
-        if (dragging) {
-          dragging = false;
-          centerOnSlide(lockedIndex);
-        }
       }
+    }
+
+    // How far the strip is from home (the first slide centred), in slides, at
+    // most 1.
+    function awayFromHome() {
+      var tile = measureTileWidth();
+      if (!tile) return 0;
+      return Math.min(1, Math.abs(computeBounds().max - scrollOffset) / tile);
     }
 
     // Centers a given slide — either a direct tap on it, or where a phone's
@@ -179,7 +212,8 @@
     // Set the moment a tracked pointer's movement first exceeds
     // TAP_THRESHOLD on either axis: true if it turned out horizontal
     // (dragging becomes true, the carousel takes over), false if vertical
-    // (handed off untouched to the browser's own touch-action: pan-y
+    // (the page scrolls with it for a mouse or pen when dragScroll is on,
+    // else it is handed off untouched to the browser's own touch-action: pan-y
     // scroll — see .product-carousel__viewport). Stays null while still
     // ambiguous, so a real tap (which never crosses the slop at all)
     // never has to pick an axis.
@@ -190,16 +224,82 @@
     var dragLastX = 0;
     var dragLastT = 0;
     var dragVelocity = 0;
+    var dragGain = 1;
+    // A vertical gesture that is scrolling the page (dragScroll): the last
+    // pointer position and time it was followed to, and its speed (px/ms); and
+    // the glide after it.
+    var scrolling = false;
+    var scrollLastY = 0;
+    var scrollLastT = 0;
+    var scrollVelocity = 0;
+    var glideFrame = 0;
+    var glideSpeed = 0;
+    var glideTime = 0;
+
+    // The slide under a point, found by geometry (what is stacked over the
+    // strip doesn't matter), falling back to the event's own target.
+    function slideAt(e) {
+      var stack = document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : [];
+      for (var i = 0; i < stack.length; i++) {
+        if (stack[i].classList && stack[i].classList.contains("product-carousel__slide") && track.contains(stack[i])) return stack[i];
+      }
+      return e.target.closest(".product-carousel__slide");
+    }
+
+    // Whether a press is a drag's to read: not a control's, not the model's
+    // (its circle, or for a viewer without one, the Modify sheet's, its whole
+    // box), and inside the strip's band of the host.
+    function isOurs(e) {
+      if (e.isPrimary === false) return false;
+      if (e.pointerType === "mouse" && e.button !== 0) return false;
+      if (locked && !dragScroll) return false;
+      if (slideCount <= 1 && !dragScroll) return false;
+      var target = e.target;
+      if (!target || !target.closest) return false;
+      if (target.closest(INTERACTIVE)) return false;
+      var viewer = target.closest(".emjive-3d-viewer");
+      if (viewer && (!viewer.classList.contains("has-hit-circle") || target.closest(".emjive-3d-viewer__hit"))) return false;
+      if (host !== viewport) {
+        var band = viewport.getBoundingClientRect();
+        if (e.clientY < band.top || e.clientY > band.bottom) return false;
+      }
+      return true;
+    }
+
+    function stopGlide() {
+      if (glideFrame) cancelAnimationFrame(glideFrame);
+      glideFrame = 0;
+    }
+    function glideStep(now) {
+      var dt = Math.min(now - glideTime, 50);
+      glideTime = now;
+      var before = window.pageYOffset;
+      window.scrollBy({ top: glideSpeed * dt, left: 0, behavior: "instant" });
+      glideSpeed *= Math.exp(-dt / GLIDE_TAU);
+      if (Math.abs(glideSpeed) < GLIDE_MIN || window.pageYOffset === before) {
+        glideFrame = 0;
+        return;
+      }
+      glideFrame = requestAnimationFrame(glideStep);
+    }
+    function startGlide(speed) {
+      if (Math.abs(speed) < GLIDE_MIN * 4 || global.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      glideSpeed = speed;
+      glideTime = performance.now();
+      glideFrame = requestAnimationFrame(glideStep);
+    }
+    // Anything else that moves the page takes over from a glide.
+    global.addEventListener("wheel", stopGlide, { passive: true });
+    global.addEventListener("pointerdown", stopGlide, { passive: true });
 
     function onPointerDown(e) {
-      // A drag that starts on the 3D model slide should rotate the model
-      // (the viewer's own TrackballControls, js/three-viewer.js), not page
-      // the carousel.
-      if (locked || slideCount <= 1 || e.target.closest(".emjive-3d-viewer")) return;
+      if (!isOurs(e)) return;
       dragBounds = computeBounds();
       trackedPointerId = e.pointerId;
       axisLocked = null;
-      dragStartSlide = e.target.closest(".product-carousel__slide");
+      scrolling = false;
+      dragGain = e.pointerType === "touch" ? TOUCH_GAIN : 1;
+      dragStartSlide = slideAt(e);
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       dragStartOffset = scrollOffset;
@@ -222,26 +322,51 @@
 
       if (axisLocked === null) {
         if (Math.abs(dx) < TAP_THRESHOLD && Math.abs(dy) < TAP_THRESHOLD) return; // still ambiguous
+        // Within 45° of horizontal is horizontal; anything else, vertical.
         axisLocked = Math.abs(dx) > Math.abs(dy);
         if (!axisLocked) {
-          // Vertical — hand off to the browser's native pan-y scroll and
-          // stop tracking this pointer entirely; nothing here has
-          // touched the carousel yet, so there's nothing to undo.
+          if (!dragScroll || e.pointerType === "touch") {
+            // Vertical, and the page's scroll is the browser's own (a touch,
+            // or the Modify sheet's carousel: touch-action: pan-y) — stop
+            // tracking this pointer entirely; nothing here has touched the
+            // carousel yet, so there's nothing to undo.
+            trackedPointerId = null;
+            return;
+          }
+          // Vertical: this scrolls the page, from where the press began.
+          scrolling = true;
+          scrollLastY = dragStartY;
+          scrollLastT = e.timeStamp;
+          scrollVelocity = 0;
+          try { host.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
+        } else if (locked || slideCount <= 1) {
+          // Sideways with nothing to page (the model's stage holds the
+          // strip): dropped.
           trackedPointerId = null;
           return;
+        } else {
+          dragging = true;
+          applyOffset(scrollOffset, false); // kill any in-flight transition
+          // On the track, not the viewport: the Modify sheet lets taps on
+          // the viewport's empty space fall through to its backdrop (see
+          // .size-modal__carousel in css/style.css), and the track is
+          // exactly the slides. Captured events still bubble up to the
+          // host listeners below either way.
+          track.setPointerCapture(e.pointerId);
         }
-        dragging = true;
-        applyOffset(scrollOffset, false); // kill any in-flight transition
-        // On the track, not the viewport: the Modify sheet lets taps on
-        // the viewport's empty space fall through to its backdrop (see
-        // .size-modal__carousel in css/style.css), and the track is
-        // exactly the slides. Captured events still bubble up to the
-        // viewport listeners below either way.
-        track.setPointerCapture(e.pointerId);
+      }
+      if (scrolling) {
+        var step = scrollLastY - e.clientY;
+        window.scrollBy({ top: step, left: 0, behavior: "instant" });
+        var elapsed = e.timeStamp - scrollLastT;
+        if (elapsed > 0) scrollVelocity = scrollVelocity * 0.7 + (step / elapsed) * 0.3;
+        scrollLastY = e.clientY;
+        scrollLastT = e.timeStamp;
+        return;
       }
       if (!dragging) return;
 
-      var raw = dragStartOffset + dx;
+      var raw = dragStartOffset + dx * dragGain;
       var next;
       if (raw > dragBounds.max) {
         var startOvershoot = raw - dragBounds.max;
@@ -266,6 +391,12 @@
     function endDrag(e) {
       if (e.pointerId !== trackedPointerId) return;
       trackedPointerId = null;
+      if (scrolling) {
+        scrolling = false;
+        // A flick glides on; a pointer that stopped before it let go doesn't.
+        startGlide(e.timeStamp - scrollLastT < 80 ? scrollVelocity : 0);
+        return;
+      }
       var wasDragging = dragging;
       dragging = false;
       if (!wasDragging) {
@@ -278,7 +409,7 @@
         // (onPointerMove returns early until the slop is cleared), so
         // there's nothing to snap back from — just center whichever
         // slide it landed on.
-        if (dragStartSlide) centerOnSlide(Array.prototype.indexOf.call(track.children, dragStartSlide));
+        if (dragStartSlide && !locked) centerOnSlide(Array.prototype.indexOf.call(track.children, dragStartSlide));
         return;
       }
       settleDrag(e);
@@ -299,6 +430,7 @@
     function onPointerCancel(e) {
       if (e.pointerId !== trackedPointerId) return;
       trackedPointerId = null;
+      scrolling = false;
       var wasDragging = dragging;
       dragging = false;
       if (!wasDragging) return;
@@ -379,10 +511,10 @@
       centerOnSlide(Math.max(0, Math.min(slideCount - 1, next)));
     });
 
-    viewport.addEventListener("pointerdown", onPointerDown);
-    viewport.addEventListener("pointermove", onPointerMove);
-    viewport.addEventListener("pointerup", endDrag);
-    viewport.addEventListener("pointercancel", onPointerCancel);
+    host.addEventListener("pointerdown", onPointerDown);
+    host.addEventListener("pointermove", onPointerMove);
+    host.addEventListener("pointerup", endDrag);
+    host.addEventListener("pointercancel", onPointerCancel);
 
     var resizeTicking = false;
     global.addEventListener("resize", function () {
@@ -398,6 +530,8 @@
       sync: sync,
       // Centres slide `index`, with the same transition a tap uses.
       center: function (index) { centerOnSlide(index); },
+      goHome: function () { centerOnSlide(0); },
+      awayFromHome: awayFromHome,
       setLocked: setLocked
     };
   }

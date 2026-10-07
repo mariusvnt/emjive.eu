@@ -482,6 +482,29 @@ button, input, textarea {
   width: 100%;
   height: 100%;
 }
+/* The product page's viewer (options.hitCircle in js/three-viewer.js): only a
+   circle in the middle of it answers to a drag — the controls sit on a
+   transparent overlay clipped to the circle (clip-path clips hit-testing as
+   well as painting; --hit-r is its radius, set by the script), and the rest of
+   the box is the carousel's, which pages from there (js/carousel.js) while the
+   browser scrolls the page by touch (the strip's touch-action: pan-y). So the
+   box itself neither grabs nor stops touch scrolling. */
+.emjive-3d-viewer.has-hit-circle {
+  touch-action: inherit;
+  cursor: inherit;
+}
+.emjive-3d-viewer__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  touch-action: none;
+  cursor: grab;
+  -webkit-clip-path: circle(var(--hit-r, 37.5%) at 50% 50%);
+  clip-path: circle(var(--hit-r, 37.5%) at 50% 50%);
+}
+.emjive-3d-viewer__hit:active {
+  cursor: grabbing;
+}
 /* Shown until the model has loaded, framed, and painted one frame — see
    buildThreeViewer()'s GLTFLoader callback — then fades out and stops
    accepting pointer events immediately (not only after the transition
@@ -2244,6 +2267,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   pointer-events: none;
 }
 .product-edge-veil > span {
+  /* Never takes a press, whatever the layers' filters do: drags across the
+     bands are the carousel's (js/carousel.js). */
+  pointer-events: none;
   --q: 0;
   --fr: calc(var(--S) * 0.4);
   /* Where this layer's flat part ends, its width, and the height of its
@@ -2496,9 +2522,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   /* Up by the lift. */
   transform: translateY(calc(var(--lift) * -1));
 }
-.product-stage .product-carousel__slide--photo,
 .product-stage .product-carousel__xray {
   opacity: var(--p-out);
+}
+/* The photos hold their opacity for the first fifth of the way out (they are
+   already sliding), and are gone at the same point as the x-ray, which starts
+   to fade with the first pixel. */
+.product-stage .product-carousel__slide--photo {
+  opacity: clamp(0, calc(var(--p-out) / 0.8), 1);
 }
 /* The photos stand to the right of the model (the carousel centres it as the
    transition starts) and slide out to the screen's right edge as they fade,
@@ -2627,12 +2658,11 @@ body:has(.order-checkout-bar:not([hidden])) {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Smaller than the slide on purpose — js/carousel.js's onPointerDown bails
-   out of the carousel's own paging-drag entirely whenever the pointerdown
-   target is inside .emjive-3d-viewer, so a drag there rotates the model
-   (TrackballControls) instead of paging, and there's no arrow/dot/keyboard
-   nav to fall back on. The empty margin around the viewer is what a drag
-   or swipe can start from to page away from a model slide. */
+/* Smaller than the slide on purpose, and only a circle of it answers to a
+   drag (.emjive-3d-viewer__hit, above): a drag that starts in the circle
+   rotates the model (TrackballControls), one that starts anywhere else on the
+   slide pages the carousel or scrolls the page (js/carousel.js), and there's
+   no arrow/dot/keyboard nav to fall back on for a pointer. */
 .product-carousel__slide--model .emjive-3d-viewer {
   width: 75%;
   height: 75%;

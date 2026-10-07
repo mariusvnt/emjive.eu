@@ -19,9 +19,13 @@
   // The drag/paging/tap-to-center behaviour lives in js/carousel.js, shared
   // with the Modify sheet's small carousel — wired once here, since the
   // viewport/track are static markup in product.html and only the slides
-  // inside the track change per product.
+  // inside the track change per product. dragScroll: a vertical drag on it
+  // scrolls the page (the model's circle apart, see createModelViewer).
   var carouselEl = document.getElementById("productCarousel");
-  var carousel = window.EmjiveCarousel(carouselEl);
+  var carousel = window.EmjiveCarousel(carouselEl, { dragScroll: true });
+  // How far presentation's things have gone (--leave) when the carousel's strip
+  // is held on the model.
+  var HOLD_AT = 0.25;
 
   var state = {
     product: null,
@@ -65,7 +69,8 @@
     seedSize: null,
     // Closes the specs stage's size guide (set once the size row is wired).
     closeGuide: null,
-    // Whether the carousel is held on the model (specs is coming in).
+    // Whether the carousel is held on the model (presentation's things are on
+    // their way out).
     carouselHeld: false,
     // The timer that marks the cost chart as played out.
     settleTimer: 0
@@ -518,6 +523,10 @@
         // loads (false: none, e.g. reduced motion) — the viewer's box has no
         // visible edge, and the loader belongs to the whole strip anyway.
         loader: loadHold || false,
+        // Only a circle of the viewer is the model's to drag: its radius
+        // leaves a quarter of the viewer's width as a margin. A press outside
+        // it pages the carousel or scrolls the page (js/carousel.js).
+        hitCircle: 0.25,
         // Fires for an initial load/HDRI failure OR — since
         // three-viewer.js also treats a WebGL context loss as a failure
         // — for a model that HAD already loaded and was on screen: iOS
@@ -541,9 +550,11 @@
     state.modelHandle = null;
     state.posterImg = null;
     if (product.assets && product.assets.model) {
-      // Smaller than the photo slides on purpose — leaves generous empty
-      // space around the model to drag/swipe the carousel from without
-      // that drag landing on the viewer's own TrackballControls instead.
+      // Smaller than the photo slides on purpose, and only a circle of it
+      // takes a drag (hitCircle, createModelViewer): the empty space around
+      // is what a drag or swipe can start from to page the carousel or
+      // scroll the page without landing on the viewer's own
+      // TrackballControls.
       // Holds the model's poster until mountViewer() swaps the viewer in.
       modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
       posterReady = showPoster();
@@ -1006,7 +1017,14 @@
     var stageEl = document.getElementById("productStage");
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
-    window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
+    window.EmjiveProductStages.mount(stageEl, {
+      onChange: onStageChange,
+      // The first scrolling takes the carousel's strip home by itself, if the
+      // visitor had paged it on, and is buffered behind that
+      // (js/product-stages.js).
+      homeFraction: function () { return carousel.awayFromHome(); },
+      onHome: function () { carousel.goHome(); }
+    });
     var resizeQueued = false;
     window.addEventListener("resize", function () {
       if (resizeQueued) return;
@@ -1040,13 +1058,16 @@
       }
     }
     if (stage.stage === "presentation" && state.closeGuide) state.closeGuide();
-    // From the first pixel of scrolling (presentation's things start going
-    // then, and slide out to the sides of a model that has to be centred).
-    var hold = stage.toSpecs > 0 || stage.leave > 0;
-    if (hold && !state.sizeSeeded && state.seedSize) state.seedSize();
+    // Presentation's things start going with the first pixel of scrolling
+    // (past the buffer: js/product-stages.js), and slide out to the sides of a
+    // model that has to be centred. Until they are well on their way (HOLD_AT)
+    // the strip can still be paged; from then it is taken home, if it had been
+    // paged again, and held.
+    if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
+    var hold = stage.toSpecs > 0 || stage.leave >= HOLD_AT;
     if (hold === state.carouselHeld) return;
     state.carouselHeld = hold;
-    if (hold) carousel.center(0);
+    if (hold) carousel.goHome();
     carousel.setLocked(hold);
   }
 

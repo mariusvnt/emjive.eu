@@ -36,6 +36,15 @@
    together, linear in the scroll from the first pixel: the model's rise to its
    place in specs runs on it.
 
+   The first scrolling takes the carousel's strip home (its first slide), if
+   the visitor had paged it on: options.homeFraction() says how far away it is
+   (0 for a strip already there), and when the page first moves off the top
+   with a strip away, options.onHome() is called — the strip goes home by
+   itself, in its standard time (HOME_MS) — and the scrolling is buffered: the
+   show doesn't respond to it until the strip is home, then catches up with
+   where the page has got to (CATCH_MS), eased. The strip is not drawn back to
+   where it was by scrolling back up; it stays home.
+
    Returns { scrollToStage(index) }. Focus moving into an element marked
    data-stage-owner="presentation|specs" (or two, space apart) while another
    stage is showing scrolls to that one (the first), so the keyboard can reach
@@ -69,6 +78,12 @@
   // the stretch (the third of the screen over the stretch's length, at most
   // all of it). Reaches 1 at u = 1, and is 0 at 0.
   var ENTRY_SCREENS = 1 / 3;
+  // The carousel's strip goes home by itself, in the time of the carousel's
+  // own transition (CENTER_TRANSITION in js/carousel.js), when the page first
+  // moves off the top; the show waits for it, then takes the scrolling that was
+  // buffered up in this much time.
+  var HOME_MS = 250;
+  var CATCH_MS = 350;
   // How fast the show browses once up to speed: 15px up for every 24px
   // scrolled. The second stage's stretch is then as long as it takes to cover
   // its room at that pace (plus the ramp), whatever the room is: the track is
@@ -110,9 +125,16 @@
   function mount(stageEl, options) {
     var pin = stageEl.querySelector(".product-stage__pin");
     var onChange = (options && options.onChange) || function () {};
+    var homeFraction = (options && options.homeFraction) || function () { return 0; };
+    var onHome = (options && options.onHome) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
     var state = { toSpecs: -1, leave: -1, along: -1, stage: "", browse: "" };
+    // When the strip was sent home (ms), while the scrolling is still buffered
+    // behind that (null: not); and whether the page is at the top, ready to
+    // send it again.
+    var homeStart = null;
+    var atTop = true;
     // Where each stage sits, in page scroll, as last measured.
     var stops = [0, 0];
 
@@ -156,12 +178,18 @@
       else stageEl.style.removeProperty("--end-hold");
     }
 
-    function measure() {
-      var rect = stageEl.getBoundingClientRect();
-      // The pin's sticky top: the track has moved past it by this much.
+    // How far the track has been scrolled past the pin's stick point, in pixels.
+    function scrolledPx() {
       var stickAt = parseFloat(getComputedStyle(pin).top) || 0;
-      var scrolled = stickAt - rect.top;
-      var trackStart = window.pageYOffset - scrolled;
+      return stickAt - stageEl.getBoundingClientRect().top;
+    }
+
+    // `taken` (0 to 1): how much of the scrolling the show has taken up so far
+    // (the rest is buffered: see the header).
+    function measure(taken) {
+      var raw = scrolledPx();
+      var scrolled = raw * taken;
+      var trackStart = window.pageYOffset - raw;
       // hold, transition, hold.
       var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
       if (!(ratio >= 0)) ratio = 0.5;
@@ -193,14 +221,42 @@
       onChange({ toSpecs: toSpecs, leave: leave, along: along, stage: stage });
     }
 
+    // How much of the scrolling the show has taken up (0 to 1): none while the
+    // strip is on its way home, then it catches up, eased.
+    function taken(now) {
+      if (homeStart === null) return 1;
+      var c = (now - homeStart - HOME_MS) / CATCH_MS;
+      if (c <= 0) return 0;
+      if (c >= 1) {
+        homeStart = null;
+        return 1;
+      }
+      return c * c * (3 - 2 * c);
+    }
+
     function update() {
       ticking = false;
       if (flow.matches) {
         publish(0, "flow", [0, 0], 0, 0);
         return;
       }
+      // The strip's way home comes first: the first scrolling off the top sends
+      // it, and is buffered behind it.
+      var now = performance.now();
+      if (!(scrolledPx() > 0)) {
+        atTop = true;
+        homeStart = null;
+      } else if (atTop) {
+        atTop = false;
+        if (homeFraction() > 0.01 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          homeStart = now;
+          onHome();
+        }
+      }
       syncEndHold();
-      var m = measure();
+      var m = measure(taken(now));
+      // Still buffering or catching up: keep looking, scroll or no scroll.
+      if (homeStart !== null) requestUpdate();
       if (!(m.move > 0)) {
         publish(0, STAGES[0], [0, 0], 0, 0);
         return;
@@ -237,7 +293,7 @@
     // reduced-motion block in css/style.css turns it off).
     function scrollToStage(index) {
       if (flow.matches) return;
-      measure();
+      measure(1);
       var top = stops[Math.max(0, Math.min(1, index))];
       window.scrollTo({ top: Math.max(0, Math.round(top)), left: 0 });
     }

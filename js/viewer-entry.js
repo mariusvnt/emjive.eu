@@ -83,8 +83,6 @@ if (when === "eager") {
                     fall to ~0 MB once each live model has drawn its first frame.
      GPU objects    geometries / textures the live renderers hold.
      Draco workers  decoder workers alive. 0 a few seconds after the last load.
-     glass          the mode in use and how many times the page copy behind the
-                    glass bar has been rebuilt (clone mode only).
      phone images   whether this window counts as a phone for the picture
                     variants, plus the window size and pixel ratio it is judged
                     on — a "no" on a phone means the big desktop pictures load.
@@ -111,7 +109,6 @@ if (/[?&]mem=1(&|$)/.test(location.search)) {
     lines.push("model arrays   " + (typeof mem.cpuGeometryBytes === "number" ? (mem.cpuGeometryBytes / 1048576).toFixed(1) + " MB" : "-"));
     lines.push("GPU objects    " + (gpu ? gpu.geometries + " geo / " + gpu.textures + " tex" : "-"));
     lines.push("Draco workers  " + (mem.dracoWorkers ? mem.dracoWorkers() : "-"));
-    lines.push("glass          " + (window.EmjiveGlass ? window.EmjiveGlass.mode : "-") + ", copies " + (mem.glassCopies || 0));
     var phone = window.EmjiveLoader ? (window.EmjiveLoader.isPhone() ? "yes" : "NO") : "-";
     lines.push("phone images   " + phone + "  " + window.innerWidth + "x" + window.innerHeight +
       " (" + (window.innerWidth / window.innerHeight).toFixed(3) + ") @" + (window.devicePixelRatio || 1));

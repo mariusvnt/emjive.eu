@@ -18,7 +18,7 @@ import globals from "globals";
 // and the others read it as window.EmjiveX. Listed so a bare reference to one
 // is not flagged — and so a typo in a new bare identifier still is.
 const EMJIVE = [
-  "EmjiveCarousel", "EmjiveFocusTrap", "EmjiveGlass", "EmjiveHero", "EmjiveLoadViewer",
+  "EmjiveCarousel", "EmjiveFocusTrap", "EmjiveHero", "EmjiveLoadViewer",
   "EmjiveLoader", "EmjiveMenus", "EmjiveMessage", "EmjiveMetalPicker", "EmjiveModelViewer", "EmjiveModifyModal",
   "EmjiveMotion", "EmjiveOrderRows", "EmjiveScrollMemory", "EmjiveSelection", "EmjiveSeries",
   "EmjiveSeriesHero"

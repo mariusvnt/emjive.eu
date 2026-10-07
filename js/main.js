@@ -11,6 +11,42 @@
 (function () {
   "use strict";
 
+  /* ---- chromatic aberration (Chromium only) ------------------------------
+     The blurred strips (the product page's title bar, the Select bar, the
+     checkout bar: css/style.css) split red and blue a pixel and a half apart,
+     vertically, with an SVG filter used as a backdrop-filter — which only
+     Chromium runs on a backdrop. A browser with that engine says so in its
+     brands (Chrome, Edge, Brave...; none of the WebKit browsers, iPhone's
+     Chrome among them, has them): it gets the filter in the page and
+     .has-backdrop-svg on <html>, which the CSS keys the layers on; the others
+     get the blur alone. */
+  (function () {
+    var data = navigator.userAgentData;
+    if (!(data && data.brands && data.brands.some(function (b) { return b.brand === "Chromium"; }))) return;
+    var NS = "http://www.w3.org/2000/svg";
+    function node(tag, attrs, parent) {
+      var n = document.createElementNS(NS, tag);
+      Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+      if (parent) parent.appendChild(n);
+      return n;
+    }
+    function channel(which, values) {
+      return { "in": "SourceGraphic", type: "matrix", values: values, result: which };
+    }
+    var svg = node("svg", { width: "0", height: "0", "aria-hidden": "true", focusable: "false" });
+    svg.style.position = "absolute";
+    var filter = node("filter", { id: "emjiveAberration", x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" }, svg);
+    node("feColorMatrix", channel("r", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
+    node("feOffset", { "in": "r", dy: "-1.5", result: "rShifted" }, filter);
+    node("feColorMatrix", channel("g", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
+    node("feColorMatrix", channel("b", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"), filter);
+    node("feOffset", { "in": "b", dy: "1.5", result: "bShifted" }, filter);
+    node("feBlend", { "in": "rShifted", in2: "g", mode: "screen", result: "rg" }, filter);
+    node("feBlend", { "in": "rg", in2: "bShifted", mode: "screen" }, filter);
+    document.body.appendChild(svg);
+    document.documentElement.classList.add("has-backdrop-svg");
+  })();
+
   /* ---- header menu toggle ------------------------------------------------- */
 
   var menuToggle = document.getElementById("menuToggle");

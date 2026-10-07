@@ -126,21 +126,10 @@
                three stacked layers (softer going down) and a fourth that
                splits the colour channels apart a little (chromatic
                aberration, an SVG filter on the backdrop: Chromium only, see
-               js/product.js), so what slides up under the bar doesn't clash
+               js/main.js), so what slides up under the bar doesn't clash
                with it (css/style.css .product-detail__label-veil). -->
           <span class="product-detail__label-veil" aria-hidden="true">
             <span></span><span></span><span></span><span></span>
-            <svg width="0" height="0" focusable="false">
-              <filter id="emjiveAberration" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
-                <feColorMatrix in="SourceGraphic" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r" />
-                <feOffset in="r" dy="-1.5" result="rShifted" />
-                <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g" />
-                <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b" />
-                <feOffset in="b" dy="1.5" result="bShifted" />
-                <feBlend in="rShifted" in2="g" mode="screen" result="rg" />
-                <feBlend in="rg" in2="bShifted" mode="screen" />
-              </filter>
-            </svg>
           </span>
           <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
           <h1 class="product-detail__label-text">
@@ -291,11 +280,16 @@
   </div>
 </main>
 
-<!-- Select / Add bar: a liquid-glass strip floating on top of the selection
+<!-- Select / Add bar: a blurred strip (two opposed sets of layered blurs,
+     css/style.css .glass__blur) floating on top of the selection
      bar (css/style.css, .product-select-bar), shown by js/product.js once
      the product has rendered. It says "Select" and opens the size sheet
      below; while the sheet is up it says "Add" instead. -->
-<div class="product-select-bar glass" id="productSelectBar" data-glass hidden>
+<div class="product-select-bar glass" id="productSelectBar" hidden>
+  <span class="glass__blur" aria-hidden="true">
+    <span class="glass__blur-set glass__blur-set--top"><span></span><span></span><span></span></span>
+    <span class="glass__blur-set glass__blur-set--bottom"><span></span><span></span><span></span></span>
+  </span>
   <button class="product-select-bar__button" id="selectButton" type="button"><span class="product-select-bar__label">Select</span></button>
 </div>
 
@@ -376,7 +370,6 @@
 <script src="js/order-rows.js" defer></script>
 <script src="js/metal-picker.js" defer></script>
 <script src="js/modify-modal.js" defer></script>
-<script src="js/liquid-glass.js" defer></script>
 <script src="js/selection-bar.js" defer></script>
 <script src="js/main.js" defer></script>
 <script src="js/product-stages.js" defer></script>

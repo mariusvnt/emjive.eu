@@ -143,7 +143,7 @@ ServerSignature Off
   # Report-Only first: nothing is blocked, violations just show in the browser
   # console. The site has no inline scripts or handlers, so this should be
   # quiet — the sources it needs are listed explicitly:
-  #   img-src data: blob:   liquid-glass.js builds its refraction map as a data URL
+  #   img-src data: blob:   the stylesheet's inline SVG masks (data: URLs)
   #   worker-src blob:      three's Draco loader spins up a blob worker
   #   wasm-unsafe-eval      compiling the Draco decoder wasm
   # Once a clean pass on every page confirms no violations, rename the header

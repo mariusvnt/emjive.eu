@@ -12,11 +12,12 @@
    window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, layout })
    fills `container` (the .product-metals box) and returns { select(metal) }.
 
-   layout: "edge" (the product page's) is the other arrangement of the same
-   control: the bars lie down and stack, anchored to the left edge of the
-   screen as if poking in from it, and each row carries its own dot + name
-   to the right of its bar — the active row's shown, the others' hidden, so a
-   pick crossfades the name from one row to the next. No "Material" label.
+   layout: "stack" (the product page's) is the other arrangement of the same
+   control: a vertical stack of squares, and each row carries its own dot +
+   name to the right of its square — the active row's shown, the others'
+   hidden, so a pick crossfades the name from one row to the next. The
+   squares themselves never change. No "Material" label here (the page has
+   its own).
    The default layout is the Modify sheet's.
    A click calls onSelect(metal) at once — the model, price and images behind
    the picker must not wait on an animation — and the picker moves
@@ -42,11 +43,11 @@
     var metals = opts.metals || [];
     var selected = opts.selected;
     var onSelect = opts.onSelect || function () {};
-    var edge = opts.layout === "edge";
+    var edge = opts.layout === "stack";
     var rows = [];
 
     container.innerHTML = "";
-    container.classList.toggle("product-metals--edge", edge);
+    container.classList.toggle("product-metals--stack", edge);
     container.setAttribute("role", "group");
     container.setAttribute("aria-label", "Material");
 

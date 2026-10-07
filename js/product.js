@@ -58,7 +58,6 @@
     // How far the model is lifted on the page in specs, in pixels
     // (refreshStage).
     lift: 0,
-    rowLift: 0,
     // Whether the specs size has been given its starting value (62).
     sizeSeeded: false,
     seedSize: null,
@@ -387,25 +386,31 @@
 
   function renderLabel(product) {
     document.getElementById("productLabelName").textContent = product.name || "";
-    document.getElementById("productLabelType").textContent = labelTypeText(product);
+    renderLabelType(product);
 
     renderLabelThumb(product);
     renderLabelPrice(product);
   }
 
   // ".category.metal", like the rows' label in the selection lists — and
-  // ".size" once one is held in the specs field.
+  // ".size" once one is held in the specs field, written as the order rows
+  // and the drawer write it: whole millimetres, a fraction (two digits) small
+  // and with no point (EmjiveSelection.appendSize).
   function labelTypeText(product) {
     return (product.category ? "." + product.category.toLowerCase() : "") +
-      (state.selectedMetal ? "." + state.selectedMetal : "") +
-      (state.sizeText ? "." + state.sizeText : "");
+      (state.selectedMetal ? "." + state.selectedMetal : "");
   }
 
   function renderLabelType(product) {
     var node = document.getElementById("productLabelType");
-    var text = labelTypeText(product);
-    if (node.textContent === text) return;
-    node.textContent = text;
+    var key = labelTypeText(product) + "|" + state.sizeText;
+    if (node.getAttribute("data-key") === key) return;
+    node.setAttribute("data-key", key);
+    node.textContent = labelTypeText(product);
+    if (state.sizeText) {
+      node.appendChild(document.createTextNode("."));
+      window.EmjiveSelection.appendSize(node, state.sizeText);
+    }
     // Text changing in place under the bar's invert band.
     window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
   }
@@ -797,7 +802,7 @@
     window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
       metals: state.metals,
       selected: state.selectedMetal,
-      layout: "edge",
+      layout: "stack",
       onSelect: function (metal) { onMetalSelect(product, metal); }
     });
   }
@@ -960,6 +965,13 @@
     state.toLogistics = stage.toLogistics;
     state.flow = stage.stage === "flow";
     refreshStage();
+    // The cost chart builds once the last stage is fully in, and starts over
+    // when it has been left (everything shows at once in the flow layout).
+    var costs = document.getElementById("productCosts");
+    if (costs) {
+      if (stage.stage === "flow" || stage.toLogistics >= 0.999) costs.classList.add("is-built");
+      else if (stage.toLogistics < 0.5) costs.classList.remove("is-built");
+    }
     var hold = stage.toSpecs > 0;
     if (hold && !state.sizeSeeded && state.seedSize) state.seedSize();
     if (hold === state.carouselHeld) return;
@@ -1019,23 +1031,28 @@
       if (band && barOn) band.style.top = barY.toFixed(1) + "px";
     }
     state.sweep = sweep;
+    // The picker changes place (beside the model / under it) in the middle
+    // of the blank, where nothing of it shows.
+    stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
-    // In specs the model stands higher on the page, by a fifth of its tile,
-    // from where the sweep leaves it (the same stretch as its fit).
+    // In specs the model stands higher on the page: its middle on the first
+    // quarter of the screen's height, from where the sweep leaves it (the
+    // same stretch as its fit) — or just under the title bar, if the model
+    // is so tall that its head would run under it. Its place before the lift
+    // is the slide's middle less the lift it is under now.
     var slide = document.querySelector(".product-carousel__slide--model");
-    var tile = slide ? slide.getBoundingClientRect().height : 0;
-    state.lift = state.flow ? 0 : state.fit * SPECS_LIFT * tile;
-    stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
-    // The size row rides up with the model, but stops short of the title bar.
-    var row = document.getElementById("productSize");
-    var bar = document.querySelector(".product-detail__label-bar");
-    var rowLift = state.lift;
-    if (row && bar && !row.hidden && !state.flow) {
-      var room = row.getBoundingClientRect().top + state.rowLift - bar.getBoundingClientRect().bottom - 12;
-      rowLift = clamp(room, 0, state.lift);
+    var lift = 0;
+    if (slide && !state.flow) {
+      var box = slide.getBoundingClientRect();
+      var titleBar = document.querySelector(".product-detail__label-bar");
+      // (The model, with its dimensions, stands about this tall: the share
+      // of the tile it fills at the size it is fitted to.)
+      var half = SPECS_HALF_HEIGHT * box.height;
+      var middle = Math.max(SPECS_ANCHOR * window.innerHeight, titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0);
+      lift = Math.max(0, box.top + box.height / 2 + state.lift - middle);
     }
-    state.rowLift = rowLift;
-    stageEl.style.setProperty("--lift-row", rowLift.toFixed(1) + "px");
+    state.lift = state.fit * lift;
+    stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
     stageEl.style.setProperty("--t0", t0.toFixed(4));
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
@@ -1056,7 +1073,8 @@
   // first comes in); the slider's own range bounds how far it scales, and no
   // size (or a half-typed one) is the base. The size also goes to the label
   // bar, and to the weight, the dimensions and the cost diagram.
-  var SPECS_LIFT = 0.2;
+  var SPECS_ANCHOR = 0.25;
+  var SPECS_HALF_HEIGHT = 0.13;
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 70;
@@ -1064,7 +1082,7 @@
     var mm = parseFloat(raw);
     var given = window.EmjiveSelection.isValidSize(raw) && isFinite(mm);
     state.sizeFactor = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) / SIZE_BASE_MM : 1;
-    state.sizeText = given ? String(raw).trim() : "";
+    state.sizeText = given ? String(+mm.toFixed(2)) : "";
     if (state.modelHandle) state.modelHandle.setSize(state.sizeFactor);
     if (state.product) {
       renderSpecs(state.product);

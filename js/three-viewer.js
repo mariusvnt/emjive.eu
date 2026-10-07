@@ -242,6 +242,12 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
   // A line shorter than this on screen (its axis pointing at the camera) has
   // no room for its label, and is hidden.
   var BRACKET_MIN_PX = 28;
+  // The length of a dot of the dotted dimension lines, as a share of the
+  // box's longest side.
+  var BRACKET_DASH = 0.009;
+  // And the space between two of them: wide enough for the dots, a few pixels
+  // each, to stay apart rather than blur into a line.
+  var BRACKET_DASH_GAP = 0.0264;
   // How much better (in NDC) another run of edges has to be before the
   // brackets move to it — otherwise two near-equal candidates flicker while rotating.
   var BRACKET_HYSTERESIS = 0.06;
@@ -1554,8 +1560,13 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
       };
       var lineGeometry = new THREE.BufferGeometry();
       lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage));
-      bracketLines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({
+      // Dotted: short dashes with longer gaps, in the box's own units (a share
+      // of its longest side).
+      var longest = Math.max(dims[0], dims[1], dims[2]);
+      bracketLines = new THREE.LineSegments(lineGeometry, new THREE.LineDashedMaterial({
         color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
+        dashSize: longest * BRACKET_DASH,
+        gapSize: longest * BRACKET_DASH_GAP,
         transparent: true,
         opacity: 0,
         depthTest: false,
@@ -1802,6 +1813,9 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
           "px) translate(-50%, -50%)";
         label.style.opacity = String(opacity);
       }
+      // The dots run from the start of each line, so they are laid again
+      // whenever the lines move.
+      bracketLines.computeLineDistances();
       bracketLines.geometry.attributes.position.needsUpdate = true;
     }
 

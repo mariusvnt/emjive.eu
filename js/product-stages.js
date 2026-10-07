@@ -34,8 +34,10 @@
    used to throw the page back to the stage that viewport belongs to.
 
    The show loops: scrolling on at the very end of logistics — a fresh wheel
-   gesture, swipe or key, never the tail of the one that got there — scrolls
-   back up to the start, the whole show rewinding.
+   gesture, swipe or key, never the tail of the one that got there — takes
+   the show back to the start: everything fades out to the page's background
+   (.is-veiled, css/style.css), the page jumps to the top while nothing shows,
+   and the first stage fades back in.
    ========================================================================== */
 
 (function () {
@@ -149,12 +151,11 @@
         window.pageYOffset >= document.documentElement.scrollHeight - window.innerHeight - 2;
     }
 
-    // The rewind: the page eased back up to the top over LOOP_MS (the
-    // browser's own smooth scroll takes a time that grows with the distance,
-    // which is the whole show here), or straight there under reduced motion.
-    // A touch, a click or a key during it hands the page back; wheel events
-    // don't — a trackpad's momentum goes on past the moment the loop began.
-    var LOOP_MS = 1400;
+    // The loop: everything fades to the background (the veil class, a fade
+    // the CSS owns), the page is taken to the top while nothing shows, and
+    // the veil lifts, the first stage fading back in. Straight to the top
+    // under reduced motion.
+    var VEIL_MS = 550;
     function loop() {
       if (looping) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -162,20 +163,16 @@
         return;
       }
       looping = true;
-      var from = window.pageYOffset;
-      var started = performance.now();
-      (function step(now) {
-        if (!looping) return;
-        var p = clamp01((now - started) / LOOP_MS);
-        var eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-        window.scrollTo({ top: from * (1 - eased), left: 0, behavior: "instant" });
-        if (p < 1) requestAnimationFrame(step);
-        else looping = false;
-      })(started);
+      stageEl.classList.add("is-veiled");
+      setTimeout(function () {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        update();
+        requestAnimationFrame(function () {
+          stageEl.classList.remove("is-veiled");
+          setTimeout(function () { looping = false; }, VEIL_MS);
+        });
+      }, VEIL_MS);
     }
-    ["touchstart", "pointerdown", "keydown"].forEach(function (type) {
-      window.addEventListener(type, function () { looping = false; }, { passive: true, capture: true });
-    });
 
     // Anything that moves or tries to move the page restarts the quiet
     // clock; a gesture at the end counts only if the clock had run out

@@ -30,8 +30,11 @@
    comes in — plus data-stage (the nearest stage: "presentation" or "specs";
    "flow" on a screen too short to pin the stage, where the page is laid out
    as a plain column and none of this runs), and calls
-   onChange({ toSpecs, leave, stage }) when they change, for what CSS can't do
-   (js/product.js: the model, the carousel lock).
+   onChange({ toSpecs, leave, along, stage }) when they change, for what CSS
+   can't do (js/product.js: the model, the carousel lock). `along`, 0 to 1,
+   is how far the page is through the first stretch and the transition
+   together, linear in the scroll from the first pixel: the model's rise to its
+   place in specs runs on it.
 
    Returns { scrollToStage(index) }. Focus moving into an element marked
    data-stage-owner="presentation|specs" (or two, space apart) while another
@@ -72,6 +75,10 @@
   // longer for a taller column (--end-hold, set below), instead of the show
   // going faster to make it in a fixed stretch.
   var BROWSE_PACE = 15 / 24;
+  // The second stretch starts before the transition ends, by this many
+  // ramps (none: the model lands in its place from above as the transition
+  // ends, and browsing takes it up from there).
+  var LEAD_RAMPS = 0;
   function entry(u, a) {
     var t = clamp01(u);
     var y = t < a ? (t * t) / (2 * a) : t - a / 2;
@@ -105,7 +112,7 @@
     var onChange = (options && options.onChange) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
-    var state = { toSpecs: -1, leave: -1, stage: "", browse: "" };
+    var state = { toSpecs: -1, leave: -1, along: -1, stage: "", browse: "" };
     // Where each stage sits, in page scroll, as last measured.
     var stops = [0, 0];
 
@@ -129,7 +136,9 @@
     stageEl.appendChild(roomProbe);
 
     // The second stretch's length in scroll, in pixels, as last set on the
-    // track (--end-hold; 0: not set, the track's own, as long as the first).
+    // track (--end-hold; 0: not set, the track's own, as long as the first) —
+    // after the transition, not counting the ramp's length it has started
+    // before it (BROWSE_PACE's note, above).
     // The room it has to cover is what js/product.js fits (--browse-room), and
     // never less than the first stage's; at BROWSE_PACE after the ramp (which
     // covers what a ramp of that length does: half its length at full pace).
@@ -139,7 +148,7 @@
       if (!flow.matches) {
         var room = Math.max(roomProbe.offsetHeight, parseFloat(getComputedStyle(stageEl).getPropertyValue("--browse-room")) || 0);
         var ramp = screenPx() * ENTRY_SCREENS;
-        want = Math.max(ramp, room / BROWSE_PACE + ramp / 2);
+        want = Math.max(ramp / 2, room / BROWSE_PACE + ramp / 2 - ramp * LEAD_RAMPS);
       }
       if (Math.abs(want - endHold) < 0.5) return;
       endHold = want;
@@ -173,27 +182,27 @@
       return { scrolled: scrolled, hold: hold, move: move, hold2: hold2 };
     }
 
-    function publish(toSpecs, stage, browse, leave) {
+    function publish(toSpecs, stage, browse, leave, along) {
       var key = browse.join(",");
-      if (toSpecs === state.toSpecs && leave === state.leave && stage === state.stage && key === state.browse) return;
-      state = { toSpecs: toSpecs, leave: leave, stage: stage, browse: key };
+      if (toSpecs === state.toSpecs && leave === state.leave && along === state.along && stage === state.stage && key === state.browse) return;
+      state = { toSpecs: toSpecs, leave: leave, along: along, stage: stage, browse: key };
       stageEl.style.setProperty("--to-specs", toSpecs.toFixed(4));
       stageEl.style.setProperty("--leave", leave.toFixed(4));
       for (var k = 0; k < 2; k++) stageEl.style.setProperty("--browse-" + k, browse[k].toFixed(4));
       if (stageEl.getAttribute("data-stage") !== stage) stageEl.setAttribute("data-stage", stage);
-      onChange({ toSpecs: toSpecs, leave: leave, stage: stage });
+      onChange({ toSpecs: toSpecs, leave: leave, along: along, stage: stage });
     }
 
     function update() {
       ticking = false;
       if (flow.matches) {
-        publish(0, "flow", [0, 0], 0);
+        publish(0, "flow", [0, 0], 0, 0);
         return;
       }
       syncEndHold();
       var m = measure();
       if (!(m.move > 0)) {
-        publish(0, STAGES[0], [0, 0], 0);
+        publish(0, STAGES[0], [0, 0], 0, 0);
         return;
       }
       var toSpecs = ease((m.scrolled - m.hold) / m.move);
@@ -210,8 +219,12 @@
       if (!(t0 > 0)) t0 = 0.3;
       var gone = m.hold + m.move * invEase(Math.min(t0, 1));
       var leave = gone > 0 ? clamp01(m.scrolled / gone) : 0;
-      var ramp = m.hold2 > 0 ? Math.min(1, (screenPx() * ENTRY_SCREENS) / m.hold2) : 1;
-      publish(toSpecs, stage, [through(0, m.hold), entry(through(m.hold + m.move, m.hold2), ramp)], leave);
+      // The second stretch begins one ramp before the transition ends, and
+      // runs on to the end of the track.
+      var lead = m.hold2 > 0 ? Math.min(screenPx() * ENTRY_SCREENS * LEAD_RAMPS, m.move / 2) : 0;
+      var length = m.hold2 + lead;
+      var ramp = length > 0 ? Math.min(1, (screenPx() * ENTRY_SCREENS) / length) : 1;
+      publish(toSpecs, stage, [through(0, m.hold), entry(through(m.hold + m.move - lead, length), ramp)], leave, clamp01(m.scrolled / (m.hold + m.move)));
     }
 
     function requestUpdate() {

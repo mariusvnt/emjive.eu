@@ -47,6 +47,9 @@
     // a viewer built later (first mount, after the Modify sheet, after Back)
     // starts where the page is.
     toSpecs: 0,
+    // How far the page is through the first stretch and the transition, linear
+    // in the scroll from its first pixel: what the model's rise runs on.
+    along: 0,
     sweep: 0,
     fit: 0,
     // The chosen ring size over the model's base size (setModelSize), and
@@ -54,8 +57,8 @@
     // none: the label bar then shows no size).
     sizeFactor: 1,
     sizeText: "",
-    // How far the model is lifted on the page in specs, in pixels
-    // (refreshStage).
+    // How far the model is lifted on the page, in pixels (refreshStage): on its
+    // way to its place in specs, from the first pixel of scrolling.
     lift: 0,
     // Whether the specs size has been given its starting value (62).
     sizeSeeded: false,
@@ -1017,6 +1020,7 @@
 
   function onStageChange(stage) {
     state.toSpecs = stage.toSpecs;
+    state.along = stage.along || 0;
     state.flow = stage.stage === "flow";
     refreshStage();
     // The cost chart builds once the last stage is fully in, and starts over
@@ -1093,6 +1097,81 @@
     return { top: mid - r.height * 0.33, bottom: mid + r.height * 0.33 };
   }
 
+  // How far up the model stands (in pixels, from where it stands at rest) when
+  // the page is `w` of the way through the first stretch and the transition,
+  // and its place in specs is `place` up. One path, from the first pixel of
+  // scrolling: it goes up with the show while the first stretch browses
+  // (`room` by its end), and then goes on to its place, at the same speed at
+  // first and slowing gently to a stop there — so that the show coming back
+  // down to rest as specs arrives never takes the model with it. (The
+  // browsing that follows starts before the transition ends,
+  // js/product-stages.js, and takes it up from there.)
+  function modelRise(w, place, room, ratio) {
+    var wh = ratio / (ratio + 1);
+    var x = clamp(w, 0, 1);
+    if (x <= wh) return wh > 0 ? room * (x / wh) : 0;
+    var u = (x - wh) / (1 - wh);
+    var dist = place - room;
+    if (dist > 1) return room + dist * (1 - Math.pow(1 - u, clamp(room / (ratio * dist), 1.5, 6)));
+    return room + dist * u * u * (3 - 2 * u);
+  }
+
+  // The t at which ease(u) = t, by bisection.
+  function invEase(y) {
+    var lo = 0;
+    var hi = 1;
+    for (var i = 0; i < 24; i++) {
+      var mid = (lo + hi) / 2;
+      if (ease(mid) < y) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  // A smooth monotone curve through the points (xs[i], ys[i]) (Fritsch-
+  // Carlson), read at x: it never overshoots a point, so the band never turns
+  // back. Falls back to straight lines if the points aren't strictly falling.
+  function bandAt(xs, ys, x) {
+    var n = xs.length;
+    var d = [];
+    var m = [];
+    var i;
+    for (i = 0; i < n - 1; i++) {
+      if (!(xs[i + 1] > xs[i]) || !(ys[i + 1] < ys[i] - 1)) {
+        var f = clamp(x, 0, 1);
+        return ys[0] + (ys[n - 1] - ys[0]) * f;
+      }
+      d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+    }
+    m.push(d[0]);
+    for (i = 1; i < n - 1; i++) m.push((d[i - 1] + d[i]) / 2);
+    m.push(d[n - 2]);
+    for (i = 0; i < n - 1; i++) {
+      var a = m[i] / d[i];
+      var b = m[i + 1] / d[i];
+      var r = a * a + b * b;
+      if (r > 9) {
+        var tau = 3 / Math.sqrt(r);
+        m[i] = tau * a * d[i];
+        m[i + 1] = tau * b * d[i];
+      }
+    }
+    var seg = 0;
+    while (seg < n - 2 && x > xs[seg + 1]) seg++;
+    var w = xs[seg + 1] - xs[seg];
+    var u = clamp((x - xs[seg]) / w, 0, 1);
+    var u2 = u * u;
+    var u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * ys[seg] + (u3 - 2 * u2 + u) * w * m[seg] +
+      (-2 * u3 + 3 * u2) * ys[seg + 1] + (u3 - u2) * w * m[seg + 1];
+  }
+
+  // Zero speed and zero acceleration at both ends, as in js/product-stages.js.
+  function ease(u) {
+    var x = clamp(u, 0, 1);
+    return x * x * x * (x * (x * 6 - 15) + 10);
+  }
+
   // Works the whole of the show out from state.toSpecs and where the model is: the phases' timing, the band, and what the model
   // does. Run on every change of the scroll and of the screen's size, and
   // whenever a viewer arrives.
@@ -1105,26 +1184,53 @@
     var t1 = 0.6;
     var sweep = 0;
     var barOn = false;
-    var span = state.flow ? null : modelSpan();
-    // The model's place as the transition starts: before the lift it is under
-    // now (the lift follows from the timing worked out from it), and as the
-    // show stands when that stretch of browsing has been scrolled to its end
-    // (css/style.css --browse), the height of the two bars up — the model
-    // debuts there, whatever the show stands at now.
     var browsed = browsePx();
-    if (span) {
-      var debut = state.lift + browsed - barsPx();
-      span.top += debut;
-      span.bottom += debut;
+    var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
+    if (!(ratio >= 0)) ratio = 0.5;
+    var room = barsPx();
+    // The model's place in specs: its middle on the first quarter of the
+    // screen's height — or just under the title bar, if the model is so tall
+    // that its head would run under it — and then SPECS_GAP_REM lower, the
+    // gap before the model. How far up that is from where the
+    // model stands at rest (`place`): the slide's middle, less the lift and
+    // the browsing it is under now.
+    var slide = document.querySelector(".product-carousel__slide--model");
+    var place = 0;
+    if (slide && !state.flow) {
+      var box = slide.getBoundingClientRect();
+      var titleBar = document.querySelector(".product-detail__label-bar");
+      // (The model, with its dimensions, stands about this tall: the share
+      // of the tile it fills at the size it is fitted to.)
+      var half = SPECS_HALF_HEIGHT * box.height;
+      var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var middle = Math.max(SPECS_ANCHOR * window.innerHeight, titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
+      place = Math.max(0, box.top + box.height / 2 + state.lift + browsed - middle);
     }
+    var path = modelRise(state.along, place, room, ratio);
+    var span = state.flow ? null : modelSpan();
     if (span && span.bottom > span.top) {
+      // The model's foot and head where they stand at rest (nothing applied).
+      // The fades are timed by where they stand once the first stretch has
+      // browsed (`room` up), the model still on its way; the band then goes
+      // smoothly (a monotone curve) through four places: under the screen at
+      // the start, the model's foot at t0, its head at t1 — where they stand
+      // by then, the model having risen — and over the screen at the end. The
+      // sweep is the band's passage across the model as it stands now.
+      var restBottom = span.bottom + state.lift + browsed;
+      var restTop = span.top + state.lift + browsed;
       var viewport = window.innerHeight;
       var h = band ? band.offsetHeight : 0;
-      // The band's middle: just under the screen at t = 0, just over it at 1.
-      var barY = -h / 2 + (viewport + h) * (1 - t);
-      sweep = clamp((span.bottom - barY) / (span.bottom - span.top), 0, 1);
-      t0 = clamp(1 - (span.bottom + h / 2) / (viewport + h), 0.08, 0.7);
-      t1 = clamp(1 - (span.top + h / 2) / (viewport + h), t0 + 0.1, 0.92);
+      t0 = clamp(1 - (restBottom - room + h / 2) / (viewport + h), 0.08, 0.7);
+      t1 = clamp(1 - (restTop - room + h / 2) / (viewport + h), t0 + 0.1, 0.92);
+      var along = function (x) {
+        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio);
+      };
+      var knots = [0, t0, t1, 1];
+      var places = [viewport + h / 2, restBottom - along(t0), restTop - along(t1), -h / 2];
+      var barY = bandAt(knots, places, t);
+      var bottom = restBottom - path;
+      var top = restTop - path;
+      sweep = clamp((bottom - barY) / (bottom - top), 0, 1);
       barOn = t > 0 && t < 1;
       if (band && barOn) band.style.top = barY.toFixed(1) + "px";
     }
@@ -1133,23 +1239,12 @@
     // of the blank, where nothing of it shows.
     stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
-    // In specs the model stands higher on the page: its middle on the first
-    // quarter of the screen's height, from where the sweep leaves it (the
-    // same stretch as its fit) — or just under the title bar, if the model
-    // is so tall that its head would run under it. Its place before the lift
-    // is the slide's middle less the lift it is under now.
-    var slide = document.querySelector(".product-carousel__slide--model");
-    var lift = 0;
-    if (slide && !state.flow) {
-      var box = slide.getBoundingClientRect();
-      var titleBar = document.querySelector(".product-detail__label-bar");
-      // (The model, with its dimensions, stands about this tall: the share
-      // of the tile it fills at the size it is fitted to.)
-      var half = SPECS_HALF_HEIGHT * box.height;
-      var middle = Math.max(SPECS_ANCHOR * window.innerHeight, titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0);
-      lift = Math.max(0, box.top + box.height / 2 + state.lift + browsed - middle);
-    }
-    state.lift = state.fit * lift;
+    // What the carousel is lifted by, on top of the show: the path less what
+    // the show does by itself — it goes up for the first stretch's browsing
+    // and comes back down as specs arrives (css/style.css --browse-px).
+    var wh = ratio / (ratio + 1);
+    var browsing = room * (wh > 0 ? clamp(state.along / wh, 0, 1) : 1) * (1 - state.fit);
+    state.lift = path - browsing;
     stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
     stageEl.style.setProperty("--t0", t0.toFixed(4));
     stageEl.style.setProperty("--t1", t1.toFixed(4));
@@ -1196,6 +1291,8 @@
   // bar, and to the dimensions and the cost diagram.
   var SPECS_ANCHOR = 0.25;
   var SPECS_HALF_HEIGHT = 0.13;
+  // The gap before the model in specs, on top of where it would stand: 8rem.
+  var SPECS_GAP_REM = 8;
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 70;

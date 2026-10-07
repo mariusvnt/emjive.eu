@@ -1875,7 +1875,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    --t0 and --t1 are set by js/product.js from where the model is on screen
    (the blank is the model's own sweep from metal to wireframe, under the
    inversion band); --lift is how far the model stands higher on the page in
-   specs, its middle on the first quarter of the screen (also js/product.js).
+   specs, its middle on the first quarter of the screen, and a gap lower (also js/product.js).
    --specs-on is what specs shows.
    data-stage (the nearest stage) only decides what takes taps.
 
@@ -2483,7 +2483,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   --edge-left: max(0px, calc(50% - var(--max) / 2));
   /* Where the column under the model starts (the specs stage's, and the
      logistics stage's in the same place): just under the model, which stands
-     on the first quarter of the screen in specs — its middle is --lift above
+     on the first quarter of the screen in specs (8rem lower) — its middle is --lift above
      the tile's middle, and its brackets reach about a quarter of the tile
      below that. */
   --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + var(--gap-row));

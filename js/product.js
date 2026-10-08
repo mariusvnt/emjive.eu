@@ -1192,6 +1192,15 @@
     return x * x * x * (x * (x * 6 - 15) + 10);
   }
 
+  // The screen's height for the timing and the places below: the small
+  // viewport (js/product-stages.js screenPx), not window.innerHeight, which on
+  // iOS Safari changes as the toolbar collapses mid-scroll and would move the
+  // fades (the metal picker's among them) and the model's place under the
+  // visitor's finger.
+  function screenHeight() {
+    return window.EmjiveProductStages && window.EmjiveProductStages.screenPx ? window.EmjiveProductStages.screenPx() : window.innerHeight;
+  }
+
   // Works the whole of the show out from state.toSpecs and where the model is: the phases' timing, the band, and what the model
   // does. Run on every change of the scroll and of the screen's size, and
   // whenever a viewer arrives.
@@ -1223,7 +1232,7 @@
       // of the tile it fills at the size it is fitted to.)
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      var middle = Math.max(SPECS_ANCHOR * window.innerHeight, titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
+      var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
       place = Math.max(0, box.top + box.height / 2 + state.lift + browsed - middle);
     }
     var path = modelRise(state.along, place, room, ratio);
@@ -1238,7 +1247,7 @@
       // sweep is the band's passage across the model as it stands now.
       var restBottom = span.bottom + state.lift + browsed;
       var restTop = span.top + state.lift + browsed;
-      var viewport = window.innerHeight;
+      var viewport = screenHeight();
       var h = band ? band.offsetHeight : 0;
       t0 = clamp(1 - (restBottom - room + h / 2) / (viewport + h), 0.08, 0.7);
       t1 = clamp(1 - (restTop - room + h / 2) / (viewport + h), t0 + 0.1, 0.92);

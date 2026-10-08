@@ -107,6 +107,25 @@
     return t * t * t * (t * (t * 6 - 15) + 10);
   }
 
+  // The screen's height as the CSS pin counts it — the small viewport (svh),
+  // which stays the same while the browser's toolbars come and go.
+  // window.innerHeight does not: on iOS Safari it changes as the toolbar
+  // collapses with the scrolling itself, which would stretch or shrink
+  // anything measured in screens (the entry's ramp, and js/product.js's
+  // timing of the fades from where the model is on screen — the metal picker
+  // among them) in the middle of a scroll. vh is the fallback (the large
+  // viewport on iOS: constant too). Shared with js/product.js.
+  var screenProbe = null;
+  function screenPx() {
+    if (!screenProbe) {
+      screenProbe = document.createElement("div");
+      screenProbe.setAttribute("aria-hidden", "true");
+      screenProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none";
+      document.body.appendChild(screenProbe);
+    }
+    return screenProbe.offsetHeight || window.innerHeight;
+  }
+
   function mount(stageEl, options) {
     var pin = stageEl.querySelector(".product-stage__pin");
     var onChange = (options && options.onChange) || function () {};
@@ -116,19 +135,6 @@
     // Where each stage sits, in page scroll, as last measured.
     var stops = [0, 0];
 
-    // The screen's height as the CSS pin counts it — the small viewport
-    // (svh), which stays the same while the browser's toolbars come and go.
-    // window.innerHeight does not: on iOS Safari it changes as the toolbar
-    // collapses with the scrolling itself, which would stretch or shrink
-    // anything measured in screens (the entry's ramp) in the middle of a
-    // scroll. vh is the fallback (the large viewport on iOS: constant too).
-    var screenProbe = document.createElement("div");
-    screenProbe.setAttribute("aria-hidden", "true");
-    screenProbe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none";
-    document.body.appendChild(screenProbe);
-    function screenPx() {
-      return screenProbe.offsetHeight || window.innerHeight;
-    }
     // --room-0, the first stage's room (the two bars and 4rem), in pixels.
     var roomProbe = document.createElement("div");
     roomProbe.setAttribute("aria-hidden", "true");
@@ -345,5 +351,5 @@
     return { scrollToStage: scrollToStage };
   }
 
-  window.EmjiveProductStages = { mount: mount };
+  window.EmjiveProductStages = { mount: mount, screenPx: screenPx };
 })();

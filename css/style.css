@@ -2959,15 +2959,20 @@ body:has(.order-checkout-bar:not([hidden])) {
   padding: 0;
   border: none;
   cursor: pointer;
-  background: var(--metal-sample) center / 100% 100% no-repeat;
+  background: center / 100% 100% no-repeat;
 }
 /* The ring is drawn just inside the square rather than outside it. */
 .product-metals__option:focus-visible {
   outline-offset: -2px;
 }
-.product-metals__option[data-metal="steel"] { --metal-sample: url("../assets/metal-sample_steel.webp"); }
-.product-metals__option[data-metal="silver"] { --metal-sample: url("../assets/metal-sample_silver.webp"); }
-.product-metals__option[data-metal="bronze"] { --metal-sample: url("../assets/metal-sample_bronze.webp"); }
+/* The picture is set as background-image itself, never through a custom
+   property: the stage's properties change on every scroll frame and are
+   inherited, so the squares are restyled each time, and a url() behind a var()
+   is resolved again with each restyle (WebKit and Chrome re-trigger the image
+   load, and the square can blink while it settles). */
+.product-metals__option[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
+.product-metals__option[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
+.product-metals__option[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
 /* The selection dot (--dot, the size slider's too): solid --category-col. */
 .product-metals__option[aria-pressed="true"]::after {
   content: "";

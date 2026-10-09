@@ -12,11 +12,14 @@
                 screen's real pixel size can't be read from the browser, so
                 this is where the pixels-per-millimetre come from.
      measure    The ring goes on the screen, centred on the dot, and a slider
-                scales a disc until it touches the ring's inner edge.
-     result     The disc's diameter, as the ring's inner circumference (a
-                size here is that circumference, in mm). Only the disc's
-                outline stays on the screen, with the buttons underneath it:
-                "Measure another ring" or "Use a different method".
+                scales a white circle (an outline) until it disappears
+                under the ring: the slider is stopped exactly when it becomes
+                invisible, which is when the outline's inner circle meets the
+                ring's inner edge — so that inner circle is what is measured.
+     result     The circle's inner diameter, as the ring's inner circumference
+                (a size here is that circumference, in mm). The outline stays
+                on the screen, with the buttons underneath it: "Measure
+                another ring" or "Use a different method".
      chart      (No, or a different method) The category's size guide, from
                 data/series.json, as js/selection.js's fillSizeGuide builds it.
 
@@ -25,10 +28,9 @@
    only things that take a touch are the slider's dot, Validate, the arrow
    and the cross.
 
-   Both shapes are inversions drawn over everything else (css/style.css's
-   .size-finder__card and .size-finder__disc): outside the card window is
-   inverted and inside is left alone; inside the disc is inverted and outside
-   is left alone.
+   The card window is an inversion drawn over everything else (css/style.css's
+   .size-finder__card): outside it is inverted and inside is left alone. The
+   ring's circle is a plain white outline (.size-finder__outline).
 
    window.EmjiveSizeFinder = { open(options), isOpen(), sizeFromDiameter(mm) }.
    options:
@@ -57,7 +59,9 @@
   // 3-7 px per mm that real screens have keeps a fine grip.
   var SCALE_MIN = 2;
   var SCALE_STEPS = 5000;
-  // The disc: from a dot to a little past the biggest ring size.
+  // The circle: from a dot to a little past the biggest ring size. Its outline
+  // is OUTLINE_PX thick, and the circle measured is the outline's inner one.
+  var OUTLINE_PX = 1.5;
   var DISC_MIN_MM = 3;
   var DISC_MAX_MM = 26;
   var DISC_STEP_MM = 0.005;
@@ -71,16 +75,19 @@
     // An array is paragraphs.
     calibrate: [
       "Lay a standard-size card (like a credit card) on the screen with its bottom edge resting on top of the white space below, and slide down until the white outlines perfectly touch all of its edges.",
-      "This step lets us calibrate the measurements to your device's exact screen size to get precise results."
+      "This step lets us calibrate the measurements to your device's exact screen size to get accurate results."
     ],
-    measure: "Now place the ring you want to measure on the dot below and slide up until the white outline perfectly touches the inner edges of your ring"
+    measure: [
+      "Now place the ring you want measured on the dot below, and slide up until the white rim is very barely visible.",
+      "The measure needs to be precise so be cautious."
+    ]
   };
 
   // What each step shows: the parts that are visible, and the shape.
   var STEPS = {
     ask:       { parts: ["ask"], shape: null },
     calibrate: { parts: ["controls"], shape: "card" },
-    measure:   { parts: ["controls"], shape: "disc" },
+    measure:   { parts: ["controls"], shape: null },
     result:    { parts: ["result"], shape: null },
     chart:     { parts: ["chart"], shape: null }
   };
@@ -244,21 +251,17 @@
     nodes.root.style.setProperty("--finder-edge", cardEdgeY() + "px");
   }
 
-  // The measured disc's outline, kept on the result screen; the buttons stand
-  // under it (--finder-outline-r).
+  // The ring's circle: a white outline OUTLINE_PX thick whose INNER circle is
+  // the measured diameter (the box is that plus two strokes). It is invisible
+  // once the ring hides it, i.e. when its inner circle meets the ring's inner
+  // edge. Kept on the result screen too.
   function renderOutline() {
     var px = state.diameter * state.scale;
-    nodes.outline.style.width = px + "px";
-    nodes.outline.style.height = px + "px";
-    nodes.root.style.setProperty("--finder-outline-r", px / 2 + "px");
-  }
-
-  function renderDisc() {
-    var px = state.diameter * state.scale;
-    nodes.disc.style.width = px + "px";
-    nodes.disc.style.height = px + "px";
-    // The controls stand under the biggest the disc gets, so they stay put.
-    nodes.root.style.setProperty("--finder-r", (DISC_MAX_MM / 2) * state.scale + "px");
+    var box = px + 2 * OUTLINE_PX + "px";
+    nodes.outline.style.width = box;
+    nodes.outline.style.height = box;
+    // The controls stand under the biggest the circle gets, so they stay put.
+    nodes.root.style.setProperty("--finder-r", (DISC_MAX_MM / 2) * state.scale + OUTLINE_PX + "px");
   }
 
   /* ---- build the DOM once, on first use ------------------------------------ */
@@ -327,7 +330,7 @@
         renderCard();
       } else if (state.step === "measure") {
         state.diameter = value;
-        renderDisc();
+        renderOutline();
       }
     });
     var validate = button("Validate");
@@ -337,6 +340,8 @@
     root.appendChild(nodes.result);
 
     nodes.outline = el("div", "size-finder__outline");
+    // An inset shadow rather than a border: a border is snapped to whole device pixels, a stroke of 1.5px is not.
+    nodes.outline.style.boxShadow = "inset 0 0 0 " + OUTLINE_PX + "px #fff";
     nodes.outline.setAttribute("aria-hidden", "true");
     root.appendChild(nodes.outline);
 
@@ -345,13 +350,10 @@
     root.appendChild(back);
     root.appendChild(close);
 
-    // The two shapes, last so they are over everything.
+    // The card window, last so it is over everything.
     nodes.card = el("div", "size-finder__card");
     nodes.card.setAttribute("aria-hidden", "true");
-    nodes.disc = el("div", "size-finder__disc");
-    nodes.disc.setAttribute("aria-hidden", "true");
     root.appendChild(nodes.card);
-    root.appendChild(nodes.disc);
 
     nodes.primary = { ask: yes, calibrate: nodes.slider.el, measure: nodes.slider.el, result: again };
 
@@ -432,10 +434,9 @@
     });
     nodes.label.hidden = !paragraphs.length;
 
-    nodes.outline.classList.toggle("is-on", step === "result");
-    if (step === "result") renderOutline();
+    nodes.outline.classList.toggle("is-on", step === "measure" || step === "result");
+    if (step === "measure" || step === "result") renderOutline();
     nodes.card.classList.toggle("is-on", def.shape === "card");
-    nodes.disc.classList.toggle("is-on", def.shape === "disc");
 
     if (step === "calibrate") {
       // First time in: the card at its biggest, which needs the marker laid out.
@@ -451,7 +452,7 @@
         label: "Circle size",
         text: function (value) { return value.toFixed(3) + " mm across"; }
       });
-      renderDisc();
+      renderOutline();
     }
 
     // Focus follows the step, unless the dialog has only just opened.

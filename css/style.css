@@ -3951,7 +3951,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 /* The slider and Validate. At the bottom of the screen while calibrating, with
    the line the card's bottom edge goes on just above the slider; under the disc
    while measuring, below the biggest the
-   disc gets (--finder-r, set from JS) so it doesn't move as the disc grows. */
+   circle gets (--finder-r, set from JS) so it doesn't move as the circle grows. */
 .size-finder__controls {
   position: absolute;
   left: 0;
@@ -3982,15 +3982,16 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   opacity: 0;
 }
 
-/* The result screen: the outline of the disc that was measured, where it was
-   (the screen's centre), and the buttons under it. */
+/* The ring's circle: a plain white outline at the screen's centre (its
+   thickness set by js/size-finder.js, whose measured diameter is the INNER
+   circle), on the measure step and kept on the result screen, with the buttons
+   under it. */
 .size-finder__outline {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   box-sizing: border-box;
-  border: 1px solid var(--white);
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
@@ -4025,7 +4026,10 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   --dot-size: 1rem;
   position: relative;
   box-sizing: border-box;
-  width: min(100%, 22rem);
+  /* 0.5rem more room on each side than the controls' own margin: a dot too
+     near the screen's edge sets off the phone's back-swipe. */
+  width: min(calc(100% - 1rem), 22rem);
+  margin: 0 0.5rem;
   height: calc(var(--dot-size) * 2);
   pointer-events: none;
   outline: none;
@@ -4061,34 +4065,23 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35);
 }
 
-/* The shapes. */
-.size-finder__card,
-.size-finder__disc {
+/* The card window. */
+.size-finder__card {
   position: absolute;
-  top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* Standing on its edge (js/size-finder.js sets --finder-edge to the marker's
+     height): its bottom edge is fixed, it grows and shrinks upward. */
+  top: var(--finder-edge, 50%);
+  transform: translate(-50%, -100%);
   pointer-events: none;
   mix-blend-mode: difference;
   opacity: 0;
-  transition: opacity var(--fade-standard) ease;
-}
-.size-finder__card.is-on,
-.size-finder__disc.is-on {
-  opacity: 1;
-}
-.size-finder__card {
-  /* Standing on its edge (js/size-finder.js sets --finder-edge to the marker's
-     height): its bottom edge is fixed, it grows and shrinks upward; the disc
-     stays at the screen's centre. */
-  top: var(--finder-edge, 50%);
-  transform: translate(-50%, -100%);
   background: transparent;
   box-shadow: 0 0 0 100vmax var(--white);
+  transition: opacity var(--fade-standard) ease;
 }
-.size-finder__disc {
-  border-radius: 50%;
-  background: var(--white);
+.size-finder__card.is-on {
+  opacity: 1;
 }
 
 /* Focus on the dark surface: the light ring, and the cross keeps its place. */

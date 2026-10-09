@@ -276,11 +276,11 @@
     parent.appendChild(frac);
   }
 
-  // The size guide (the product page's specs stage, the two size sheets):
-  // `guide` is the category's "size-guide" in data/series.json — { how, head,
-  // rows: one a size } — built into `container` as a few words and a table. Returns
+  // The size guide (the chart step of js/size-finder.js): `guide` is the
+  // category's "size-guide" in data/series.json — { how, head, rows: one a
+  // size } — built into `container` as a few words and a table. Returns
   // whether there was anything to build (a category with no guide gets no
-  // button).
+  // "Find my size" button).
   function fillSizeGuide(container, guide) {
     container.innerHTML = "";
     if (!guide || !guide.rows || !guide.rows.length) return false;
@@ -318,32 +318,8 @@
     return true;
   }
 
-  // Wires a size guide's button to its panel: the button opens and closes it
-  // (.is-open on the panel, aria-expanded on the button), and so does a click
-  // anywhere else. opts: { toggle, panel, onToggle(open) }. Returns
-  // { close(), isOpen() }.
-  function wireSizeGuide(opts) {
-    var open = false;
-    function set(next) {
-      if (next === open) return;
-      open = next;
-      opts.panel.classList.toggle("is-open", open);
-      opts.toggle.setAttribute("aria-expanded", String(open));
-      if (open) document.addEventListener("click", away);
-      else document.removeEventListener("click", away);
-      if (opts.onToggle) opts.onToggle(open);
-    }
-    function away(e) {
-      if (opts.toggle.contains(e.target) || opts.panel.contains(e.target)) return;
-      set(false);
-    }
-    opts.toggle.addEventListener("click", function () { set(!open); });
-    return { close: function () { set(false); }, isOpen: function () { return open; } };
-  }
-
   global.EmjiveSelection = {
     fillSizeGuide: fillSizeGuide,
-    wireSizeGuide: wireSizeGuide,
     getSelection: getSelection,
     addItem: addItem,
     removeItem: removeItem,

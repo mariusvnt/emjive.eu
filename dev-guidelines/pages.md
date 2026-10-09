@@ -9,7 +9,7 @@ The 7 HTML files at the repo root (plus `404.html`, also a root build entry — 
 No address shows a file name or an `?id=`:
 
 | What | Address | Served from |
-|---|---|---|
+|---|---|---||---
 | Gallery (home) | `/gallery` — and the bare `/` serves the same page **without a redirect** (no extra round trip on the main entry; the canonical says `/gallery`) | `index.html` |
 | An item | `/<slug>`, e.g. `/furcula`, `/rib-cage` | its own built page, `dist/<slug>.html` |
 | Any other page | `/archives`, `/creation-process`, `/terms`, `/launch-order`, `/series?series=<slug>` | `<page>.html` |
@@ -26,14 +26,14 @@ No address shows a file name or an `?id=`:
 Every page used to ship `<title>em·ji·ve</title>`, with `product.html` and `series.html` overwriting it at runtime — so crawlers, browser history and shared links saw the same six characters for the homepage, Terms and the order page alike. Only `product.html` had an `h1`.
 
 | page | static `<title>` | `h1` |
-|---|---|---|
-| `index.html` | `em·ji·ve` | `.visually-hidden`, first child of `<main>` |
-| `product.html` | `Product — em·ji·ve` | `.product-detail__label-text` (the product name) |
-| `launch-order.html` | `Your selection — em·ji·ve` | `.visually-hidden`, first child of `<main>` |
-| `archives.html` | `Archives — em·ji·ve` | inside `.section-head` |
-| `creation-process.html` | `Creation process — em·ji·ve` | inside `.section-head` |
-| `terms.html` | `Terms & Conditions — em·ji·ve` | inside `.section-head` |
-| `series.html` | `Series — em·ji·ve` | `#seriesManifestTitle`, inside `.section-head` |
+|---|---|---||---
+| `index.html` | `em·ji·ve` | `.visually-hidden`, first child of `<main>` || ✓ 
+| `product.html` | `Product — em·ji·ve` | `.product-detail__label-text` (the product name) || ✓ 
+| `launch-order.html` | `Your selection — em·ji·ve` | `.visually-hidden`, first child of `<main>` || ✓ 
+| `archives.html` | `Archives — em·ji·ve` | inside `.section-head` || ✓ 
+| `creation-process.html` | `Creation process — em·ji·ve` | inside `.section-head` || ✓ 
+| `terms.html` | `Terms & Conditions — em·ji·ve` | inside `.section-head` || ✓ 
+| `series.html` | `Series — em·ji·ve` | `#seriesManifestTitle`, inside `.section-head` || ✓ 
 
 Three things to keep in step when adding a page:
 
@@ -79,7 +79,7 @@ The old `.ring`/`.neck`/`.wrist` links (three dead anchors all pointing at the s
 `index.html` has no hero markup of its own. It carries two empty slots — `#seriesHero` in `<main>`, and `#seriesBackdrop` inside `.products` — and `js/series.js` clones the featured series' hero into them at runtime from `series/<slug>/`:
 
 | File | What it is |
-|---|---|
+|---|---||---
 | `hero.html` | A set of `<template data-series-slot="...">` elements. The loader clones each into the matching element id, so a series can fill any subset of the slots without `index.html` changing. Its pictures carry **no `src`**: `data-full` names the original (the desktop high-res file, base name of the other three versions) and `data-lo` marks the ones that also have the low-res pair; `js/series.js` sets the `src` for the viewport on the inert clone (see "Responsive hero" below). |
 | `hero.css` | That hero's styling, injected as a `<link>`. Lands after `css/style.css`, so it wins on ties. |
 | `hero.js` | That hero's behavior. Assigns `window.EmjiveSeriesHero = { init, onProducts }` and **must have no side effects at execution time** — that's what lets the loader run all three fetches in parallel. It also **must not use bare specifiers**: it's loaded via a runtime string path, so Vite never sees it and couldn't resolve `import "three"`. |
@@ -119,7 +119,7 @@ Then, outside `<main>`, the blurred **Select / Add bar** (`#productSelectBar`, a
 
 `#productSelectBar` is a full-bleed blurred strip (`class="glass"`, see `styling.md`) floating on top of the selection bar and riding up with its drawer. It says "Select"; clicking it opens `#sizeModal` *above itself*, and it then says "Add" — dimmed until the size field holds an orderable value. It's static markup, `hidden` until `js/product.js` shows it, and steps aside while the Modify sheet is up or an Add's peek has the newest row out of the drawer. It replaced the in-page Select button and the selection bar's old "Add" mode.
 
-`#sizeModal` is a bottom sheet resting on that bar. Its first row is the **Material** picker (the page's own, kept in step with it); then one typed field — `<label>` "Size", the input, the category's unit — with the size guide's "?" button at its top right corner; the guide itself is the sheet's last row, so the sheet grows upward when it opens, and the button, or a click anywhere else, closes it. There's no confirm button in it: the bar's "Add" is the confirm, and Enter in the field adds too (see `client-scripts.md`). The specs stage's own size row is the same field (plus the slider), and pre-fills this one.
+`#sizeModal` is a bottom sheet resting on that bar. Its first row is the **Material** picker (the page's own, kept in step with it); then one typed field — `<label>` "Size", the input, the category's unit — with a "Find my size" button to its right (`#sizeModalFinderToggle`), which opens the size finder (`js/size-finder.js`, a full-page modal over the sheet; see `client-scripts.md`) and gets the answer written into the field. There's no confirm button in it: the bar's "Add" is the confirm, and Enter in the field adds too (see `client-scripts.md`). The specs stage's own size row is the same field (plus the slider), and pre-fills this one.
 
 Everything text/image-related starts empty or `hidden` and gets filled in by `js/product.js`.
 
@@ -151,19 +151,19 @@ It's the one page that resolves its slug **without** the featured-series fallbac
 
 ## Page × script matrix
 
-| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `viewer-entry.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `metal-picker.js` | `modify-modal.js` | `product.js` | `product-stages.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `index.html` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
-| `product.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
-| `launch-order.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | | ✓ | |
-| `archives.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
-| `creation-process.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
-| `terms.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
-| `series.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | ✓ |
+| | `scroll-memory.js` (head, blocking) | `series.js` (head, blocking) | `viewer-entry.js` (module) | `main.js` | `focus-trap.js` | `selection.js` | `carousel.js` | `order-rows.js` | `metal-picker.js` | `size-finder.js` | `modify-modal.js` | `product.js` | `product-stages.js` | `selection-bar.js` | `selection-page.js` | `series-page.js` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `index.html` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
+| `product.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | |
+| `launch-order.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | | ✓ | |
+| `archives.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
+| `creation-process.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
+| `terms.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | |
+| `series.html` | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | | | ✓ | | ✓ |
 
-Every body script is `defer`red (`loader.js` and `series.js`, and `scroll-memory.js` on the homepage, are the only blocking ones — all in `<head>`), so they download in parallel and run in document order after the parser is done, behind `viewer-entry.js`. That document order is **not** the column order above on every page: on `index.html` and `product.html` it is `focus-trap`, `selection`, `carousel`, `order-rows`, `metal-picker`, `modify-modal`, `selection-bar`, then `main.js`, then (`product.html`) `product-stages.js` and `product.js`; on the other pages `main.js` is first (`series.html` loads `series-page.js` straight after it), then the same helpers, `selection-bar.js` last (`launch-order.html`: `selection-page.js` in its place). What must hold: `selection.js` before anything that touches it; `carousel.js` → `order-rows.js` → `metal-picker.js` → `modify-modal.js` in that order and ahead of the page script and `selection-bar.js`, which build on them; `order-rows.js` before `selection-bar.js`; `focus-trap.js` and `carousel.js` before `product.js`; `product-stages.js` before `product.js` (which mounts it).
+Every body script is `defer`red (`loader.js` and `series.js`, and `scroll-memory.js` on the homepage, are the only blocking ones — all in `<head>`), so they download in parallel and run in document order after the parser is done, behind `viewer-entry.js`. That document order is **not** the column order above on every page: on `index.html` and `product.html` it is `focus-trap`, `selection`, `carousel`, `order-rows`, `metal-picker`, `size-finder`, `modify-modal`, `selection-bar`, then `main.js`, then (`product.html`) `product-stages.js` and `product.js`; on the other pages `main.js` is first (`series.html` loads `series-page.js` straight after it), then the same helpers, `selection-bar.js` last (`launch-order.html`: `selection-page.js` in its place). What must hold: `selection.js` before anything that touches it; `carousel.js` → `order-rows.js` → `metal-picker.js` → `size-finder.js` → `modify-modal.js` in that order and ahead of the page script and `selection-bar.js`, which build on them; `order-rows.js` before `selection-bar.js`; `focus-trap.js` and `carousel.js` before `product.js`; `product-stages.js` before `product.js` (which mounts it).
 
-`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. **Every page loads `three-viewer.js` and the Modify sheet's four scripts**, because every page can open the Modify sheet — from the floating bar's drawer, or from the order list — and the sheet's carousel shows the item's live 3D model. `focus-trap.js` is everywhere for the same reason.
+`main.js` loads everywhere — it owns the header menu and the filter row, which render on every page, and its grid code no-ops when `#productGrid` isn't present. **Every page loads `three-viewer.js`, the Modify sheet's four scripts and `size-finder.js` (the Modify sheet's "Find my size" opens it)**, because every page can open the Modify sheet — from the floating bar's drawer, or from the order list — and the sheet's carousel shows the item's live 3D model. `focus-trap.js` is everywhere for the same reason.
 
 **`js/loader.js` is on all seven pages** (blocking, in `<head>`, after the stylesheet — and after `scroll-memory.js` on `index.html` — and before `series.js`), and three pages opt into its **arrival loader** with `data-page-loader` on `<html>`: `index.html` (until the hero image has decoded), `product.html` (until the product is built) and `series.html` (until the manifest is in). The other four never wait on anything and don't. This replaced the static "Loading…" text: `index.html`'s grid starts empty, and `product.html`'s `#productDetailLoading` and `series.html`'s `#seriesManifestLoading` are now `hidden` paragraphs that only ever hold the not-found message (`js/product.js`/`js/series-page.js` unhide them). See `client-scripts.md`'s `js/loader.js` section and `styling.md`'s Loader section.
 

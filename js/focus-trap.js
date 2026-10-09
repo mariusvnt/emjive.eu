@@ -57,6 +57,10 @@
   var returnFocusTo = null;
   var fallbackFocusTo = null;
   var onEscape = null;
+  // The traps underneath the active one: a dialog opened with `nested` (the
+  // size finder, over a sheet) puts the sheet's state here and gets it back
+  // on release().
+  var stack = [];
 
   /* ---- focus handed back after a tap ----------------------------------------
      Closing a sheet hands focus back to whatever opened it — a row, the
@@ -222,10 +226,33 @@
                        in the document.
          initialFocus  defaults to root itself, so the dialog's own
                        aria-label is announced before its first control.
-         onEscape      called on Escape. Omit to keep your own handler. */
+         onEscape      called on Escape. Omit to keep your own handler.
+         nested        true when this dialog opens over another one that
+                       stays open (the size finder, over a sheet): the
+                       trap underneath is kept, not released, and comes
+                       back — with the page still locked — when this one
+                       releases. */
     activate: function (root, options) {
       if (!root) return;
       options = options || {};
+      if (activeRoot && options.nested) {
+        stack.push({
+          root: activeRoot,
+          include: includeEls,
+          returnFocus: returnFocusTo,
+          fallback: fallbackFocusTo,
+          onEscape: onEscape
+        });
+        // The page is already locked, and the listeners already on.
+        activeRoot = root;
+        includeEls = [].concat(options.include || []).filter(Boolean);
+        returnFocusTo = options.returnFocus || document.activeElement;
+        fallbackFocusTo = options.fallbackFocus || null;
+        onEscape = options.onEscape || null;
+        if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
+        (options.initialFocus || root).focus({ preventScroll: true });
+        return;
+      }
       // Defensive: two modals are never open at once (product.html's size
       // sheet closes itself when the Modify sheet opens — the
       // "emjive:modify-open" event), but a stacked activate() would
@@ -263,6 +290,18 @@
                      though the last input was a key (see above). */
     release: function (focusTarget, quiet) {
       if (!activeRoot) return;
+      if (stack.length) {
+        // A nested dialog closing: the one underneath is the trap again.
+        var released = resolveTarget(focusTarget) || resolveTarget(returnFocusTo) || resolveTarget(fallbackFocusTo);
+        var under = stack.pop();
+        activeRoot = under.root;
+        includeEls = under.include;
+        returnFocusTo = under.returnFocus;
+        fallbackFocusTo = under.fallback;
+        onEscape = under.onEscape;
+        focusElement(released, undefined, quiet === true);
+        return;
+      }
       document.removeEventListener("keydown", onKeydown);
       document.removeEventListener("focusin", onFocusIn);
       activeRoot = null;

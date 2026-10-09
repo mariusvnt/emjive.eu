@@ -27,19 +27,19 @@
       "sizes": ["52", "55", "57", "60", "62"],
       "unit": "mm",
       "size-guide": {
-        "how": "Wrap a strip of paper around the widest part of your finger. Mark where the strip completes a full loop, then measure the length between the start of the strip and the mark, in millimetres: that number is your size.",
-        "head": ["Size", "Diameter (mm)", "US"],
+        "how": "Wrap firmly a strip of paper around the widest part of your finger. Mark where the strip completes a full loop, then measure the length between the start of the strip and the mark, in millimetres: that number is your size.",
+        "head": ["Size", "US"],
         "rows": [
-          ["44", "14.0", "3"],
-          ["48", "15.3", "4.5"],
-          ["52", "16.6", "6"],
-          ["55", "17.5", "7"],
-          ["57", "18.1", "8"],
-          ["60", "19.1", "9"],
-          ["62", "19.7", "10"],
-          ["64", "20.4", "11"],
-          ["66", "21.0", "11.5"],
-          ["70", "22.3", "13"]
+          ["44", "3"],
+          ["48", "4.5"],
+          ["52", "6"],
+          ["55", "7"],
+          ["57", "8"],
+          ["60", "9"],
+          ["62", "10"],
+          ["64", "11"],
+          ["66", "11.5"],
+          ["70", "13"]
         ]
       }
     },

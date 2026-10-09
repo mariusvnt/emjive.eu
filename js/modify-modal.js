@@ -15,10 +15,9 @@
        the model's poster image, and the viewer is built once it has slid
        in (scheduleViewer);
      - the metal picker, which re-tints that model in place;
-     - the size field, pre-filled with the item's current size, with the size
-       guide's button inline to its right;
-     - the size guide, which opens at the bottom of the sheet (it grows
-       upward); the button, or a click anywhere else, closes it.
+     - the size field, pre-filled with the item's current size, with the
+       "Find my size" button inline to its right (the size finder,
+       js/size-finder.js, opens over the sheet and fills the field in).
      Laid out as the product page's specs stage is: each row a label, a gap and
      its control, anchored to the left, the metal picker's squares side by
      side with the metal's name to their right.
@@ -150,33 +149,18 @@
   sizeUnderline.appendChild(sizeInput);
   sizeUnderline.appendChild(sizeUnit);
   sizeField.appendChild(sizeUnderline);
-  // The size guide's "?", outside the field's top right corner.
-  var guideToggle = el("button", "size-modal__guide-toggle", "?");
-  guideToggle.type = "button";
-  guideToggle.setAttribute("aria-label", "Size guide");
-  guideToggle.hidden = true;
-  guideToggle.setAttribute("aria-expanded", "false");
-  guideToggle.setAttribute("aria-controls", "modifyModalGuide");
-  sizeUnderline.appendChild(guideToggle);
+  // The size finder's button, to the right of the field.
+  var finderToggle = el("button", "size-modal__finder-toggle", "Find my size");
+  finderToggle.type = "button";
+  finderToggle.hidden = true;
+  sizeField.appendChild(finderToggle);
   sizeRow.appendChild(sizeLabel);
   sizeRow.appendChild(sizeField);
 
   content.appendChild(materialRow);
   content.appendChild(sizeRow);
 
-  // The guide itself is the panel's last row: it opens at the bottom of the
-  // sheet, which grows upward while the bar stays put.
-  var guide = el("div", "size-modal__guide");
-  var guidePanel = el("div", "size-modal__guide-panel");
-  guidePanel.id = "modifyModalGuide";
-  var guideInner = el("div", "size-modal__guide-panel-inner");
-  var guideContent = el("div", "size-modal__guide-content size-guide");
-  guideInner.appendChild(guideContent);
-  guidePanel.appendChild(guideInner);
-  guide.appendChild(guidePanel);
-
   panel.appendChild(content);
-  panel.appendChild(guide);
 
   var sheet = el("div", "size-modal__sheet");
   sheet.appendChild(carouselFrame);
@@ -247,6 +231,8 @@
     product: null,
     slug: null,
     selectedMetal: null,
+    // The item's category's size guide: what the size finder's chart shows.
+    guide: null,
     options: {},
     modelHandle: null,
     // The model's slide, and the image standing in for the model in it —
@@ -687,7 +673,18 @@
     save(true);
   });
 
-  var sizeGuide = window.EmjiveSelection.wireSizeGuide({ toggle: guideToggle, panel: guidePanel });
+  // The size finder opens over the sheet; what it works out goes into the
+  // field as if typed, so the listener above does the rest.
+  finderToggle.addEventListener("click", function () {
+    window.EmjiveSizeFinder.open({
+      guide: state.guide,
+      returnFocus: finderToggle,
+      onFill: function (size) {
+        sizeInput.value = window.EmjiveSelection.normalizeSize(size);
+        sizeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+  });
 
   backdrop.addEventListener("click", function () { close(); });
 
@@ -725,8 +722,8 @@
     renderMetalOptions();
     sizeUnit.textContent = window.EmjiveSeries.categoryInfo(item.category).unit || "";
     sizeInput.value = window.EmjiveSelection.normalizeSize(item.size);
-    sizeGuide.close();
-    guideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(guideContent, window.EmjiveSeries.categoryInfo(item.category)["size-guide"]);
+    state.guide = window.EmjiveSeries.categoryInfo(item.category)["size-guide"];
+    finderToggle.hidden = !(window.EmjiveSizeFinder && state.guide && state.guide.rows && state.guide.rows.length);
     buildSlides();
     // Normally already in place (attach); mounted before the mode is set
     // either way, so it's laid out (see mountStrip) before anything on it

@@ -2025,7 +2025,8 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* What takes taps: only what its stage is showing. (Focus still reaches
    everything; js/product-stages.js scrolls to the stage it's in.) */
 .product-stage[data-stage="specs"] .product-carousel__slide--photo,
-.product-stage[data-stage="presentation"] .product-size__controls {
+.product-stage[data-stage="presentation"] .product-size__controls,
+.product-stage[data-stage="presentation"] .product-size__finder-toggle {
   pointer-events: none;
 }
 
@@ -2812,7 +2813,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* The specs stage's size: the label "Size" on the left, then — in the column
    where the printing technology's name stands — the slider and, to its right,
    the typed field (the size sheet's own, .size-modal__custom-*, the iOS
-   no-zoom input included) with the size guide's "?" at its top right corner.
+   no-zoom input included), and under them the "Find my size" button.
    In and out with specs. */
 .product-size {
   display: grid;
@@ -2840,17 +2841,11 @@ body:has(.order-checkout-bar:not([hidden])) {
   gap: var(--metal-gap);
   min-width: 0;
 }
-/* The field, its underline and, standing outside its top right corner, the
-   size guide's "?" (see "size guide" below; out of the flow, so the field and
-   the slider stay where they are whether it is there or not). */
+/* The field and its underline. */
 .product-size__field {
   position: relative;
   flex: none;
   display: flex;
-  /* The room the "?" takes outside the field's right corner (its glyph and
-     padding), so that it stays inside the column — the slider, which gives
-     way as the row narrows, is what pays for it. */
-  margin-right: 1.4rem;
   /* The row's baseline is the field's, so that the label lines up with its
      figures (a row's baseline comes from its first item, and the slider,
      first now, has no text). The field is the tallest item, so it still sits
@@ -2927,7 +2922,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   transition: opacity var(--fade-quick) ease;
 }
 /* On the narrowest screens (the row leaves the slider under about 5rem) it goes
-   altogether, leaving the field and its "?". */
+   altogether, leaving the field. */
 @media (max-width: 19.99rem) {
   .product-size__range {
     display: none;
@@ -3087,23 +3082,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    those are drawn (.has-brackets), and stands in the column under the size
    when they aren't (no model, or no WebGL): 12px DINish, no capitals.
    Arrives with specs (--specs-on). */
-/* While the size guide is open the column has grown past the screen: it
-   scrolls on its own, from the top of it down to the bars (js/product.js
-   sets --below-max). */
-.product-below.is-extended {
-  /* The room ends above the Select bar's fade (--below-max), and the guide
-     has a margin of its own under it, so its last row clears the fade. */
-  padding-bottom: 1.5rem;
-  box-sizing: border-box;
-  max-height: var(--below-max);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  pointer-events: auto;
-}
-.product-below.is-extended::-webkit-scrollbar {
-  display: none;
-}
 .has-brackets .product-specs {
   /* Its one row is hidden (below), for screen readers: no part of the column,
      so no gap is made for it. */
@@ -3159,10 +3137,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 /* The text changes with the metal and so does its height, which moves
    everything under it: js/product.js renderPrinting tweens the height from the
-   old one to the new one (set inline), clipping the text while it does. The
-   specs stage's size guide opening and closing is tweened the same way. */
-.product-printing.is-resizing,
-.product-size__guide.is-resizing {
+   old one to the new one (set inline), clipping the text while it does. */
+.product-printing.is-resizing {
   overflow: hidden;
   transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -3368,10 +3344,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   }
   .product-stage .product-carousel__xray {
     top: calc(var(--tile) / 2);
-  }
-  .product-below.is-extended {
-    max-height: none;
-    overflow: visible;
   }
   .product-below {
     position: static;
@@ -3614,8 +3586,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   padding: 2rem var(--edge-px) 0;
 }
 /* The Modify sheet's pickers start 3rem under its carousel — double every
-   other gap in this sheet (metal picker to size field, size field to the
-   guide), so the carousel reads as its own section instead of crowding the
+   other gap in this sheet (metal picker to size field), so the carousel reads as its own section instead of crowding the
    picker right under it. */
 .size-modal--modify .size-modal__content {
   padding-top: 3rem;
@@ -3626,7 +3597,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    --label-gap), the label in black 12px DINish. The material row (the Modify
    sheet's) holds the metal picker, side by side with its name on the right;
    the size row holds the size field and, inline to the right of it, the size
-   guide's button. The size field is the only way to give a size now — no
+   finder's button. The size field is the only way to give a size now — no
    standard-size list to pick from. container-type here (on the row, not a
    nested wrapper) is what the input's cqw-based width below scales against. */
 .size-modal__custom-row {
@@ -3663,8 +3634,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    same line-height and the same (visual) bottom padding as the unit, the
    two share one baseline by construction. */
 .size-modal__custom-underline {
-  /* The size guide's "?" is anchored to its top right corner. */
-  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 0.2rem;
@@ -3718,85 +3687,46 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* ---- size guide ----
-   Its button, everywhere, is a "?" in --black standing outside the size
-   field's top right corner (the sheets', where it is the underline's last
-   child, and the product page's specs stage, where it is in .product-size__field,
-   which wraps the underline). In the sheets the guide itself is the panel's
-   last row, so it opens at the bottom of the sheet: the sheet grows upward,
-   the bar below it staying put; the button, or a click anywhere else, closes it. In the
-   specs stage it opens under the field's row (.product-size__guide). The
-   reveal is the same 0fr/1fr technique .site-header__menu uses. Its content
-   is built by js/selection.js's fillSizeGuide from the category's "size-guide"
-   in data/series.json: a few words on how to measure, and a table. ---- */
-.size-modal__guide-toggle,
-.product-size__guide-toggle {
-  position: absolute;
-  left: 100%;
-  top: 0;
-  transform: translateY(-50%);
-  padding: 0.3rem 0.4rem;
+/* ---- find my size ----
+   The button that opens the size finder (js/size-finder.js) — a few words in
+   the Select button's format (.product-select-bar__button). In the sheets it stands to the right of the size field, in the
+   same flex row (.size-modal__custom-field); in the specs stage it is the
+   second row of the size grid, under the slider and the field. The finder
+   builds its chart with js/selection.js's fillSizeGuide from the category's
+   "size-guide" in data/series.json: a few words on how to measure, and a
+   table. ---- */
+.size-modal__finder-toggle,
+.product-size__finder-toggle {
+  align-self: flex-end;
+  flex: none;
+  padding: 0 0 0.3rem;
   border: none;
   background: none;
-  /* The Select button's format (.product-select-bar__button), at 12px on any
-     screen. */
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: 12px;
-  line-height: 1;
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  line-height: 1.4;
   color: var(--black);
+  white-space: nowrap;
   cursor: pointer;
   transition: opacity var(--fade-quick) ease;
 }
 @media (hover: hover) {
-  .size-modal__guide-toggle:hover,
-  .product-size__guide-toggle:hover { opacity: 0.6; }
+  .size-modal__finder-toggle:hover,
+  .product-size__finder-toggle:hover { opacity: 0.6; }
 }
-.size-modal__guide-toggle[hidden],
-.product-size__guide-toggle[hidden] {
+.size-modal__finder-toggle[hidden],
+.product-size__finder-toggle[hidden] {
   display: none;
 }
-.size-modal__guide {
-  width: 100%;
-}
-.size-modal__guide-panel,
-.product-size__guide {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s ease;
-}
-.size-modal__guide-panel.is-open,
-.product-size__guide.is-open { grid-template-rows: 1fr; }
-.size-modal__guide-panel-inner,
-.product-size__guide-inner { overflow: hidden; min-height: 0; }
-.size-modal__guide-content {
-  max-width: var(--size-modal-max);
-  margin: 0 auto;
-  padding: 0 var(--edge-px) 1.5rem calc(var(--edge-px) + var(--label-col) + var(--label-gap));
-}
-.product-size__guide {
+.product-size__finder-toggle {
   grid-column: 2;
-}
-/* In the specs stage the guide is simply there or not: no 0fr -> 1fr reveal
-   (a grid track sized by its content, which a scroller inside it can
-   short-change), so its height is always the whole of its content. It still
-   glides open and shut: js/product.js tweens its height (.is-resizing), and
-   keeps it displayed while it closes (.is-closing). */
-.product-size__guide {
-  display: none;
-  transition: none;
-}
-.product-size__guide.is-open,
-.product-size__guide.is-closing {
-  display: block;
-}
-.product-size__guide-inner {
-  overflow: visible;
-}
-/* The room above the guide is its own, inside the reveal: closed, it takes
-   none. */
-.product-size__guide .size-guide {
-  padding-top: 0.9rem;
+  justify-self: start;
+  margin-top: 0.6rem;
+  padding: 0;
+  pointer-events: auto;
 }
 .size-guide__how {
   margin: 0 0 0.75rem;
@@ -3836,6 +3766,365 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .size-guide__table td {
   color: var(--black);
+}
+
+/* ---- the size finder (js/size-finder.js) ----
+   The "Find my size" modal: a full-page --black-bg overlay, white DINish
+   text, over everything including the bars (z-index 95 vs their 90) and the
+   sheet it was opened from. Built on first use, shown with .is-open (the
+   same opacity/visibility fade as .size-modal) and walked through by
+   [data-step]: ask, calibrate, measure, result, chart. A step change fades
+   the label and the parts (.is-swapping), swaps them, and fades them back.
+
+   The two shapes are inversions, drawn last so they are over the label, the
+   slider and the buttons (pointer-events: none): a white box with
+   mix-blend-mode: difference inverts what is under it, exactly. isolation
+   keeps the blending inside the overlay. The disc is a white circle, so what
+   is inside it is inverted. The card is the opposite: a transparent box whose
+   huge white shadow is what blends, so what is outside it is inverted and
+   what is inside is left alone. Both are centred on the screen and sized in
+   px from JS (the calibration's px per mm). ---- */
+.size-finder {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--black-bg);
+  color: var(--white);
+  font-family: var(--font-main);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+.size-finder.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.size-finder:focus {
+  outline: none;
+}
+.size-finder [hidden] {
+  display: none;
+}
+
+/* The cross: in the upper right corner at all times, whatever the step. The
+   arrow back one step stands in the upper left (not on the first step). */
+.size-finder__close,
+.size-finder__back {
+  position: absolute;
+  top: max(var(--edge-px), env(safe-area-inset-top));
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-top: -0.75rem;
+  padding: 0.75rem;
+  border: none;
+  background: none;
+  color: var(--white);
+  cursor: pointer;
+  transition: opacity var(--fade-quick) ease;
+}
+.size-finder__close {
+  right: max(var(--edge-px), env(safe-area-inset-right));
+  margin-right: -0.75rem;
+}
+.size-finder__back {
+  left: max(var(--edge-px), env(safe-area-inset-left));
+  margin-left: -0.75rem;
+}
+.size-finder__close svg,
+.size-finder__back svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@media (hover: hover) {
+  .size-finder__close:hover,
+  .size-finder__back:hover { opacity: 0.6; }
+}
+
+/* The upper part of the screen: the label and what goes under it. */
+.size-finder__top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: max(5rem, 14vh) var(--edge-px) 2rem;
+  box-sizing: border-box;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  transition: opacity var(--fade-quick) ease;
+}
+/* The first screen: the label and the buttons, a gap of 4rem apart, centred on
+   the middle third of the screen's height (its centre is the screen's). */
+.size-finder[data-step="ask"] .size-finder__top {
+  bottom: 0;
+  justify-content: center;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+  gap: 4rem;
+}
+/* Text boxes: the text runs from the left, the box is the column, centred on
+   the screen. */
+.size-finder__label {
+  margin: 0;
+  /* Every text box is the width of the column (the top part's padding is the
+     margin on each side), so all the text has the same left and right margins. */
+  width: 100%;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+/* Except on the first screen, whose text is centred. */
+.size-finder[data-step="ask"] .size-finder__label {
+  text-align: center;
+}
+.size-finder__paragraph {
+  margin: 0;
+}
+.size-finder__paragraph + .size-finder__paragraph {
+  margin-top: 1.25rem;
+}
+.size-finder__choices {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+}
+.size-finder__choices--stack {
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+/* The site's button: the Select button's (.product-select-bar__button) —
+   bare uppercase DINish black-weight text that dims on hover — in white. */
+.size-finder__button {
+  padding: 0.9rem 1rem;
+  border: none;
+  background: none;
+  color: var(--white);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  transition: opacity var(--fade-quick) ease;
+}
+@media (hover: hover) {
+  .size-finder__button:hover { opacity: 0.6; }
+}
+/* The chart: the size guide's own markup, white on the dark. */
+.size-finder__chart {
+  width: 100%;
+  text-align: left;
+}
+/* The same size as the labels, 1rem — all the text in the finder is, the
+   buttons apart, which keep the site's button size — with 1.5rem between the paragraph and the table. */
+.size-finder__chart .size-guide__how,
+.size-finder__chart .size-guide__table {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.size-finder__chart .size-guide__how {
+  margin-bottom: 1.5rem;
+}
+.size-finder__chart .size-guide__how {
+  color: var(--white);
+}
+.size-finder__chart .size-guide__table th {
+  color: rgba(255, 255, 255, 0.6);
+}
+.size-finder__chart .size-guide__table td {
+  color: var(--white);
+}
+
+/* The slider and Validate. At the bottom of the screen while calibrating, with
+   the line the card's bottom edge goes on just above the slider; under the disc
+   while measuring, below the biggest the
+   disc gets (--finder-r, set from JS) so it doesn't move as the disc grows. */
+.size-finder__controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 var(--edge-px);
+  transition: opacity var(--fade-quick) ease;
+}
+/* Squeezed down: Validate 1rem and the slider 2rem lower than the ring step's
+   spacing would put them, which takes the card's bottom edge (the marker, a
+   gap above the slider) 2rem lower with the slider. */
+.size-finder[data-step="calibrate"] .size-finder__controls {
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  gap: 0.5rem;
+}
+.size-finder[data-step="calibrate"] .size-finder__edge {
+  margin-bottom: 1rem;
+}
+.size-finder[data-step="measure"] .size-finder__controls {
+  top: calc(50% + var(--finder-r, 5rem) + 4.5rem);
+}
+.size-finder.is-swapping .size-finder__top,
+.size-finder.is-swapping .size-finder__result,
+.size-finder.is-swapping .size-finder__controls {
+  opacity: 0;
+}
+
+/* The result screen: the outline of the disc that was measured, where it was
+   (the screen's centre), and the buttons under it. */
+.size-finder__outline {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  border: 1px solid var(--white);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
+}
+.size-finder__outline.is-on {
+  opacity: 1;
+}
+.size-finder__result {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Down at the bottom: the lower button's label is 3rem from the screen's
+     edge (its 0.9rem of padding is part of the box). */
+  bottom: calc(3rem - 0.9rem);
+  transition: opacity var(--fade-quick) ease;
+}
+
+/* Where the card's bottom edge goes: nothing is drawn, the card's own edge
+   (the inversion's border) is what shows. */
+.size-finder__edge {
+  width: min(100%, 22rem);
+  height: 1px;
+}
+
+/* The slider (js/size-finder.js makeSlider): a hairline track and a round
+   dot, white (the size slider's shape, .product-size__range). Only the dot
+   takes a touch — the slider and its track are pointer-events: none — and
+   its hit area is twice its size, a silent help: a transparent circle round
+   it (::before), never drawn. --pos is the dot's place, 0 to 1. */
+.size-finder__slider {
+  --dot-size: 1rem;
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 22rem);
+  height: calc(var(--dot-size) * 2);
+  pointer-events: none;
+  outline: none;
+}
+.size-finder__track {
+  position: absolute;
+  left: calc(var(--dot-size) / 2);
+  right: calc(var(--dot-size) / 2);
+  top: 50%;
+  height: 1px;
+  background: var(--white);
+}
+.size-finder__thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--dot-size) / 2 + (100% - var(--dot-size)) * var(--pos, 0));
+  width: var(--dot-size);
+  height: var(--dot-size);
+  margin: calc(var(--dot-size) / -2) 0 0 calc(var(--dot-size) / -2);
+  border-radius: 50%;
+  background: var(--white);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: pointer;
+}
+.size-finder__thumb::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--dot-size) / -2);
+  border-radius: 50%;
+}
+.size-finder__slider:focus-visible .size-finder__thumb {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35);
+}
+
+/* The shapes. */
+.size-finder__card,
+.size-finder__disc {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  mix-blend-mode: difference;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
+}
+.size-finder__card.is-on,
+.size-finder__disc.is-on {
+  opacity: 1;
+}
+.size-finder__card {
+  /* Standing on its edge (js/size-finder.js sets --finder-edge to the marker's
+     height): its bottom edge is fixed, it grows and shrinks upward; the disc
+     stays at the screen's centre. */
+  top: var(--finder-edge, 50%);
+  transform: translate(-50%, -100%);
+  background: transparent;
+  box-shadow: 0 0 0 100vmax var(--white);
+}
+.size-finder__disc {
+  border-radius: 50%;
+  background: var(--white);
+}
+
+/* Focus on the dark surface: the light ring, and the cross keeps its place. */
+.size-finder a:focus-visible,
+.size-finder button:focus-visible,
+.size-finder [tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: var(--focus-ring-inverted);
+  /* Not above the shapes: they invert whatever is under them. */
+  z-index: auto;
+}
+.size-finder .size-finder__close:focus-visible,
+.size-finder .size-finder__back:focus-visible {
+  position: absolute;
+}
+/* The slider shows focus on its dot. */
+.size-finder .size-finder__slider[tabindex]:focus-visible {
+  outline: none;
+}
+
+/* While a card or a ring lies on the screen (calibrate, measure), and on the
+   result screen where it has just been lifted off, nothing answers a touch but
+   the slider's dot, Validate (or the result's buttons), the arrow and the cross: the
+   label can't be grabbed or scrolled, there is no pinching or double-tapping
+   to zoom, no selecting. */
+.size-finder[data-step="calibrate"],
+.size-finder[data-step="measure"],
+.size-finder[data-step="result"] {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.size-finder[data-step="calibrate"] .size-finder__top,
+.size-finder[data-step="measure"] .size-finder__top,
+.size-finder[data-step="result"] .size-finder__top {
+  pointer-events: none;
 }
 
 /* ---- the Modify sheet's small carousel ----

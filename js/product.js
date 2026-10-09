@@ -69,8 +69,6 @@
     // Whether the specs size has been given its starting value (62).
     sizeSeeded: false,
     seedSize: null,
-    // Closes the specs stage's size guide (set once the size row is wired).
-    closeGuide: null,
     // Whether the carousel is held on the model (presentation's things are on
     // their way out).
     carouselHeld: false,
@@ -1053,7 +1051,6 @@
         costs.classList.remove("is-built", "is-settled");
       }
     }
-    if (stage.stage === "presentation" && state.closeGuide) state.closeGuide();
     // Presentation's things start going with the first pixel of scrolling, and
     // slide out to the sides of a model that has to be centred. Until they are
     // well on their way (HOLD_AT) the strip stays where the visitor paged it
@@ -1369,13 +1366,26 @@
 
     var customInput = document.getElementById("sizeModalCustomInput");
     var customUnit = document.getElementById("sizeModalCustomUnit");
-    var guideToggle = document.getElementById("sizeModalGuideToggle");
-    var guidePanel = document.getElementById("sizeModalGuide");
-    // The size guide, in the sheet (below the size field) and in the specs
-    // stage (under its size row): the category's own, if it has one.
+    var finderToggle = document.getElementById("sizeModalFinderToggle");
+    // The size finder (js/size-finder.js), from the sheet (beside the size
+    // field) and from the specs stage (under its size row): its chart is the
+    // category's own size guide, and a category with none gets no button.
     var guide = info["size-guide"];
-    guideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(document.getElementById("sizeModalGuideContent"), guide);
-    var sheetGuide = window.EmjiveSelection.wireSizeGuide({ toggle: guideToggle, panel: guidePanel });
+    var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
+    finderToggle.hidden = !hasFinder;
+    // What the finder works out goes into the field as if typed: the field's
+    // own input listener does the rest.
+    function openFinder(toggle, input) {
+      window.EmjiveSizeFinder.open({
+        guide: guide,
+        returnFocus: toggle,
+        onFill: function (size) {
+          input.value = window.EmjiveSelection.normalizeSize(size);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+    }
+    finderToggle.addEventListener("click", function () { openFinder(finderToggle, customInput); });
 
     var selectBar = document.getElementById("productSelectBar");
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
@@ -1425,44 +1435,10 @@
       if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
     }
     specsRange.classList.add("is-unset");
-    // The specs stage's own size guide, behind the field's "?": opening it grows
-    // the column under the model, which then scrolls on its own down to the
-    // bars (it can't push the page — the stage is a screen, pinned). A click
-    // anywhere else, or leaving the stage, closes it.
-    var below = document.querySelector(".product-below");
-    var specsGuideToggle = document.getElementById("productSizeGuideToggle");
-    var specsGuidePanel = document.getElementById("productSizeGuide");
-    specsGuideToggle.hidden = !window.EmjiveSelection.fillSizeGuide(document.getElementById("productSizeGuideContent"), guide);
-    var specsGuide = window.EmjiveSelection.wireSizeGuide({
-      toggle: specsGuideToggle,
-      panel: specsGuidePanel,
-      onToggle: function (open) {
-        if (!open) {
-          // Closing glides: the guide stays displayed (.is-closing) while its
-          // height runs down to nothing, and the column gives up its own
-          // scroll (.is-extended) only once it is gone.
-          specsGuidePanel.classList.add("is-closing");
-          var openHeight = specsGuidePanel.offsetHeight;
-          below.scrollTo({ top: 0, behavior: "smooth" });
-          tweenHeight(specsGuidePanel, openHeight, 0, function () {
-            specsGuidePanel.classList.remove("is-closing");
-            below.classList.remove("is-extended");
-            below.scrollTop = 0;
-          });
-          return;
-        }
-        // Opening grows from nothing (or from where a closing had got to).
-        var fromHeight = specsGuidePanel._tween ? specsGuidePanel.offsetHeight : 0;
-        specsGuidePanel.classList.remove("is-closing");
-        below.classList.add("is-extended");
-        tweenHeight(specsGuidePanel, fromHeight);
-        var barTop = document.getElementById("productSelectBar").getBoundingClientRect().top;
-        below.style.setProperty("--below-max", Math.max(120, barTop - below.getBoundingClientRect().top - 28) + "px");
-        // No scroll: the size row is the column's first, so the guide opens
-        // right under it, in view, and the column stays where it is.
-      }
-    });
-    state.closeGuide = specsGuide.close;
+    // The specs stage's "Find my size", under the slider and the field.
+    var specsFinderToggle = document.getElementById("productSizeFinderToggle");
+    specsFinderToggle.hidden = !hasFinder;
+    specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize); });
     // The first time specs comes in the field starts at the model's own size
     // (62), as if it had been given; from then on it is the visitor's.
     state.seedSize = function () {
@@ -1541,7 +1517,6 @@
       // Pre-filled from the specs stage when a size was given there (Add is
       // then live straight away); otherwise empty, as it always was.
       customInput.value = window.EmjiveSelection.isValidSize(specsSize.value) ? specsSize.value : "";
-      sheetGuide.close();
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();

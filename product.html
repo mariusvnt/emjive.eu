@@ -186,8 +186,9 @@
             <div class="product-below">
 
               <!-- The size, from specs on — the slider from 40 to 70 and the
-                   field to type an exact size in, with the size guide's "?" at
-                   its top right corner (js/product.js). The Select
+                   field to type an exact size in, with the "Find my size"
+                   button (the size finder, js/size-finder.js) on a row of its
+                   own under them (js/product.js). The Select
                    sheet opens with it. Hidden for a category with no unit. -->
               <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
                 <label class="product-size__label" for="productSizeInput">Size</label>
@@ -198,16 +199,9 @@
                       <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
                       <span class="size-modal__custom-unit" id="productSizeUnit"></span>
                     </span>
-                    <button class="product-size__guide-toggle" id="productSizeGuideToggle" type="button" aria-label="Size guide" aria-expanded="false" aria-controls="productSizeGuide" hidden>?</button>
                   </span>
                 </div>
-                <!-- The size guide, opening under the field's row: the column
-                     grows (and scrolls on its own while it is open). -->
-                <div class="product-size__guide" id="productSizeGuide">
-                  <div class="product-size__guide-inner">
-                    <div class="size-guide" id="productSizeGuideContent"></div>
-                  </div>
-                </div>
+                <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
               </div>
 
               <!-- Metal selection: a stack of squares, built by
@@ -328,9 +322,7 @@
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <!-- .size-modal__sheet carries the slide transform (see
        .size-modal--drawer .size-modal__sheet in css/style.css). The size
-       guide's "?" button stands outside the size field's top right corner, and the
-       guide itself is the panel's last row: it opens at the bottom of the
-       sheet, which grows upward while the bar stays put. -->
+       finder's "Find my size" button stands to the right of the size field. -->
   <div class="size-modal__sheet">
     <div class="size-modal__panel">
       <div class="size-modal__content">
@@ -348,15 +340,8 @@
             <span class="size-modal__custom-underline">
               <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />
               <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
-              <button class="size-modal__guide-toggle" id="sizeModalGuideToggle" type="button" aria-label="Size guide" aria-expanded="false" aria-controls="sizeModalGuide" hidden>?</button>
             </span>
-          </div>
-        </div>
-      </div>
-      <div class="size-modal__guide">
-        <div class="size-modal__guide-panel" id="sizeModalGuide">
-          <div class="size-modal__guide-panel-inner">
-            <div class="size-modal__guide-content size-guide" id="sizeModalGuideContent"></div>
+            <button class="size-modal__finder-toggle" id="sizeModalFinderToggle" type="button" hidden>Find my size</button>
           </div>
         </div>
       </div>
@@ -386,6 +371,7 @@
 <script src="js/carousel.js" defer></script>
 <script src="js/order-rows.js" defer></script>
 <script src="js/metal-picker.js" defer></script>
+<script src="js/size-finder.js" defer></script>
 <script src="js/modify-modal.js" defer></script>
 <script src="js/selection-bar.js" defer></script>
 <script src="js/main.js" defer></script>

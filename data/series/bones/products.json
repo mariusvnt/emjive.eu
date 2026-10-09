@@ -17,6 +17,7 @@
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {
         "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
+        "wireframe": "assets/series/bones/products/furcula_ring/furcula_wireframe.glb",
         "icons": {
           "steel":  "assets/series/bones/products/furcula_ring/furcula_icon_steel.webp",
           "silver": "assets/series/bones/products/furcula_ring/furcula_icon_silver.webp",
@@ -55,6 +56,7 @@
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
+        "wireframe": "assets/series/bones/products/foramen_ring/foramen_wireframe.glb",
         "icons": {
           "steel":  "assets/series/bones/products/foramen_ring/foramen_icon_steel.webp",
           "silver": "assets/series/bones/products/foramen_ring/foramen_icon_silver.webp",
@@ -90,6 +92,7 @@
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/disc_ring/disc_gltf.glb",
+        "wireframe": "assets/series/bones/products/disc_ring/disc_wireframe.glb",
         "icons": {
           "steel":  "assets/series/bones/products/disc_ring/disc_icon_steel.webp",
           "silver": "assets/series/bones/products/disc_ring/disc_icon_silver.webp",
@@ -125,6 +128,7 @@
       "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/marrow_ring/Marrow_gltf.glb",
+        "wireframe": "assets/series/bones/products/marrow_ring/marrow_wireframe.glb",
         "icons": {
           "steel":  "assets/series/bones/products/marrow_ring/marrow_icon_steel.webp",
           "silver": "assets/series/bones/products/marrow_ring/marrow_icon_silver.webp",
@@ -156,6 +160,7 @@
       "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/suture_ring/suture_gltf.glb",
+        "wireframe": "assets/series/bones/products/suture_ring/suture_wireframe.glb",
         "icons": {
           "steel": "assets/series/bones/products/suture_ring/suture_icon_steel.webp",
           "silver": "assets/series/bones/products/suture_ring/suture_icon_silver.webp",
@@ -191,6 +196,7 @@
       "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/cartilage_ring/cartilage_gltf.glb",
+        "wireframe": "assets/series/bones/products/cartilage_ring/cartilage_wireframe.glb",
         "icons": {
           "steel": "assets/series/bones/products/cartilage_ring/cartilage_icon_steel.webp",
           "silver": "assets/series/bones/products/cartilage_ring/cartilage_icon_silver.webp",
@@ -226,6 +232,7 @@
       "3d-viewer-camera-default": { "rotation": 47, "tilt": 52, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/rib-cage_ring/rib-cage_gltf.glb",
+        "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage_wireframe.glb",
         "icons": {
           "steel": "assets/series/bones/products/rib-cage_ring/rib-cage_icon_steel.webp",
           "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_icon_silver.webp",
@@ -261,6 +268,7 @@
       "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
       "assets": {
         "model": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_gltf.glb",
+        "wireframe": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_wireframe.glb",
         "icons": {
           "steel": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_icon_steel.webp",
           "silver": "assets/series/bones/products/rib-cage-extended_ring/rib-cage-extended_icon_silver.webp",
@@ -296,6 +304,7 @@
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/joint_ring/joint_gltf.glb",
+        "wireframe": "assets/series/bones/products/joint_ring/joint_wireframe.glb",
         "icons": {
           "steel": "assets/series/bones/products/joint_ring/joint_icon_steel.webp",
           "silver": "assets/series/bones/products/joint_ring/joint_icon_silver.webp",
@@ -323,6 +332,7 @@
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
         "model": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_gltf.glb",
+        "wireframe": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_wireframe.glb",
         "icons": { "steel": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_steel.webp", "silver": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_icon_bronze.webp" },
         "fallback-img": { "steel": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates-unified_ring/omoplates-unified_fallback-img_bronze.webp" },
         "xray": "",
@@ -346,6 +356,7 @@
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
       "assets": {
         "model": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_gltf.glb",
+        "wireframe": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_wireframe.glb",
         "icons": { "steel": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_steel.webp", "silver": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_icon_bronze.webp" },
         "fallback-img": { "steel": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates-dual_ring/omoplates-dual_fallback-img_bronze.webp" },
         "xray": "",

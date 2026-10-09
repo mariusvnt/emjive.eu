@@ -252,6 +252,9 @@ const productSchema = {
       required: ["model", "icons", "fallback-img", "xray", "top-shot", "photos"],
       properties: {
         model: str,
+        // Optional: the specs stage draws it over the model (hand-added; no
+        // upload slot in json-tool).
+        wireframe: str,
         icons: metalMap,
         "fallback-img": metalMap,
         xray: str,
@@ -427,6 +430,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
           checkVariants(label + " assets.icons." + metal, rel, ["128"]);
         }
         checkPath(label + " assets.model", product.assets.model);
+        checkPath(label + " assets.wireframe", product.assets.wireframe);
         // geometry.model-sha1 pins the measurements to the exact model file
         // they were taken from (scripts/measure-models.js).
         if (product.assets.model && existsExactCase(product.assets.model)) {

@@ -414,6 +414,8 @@ function renderProductBlock(p, metals) {
       (typeof cam.roll === "number" && Number.isFinite(cam.roll) ? ', "roll": ' + cam.roll : "") + " },",
     '      "assets": {',
     '        "model": "' + esc(assets.model) + '",',
+    // Optional and hand-added: carried through so a rewrite never drops it.
+    ...(assets.wireframe ? ['        "wireframe": "' + esc(assets.wireframe) + '",'] : []),
     '        "icons": {',
     renderMetalPathMap(assets.icons, metals, "          "),
     "        },",

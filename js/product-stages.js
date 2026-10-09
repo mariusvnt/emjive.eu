@@ -3,7 +3,7 @@
    product.html's show is one tall track (.product-stage) holding one sticky
    stage (.product-stage__pin): scrolling down the track doesn't move the
    page, it moves the show along — presentation (description, carousel,
-   metal picker), then specs (the model as a wireframe with its dimensions, a
+   metal picker), then specs (the model in grey inside its dimensioned box, a
    size field, the printing technology, the cost breakdown, shipping and
    returns). Free scrub, no snapping, and not linear: each stage is a stretch
    of scrolling in which the show browses (it goes up by the room its stage

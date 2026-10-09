@@ -4,7 +4,7 @@
    metal picker, description, characteristics and size/selection flow — the
    two stages of product.html's show (presentation, specs), whose
    scrolling js/product-stages.js drives; this file reacts to it for the parts
-   CSS can't do (the model's wireframe sweep, the carousel holding the model).
+   CSS can't do (the model's grey sweep, the carousel holding the model).
    ========================================================================== */
 
 (function () {
@@ -544,10 +544,9 @@
           settleViewer();
           syncBracketsFlag();
         },
-        // The specs stage's wireframe sweep and dimension brackets (see
-        // onStageChange). The fill is the page's own background, so the
-        // filled model disappears into it and only its lines read.
-        blueprint: { fill: pageColor("--bg", "#f8f8f8"), lineColor: pageColor("--category-col", "#727272") }
+        // The specs stage's metal -> grey sweep and dimensioned box (see
+        // onStageChange). lineColor is the box's edges' base colour.
+        blueprint: { lineColor: pageColor("--category-col", "#727272") }
       });
     }
 
@@ -1009,7 +1008,7 @@
   // Presentation -> specs is the one with the model in it, and its blank is
   // the model's own change. A full-width inversion band (the hero's frontier
   // band) travels the whole height of the screen over the transition, from
-  // under the page to over it, and the model's metal -> wireframe sweep is
+  // under the page to over it, and the model's metal -> grey sweep is
   // that band's passage across it: it starts when the band reaches the
   // model's foot and ends when it leaves its head, the cut under the band
   // all the way. So the first fade ends (--t0) as the band reaches the

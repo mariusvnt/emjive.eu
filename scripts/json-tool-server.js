@@ -793,7 +793,7 @@ async function handleProductEdit(req, res) {
   const moved = [];
   const warnings = [];
   if (oldFolder !== newFolder) {
-    ["model", "xray"].forEach((key) => {
+    ["model", "wireframe", "xray"].forEach((key) => {
       const oldRel = merged.assets[key];
       if (oldRel) {
         const newRel = newFolder + "/" + path.basename(oldRel);

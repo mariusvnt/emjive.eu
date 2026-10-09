@@ -214,49 +214,47 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
   // ---- blueprint (options.blueprint — the product page's specs stage) ---
   // A horizontal cut sweeps up the model (in view space, so it is always
   // level on screen whatever the orbit): above it the metal as ever, below
-  // it a flat fill the colour of the page — no lighting, no reflections —
-  // drawn over by the mesh's own edges in faint black, back edges hidden.
-  // Appended after <colorspace_fragment>, so uFill is an output-space
-  // (sRGB) colour and lands on screen exactly as given: the filled model is
-  // indistinguishable from the page behind it and only its lines read. The
-  // cut itself is a thin black line while the sweep is under way.
+  // it a plain grey, shaded like a 3D editor's solid viewport — one fixed
+  // light from the upper left of the view, no reflections, no edges.
+  // Appended after <colorspace_fragment>, so the grey is an output-space
+  // (sRGB) value and lands on screen exactly as given. The cut itself is a
+  // thin black line while the sweep is under way.
   var BLUEPRINT_FRAGMENT = [
     "{",
     "  float bpY = -vViewPosition.y;",
-    "  gl_FragColor.rgb = mix( gl_FragColor.rgb, uFill, step( bpY, uScanY ) );",
+    "  float bpLit = dot( normalize( normal ), normalize( vec3( -0.35, 0.5, 0.8 ) ) );",
+    "  vec3 bpGrey = vec3( mix( 0.4, 0.84, clamp( bpLit * 0.5 + 0.5, 0.0, 1.0 ) ) );",
+    "  gl_FragColor.rgb = mix( gl_FragColor.rgb, bpGrey, step( bpY, uScanY ) );",
     "  float bpPx = fwidth( bpY );",
     "  float bpCut = 1.0 - smoothstep( bpPx * 0.5, bpPx * 1.5, abs( bpY - uScanY ) );",
     "  gl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.0 ), bpCut * uScanOn );",
     "}"
   ].join("\n");
-  // The edges are the real mesh's (30-80k triangles drawn a few hundred
-  // pixels wide), so they have to be faint: at full black the dense parts
-  // read as a solid silhouette, and even 0.22 read as charcoal. Overlapping
-  // lines darken each other, which is what makes grazing angles read as
-  // shading.
-  var BLUEPRINT_WIRE_OPACITY = 0.1;
-  // The dimension brackets, in units of the box's longest side: how far out
-  // from the box the three dimension lines are pushed (BRACKET_GAP) — they
-  // run along three consecutive edges of the outline of the box, which is
-  // scaled up a little about its centre, so they join end to end; each label
-  // sits BRACKET_LABEL_PX (screen pixels, clear of its own box) from its line.
-  var BRACKET_GAP = 0.12;
+  // The dimensions are read off three edges of the minimum-volume box: the
+  // run of three consecutive edges of its outline lowest on screen, leaning
+  // right. They are drawn like the box's other nine; each label sits
+  // BRACKET_LABEL_PX (screen pixels, clear of its own box) from its edge.
   var BRACKET_LABEL_PX = 7;
-  // A line shorter than this on screen (its axis pointing at the camera) has
-  // no room for its label, and is hidden.
+  // An edge shorter than this on screen (its axis pointing at the camera) has
+  // no room for its label, and gets none.
   var BRACKET_MIN_PX = 28;
-  // How thick the dimension lines are, in device pixels: a plain GL line is
-  // one, so half of that is a screen-space line (LineMaterial) thinner than a
-  // pixel, which the multisampling draws as a fainter, finer line.
-  var BRACKET_LINE_DEVICE_PX = 0.5;
+  // How thick the box's edges are, in device pixels (LineMaterial:
+  // screen-space lines).
+  var BOX_EDGE_DEVICE_PX = 1;
+  // The edges and the faces are the colour the page gives the lines
+  // (--category-col); the edges this opaque at full (they fade in with the
+  // box).
+  var BOX_EDGE_OPACITY = 0.16;
   // How much better (in NDC) another run of edges has to be before the
-  // brackets move to it — otherwise two near-equal candidates flicker while rotating.
+  // measured edges move to it — otherwise two near-equal candidates flicker while rotating.
   var BRACKET_HYSTERESIS = 0.06;
-  // The brackets fade in over the later part of the fit.
+  // The box fades in over the later part of the fit.
   var BRACKET_FADE_FROM = 0.35;
-  // The box the brackets measure, drawn as a faint tinted volume: its
-  // opacity at full (it fades in with the brackets).
-  var BOX_OPACITY = 0.07;
+  // The box as a pane of tinted glass: its opacity at full (it fades in with
+  // the edges). Lit by the environment, so its faces read apart.
+  var BOX_OPACITY = 0.08;
+  // Test: false draws the box as its edges only, without the faces.
+  var BOX_FACES = false;
   // The largest size the page scales the model to (70 over its base size,
   // 62): the fit leaves room for it, so brackets never leave the canvas.
   var BLUEPRINT_SIZE_MAX = 70 / 62;
@@ -847,7 +845,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     // never reads its own canvas back.
     var preserveBuffer = !!options.transparentBackground;
     // js/product.js only: { fill: "<the page's background colour>" }. Turns
-    // on the metal -> wireframe sweep, the dimension brackets and the fit
+    // on the metal -> grey sweep, the dimension brackets and the fit
     // scale behind them, all driven by handle.setBlueprint(sweep, fit);
     // 0, 0 (where it starts) draws exactly what a viewer without it does.
     var blueprint = options.blueprint && !options.swatch ? options.blueprint : null;
@@ -1167,7 +1165,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       currentWidth = w;
       currentHeight = h;
       renderer.setSize(w, h, false); // false: don't fight the existing CSS sizing
-      if (bracketLines) bracketLines.material.resolution.set(w, h);
+      if (boxEdges) boxEdges.material.resolution.set(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       // A resize repaints nothing by itself, and the render-on-demand loop
@@ -1388,16 +1386,14 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
          uScanY (view space) going from under the model (0: all metal) to
          over it (1: all fill); handle.scanSpan() says where on screen that
          is, so the page can ride a band on it;
-       - the edges: one LineSegments per mesh, clipped to below the cut, so
-         they draw in behind it;
-       - the fit: the model, edges and brackets shrink together about the
-         orbit target so the brackets and their labels fit the canvas — and
-         scale with the size factor (the chosen ring size over the model's
-         base size), so a bigger size draws a bigger model;
-       - the brackets: three dimension lines meeting at one corner of the
-         minimum-volume box (product.geometry["min-box"],
-         scripts/measure-models.js), fading in over the end of the fit, each
-         labelled in HTML.
+       - the fit: the model and box shrink together about the orbit target
+         so the box and its labels fit the canvas — and scale with the size
+         factor (the chosen ring size over the model's base size), so a
+         bigger size draws a bigger model;
+       - the box: the minimum-volume box (product.geometry["min-box"],
+         scripts/measure-models.js) as a translucent pane with
+         faint edges, fading in over the end of the fit; three of its edges,
+         the ones measured, each labelled in HTML.
        None of it exists without options.blueprint. --------------------- */
     var blueprintSweep = 0;
     var blueprintFit = 0;
@@ -1405,11 +1401,9 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     var viewerPaused = false;
     var bpUniforms = null;
     if (blueprint) {
-      var fillRgb = new THREE.Color().setStyle(blueprint.fill || "#f8f8f8").getRGB({}, THREE.SRGBColorSpace);
       bpUniforms = {
         uScanY: { value: -1e6 },
-        uScanOn: { value: 0 },
-        uFill: { value: new THREE.Vector3(fillRgb.r, fillRgb.g, fillRgb.b) }
+        uScanOn: { value: 0 }
       };
     }
     // The model, its edges and the brackets, in the group the fit scales.
@@ -1419,113 +1413,98 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
     // the radius the view actually fits (the sphere, times the orbit's zoom).
     var frameSphere = null;
     var framedRadius = 0;
+    // The wireframe (product.assets.wireframe): a second glTF, a mesh of the
+    // model's wireframe as thin solid bars, authored in the model's own
+    // frame, drawn over the model in the page's line colour. Clipped to
+    // below the cut, so it comes in behind the sweep like the grey does.
     var wirePlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);
+    var wireRoot = null;
     var wireMaterial = null;
-    var wireLines = [];
-    // The edge lists, as JavaScript arrays, until each has been uploaded.
+    var wireStarted = false;
+    // The wireframe's arrays, as JavaScript typed arrays, until uploaded.
     var wireCpuBytes = 0;
     var minBox = null;
-    var bracketLines = null;
+    // The box's twelve edges and its translucent faces.
+    var boxEdges = null;
     var boxMesh = null;
     var bracketLabels = [];
-    // polygonOffset pushes the fill back a hair so the edges, which lie
-    // exactly on its triangles, win the depth test rather than flicker
-    // through it; the edges on the far side still lose to the near fill.
     function blueprintMaterial(material) {
-      material.polygonOffset = true;
-      material.polygonOffsetFactor = 1;
-      material.polygonOffsetUnits = 1;
       material.onBeforeCompile = function (shader) {
         shader.uniforms.uScanY = bpUniforms.uScanY;
         shader.uniforms.uScanOn = bpUniforms.uScanOn;
-        shader.uniforms.uFill = bpUniforms.uFill;
         shader.fragmentShader = shader.fragmentShader
-          .replace("#include <common>", "#include <common>\nuniform float uScanY;\nuniform float uScanOn;\nuniform vec3 uFill;")
+          .replace("#include <common>", "#include <common>\nuniform float uScanY;\nuniform float uScanOn;")
           .replace("#include <colorspace_fragment>", "#include <colorspace_fragment>\n" + BLUEPRINT_FRAGMENT);
       };
       material.customProgramCacheKey = function () { return "emjive-blueprint"; };
     }
 
-    // Each edge once. A closed mesh with consistent winding walks every
-    // edge twice, once each way, so keeping only the a < b direction halves
-    // the list without a lookup — and an edge drawn twice would be darker
-    // than its neighbours, at this opacity. (The odd edge of an open mesh
-    // is walked once, and kept or not by the same rule.)
-    function meshEdges(geometry) {
-      var index = geometry.index ? geometry.index.array : null;
-      var corners = index ? index.length : geometry.attributes.position.count;
-      if (!corners) return null;
-      var out = new (geometry.attributes.position.count > 65535 ? Uint32Array : Uint16Array)(corners * 2);
-      var n = 0;
-      for (var t = 0; t + 2 < corners; t += 3) {
-        var a = index ? index[t] : t;
-        var b = index ? index[t + 1] : t + 1;
-        var c = index ? index[t + 2] : t + 2;
-        if (!index || a < b) { out[n++] = a; out[n++] = b; }
-        if (!index || b < c) { out[n++] = b; out[n++] = c; }
-        if (!index || c < a) { out[n++] = c; out[n++] = a; }
-      }
-      return out.slice(0, n);
-    }
-
-    // Once uploaded (this runs right after the line's first draw), the edge
-    // list isn't needed in JavaScript any more — the same reasoning as
-    // releaseGeometryArrays, for the one buffer that function doesn't see.
-    function releaseEdgesAfterDraw() {
-      var index = this.geometry.index;
-      if (index && index.array) {
-        wireCpuBytes -= index.array.byteLength;
-        window.EmjiveMem.cpuGeometryBytes -= index.array.byteLength;
-        index.array = null;
+    // Once uploaded (this runs right after the mesh's first draw) the
+    // arrays aren't needed in JavaScript any more — the same reasoning as
+    // releaseGeometryArrays, for a mesh that function doesn't see.
+    function releaseWireAfterDraw() {
+      var geometry = this.geometry;
+      if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+      Object.keys(geometry.attributes).forEach(function (name) {
+        var attribute = geometry.attributes[name];
+        if (attribute.array) { wireCpuBytes -= attribute.array.byteLength; window.EmjiveMem.cpuGeometryBytes -= attribute.array.byteLength; attribute.array = null; }
+      });
+      if (geometry.index && geometry.index.array) {
+        wireCpuBytes -= geometry.index.array.byteLength;
+        window.EmjiveMem.cpuGeometryBytes -= geometry.index.array.byteLength;
+        geometry.index.array = null;
       }
       this.onAfterRender = function () {};
     }
 
-    // Built while the model's arrays are still there (they go after its
-    // first frame). Each line set shares its mesh's position buffer — the
-    // same BufferAttribute object, so the GPU holds it once — and is a
-    // child of that mesh, so it follows it exactly.
-    function buildWire(root) {
-      wireMaterial = new THREE.LineBasicMaterial({
-        color: 0x000000,
-        transparent: true,
-        opacity: BLUEPRINT_WIRE_OPACITY,
-        depthWrite: false,
-        toneMapped: false,
-        clippingPlanes: [wirePlane]
-      });
-      var meshes = [];
-      root.traverse(function (node) {
-        if (node.isMesh && node.geometry && node.geometry.attributes.position) meshes.push(node);
-      });
-      meshes.forEach(function (mesh) {
-        var edges = meshEdges(mesh.geometry);
-        if (!edges || !edges.length) return;
-        if (mesh.geometry.boundingBox === null) mesh.geometry.computeBoundingBox();
-        if (mesh.geometry.boundingSphere === null) mesh.geometry.computeBoundingSphere();
-        var geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", mesh.geometry.attributes.position);
-        geometry.setIndex(new THREE.BufferAttribute(edges, 1));
-        // Copied rather than computed: computing them would read positions
-        // that are about to be released.
-        geometry.boundingBox = mesh.geometry.boundingBox.clone();
-        geometry.boundingSphere = mesh.geometry.boundingSphere.clone();
-        var lines = new THREE.LineSegments(geometry, wireMaterial);
-        lines.visible = false;
-        lines.onAfterRender = releaseEdgesAfterDraw;
-        wireCpuBytes += edges.byteLength;
-        window.EmjiveMem.cpuGeometryBytes += edges.byteLength;
-        mesh.add(lines);
-        wireLines.push(lines);
+    // Fetched once the model is on screen (a few hundred KB, decoded by the
+    // same shared Draco workers), then added beside the model in the fit's
+    // group. A product without one, or a file that fails, simply has none.
+    function loadWireframe() {
+      var src = product.assets && product.assets.wireframe;
+      if (!blueprint || wireStarted || !src || isDisposed || !fitGroup) return;
+      wireStarted = true;
+      loadModelFile(src, function (gltf) {
+        if (isDisposed) {
+          disposeObject3D(gltf.scene);
+          return;
+        }
+        wireRoot = gltf.scene;
+        wireMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
+          side: THREE.DoubleSide,
+          toneMapped: false,
+          clippingPlanes: [wirePlane],
+          // The bars lie on the model's surface: pulled towards the camera a
+          // hair so they win the depth test against it, while the far side
+          // of the model still hides the bars behind it.
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2
+        });
+        wireRoot.traverse(function (node) {
+          if (!node.isMesh) return;
+          node.material = wireMaterial;
+          node.renderOrder = 1;
+          node.onAfterRender = releaseWireAfterDraw;
+          Object.keys(node.geometry.attributes).forEach(function (name) {
+            if (node.geometry.attributes[name].array) wireCpuBytes += node.geometry.attributes[name].array.byteLength;
+          });
+          if (node.geometry.index && node.geometry.index.array) wireCpuBytes += node.geometry.index.array.byteLength;
+        });
+        window.EmjiveMem.cpuGeometryBytes += wireCpuBytes;
+        fitGroup.add(wireRoot);
+        needsRender = true;
+      }, function (err) {
+        console.error("emjive: failed to load wireframe", src, err);
       });
     }
 
-    // Three dimension lines — one per box axis, axes[k] measured as
-    // dimensions-mm[k] — in one pre-allocated LineSegments, rewritten whenever
-    // the view changes. Drawn over everything (depthTest off): an annotation
-    // that the model could hide wouldn't be one. No box (an old products
-    // file, a missing field) means no brackets; the page then shows the
-    // dimensions as text instead (handle.hasBrackets).
+    // The minimum-volume box, in two parts: its twelve edges (faint, in one
+    // LineSegments2) and its faces as a pane of translucent glass. The edges are depth-tested (the model hides the
+    // ones behind it) and drawn after the faces. No box (an old products
+    // file, a missing field) means no box;
+    // the page then shows the dimensions as text instead (handle.hasBrackets).
     function buildBrackets() {
       var geometry = product.geometry || {};
       var pose = geometry["min-box"];
@@ -1536,46 +1515,65 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         axes: pose.axes.map(function (a) { return new THREE.Vector3().fromArray(a).normalize(); }),
         half: dims.map(function (d) { return d / 2; }),
         dims: dims.slice(),
-        gap: BRACKET_GAP * Math.max(dims[0], dims[1], dims[2]),
-        // The distance from the centre to any corner, which the box is scaled
-        // by (to make the gap) about the centre.
-        outScale: 1 + BRACKET_GAP * Math.max(dims[0], dims[1], dims[2]) /
-          Math.sqrt(dims[0] * dims[0] / 4 + dims[1] * dims[1] / 4 + dims[2] * dims[2] / 4),
-        // The run of edges the lines are on now (see updateBrackets).
+        // The run of edges the measured ones are on now (see updateBrackets).
         chain: ""
       };
-      // Three segments, rewritten in place whenever the view changes: the
-      // geometry's own buffer (start and end, six numbers a segment) is what
-      // updateBrackets fills, and instanceCount how many of them are drawn.
-      var lineGeometry = new LineSegmentsGeometry();
-      lineGeometry.setPositions(new Float32Array(3 * 2 * 3));
-      lineGeometry.attributes.instanceStart.data.setUsage(THREE.DynamicDrawUsage);
-      bracketLines = new LineSegments2(lineGeometry, new LineMaterial({
-        color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
-        // In CSS pixels, against the viewer's size (see applySize).
-        linewidth: BRACKET_LINE_DEVICE_PX / renderer.getPixelRatio(),
-        transparent: true,
-        opacity: 0,
-        depthTest: false,
-        depthWrite: false,
-        toneMapped: false
-      }));
-      bracketLines.material.resolution.set(currentWidth, currentHeight);
-      bracketLines.frustumCulled = false;
-      bracketLines.renderOrder = 10;
-      bracketLines.visible = false;
-      fitGroup.add(bracketLines);
-      // The box itself: a unit cube stretched onto the minimum-volume box,
-      // translucent and unlit, in the lines' colour. Depth-tested (the model
-      // stands in front of its far faces) but writing no depth, so it never
-      // hides the model or the edges.
-      boxMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({
-        color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
+      var lineColor = new THREE.Color().setStyle(blueprint.lineColor || "#727272");
+      function edgeMaterial(color, devicePx) {
+        var material = new LineMaterial({
+          color: color,
+          // In CSS pixels, against the viewer's size (see applySize).
+          linewidth: devicePx / renderer.getPixelRatio(),
+          // Transparent for the fade-in (the plain edges stay faint), and
+          // so they draw after the glass.
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          toneMapped: false
+        });
+        material.resolution.set(currentWidth, currentHeight);
+        return material;
+      }
+
+      // All twelve edges: along each axis, from each of the four corners on
+      // its low side.
+      var cornerAt = function (m, out) {
+        out.copy(minBox.center);
+        for (var k = 0; k < 3; k++) out.addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k]);
+        return out;
+      };
+      var all = [];
+      var p = new THREE.Vector3();
+      for (var axis = 0; axis < 3; axis++) {
+        for (var low = 0; low < 8; low++) {
+          if (low & (1 << axis)) continue;
+          cornerAt(low, p).toArray(all, all.length);
+          cornerAt(low | (1 << axis), p).toArray(all, all.length);
+        }
+      }
+      var edgeGeometry = new LineSegmentsGeometry();
+      edgeGeometry.setPositions(new Float32Array(all));
+      var plainMaterial = edgeMaterial(lineColor, BOX_EDGE_DEVICE_PX);
+      boxEdges = new LineSegments2(edgeGeometry, plainMaterial);
+      boxEdges.frustumCulled = false;
+      boxEdges.renderOrder = 6;
+      boxEdges.visible = false;
+      fitGroup.add(boxEdges);
+
+      // The faces: a unit cube stretched onto the box, a glass-like standard
+      // material lit by the environment so each face takes a different tone
+      // (an unlit tint is one flat grey patch whatever the angle). Depth-
+      // tested (the model stands in front of its far faces) but writing no
+      // depth, so it never hides the model or the edges. Double-sided, which
+      // three draws back faces first.
+      boxMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({
+        color: lineColor,
+        metalness: 0,
+        roughness: 0.25,
         transparent: true,
         opacity: 0,
         side: THREE.DoubleSide,
-        depthWrite: false,
-        toneMapped: false
+        depthWrite: false
       }));
       boxMesh.matrixAutoUpdate = false;
       boxMesh.matrix.makeBasis(
@@ -1623,7 +1621,6 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
           for (var k = 0; k < 3; k++) corner.addScaledVector(minBox.axes[k], (s & (1 << k) ? 1 : -1) * minBox.half[k]);
           reach = Math.max(reach, corner.distanceTo(controls.target));
         }
-        reach += minBox.gap;
       }
       var room = framedRadius * 0.95;
       fitScale = Math.min(1, room / (reach * BLUEPRINT_SIZE_MAX));
@@ -1638,12 +1635,12 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
     // Called right before every draw of a blueprint viewer (and before its
     // very first): the view decides the cut's height on screen and which
-    // corner the brackets meet at, so both follow every orbit frame.
+    // edges of the box carry the dimensions, so both follow every orbit frame.
     function updateBlueprint() {
       if (!fitGroup || !frameSphere) return;
       var sweep = blueprintSweep;
       // The scale the fit goes to: the page's (px to a mm, brought to world
-      // units), or the one that makes the box and its brackets fit.
+      // units), or the one that makes the box fit.
       var target = fitScale * sizeFactor;
       var scale = 1 + (target - 1) * blueprintFit;
       fitGroup.scale.setScalar(scale);
@@ -1658,13 +1655,12 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       var cutY = bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).y + (2 * sweep - 1) * radius;
       bpUniforms.uScanY.value = cutY;
       bpUniforms.uScanOn.value = sweep > 0 && sweep < 1 ? 1 : 0;
-      // The same plane for the edges, in world space: through the view-space
-      // point (0, cutY, 0), facing down — three keeps the side its normal
-      // points to.
+      // The same plane for the wireframe, in world space: through the
+      // view-space point (0, cutY, 0), facing down — three keeps the side
+      // its normal points to.
       bpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
       bpScratch.copy(camera.position).addScaledVector(bpUp, cutY);
       wirePlane.setFromNormalAndCoplanarPoint(bpUp.negate(), bpScratch);
-      wireLines.forEach(function (lines) { lines.visible = sweep > 0; });
 
       var fade = smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit);
       if (minBox) updateBrackets(fade);
@@ -1701,15 +1697,13 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       return bpNdc.copy(point).applyMatrix4(fitGroup.matrixWorld).project(camera);
     }
 
-    // The brackets are three dimension lines that join end to end, outside
-    // the model: three consecutive edges of the outline of the box as seen,
-    // with the box scaled up a little about its centre (outScale) to leave
-    // the gap, so the lines are parallel to the real edges and meet at the
-    // outline's corners. Which three: the run lowest on screen, leaning right
-    // (the left of the model is where the page's own figures stand), and
-    // it stays put until another is clearly better, so the lines don't
-    // flicker between two while the model turns. A line whose edge points at
-    // the camera is too short to read and goes, label and all.
+    // The edges that carry the dimensions are three consecutive edges of the outline of the
+    // box as seen, so they join end to end and the labels beside them (away
+    // from the box) are never over the model. Which three: the run lowest on
+    // screen, leaning right (the left of the model is where the page's own
+    // figures stand), and it stays put until another is clearly better, so
+    // the labels don't jump between two while the model turns. An edge that
+    // points at the camera is too short for a label, and gets none.
     //
     // A corner is a number 0-7, a bit per axis for which side of the centre
     // it is on; an edge runs along one axis between two corners that differ
@@ -1731,9 +1725,9 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
     function updateBrackets(opacity) {
       boxMesh.material.opacity = opacity * BOX_OPACITY;
-      boxMesh.visible = opacity > 0;
-      bracketLines.material.opacity = opacity;
-      bracketLines.visible = opacity > 0;
+      boxMesh.visible = BOX_FACES && opacity > 0;
+      boxEdges.material.opacity = opacity * BOX_EDGE_OPACITY;
+      boxEdges.visible = opacity > 0;
       if (opacity <= 0) {
         bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
         return;
@@ -1741,7 +1735,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
       var c = minBox.center;
       for (var m = 0; m < 8; m++) {
         bpCornerPos[m].copy(c);
-        for (var k = 0; k < 3; k++) bpCornerPos[m].addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k] * minBox.outScale);
+        for (var k = 0; k < 3; k++) bpCornerPos[m].addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k]);
       }
       fitGroup.worldToLocal(bpCamLocal.copy(camera.position));
 
@@ -1799,15 +1793,9 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
           best = { run: run, key: key };
         }
       }
-      var lineBuffer = bracketLines.geometry.attributes.instanceStart.data;
-      var positions = lineBuffer.array;
-      positions.fill(0);
-      var segments = 0;
       bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
       if (!best) {
         minBox.chain = "";
-        bracketLines.geometry.instanceCount = 0;
-        lineBuffer.needsUpdate = true;
         return;
       }
       if (keptScore < bestScore + BRACKET_HYSTERESIS * 3) {
@@ -1836,30 +1824,23 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         var llen = Math.sqrt(lx * lx + ly * ly);
         if (llen < BRACKET_MIN_PX) continue;
         drawn[edge.axis] = true;
-        var o = segments++ * 6;
-        positions[o] = bpCornerPos[edge.a].x; positions[o + 1] = bpCornerPos[edge.a].y; positions[o + 2] = bpCornerPos[edge.a].z;
-        positions[o + 3] = bpCornerPos[edge.b].x; positions[o + 4] = bpCornerPos[edge.b].y; positions[o + 5] = bpCornerPos[edge.b].z;
-
-        // The label goes beside its line, away from the model.
+        // The label goes beside its edge, away from the box.
         placeLabel(label, sx, sy, endPx.x, endPx.y, middle.x, middle.y, opacity);
       }
-      bracketLines.geometry.instanceCount = segments;
-      lineBuffer.needsUpdate = true;
     }
 
     function disposeBlueprint() {
-      wireLines.forEach(function (lines) {
-        if (lines.parent) lines.parent.remove(lines);
-        lines.geometry.dispose();
-      });
-      wireLines.length = 0;
-      if (wireMaterial) wireMaterial.dispose();
+      if (wireRoot) {
+        if (wireRoot.parent) wireRoot.parent.remove(wireRoot);
+        disposeObject3D(wireRoot);
+        wireRoot = null;
+      }
       window.EmjiveMem.cpuGeometryBytes -= wireCpuBytes;
       wireCpuBytes = 0;
-      if (bracketLines) {
-        bracketLines.geometry.dispose();
-        bracketLines.material.dispose();
-        bracketLines = null;
+      if (boxEdges) {
+        boxEdges.geometry.dispose();
+        boxEdges.material.dispose();
+        boxEdges = null;
       }
       if (boxMesh) {
         boxMesh.geometry.dispose();
@@ -1915,8 +1896,6 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
             window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
             applyMaterial();
             if (blueprint) {
-              // Now, while the arrays the edges are read from still exist.
-              buildWire(modelRoot);
               fitGroup = new THREE.Group();
               fitGroup.add(modelRoot);
               buildBrackets();
@@ -1979,6 +1958,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         if (loadGate) loadGate.done();
 
         scheduleIdleNudge();
+        if (blueprint) loadWireframe();
         if (options.onReady) options.onReady();
       })
       // Previously absent, which made any model/HDRI failure an unhandled
@@ -2147,7 +2127,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         renderer.render(scene, camera);
       },
       // Blueprint viewers only (options.blueprint; a no-op otherwise): how
-      // far the metal -> wireframe sweep has gone (`sweep`) and how far the
+      // far the metal -> grey sweep has gone (`sweep`) and how far the
       // fit has (`fit`: the shrink that makes room for the brackets, which
       // fade in over its end), 0 to 1 each. Can be set before the model has
       // arrived — its first frame is then drawn at those amounts.
@@ -2270,9 +2250,7 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
         // exactly the GPU memory this whole lazy scheme exists to cap.
         // Anything still in flight at this point is freed by the
         // isDisposed branches in the two load callbacks instead.
-        // Before the model: the edge lines share its position buffers, and
-        // disposing either geometry deletes those (a second delete is a
-        // no-op).
+        // The wireframe and the box first, then the model.
         disposeBlueprint();
         disposeObject3D(modelRoot);
         releaseHeldCpuBytes();

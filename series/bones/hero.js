@@ -1,5 +1,10 @@
 /* ==========================================================================
-   Bones — hero behaviour: frontier band lift, then scroll-driven x-ray wipe.
+   Bones — hero behaviour: frontier band lift, then scroll-driven x-ray wipe,
+   then (in the gallery's stack view) the entrance: a further stretch of
+   scrolling, the pin still held, over which the hand fades back while the
+   gallery's products come up onto it (js/gallery-stack.js, which this feeds
+   through window.EmjiveHero.publishStage and takes the rings from, rings()).
+   A hero already seen on this device (data-hero="skip") just holds the end.
 
    Loaded at runtime by js/series.js from this series' "hero.js" path in
    data/series.json. Two rules this file has to keep:
@@ -23,21 +28,57 @@
   var revealXrayGroup = null;
   var revealNormal = null;
   var revealFrontier = null;
+  var revealEntrance = null;
   var siteHeader = null;
   var revealTicking = false;
 
+  // The entrance (js/gallery-stack.js) counts as done this close to its end:
+  // on a phone the toolbar coming and going moves innerHeight by a few px,
+  // and the very bottom of the page must still read as "arrived".
+  var ENTRANCE_DONE = 0.995;
+
+  // The hero skipped (data-hero="skip" on <html>, js/scroll-memory.js): the
+  // reveal's end state, held — hero.css covers the first paint, this the
+  // inline styles a played reveal leaves behind (a replay going back to
+  // skip, say).
+  function isSkipped() {
+    return document.documentElement.getAttribute("data-hero") === "skip";
+  }
+
+  function restOpacity() {
+    var value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--reveal-xray-rest-opacity"));
+    return isFinite(value) ? value : 0.3;
+  }
+
+  function showEnd() {
+    revealFrontier.style.bottom = "";
+    revealXrayGroup.style.clipPath = "inset(0 0 0 0)";
+    revealXrayGroup.style.opacity = String(restOpacity());
+    revealNormal.style.clipPath = "inset(0 0 100% 0)";
+    window.EmjiveHero.publishStage(1);
+    // Far past any trigger: the selection bar is simply there.
+    window.EmjiveHero.publishScroll(1e6, true);
+  }
+
   function updateReveal() {
     revealTicking = false;
+    if (isSkipped()) {
+      showEnd();
+      return;
+    }
     var rect = revealSection.getBoundingClientRect();
     // Unclamped — needed below to keep driving the selection bar's
     // entrance once scrolling continues past totalScroll, after the
     // pin itself has already released.
     var rawScrolled = Math.max(0, -rect.top);
+    // The gallery's entrance stretch at the end of the reveal (0 in the grid
+    // view): the wipe plays over everything before it.
+    var entrancePx = revealEntrance ? revealEntrance.getBoundingClientRect().height : 0;
     // Clamped to >= 0: on mobile browsers, CSS vh and window.innerHeight
     // can briefly disagree (dynamic address bar resizing the viewport),
     // which could otherwise make this negative and fall through to the
     // "fully revealed" branch below even at scroll position 0.
-    var totalScroll = Math.max(0, rect.height - window.innerHeight);
+    var totalScroll = Math.max(0, rect.height - entrancePx - window.innerHeight);
     var scrolled = totalScroll > 0 ? Math.min(totalScroll, rawScrolled) : 0;
 
     // Phase 1: the frontier band lifts up from below the viewport until
@@ -96,6 +137,19 @@
       : 1;
     var barTriggerScroll = liftDistance + wipeProgressAtHeader * wipeDistance;
     window.EmjiveHero.publishScroll(Math.max(0, rawScrolled - barTriggerScroll), totalScroll > 0);
+
+    // The gallery's entrance: how far through its stretch the page is, the
+    // hand fading back as the products come up over it. With no stretch (the
+    // grid), the reveal simply ends where the wipe does.
+    var entrance;
+    if (entrancePx > 0) {
+      entrance = Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entrancePx));
+      if (entrance >= ENTRANCE_DONE) entrance = 1;
+    } else {
+      entrance = totalScroll > 0 && rawScrolled >= totalScroll ? 1 : 0;
+    }
+    revealXrayGroup.style.opacity = entrancePx > 0 ? String(1 - entrance * (1 - restOpacity())) : "";
+    window.EmjiveHero.publishStage(entrance);
   }
 
   function requestRevealUpdate() {
@@ -136,6 +190,10 @@
       ring.alt = "";
       ring.decoding = "async";
       ring.src = topShot;
+      // Which product it is, and how it lies on the hand: the gallery's
+      // stack takes each ring off the hand by these (rings() below).
+      ring.setAttribute("data-product-id", product.id);
+      ring.setAttribute("data-rotation", String(onHand.rotation || 0));
       ring.style.setProperty("--ring-x", onHand.x + "%");
       ring.style.setProperty("--ring-y", onHand.y + "%");
       ring.style.setProperty("--ring-size", onHand.scale + "%");
@@ -150,6 +208,7 @@
       revealXrayGroup = document.getElementById("revealXrayGroup");
       revealNormal = revealSection ? revealSection.querySelector(".reveal__img--normal") : null;
       revealFrontier = document.getElementById("revealFrontier");
+      revealEntrance = revealSection ? revealSection.querySelector(".reveal__entrance") : null;
       // Fixed, so it visually sits (z-index 80) over whatever scrolls
       // underneath it — see the bar-trigger comment in updateReveal().
       siteHeader = document.querySelector(".site-header");
@@ -161,6 +220,26 @@
       updateReveal();
     },
 
-    onProducts: updateHeroRings
+    onProducts: updateHeroRings,
+
+    // The rings on the hand, for js/gallery-stack.js to take off it:
+    // [{ id, el, rotation }] — rotation in degrees, as the ring lies.
+    rings: function () {
+      if (!revealXrayGroup) return [];
+      return Array.prototype.map.call(revealXrayGroup.querySelectorAll(".reveal__ring"), function (el) {
+        return { id: el.getAttribute("data-product-id"), el: el, rotation: parseFloat(el.getAttribute("data-rotation")) || 0 };
+      });
+    },
+
+    // data-hero / data-gallery-view on <html> just changed (js/gallery.js: a
+    // replay, or a switch of view): the reveal takes its new shape at once,
+    // in the same frame, rather than on the next scroll.
+    setMode: function () {
+      if (!revealSection) return;
+      if (!isSkipped()) {
+        revealXrayGroup.style.opacity = "";
+      }
+      updateReveal();
+    }
   };
 })();

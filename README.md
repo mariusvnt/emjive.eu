@@ -3,9 +3,11 @@
 A static site for the em·ji·ve jewelry brand, organised into **series** —
 each collection brings its own products, its own homepage hero animation,
 and its own design manifest, with one field in `data/series.json` deciding
-which one the homepage shows. A product grid that shows
-each item as its own 3D model (glTF/GLB — click and drag to rotate, falls
-back to a photo if no model is set yet). Clicking a product opens its
+which one the homepage shows. A homepage gallery that is either a stack of
+the items' 3D models (glTF/GLB) rising out of the hero onto the x-ray hand —
+floating, then falling into a pile that follows gravity (and a phone's
+movements); tap one to turn it round — or a plain grid of photos for a quick
+pick. Falls back to photos if no model is set yet. Clicking a product opens its
 detail page — a carousel, a metal picker, a description, metal-dependent
 specs, and a "Select size" flow that adds to a real, localStorage-backed
 selection you can review on a dedicated order page — item rows you can
@@ -30,8 +32,14 @@ npm run dev
 ```
 
 Then open the URL it prints. You can't just double-click `index.html` —
-the product grid loads its data via `fetch`, which browsers block on
+the gallery loads its data via `fetch`, which browsers block on
 `file://`.
+
+The dev server runs over HTTPS with a self-signed certificate
+(`@vitejs/plugin-basic-ssl`), so your browser will warn about it once. That's
+deliberate: iOS only offers the motion-sensor permission (the stack tilts with
+the phone) on secure pages, so a phone on the same Wi-Fi can only try it at
+`https://<your-ip>:5173/` (`npm run dev -- --host`).
 
 ## Deploying
 

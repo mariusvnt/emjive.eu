@@ -35,7 +35,12 @@
    back where it was; left alone, the line closes. On Save, both bands
    simply slide out through their own edges.
 
-   window.EmjiveModifyModal = { open(item, index, options), isOpen() }.
+   Its Select mode (openSelect, the homepage grid's tiles) is the same sheet
+   for a product not selected yet: the strip is one Select button, the item
+   is the product at its default metal with no size, and Select adds it.
+
+   window.EmjiveModifyModal = { open(item, index, options),
+     openSelect(product, slug, options), isOpen() }.
    options:
      bar            the page's bar, as { el, show(stripEl), hide(stripEl) }:
                     the strip is appended into el, and show/hide swap it
@@ -52,9 +57,11 @@
                     handle { held(), button(), leave(done), drop() };
                     handlers is { onUndo(), onGone() }. Without it, an
                     Unselect is final
-     onOpen()       once the sheet is up (the drawer shrinks to the row)
+     onOpen(item)   once the sheet is up (the drawer shrinks to the row; in
+                    Select mode, the bar shows the item's preview line)
      onClose()      once the sheet has closed — saved, unselected or just
                     dismissed (the drawer grows back)
+     onAdd()        Select mode: just before the item is added
      returnFocus    element (or function returning one) focus goes back to:
                     on close, and after an Undo
      fallbackFocus  same, if returnFocus is gone by then — and where focus
@@ -65,8 +72,9 @@
    the lists already follow.
 
    Dispatches "emjive:modify-open" before it builds anything (js/product.js
-   closes its own size sheet; js/main.js lends the sheet one of the grid's
-   WebGL slots) and "emjive:modify-close" once its viewer is disposed.
+   closes its own size sheet; js/gallery-stack.js gives its focused viewer's
+   WebGL context back and holds the stack still) and "emjive:modify-close"
+   once its viewer is disposed.
    ========================================================================== */
 
 (function () {
@@ -213,16 +221,22 @@
   strip.inert = true;
   var unselectBtn = stripButton("modify-strip__unselect", "modify-strip__label", "Unselect");
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
+  // Select mode's one button, in place of the two above.
+  var selectBtn = stripButton("modify-strip__select", "modify-strip__label", "Select");
   // After the buttons, so it paints over the label it inverts.
   var saveBand = stripBand("modify-strip__band");
   strip.appendChild(unselectBtn);
   strip.appendChild(saveBtn);
+  strip.appendChild(selectBtn);
   strip.appendChild(saveBand);
 
   var carousel = window.EmjiveCarousel(carouselEl);
 
   var state = {
     isOpen: false,
+    // "modify" (a selected item: Unselect | Save) or "select" (a product
+    // not selected yet: Select).
+    mode: "modify",
     // Bumped on every open() so a slow product fetch from an earlier click
     // can't open the sheet over a later one — the latest click wins.
     openToken: 0,
@@ -289,18 +303,21 @@
     return cancel;
   }
 
-  // "modify" (Unselect | Save, each band at rest) or "saved" (both bands
-  // sliding straight out through their own edges — see leaveAfterSave).
-  // Whichever buttons aren't part of the mode are inert, so a hidden one
-  // can never take a click or a Tab. instant — or a strip that's out of
-  // sight anyway — skips the motion: the next open starts on the modify
+  // "modify" (Unselect | Save, the band at rest), "select" (Select alone,
+  // the band across the whole strip) or "saved" (the band growing over the
+  // strip and fading — see leaveAfterSave; it keeps the layout of the mode
+  // it came from). Whichever buttons aren't part of the mode are inert, so a
+  // hidden one can never take a click or a Tab. instant — or a strip that's
+  // out of sight anyway — skips the motion: the next open starts on its own
   // layout rather than playing a slide backwards.
   function setStripMode(mode, instant) {
     instant = instant || strip.classList.contains("is-hidden");
     if (instant) strip.classList.add("is-instant");
     strip.classList.toggle("is-saved", mode === "saved");
+    if (mode !== "saved") strip.classList.toggle("is-select", mode === "select");
     unselectBtn.inert = mode !== "modify";
     saveBtn.inert = mode !== "modify";
+    selectBtn.inert = mode !== "select";
     if (instant) {
       void strip.offsetWidth;
       strip.classList.remove("is-instant");
@@ -552,7 +569,9 @@
   // and only looks like it would — while the field holds a size that can
   // actually be ordered (isValidSize in js/selection.js).
   function syncSave() {
-    saveBtn.disabled = !window.EmjiveSelection.isValidSize(sizeInput.value);
+    var invalid = !window.EmjiveSelection.isValidSize(sizeInput.value);
+    saveBtn.disabled = invalid;
+    selectBtn.disabled = invalid;
   }
 
   // quiet: Enter in the field saves from the keyboard, and the ring that
@@ -560,11 +579,32 @@
   // js/focus-trap.js.
   function save(quiet) {
     if (!state.isOpen || !window.EmjiveSelection.isValidSize(sizeInput.value)) return;
+    if (state.mode === "select") {
+      select(quiet);
+      return;
+    }
     window.EmjiveSelection.updateItem(state.index, draftValues());
     // The strip stays up while the band grows to fill it and fades; the bar
     // gets its own content back after that (leaveAfterSave). The row already
     // shows what was saved (previewDraft), so it isn't put back.
     var bar = state.options.bar;
+    close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
+    leaveAfterSave(bar);
+  }
+
+  // Select mode: the item goes into the selection as the sheet has it — the
+  // product's own snapshot with the picked metal, its price and icon, and the
+  // size — and the band plays out as for a Save. The preview line already
+  // showed it (options.onPreview), so it's kept.
+  function select(quiet) {
+    var item = {};
+    Object.keys(state.item).forEach(function (key) { item[key] = state.item[key]; });
+    var draft = draftValues();
+    Object.keys(draft).forEach(function (key) { item[key] = draft[key]; });
+    item.size = window.EmjiveSelection.normalizeSize(sizeInput.value);
+    var bar = state.options.bar;
+    if (state.options.onAdd) state.options.onAdd();
+    window.EmjiveSelection.addItem(item);
     close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
     leaveAfterSave(bar);
   }
@@ -655,6 +695,7 @@
   }
 
   saveBtn.addEventListener("click", save);
+  selectBtn.addEventListener("click", save);
   unselectBtn.addEventListener("click", unselect);
 
   // Same filter as product.html's size sheet (js/selection.js), written
@@ -698,8 +739,8 @@
       state.cancelLeave();
       state.cancelLeave = null;
     }
-    // Before building anything — js/main.js drops a grid viewer to free the
-    // WebGL slot the model is about to take.
+    // Before building anything — js/gallery-stack.js drops its focused
+    // viewer to free the WebGL context the model is about to take.
     window.dispatchEvent(new CustomEvent("emjive:modify-open"));
     // A reopen inside the previous close's slide-out: tear that viewer down
     // now rather than letting a timer do it (and signal a close) later.
@@ -711,6 +752,8 @@
     state.slug = slug;
     state.selectedMetal = item.metal;
     state.options = options;
+    state.mode = options.mode === "select" ? "select" : "modify";
+    modal.setAttribute("aria-label", state.mode === "select" ? "Select " + (product.name || "item") : "Modify selection");
 
     // Every metal's icon and poster fetched and decoded now, so a pick
     // swaps the row's icon and the carousel's stand-in at once.
@@ -729,7 +772,7 @@
     // either way, so it's laid out (see mountStrip) before anything on it
     // starts to move.
     mountStrip(options.bar);
-    setStripMode("modify", cutLeaveShort);
+    setStripMode(state.mode, cutLeaveShort);
     syncSave();
 
     modal.classList.add("is-open");
@@ -747,7 +790,7 @@
       onEscape: function () { close(); }
     });
     if (options.bar) options.bar.show(strip);
-    if (options.onOpen) options.onOpen();
+    if (options.onOpen) options.onOpen(item);
     scheduleViewer();
   }
 
@@ -814,6 +857,40 @@
       });
   }
 
+  // Select mode: a product not selected yet (the homepage grid's tiles),
+  // opened at its default metal. The size field starts on the size last
+  // chosen for its category, if there is one — the same finger, most likely
+  // — and empty otherwise, Select waiting for one.
+  function openSelect(product, slug, options) {
+    if (state.isOpen || !product) return;
+    state.openToken++;
+    var metal = product["default-metal"];
+    var specs = (product["per-metal-specs"] && product["per-metal-specs"][metal]) || {};
+    var icons = (product.assets && product.assets.icons) || {};
+    var lastSize = "";
+    var selection = window.EmjiveSelection.getSelection();
+    for (var i = selection.length - 1; i >= 0; i--) {
+      if (selection[i].category === product.category && window.EmjiveSelection.isValidSize(selection[i].size)) {
+        lastSize = selection[i].size;
+        break;
+      }
+    }
+    var item = {
+      series: slug || window.EmjiveSeries.slug,
+      productId: product.id,
+      name: product.name,
+      category: product.category,
+      metal: metal,
+      size: lastSize,
+      price: specs.price || 0,
+      image: icons[metal] || ""
+    };
+    var opts = {};
+    Object.keys(options || {}).forEach(function (key) { opts[key] = options[key]; });
+    opts.mode = "select";
+    show(item, null, product, item.series, opts);
+  }
+
   // The products behind everything already selected, fetched once the page
   // has loaded, so opening the sheet — which needs the product for its
   // photos, its model and its per-metal prices — doesn't have to wait on the
@@ -837,8 +914,8 @@
   // Leaving the page with the sheet up (Back, say): close it, and free the
   // viewer right away rather than after the slide-out — a page kept in the
   // back/forward cache is still alive, and would otherwise hold its WebGL
-  // context the whole time (same reasoning as js/main.js's grid and
-  // js/product.js's carousel). An "Undo" still on offer ends there too, so
+  // context the whole time (same reasoning as js/gallery-stack.js's stack
+  // and js/product.js's carousel). An "Undo" still on offer ends there too, so
   // a page restored from that cache doesn't come back offering one.
   window.addEventListener("pagehide", function () {
     if (state.isOpen) close();
@@ -848,6 +925,7 @@
 
   window.EmjiveModifyModal = {
     open: open,
+    openSelect: openSelect,
     isOpen: function () { return state.isOpen; },
     // Called by each page's bar as soon as it exists (js/selection-bar.js,
     // js/selection-page.js), with the same { el, show, hide } it later

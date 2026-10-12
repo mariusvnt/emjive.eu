@@ -4,7 +4,8 @@
    contract (build a viewer for a product/metal, get back { el, applyMetal }
    plus a new setCameraOrbit for the render tooling — see
    scripts/auto-render.js), same window.EmjiveModelViewer global, so the two
-   callers (js/main.js's homepage grid, js/product.js's carousel) barely
+   callers (the homepage's focused model in js/gallery-stack.js, js/product.js's
+   carousel) barely
    change. The actual rotation feel — free pole-crossing rotation, release
    inertia, an idle "ease back to default pose" reset, a continuous
    up-vector leveling drift, and an idle "nudge" hint — was designed and
@@ -17,7 +18,7 @@
    An ES module (not a classic script like the rest of js/) specifically
    because it needs to import "three"/"three/addons/*" — Vite resolves
    these from the local npm "three" package (see dev-guidelines/tooling.md).
-   js/main.js and js/product.js stay classic scripts; both only touch
+   js/gallery-stack.js and js/product.js stay classic scripts; both only touch
    window.EmjiveModelViewer inside a fetch(...).then(...) callback, which
    always resolves after this module has finished executing and set the
    global, so there's no load-order race despite the different script
@@ -32,6 +33,14 @@ import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+
+// What js/stack-scene.js (the homepage gallery's shared 3D stack, a lazy chunk
+// of its own that imports this module) builds on, so the two draw a model the
+// same way: the page's one Draco decoder and HDR cache, the metals, the
+// renderer's settings, and the default camera's orientation. Assigned inside
+// the function below, which is where all of it lives; see the bottom of it.
+var toolkit = null;
+export { toolkit };
 
 (function () {
   "use strict";
@@ -2538,4 +2547,73 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
   // Tool/render-only, like the above: the swatch scene's camera for a
   // { rotation, tilt, roll }.
   window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
+
+  // The orientation the camera of a product's default orbit has — the
+  // rotation frameCamera() leaves it in (its up, roll and pole fallback
+  // included). A model turned by the inverse of this, seen by a camera
+  // looking down -Z with +Y up, shows the face its fallback-img does.
+  function orbitOrientation(orbitConfig) {
+    var orbit = parseOrbitConfig(orbitConfig || DEFAULT_ORBIT);
+    var eyeDir = new THREE.Vector3(
+      Math.sin(orbit.phiRad) * Math.sin(orbit.thetaRad),
+      Math.cos(orbit.phiRad),
+      Math.sin(orbit.phiRad) * Math.cos(orbit.thetaRad)
+    );
+    var up = restUpRaw(new THREE.Vector3(), eyeDir, orbit.rollRad);
+    if (up.lengthSq() < 1e-8) {
+      var cosTilt = Math.cos(orbit.phiRad);
+      up.set(-cosTilt * Math.sin(orbit.thetaRad), 0, -cosTilt * Math.cos(orbit.thetaRad))
+        .applyAxisAngle(eyeDir, orbit.rollRad);
+    }
+    up.normalize();
+    var camera = new THREE.Object3D();
+    camera.position.copy(eyeDir);
+    camera.up.copy(up);
+    // An Object3D's lookAt points its +Z at the target; a camera's points
+    // -Z at it — the camera's own case is what's wanted, so look away.
+    camera.lookAt(eyeDir.clone().multiplyScalar(2));
+    return camera.quaternion.clone();
+  }
+
+  toolkit = {
+    loadModelFile: function (src, onLoad, onError) {
+      preloadDracoDecoder();
+      loadModelFile(src, onLoad, onError);
+    },
+    loadEnvironment: loadEnvironment,
+    metalMaterial: function (metalKey) {
+      var params = metalToStandardMaterialParams(metalKey);
+      return new THREE.MeshStandardMaterial({
+        color: params.color,
+        metalness: params.metalness,
+        roughness: params.roughness,
+        side: THREE.DoubleSide
+      });
+    },
+    // The viewers' renderer settings — a transparent canvas, sRGB out,
+    // ACES tone mapping — so a model looks the same in either.
+    configureRenderer: function (renderer, maxPixelRatio) {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio || 2));
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1;
+    },
+    // The default orbit's vertical field of view and zoom, which is what
+    // frames a fallback-img: fovDeg, and zoom as a share (1 = the bounding
+    // sphere fits the frame exactly).
+    defaultFraming: function (product) {
+      var orbit = parseOrbitConfig(product && product["3d-viewer-camera-default"]);
+      return { fovDeg: orbit.fov !== null ? orbit.fov : 30, zoom: orbit.radiusPercent / 100 };
+    },
+    orbitOrientation: function (product) {
+      return orbitOrientation(product && product["3d-viewer-camera-default"]);
+    },
+    // The ?mem=1 read-out counts every live renderer (js/viewer-entry.js).
+    trackRenderer: function (renderer) { liveRenderers.push(renderer); },
+    untrackRenderer: function (renderer) {
+      var i = liveRenderers.indexOf(renderer);
+      if (i !== -1) liveRenderers.splice(i, 1);
+    }
+  };
 })();

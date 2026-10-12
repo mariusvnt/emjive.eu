@@ -1,6 +1,7 @@
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { slugify } from "./scripts/slugs.js";
 
 // The public origin, for the generated sitemap.xml. Same host as every page's
@@ -60,6 +61,9 @@ const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 //     js/three-viewer.js). Vite bundles it into dist/assets/hdr-worker-<hash>.js
 //     and rewrites the reference; the verbatim copy still has the bare
 //     `three` import nothing at runtime can resolve.
+//   js/stack-scene.js — the same for the homepage's 3D stack: Vite bundles it
+//     (dist/assets/stack-scene-<hash>.js, with cannon-es) behind
+//     js/viewer-entry.js's dynamic import; the source has bare imports.
 //   js/three-viewer.js — the unbundled ES module source. The built pages
 //     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this
 //     one still carries the bare `import "three"` specifier that nothing at
@@ -85,7 +89,8 @@ const NEVER_COPY = [
   resolve(__dirname, "assets", "metal-sample_bronze.webp"),
   resolve(__dirname, "js", "three-viewer.js"),
   resolve(__dirname, "js", "viewer-entry.js"),
-  resolve(__dirname, "js", "hdr-worker.js")
+  resolve(__dirname, "js", "hdr-worker.js"),
+  resolve(__dirname, "js", "stack-scene.js")
 ];
 
 // Every classic script and hero bundle file that reaches dist/ by verbatim
@@ -454,6 +459,11 @@ export default defineConfig({
   // which cannot be loaded with { type: "module" }.
   worker: { format: "es" },
   plugins: [
+    // Serves the dev server and `vite preview` over HTTPS with a self-signed
+    // certificate: iOS only offers the motion-sensor permission on secure pages,
+    // so the gallery's tilt can't be tried on a phone over plain http://<ip>.
+    // Dev/preview only — it does nothing to the build.
+    basicSsl(),
     dropUnusedDracoDecoderCopies(),
     restoreHeadOrderAndPreload(),
     injectLoadHints(),

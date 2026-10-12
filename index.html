@@ -132,12 +132,24 @@
   <div class="series-hero" id="seriesHero"></div>
 
   <section class="products" id="products">
+    <!-- The two ways of seeing the gallery: the stack (the models come up out
+         of the hero onto the x-ray hand, js/gallery-stack.js) and the grid
+         (js/gallery.js). Which one, and whether the hero plays first, is
+         decided in the <head> (js/scroll-memory.js) as data-gallery-view and
+         data-hero on <html>. -->
+    <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button">switch to grid view</button>
+    <button class="gallery-control gallery-control--replay" id="heroReplay" type="button">scan the hand again</button>
+
     <!-- Second hero slot: art that has to sit inside .products, behind the
          grid, rather than inside the hero section itself. -->
     <div class="series-hero-backdrop" id="seriesBackdrop"></div>
 
+    <!-- The stack: fixed over the hero's pin. Its items, the focus row and
+         the canvas are built by js/gallery-stack.js. -->
+    <div class="gallery-stage" id="galleryStage"></div>
+
     <div class="product-grid" id="productGrid">
-      <!-- Product cards are rendered here by js/main.js from the active series' products.json -->
+      <!-- Grid tiles are rendered here by js/gallery.js from the active series' products.json -->
     </div>
   </section>
 
@@ -155,8 +167,9 @@
 
      The Modify sheet (modify-modal.js) and its parts are reachable from the
      floating bar's drawer; order-rows.js has to precede selection-bar.js,
-     which builds its drawer rows with it at load; main.js runs last, as it
-     did when it was the only deferred one. -->
+     which builds its drawer rows with it at load; gallery-stack.js precedes
+     gallery.js, which mounts it; main.js runs last, as it did when it was
+     the only deferred one. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/carousel.js" defer></script>
@@ -165,6 +178,8 @@
 <script src="js/size-finder.js" defer></script>
 <script src="js/modify-modal.js" defer></script>
 <script src="js/selection-bar.js" defer></script>
+<script src="js/gallery-stack.js" defer></script>
+<script src="js/gallery.js" defer></script>
 <script src="js/main.js" defer></script>
 </body>
 </html>

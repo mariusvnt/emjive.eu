@@ -33,14 +33,15 @@
              page is loaded and idle (EmjiveLoader in js/loader.js).
              scripts/make-image-variants.js writes the versions;
              scripts/validate-data.js checks they are there. -->
-        <img class="reveal__img reveal__img--normal" data-full="assets/series/bones/hero/hand-rings-under-flesh_3k.webp" data-lo width="2880" height="1620" fetchpriority="high" decoding="async" alt="" />
+        <img class="reveal__img reveal__img--normal" data-full="assets/series/bones/hero/hand-rings-under-flesh_3k.webp" data-lo data-first-paint="play" width="2880" height="1620" fetchpriority="high" decoding="async" alt="" />
         <div class="reveal__xray-group" id="revealXrayGroup">
           <!-- Clipped away entirely until the visitor scrolls (see hero.css),
                so it must not outrank the picture above: low priority. No
                low-res version (data-lo absent): on a phone it is cropped
                exactly like the picture it overlays, or the two would not
-               line up. -->
-          <img class="reveal__img--xray" data-full="assets/series/bones/hero/hand_xray.webp" width="1920" height="1080" fetchpriority="low" decoding="async" alt="" />
+               line up. When the hero is skipped (data-hero="skip") it is
+               the first paint instead: the gallery's stack rests on it. -->
+          <img class="reveal__img--xray" data-full="assets/series/bones/hero/hand_xray.webp" data-first-paint="skip" width="1920" height="1080" fetchpriority="low" decoding="async" alt="" />
           <!-- .reveal__ring <img>s are inserted here by hero.js's
                updateHeroRings() — one per product whose
                hero-hand-visibility.visible is true in this series'
@@ -49,6 +50,10 @@
       </div>
       <div class="reveal__frontier" id="revealFrontier"></div>
     </div>
+    <!-- Invisible: as tall as the entrance stretch at the end of the reveal
+         (--reveal-entrance-vh, 0 when there is none), so hero.js can measure
+         it in px whatever the viewport unit resolves to. -->
+    <div class="reveal__entrance" aria-hidden="true"></div>
   </section>
 </template>
 

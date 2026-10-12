@@ -26,7 +26,7 @@
   var activeSlug = null;
   var activeSeries = null;
 
-  // Memoized per slug: main.js wants the grid's products and the hero
+  // Memoized per slug: js/gallery.js wants the gallery's products and the hero
   // handoff wants the same array — one request, two consumers.
   var productCache = {};
   var manifestCache = {};
@@ -165,6 +165,11 @@
    * with no hero, nothing ever publishes, so nothing ever happens).
    * ------------------------------------------------------------------- */
   var heroScrollSubscribers = [];
+  // The second number: how far the gallery's entrance has come (0 to 1) —
+  // the stretch of scrolling past the wipe during which the products rise
+  // onto the hand (js/gallery-stack.js). null until a hero publishes one.
+  var heroStageSubscribers = [];
+  var heroStage = null;
 
   window.EmjiveHero = {
     onScroll: function (fn) {
@@ -174,7 +179,17 @@
       for (var i = 0; i < heroScrollSubscribers.length; i++) {
         heroScrollSubscribers[i](pastTriggerPx, hasScrollRange);
       }
-    }
+    },
+    onStage: function (fn) {
+      if (typeof fn === "function") heroStageSubscribers.push(fn);
+    },
+    publishStage: function (progress) {
+      heroStage = progress;
+      for (var i = 0; i < heroStageSubscribers.length; i++) {
+        heroStageSubscribers[i](progress);
+      }
+    },
+    stage: function () { return heroStage; }
   };
 
   /* ---------------------------------------------------------------------
@@ -273,7 +288,7 @@
 
   /* ---------------------------------------------------------------------
    * Hero bundle loading (index.html only — guarded on #seriesHero, the
-   * same pattern main.js uses for #productGrid).
+   * same pattern js/gallery.js uses for #productGrid).
    * ------------------------------------------------------------------- */
   // The hero pictures exist in four versions (see "responsive images" in
   // js/loader.js). hero.preload names them by their original path; the first
@@ -417,6 +432,13 @@
     if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
   }
 
+  // No hero is coming (none in this series, or its bundle failed): the
+  // gallery's stack would otherwise wait below the screen for an entrance
+  // nobody will ever publish.
+  function noHero() {
+    window.EmjiveHero.publishStage(1);
+  }
+
   function heroFailed(slot, err) {
     console.error("Hero bundle failed to load: " + (err && err.message ? err.message : err));
     // Without this the .has-series-hero rule keeps the floating selection
@@ -424,6 +446,7 @@
     // scroll position to bring it back.
     document.body.classList.remove("has-series-hero");
     if (slot) slot.innerHTML = "";
+    noHero();
   }
 
   /* ------------------------------------------------------------------- */
@@ -453,12 +476,26 @@
     if (slot && activeSeries) {
       loadHero(slot, activeSeries)
         .then(function (loaded) {
-          if (!loaded) { pageReady(); return; }
+          if (!loaded) {
+            document.body.classList.remove("has-series-hero");
+            noHero();
+            pageReady();
+            return;
+          }
           // The page's arrival loader (js/loader.js) waits for the hero's
-          // main image — by convention the first <img> in the slot — and
-          // NOT for the products below, which only feed the rings.
-          var heroImg = slot.querySelector("img");
-          if (heroImg && window.EmjiveLoader) {
+          // main image and NOT for the products below. Which picture that is
+          // depends on whether the hero plays (data-hero on <html>, set by
+          // js/scroll-memory.js): the fragment marks it data-first-paint=
+          // "play" or "skip" (the photo the reveal starts on, or the x-ray
+          // the stack rests on), falling back to the first <img> in the slot.
+          // On a grid that skips the hero the hero isn't the first paint at
+          // all — js/gallery.js lifts the loader once its first tiles are in.
+          var mode = document.documentElement.getAttribute("data-hero") === "skip" ? "skip" : "play";
+          var gridFirst = mode === "skip" && document.documentElement.getAttribute("data-gallery-view") === "grid";
+          var heroImg = slot.querySelector('img[data-first-paint~="' + mode + '"]') || slot.querySelector("img");
+          if (gridFirst) {
+            upgradeHeroImages(slot);
+          } else if (heroImg && window.EmjiveLoader) {
             window.EmjiveLoader.imageReady(heroImg).then(function () {
               pageReady();
               upgradeHeroImages(slot);
@@ -479,6 +516,8 @@
         })
         .catch(function (err) { heroFailed(slot, err); pageReady(); });
     } else if (slot) {
+      document.body.classList.remove("has-series-hero");
+      noHero();
       pageReady();
     }
 

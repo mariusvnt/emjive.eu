@@ -10,7 +10,7 @@
    css/style.css, and #productGrid is empty. The
    real height only arrives after three async hops: data/series.json, then
    the hero bundle (whose hero.css sets .reveal { height: 200vh }), then
-   that series' products.json rendered by js/main.js. Native scroll
+   that series' products.json rendered by js/gallery.js. Native scroll
    restoration runs long before any of that, against a document a fraction
    of its final height, so the offset clamps to near zero and the visitor is
    dumped at the top.
@@ -29,17 +29,60 @@
    index.html ONLY. Every other page builds its height synchronously from
    markup, so the browser already restores those correctly and this would
    just be a second opinion fighting a working one.
+
+   It also decides what the visitor lands on — whether the hero plays
+   (data-hero="play"|"skip" on <html>) and which view the gallery shows
+   (data-gallery-view="stack"|"grid") — for the same two reasons it owns the
+   scroll: both have to be set before <body> is parsed (the page's height and
+   first paint depend on them), and Back has to find the same ones the
+   visitor left, which is this file's per-entry record.
    ========================================================================== */
 
 (function () {
   "use strict";
 
+  var STORAGE_PREFIX = "emjive:scroll:";
+  // The hero plays once per device: set by js/gallery.js once it has played
+  // out (or the visitor went to the grid instead).
+  var SEEN_KEY = "emjive_hero_seen";
+  // The view the visitor last chose, on this device.
+  var VIEW_KEY = "emjive_gallery_view";
+
+  var html = document.documentElement;
+
+  function readLocal(name) {
+    try { return window.localStorage.getItem(name); } catch (e) { return null; }
+  }
+
+  /* ---- what the visitor lands on ----------------------------------------
+     In order: the entry's own saved state (Back, or a reload of the same
+     entry, rebuilds exactly the layout that was left — mid-hero included);
+     an address carrying #products (the header's "Gallery" link) skips the
+     hero; otherwise the device's seen flag. The view is the device's
+     choice, stack unless the visitor picked the grid. Storage that throws
+     (Safari with site data blocked) leaves the defaults: the hero plays,
+     in the stack. */
+  function decideLanding(saved) {
+    var view = saved && saved.view ? saved.view : readLocal(VIEW_KEY);
+    if (view !== "grid") view = "stack";
+    var hero;
+    if (saved && saved.hero) hero = saved.hero;
+    else if (window.location.hash === "#products") hero = "skip";
+    else hero = readLocal(SEEN_KEY) ? "skip" : "play";
+    if (hero !== "skip") hero = "play";
+    html.setAttribute("data-gallery-view", view);
+    html.setAttribute("data-hero", hero);
+    return { view: view, hero: hero, focused: saved && saved.focused ? String(saved.focused) : null };
+  }
+
   // Ancient browser with no history.scrollRestoration: leave the whole
   // thing to the UA rather than half-owning it (we'd suppress nothing and
-  // it would still do its own clamped restore on top of ours).
-  if (!("scrollRestoration" in window.history)) return;
-
-  var STORAGE_PREFIX = "emjive:scroll:";
+  // it would still do its own clamped restore on top of ours). It still
+  // gets a landing, just not a remembered one.
+  if (!("scrollRestoration" in window.history)) {
+    decideLanding(null);
+    return;
+  }
   var RESTORING_CLASS = "emjive-restoring-scroll";
   var HEIGHT_VAR = "--emjive-restore-height";
 
@@ -56,8 +99,6 @@
   // Stopping the re-assert loop, NOT ending the restore window — see
   // userTookOver's own comment.
   var TAKEOVER_EVENTS = ["wheel", "touchstart", "pointerdown", "keydown"];
-
-  var html = document.documentElement;
 
   function now() {
     return Date.now();
@@ -103,19 +144,33 @@
     return minted;
   })();
 
-  if (!key) return;
+  if (!key) {
+    decideLanding(null);
+    return;
+  }
 
-  function readSaved() {
+  // The whole record for this entry: { y, h, hero, view, focused }.
+  function readEntry() {
     try {
       var raw = window.sessionStorage.getItem(STORAGE_PREFIX + key);
       if (!raw) return null;
       var parsed = JSON.parse(raw);
-      return parsed && parsed.y > 0 ? parsed : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
     } catch (e) {
       // sessionStorage throws outright in Safari private mode.
       return null;
     }
   }
+
+  // Only an entry with somewhere to scroll back to is a restore.
+  function readSaved() {
+    var entry = readEntry();
+    return entry && entry.y > 0 ? entry : null;
+  }
+
+  // The landing this entry has now: what the head decided, then whatever
+  // js/gallery.js reports as the visitor changes it (remember() below).
+  var landing = decideLanding(readEntry());
 
   /* ---- saving ------------------------------------------------------------ */
 
@@ -127,7 +182,10 @@
     try {
       window.sessionStorage.setItem(STORAGE_PREFIX + key, JSON.stringify({
         y: Math.round(window.pageYOffset || window.scrollY || 0),
-        h: Math.round(html.scrollHeight)
+        h: Math.round(html.scrollHeight),
+        hero: landing.hero,
+        view: landing.view,
+        focused: landing.focused
       }));
     } catch (e) { /* private mode / quota — nothing to do */ }
   }
@@ -254,7 +312,7 @@
   }
 
   /* ---- settling before the grid is revealed ------------------------------
-     css/style.css keeps .product-grid visibility: hidden for the duration
+     css/style.css keeps the gallery (grid or stack) visibility: hidden for the duration
      of the restore window. That's not a paint hold on the page — the
      background, the reserved height and (once it lands) the hero are all
      painted at the restored offset the whole time — it's just the grid
@@ -293,15 +351,15 @@
     });
   }
 
-  // The cards actually on screen at the restored offset, and only those.
-  // Their placeholders are the "fallback-img" captures, framed to match the
-  // live camera pixel-for-pixel (see buildCard in js/main.js), so a grid
-  // revealed with these decoded reads as the settled page rather than as
-  // something still loading. If the restored offset is still up in the hero
-  // this finds nothing and resolves immediately.
+  // The gallery's pictures actually on screen at the restored offset, and
+  // only those: the grid's tiles, or the stack's items (both "fallback-img"
+  // captures — see js/gallery.js), so a gallery revealed with these decoded
+  // reads as the settled page rather than as something still loading. If the
+  // restored offset is still up in the hero this finds nothing and resolves
+  // immediately.
   function visibleFigureImages() {
     var viewportHeight = window.innerHeight || 0;
-    var all = document.querySelectorAll(".product-card__figure > img");
+    var all = document.querySelectorAll(".grid-tile__slide:first-child, .stack-item__img");
     var out = [];
     for (var i = 0; i < all.length; i++) {
       var rect = all[i].getBoundingClientRect();
@@ -359,7 +417,22 @@
   window.EmjiveScrollMemory = {
     isRestoring: function () { return restoring; },
 
-    // Called by js/main.js the moment the grid has been rendered and
+    // What this entry landed on, as decided above: { hero, view, focused }.
+    landing: function () { return landing; },
+
+    // js/gallery.js, whenever the visitor changes any of the three (a view
+    // switch, a replay, a model focused or let go): kept for this entry, so
+    // Back comes back to it. Written at once — a tap on the focused model
+    // navigates away straight after.
+    remember: function (patch) {
+      if (!patch) return;
+      if (patch.hero === "play" || patch.hero === "skip") landing.hero = patch.hero;
+      if (patch.view === "stack" || patch.view === "grid") landing.view = patch.view;
+      if ("focused" in patch) landing.focused = patch.focused ? String(patch.focused) : null;
+      save();
+    },
+
+    // Called by js/gallery.js the moment the gallery has been rendered and
     // filtered — the last thing that changes the document's height.
     contentReady: function () {
       if (contentReadyCalled) return;

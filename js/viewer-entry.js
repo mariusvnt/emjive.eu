@@ -40,6 +40,22 @@ window.EmjiveLoadViewer = function () {
   return pending;
 };
 
+// The homepage gallery's shared 3D stack (js/stack-scene.js: the physics
+// engine and the scene, on top of three-viewer.js's chunk, which it imports)
+// — asked for by js/gallery-stack.js only, once the page has revealed.
+// Resolves to its create() function; cached, a failure included, like the
+// viewer's.
+var stackPending = null;
+
+window.EmjiveLoadStack = function () {
+  if (!stackPending) {
+    stackPending = import("./stack-scene.js").then(function (module) {
+      return module.createStackScene;
+    });
+  }
+  return stackPending;
+};
+
 var when = document.documentElement.getAttribute("data-viewer");
 if (when === "eager") {
   window.EmjiveLoadViewer().catch(function () {});

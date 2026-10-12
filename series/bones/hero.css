@@ -25,6 +25,10 @@
      effect reads as one continuous image at one consistent opacity rather
      than three separately-tuned values drifting apart. */
   --reveal-xray-opacity: 1;
+  /* How far the x-ray hand fades back once the gallery's stack has come up
+     over it (hero.js eases the x-ray group's opacity from 1 to this over the
+     entrance, and the skipped hero starts here). */
+  --reveal-xray-rest-opacity: 0.3;
 
   /* The shape of every hero picture. They are all 16:9 at whatever resolution
      each ships at (the desktop versions); a smartphone gets versions cropped
@@ -63,7 +67,12 @@
 
 .reveal {
   position: relative;
-  --reveal-scroll-vh: 200vh; /* total scroll distance the reveal plays over */
+  --reveal-scroll-vh: 200vh; /* the reveal's own height: the wipe plays over all of it but the pin's own */
+  /* The gallery's entrance (js/gallery-stack.js): a further stretch of
+     scrolling at the end of the reveal, the pin still held, during which the
+     products rise onto the hand and the hand fades back. Only in the stack
+     view — the grid simply follows the reveal. */
+  --reveal-entrance-vh: 0px;
   --reveal-frontier-height: 0.8rem; /* height of the scanning band (narrow-screen override below); width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
      which also needs it, lives outside .reveal entirely. */
@@ -85,7 +94,41 @@
   --ring-size: 6%;
   --ring-rotation: 0deg;
 
-  height: var(--reveal-scroll-vh);
+  height: calc(var(--reveal-scroll-vh) + var(--reveal-entrance-vh));
+}
+html[data-gallery-view="stack"] .reveal {
+  --reveal-entrance-vh: 100vh;
+}
+
+/* The hero skipped (data-hero="skip", js/scroll-memory.js): no scrolling at
+   all, just the pin, showing where the reveal ends — the photo wiped away,
+   the x-ray faded back, the band gone. The rings are the stack's by then
+   (js/gallery-stack.js); in the grid the hero isn't shown at all. hero.js
+   sets the same clips inline; these cover the first paint, before it runs. */
+html[data-hero="skip"] .reveal {
+  height: var(--reveal-pin-height);
+}
+html[data-hero="skip"] .reveal__img--normal {
+  clip-path: inset(0 0 100% 0);
+}
+html[data-hero="skip"] .reveal__xray-group {
+  clip-path: inset(0 0 0 0);
+  opacity: var(--reveal-xray-rest-opacity);
+}
+html[data-hero="skip"] .reveal__frontier,
+html[data-hero="skip"] .reveal__ring {
+  visibility: hidden;
+}
+
+/* Measured by hero.js: the entrance stretch, in px. */
+.reveal__entrance {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: var(--reveal-entrance-vh);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {

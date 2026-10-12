@@ -92,11 +92,20 @@
   summary.appendChild(emptyLabelEl);
   summary.appendChild(orderLink);
 
+  // The Select sheet's preview line (openSelect below): one row, between
+  // the drawer and the summary.
+  var previewEl = el("div", "selection-bar__preview");
+  previewEl.setAttribute("aria-hidden", "true");
+  previewEl.inert = true;
+  var previewList = el("ul", "selection-bar__rows");
+  previewEl.appendChild(previewList);
+
   // Drawer sits before the summary row in DOM order so it stacks visually
   // above it inside this column-flex bar — the bar's total height is
   // intrinsic and grows upward from the pinned bottom edge as the drawer
   // opens, no manual position math needed.
   bar.appendChild(drawer);
+  bar.appendChild(previewEl);
   bar.appendChild(summary);
 
   // The visible count crossfades and is aria-hidden while it fades out, so a
@@ -118,6 +127,14 @@
     dropAtOnce: true,
     onModify: openModify,
     onResize: syncDrawerHeight
+  });
+
+  // The preview line's own row: a copy for the eye, nothing to tap.
+  var previewRows = window.EmjiveOrderRows.create({
+    listEl: previewList,
+    rowClass: "order-item--drawer",
+    showPrice: false,
+    onModify: function () {}
   });
 
   /* ---- drawer height --------------------------------------------------------
@@ -145,11 +162,14 @@
   // time), and whether it is currently up rather than on its way back down.
   var peekHeight = null;
   var peekShown = false;
+  // The preview line's height while it's up (0 the rest of the time): part
+  // of what the Select sheet rests on.
+  var previewHeight = 0;
 
   // Returns the height the drawer is now heading to.
   function syncDrawerHeight() {
     var isOpen = drawer.classList.contains("is-open");
-    var summaryHeight = summary.getBoundingClientRect().height;
+    var summaryHeight = summary.getBoundingClientRect().height + previewHeight;
     var listHeight = Math.min(rows.settledHeight(), window.innerHeight * LIST_CAP);
     var target = !isOpen ? (peekShown ? peekHeight : 0) : reducedHeight !== null ? reducedHeight : listHeight;
     drawer.style.maxHeight = target + "px";
@@ -502,6 +522,60 @@
     });
   }
 
+  /* ---- Select (the homepage grid) ---------------------------------------------
+     A tile's tap opens the Modify sheet in its Select mode, the bar turning
+     into its strip (a single Select). In place of the drawer row a Modify
+     rests on, the bar raises a preview line: the row the item will be, which
+     follows the sheet's picks. A Select adds it — and then, instead of the
+     add's usual peek (which would raise the very same row), the line stays up
+     a moment, as the peek would, and lowers while the new icon slides into the
+     strip. */
+  var skipNextPeek = false;
+  var previewTimer = 0;
+
+  function showPreview(item) {
+    clearTimeout(previewTimer);
+    previewRows.render([item], { animate: false });
+    // Laid out while shut (max-height, not display), so it measures true.
+    previewHeight = previewList.offsetHeight;
+    previewEl.style.maxHeight = previewHeight + "px";
+    syncDrawerHeight();
+  }
+
+  function hidePreview(afterAdd) {
+    clearTimeout(previewTimer);
+    function lower() {
+      previewHeight = 0;
+      previewEl.style.maxHeight = "0px";
+      syncDrawerHeight();
+    }
+    if (afterAdd) previewTimer = setTimeout(lower, PEEK_HOLD_MS);
+    else lower();
+  }
+
+  function openSelect(product, slug, opts) {
+    if (!window.EmjiveModifyModal || !window.EmjiveModifyModal.openSelect || window.EmjiveModifyModal.isOpen()) return;
+    opts = opts || {};
+    setDrawerOpen(false);
+    var added = false;
+    window.EmjiveModifyModal.openSelect(product, slug, {
+      bar: stripHost,
+      onPreview: function (index, values) {
+        if (values) previewRows.preview(0, values);
+      },
+      onOpen: showPreview,
+      onClose: function () { hidePreview(added); },
+      onAdd: function () {
+        added = true;
+        skipNextPeek = true;
+      },
+      returnFocus: opts.returnFocus,
+      fallbackFocus: toggleBtn
+    });
+  }
+
+  window.EmjiveSelectionBar = { openSelect: openSelect };
+
   /* ---- icon strip ---------------------------------------------------------
      Newest-first in DOM — a plain (non-reversed) row then lands DOM child 0
      (newest) at the strip's *left* end and the last DOM child (oldest) at
@@ -725,8 +799,12 @@
     // is what makes it grow/shrink smoothly with them.
     syncDrawerHeight();
     // A genuine Add (not an Undo, not the page's first render): the drawer
-    // gives a glimpse of the row that just went in.
-    if (e && e.detail && e.detail.action === "add") peekNewest();
+    // gives a glimpse of the row that just went in — unless the Select
+    // sheet's preview line is already showing it (openSelect above).
+    if (e && e.detail && e.detail.action === "add") {
+      if (skipNextPeek) skipNextPeek = false;
+      else peekNewest();
+    }
   }
 
   window.addEventListener("emjive:selection-changed", render);

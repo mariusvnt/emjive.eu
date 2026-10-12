@@ -263,17 +263,16 @@ html {
    that kind of insertion — correct in general, wrong here, where the saved
    absolute offset is the thing being preserved.
 
-   visibility (not display: none) on the grid: the cards stay laid out, so
-   IntersectionObserver still fires and loading="lazy" placeholders still
-   fetch, and js/main.js's lazy 3D viewers start building on schedule
-   underneath. They're hidden only so the grid is revealed with its
-   on-screen cards already decoded instead of as a row of empty boxes —
-   see settle() in js/scroll-memory.js. */
+   visibility (not display: none) on the gallery (the grid, or the stack):
+   it stays laid out, so loading="lazy" pictures still fetch underneath. It's
+   hidden only so it is revealed with its on-screen pictures already decoded
+   instead of as empty boxes — see settle() in js/scroll-memory.js. */
 html.emjive-restoring-scroll body {
   min-height: var(--emjive-restore-height, 0);
   overflow-anchor: none;
 }
-html.emjive-restoring-scroll .product-grid {
+html.emjive-restoring-scroll .product-grid,
+html.emjive-restoring-scroll .gallery-stage {
   visibility: hidden;
 }
 
@@ -881,11 +880,271 @@ button, input, textarea {
    Products
    ========================================================================== */
 
+/* The homepage gallery has two views (data-gallery-view on <html>, decided in
+   the <head> by js/scroll-memory.js and switched by js/gallery.js):
+     stack  the products come up out of the hero onto the x-ray hand and stay
+            there, on .gallery-stage, fixed over the hero's pin — the page
+            ends with the reveal, so .products takes no room of its own;
+     grid   tiles in columns (.product-grid), under the hero when it plays,
+            at the top of the page when it doesn't.
+   data-hero="skip" is a hero not played this time (already seen on this
+   device): the stack rests on the x-ray, the grid starts the page. */
 .products {
   position: relative;
   padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
 }
+html[data-gallery-view="stack"] .products {
+  padding: 0;
+}
+/* The fixed bar needs no room kept for it when nothing scrolls under it. */
+html[data-gallery-view="stack"] body {
+  padding-bottom: 0;
+}
+html[data-gallery-view="grid"][data-hero="skip"] .series-hero {
+  display: none;
+}
+html[data-gallery-view="grid"][data-hero="skip"] .products {
+  padding-top: calc(var(--header-height) + var(--gallery-controls-height) + 1rem);
+}
+html[data-gallery-view="stack"] .product-grid,
+html[data-gallery-view="grid"] .gallery-stage {
+  display: none;
+}
+/* The x-ray hand's continuation below the fold (the hero bundle's second
+   slot) was the backdrop of the old column of rows. Neither view has a page
+   below the hero for it to continue into — the stack never leaves the pin,
+   and the grid's tiles and labels need the plain page behind them — so it
+   stays unshown (its pictures are lazy, so never fetched either). */
+.series-hero-backdrop {
+  display: none;
+}
 
+/* ---- the two controls under the header ----------------------------------
+   "switch to grid view" / "switch to stack view" at the top right, "scan the
+   hand again" at the top left (js/gallery.js). Plain text, like the header's
+   rubrics; mix-blend-mode keeps it legible over the photo, the x-ray and the
+   page alike. Under the header (and its menu), over the gallery. The replay
+   only once the reveal is over (.products.is-at-rest): before that, the
+   visitor is in it. */
+:root {
+  --gallery-controls-height: 2.5rem;
+}
+.gallery-control {
+  position: fixed;
+  top: var(--header-height);
+  z-index: 79;
+  height: var(--gallery-controls-height);
+  margin: 0;
+  padding: 0 var(--edge-px);
+  border: none;
+  background: none;
+  color: var(--white);
+  mix-blend-mode: difference;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+  -webkit-tap-highlight-color: transparent;
+}
+.gallery-control--view { right: 0; }
+.gallery-control--replay { left: 0; }
+.products:not(.is-at-rest) .gallery-control--replay {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+@media (hover: hover) {
+  .gallery-control:hover { opacity: 0.6; }
+}
+
+/* ---- the veil -------------------------------------------------------------
+   What a switch of view and a replay of the hero cross through
+   (js/gallery.js): the page background, over everything but the header, the
+   controls and the bars, fading in, the page changing under it, fading back
+   out. */
+.gallery-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 78;
+  background: var(--bg);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+.gallery-veil.is-veiled {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+}
+
+/* ---- the stack --------------------------------------------------------------
+   One fixed layer over the whole screen (js/gallery-stack.js): the shared 3D
+   canvas at the bottom, the image stack over it (the first paint, and the
+   whole of the stack where the 3D one can't run), the focus row on top.
+   Nothing on it takes a tap until the products have landed (.is-landed):
+   before that the visitor is scrolling through the reveal, and every touch
+   is theirs. The domain the products move in — under the controls, over
+   the selection bar — is the script's; the layer itself is the screen. */
+.gallery-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+.gallery-stage.is-landed {
+  pointer-events: auto;
+}
+.stack-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  visibility: hidden;
+}
+.gallery-stage.is-3d .stack-canvas {
+  visibility: visible;
+}
+.stack-light {
+  position: absolute;
+  inset: 0;
+}
+/* Each one sized and placed by the script (width/height, then one transform:
+   where it is, how it's turned, how big). Its picture is the model's own
+   default view (fallback-img), the one the 3D model hands over to without a
+   pixel moving; a ring taken off the hand carries its top shot too, faded
+   out as it flies. */
+.stack-item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.stack-item[hidden] { display: none; }
+.stack-item__img,
+.stack-item__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.stack-item__ring { opacity: 0; }
+/* Flying to or from the focus row, or to a new place once the layout
+   changes (the image stack only — the 3D one moves its own models). */
+.stack-item.is-moving {
+  transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1);
+}
+/* The 3D stack has taken over: the pictures go (a ring still on its way off
+   the hand keeps its top shot until it has crossed into the model), and the
+   canvas answers the taps. */
+.gallery-stage.is-3d .stack-item {
+  visibility: hidden;
+  pointer-events: none;
+}
+.gallery-stage.is-3d .stack-item__ring {
+  visibility: visible;
+}
+
+/* The focused product: the gallery's old row (.product-card — model in the
+   left half, the full-width bar behind it, the name in the right half), at
+   the top of the domain. It stays laid out while hidden so its box can be
+   measured: the model flies to exactly there. The figure fades in over the
+   model as it lands, then the bar grows out of the model's middle and the
+   name comes in; going, the name leaves first, the bar after, the figure
+   last. */
+:root {
+  --focus-size: min(36vw, 38svh);
+}
+@media (max-width: 640px) {
+  :root {
+    --focus-size: calc(50vw - var(--edge-px));
+  }
+}
+/* Only its figure, bar and name take a tap, and only while shown: a tap
+   anywhere else on the row is a tap on the stack's background. */
+.stack-focus {
+  position: absolute;
+  top: var(--focus-top, 0px);
+  left: 0;
+  right: 0;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--edge-px);
+  pointer-events: none;
+}
+.stack-focus .product-card__figure,
+.stack-focus .product-card__bar-link,
+.stack-focus .product-card__label {
+  pointer-events: none;
+}
+.stack-focus.is-shown .product-card__figure,
+.stack-focus.is-labelled .product-card__bar-link,
+.stack-focus.is-labelled .product-card__label {
+  pointer-events: auto;
+}
+.stack-focus .product-card__figure {
+  width: var(--focus-size);
+  height: var(--focus-size);
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.stack-focus.is-shown .product-card__figure {
+  opacity: 1;
+}
+.stack-focus .product-card__figure .emjive-3d-viewer {
+  cursor: pointer;
+}
+.stack-focus .product-card__bar-link {
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: var(--focus-origin, 50%) 50%;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
+}
+.stack-focus.is-labelled .product-card__bar-link {
+  transform: translateY(-50%) scaleX(1);
+  transition-delay: 0s;
+}
+.stack-focus .product-card__label {
+  opacity: 0;
+  transform: translate(-0.5rem, -50%);
+  transition: opacity var(--fade-quick) ease, transform var(--fade-quick) ease;
+}
+.stack-focus.is-labelled .product-card__label {
+  opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 0.2s;
+}
+
+/* An empty filter, in the stack: the message where the products would be. */
+.gallery-stage .product-grid__loading {
+  position: absolute;
+  top: 40%;
+  left: 0;
+  right: 0;
+  pointer-events: auto;
+}
+
+/* ---- the grid -----------------------------------------------------------------
+   Tiles in columns — two on a phone, more as the screen widens — and no 3D
+   at all: the visitor in a hurry. Each tile's picture is a strip of slides
+   (the model's own view, then the product's photos) swiped natively, sideways,
+   with scroll snapping; a tap anywhere on the tile opens the Modify sheet in
+   its Select mode (js/gallery.js -> js/selection-bar.js). */
 .product-grid {
   position: relative;
   z-index: 1;
@@ -893,18 +1152,121 @@ button, input, textarea {
   margin: 0 auto;
   padding: 0 var(--edge-px);
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem 1rem;
 }
-
-@media (max-width: 640px) {
-  .product-grid { gap: 8rem; }
+@media (min-width: 641px) {
+  .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem 1.5rem; }
+}
+@media (min-width: 1024px) {
+  .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1440px) {
+  .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 .product-grid__loading {
   grid-column: 1 / -1;
   padding: 3rem;
   text-align: center;
+  color: var(--category-col);
+}
+
+/* Same trap as everywhere else on the site: display: flex beats the UA
+   stylesheet's [hidden] { display: none }, and the filter hides tiles with
+   it rather than rebuilding them. */
+.grid-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.grid-tile[hidden] { display: none; }
+.grid-tile__frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+}
+.grid-tile__slides {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.grid-tile__slides::-webkit-scrollbar { display: none; }
+.grid-tile__slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.grid-tile__slide--photo {
+  object-fit: cover;
+}
+.grid-tile__dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.25rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.125rem;
+}
+.grid-tile__dot {
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grid-tile__dot::before {
+  content: "";
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  background: var(--category-col);
+  opacity: 0.35;
+  transition: opacity var(--fade-quick) ease;
+}
+.grid-tile__dot.is-current::before {
+  opacity: 1;
+}
+.grid-tile__label {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: calc(0.875rem * var(--text-scale));
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
+}
+.grid-tile__label-name {
+  font-family: var(--font-main);
+  color: var(--black);
+}
+.grid-tile__label-type {
+  font-family: var(--font-secondary);
+  font-size: 0.75em;
   color: var(--category-col);
 }
 
@@ -996,7 +1358,8 @@ button, input, textarea {
 /* A single-cell grid, not a plain block — every child is placed in that
    one cell (grid-area: 1 / 1 below) so the placeholder image and the live
    3D viewer OVERLAP rather than following each other in normal flow.
-   That's required now that js/main.js mounts the viewer over the icon: both
+   That's required since the viewer is mounted over the picture (the stack's
+   focus row, js/gallery-stack.js, as the old grid cards did): both
    are in the layout at once for the whole load (swapped in one frame), and as
    plain in-flow blocks each sized to the full content box, the second one
    was pushed entirely below the first — leaving the canvas poking out
@@ -1050,8 +1413,8 @@ button, input, textarea {
 .product-card__figure > img {
   object-fit: cover;
 }
-/* js/main.js toggles this icon's [hidden] once a lazily-built 3D viewer
-   takes over its spot (see buildViewerFor/disposeViewerFor) — same trap as
+/* js/gallery-stack.js toggles this picture's [hidden] once the focused
+   product's 3D viewer takes over its spot (startViewer/stopViewer) — same trap as
    .product-card[hidden] above and .selection-empty[hidden]/
    .selection-list[hidden] elsewhere: the base img rule's `display: block`
    is an AUTHOR-origin declaration, which beats the UA stylesheet's
@@ -4614,6 +4977,18 @@ body.has-series-hero .selection-bar {
   pointer-events: none;
 }
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
+
+/* ---- the preview line: while the Modify sheet is up in its Select mode (the
+   homepage grid), the item it would add, as a row over the summary — the
+   same row the drawer will hold — following the sheet's picks live. Opened
+   and closed on the drawer's own max-height transition, the sheet resting on
+   it (js/selection-bar.js publishes it in --selection-bar-live-height). A
+   copy for the eye only: inert and hidden from assistive tech. ---- */
+.selection-bar__preview {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
 /* The rows themselves are .order-item.order-item--drawer — the order page's
    own row component, tap-to-Modify included (see the order page section
    and js/order-rows.js), so the two lists can't drift apart. No background
@@ -4708,6 +5083,7 @@ body.has-series-hero .selection-bar {
 }
 .modify-strip__save,
 .modify-strip__unselect,
+.modify-strip__select,
 .order-item__undo-button {
   position: absolute;
   top: 0;
@@ -4751,6 +5127,25 @@ body.has-series-hero .selection-bar {
   padding-left: var(--inset);
   color: var(--white);
 }
+/* Select mode (js/modify-modal.js's openSelect, the homepage grid): one
+   button over the whole strip, its label in the middle, the band across all
+   of it — Unselect and Save out of the way. Dimmed, like Save, while the size
+   field holds nothing orderable. */
+.modify-strip__select {
+  left: 0;
+  right: 0;
+  color: var(--white);
+}
+.modify-strip__select:disabled { cursor: default; }
+.modify-strip__select:disabled .modify-strip__label { opacity: 0.35; }
+.modify-strip:not(.is-select) .modify-strip__select,
+.modify-strip.is-select .modify-strip__unselect,
+.modify-strip.is-select .modify-strip__save {
+  display: none;
+}
+.modify-strip.is-select .modify-strip__band {
+  width: 100%;
+}
 /* Same recipe as .order-item::before: a 1.2rem backdrop-filter: invert(1)
    strip, vertically centered — so the dark bar under it reads light and
    the white label under it reads dark. Sized to Save's own button exactly
@@ -4782,11 +5177,13 @@ body.has-series-hero .selection-bar {
   transition: width var(--fade-standard) ease, opacity var(--fade-quick) ease var(--fade-standard);
 }
 .modify-strip.is-saved .modify-strip__unselect,
-.modify-strip.is-saved .modify-strip__save {
+.modify-strip.is-saved .modify-strip__save,
+.modify-strip.is-saved .modify-strip__select {
   pointer-events: none;
 }
 .modify-strip.is-saved .modify-strip__unselect .modify-strip__label,
-.modify-strip.is-saved .modify-strip__save .modify-strip__label {
+.modify-strip.is-saved .modify-strip__save .modify-strip__label,
+.modify-strip.is-saved .modify-strip__select .modify-strip__label {
   opacity: 0;
 }
 /* Outer show/hide (content half): the buttons collectively lead the
@@ -4797,12 +5194,14 @@ body.has-series-hero .selection-bar {
    be mid-flight. Placed after the .is-saved rules above so it reliably wins
    if the strip is ever hidden while still mid an internal mode. */
 .modify-strip__unselect,
-.modify-strip__save {
+.modify-strip__save,
+.modify-strip__select {
   opacity: 1;
   transition: opacity var(--fade-fast) ease var(--fade-fast);
 }
 .modify-strip.is-hidden .modify-strip__unselect,
-.modify-strip.is-hidden .modify-strip__save {
+.modify-strip.is-hidden .modify-strip__save,
+.modify-strip.is-hidden .modify-strip__select {
   opacity: 0;
   transition: opacity var(--fade-fast) ease;
 }
@@ -4855,7 +5254,7 @@ body.has-series-hero .selection-bar {
 /* The single site-wide rule. Every interactive element below is either a
    real <button>/<a href>/<input> in page markup or one built by js/ — the
    one deliberate exception is .product-card__bar-link, which carries
-   tabindex="-1" + aria-hidden (js/main.js) precisely because it duplicates
+   tabindex="-1" + aria-hidden (js/gallery-stack.js) precisely because it duplicates
    .product-card__label, and so can never match :focus-visible anyway.
    tabindex="-1" is left out on purpose: that's how the two sheets'
    dialog roots (.size-modal) take focus — from script, only so a screen
@@ -4916,6 +5315,7 @@ input:focus-visible,
    above. */
 .modify-strip .modify-strip__save:focus-visible,
 .modify-strip .modify-strip__unselect:focus-visible,
+.modify-strip .modify-strip__select:focus-visible,
 .order-item .order-item__undo-button:focus-visible {
   position: absolute;
   outline: var(--focus-ring-inverted);
@@ -4923,9 +5323,15 @@ input:focus-visible,
 }
 /* The other controls that are positioned already keep their own place too
    when a keyboard focuses them: the site-wide rule's position: relative
-   would pull a product card's name out of its spot over the card. */
+   would pull a product card's name (the stack's focus row) out of its spot
+   over the card, and the gallery's two fixed controls out from under the
+   header into the page — and its z-index under the stack. */
 .product-card .product-card__label:focus-visible {
   position: absolute;
+}
+.products .gallery-control:focus-visible {
+  position: fixed;
+  z-index: 79;
 }
 
 /* The size field shows no outline while it's being typed into — a

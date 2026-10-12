@@ -60,7 +60,7 @@ for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "f
 
 const forbidden = [
   [/^(json-tool|scene-tool|loader-test)\.html$/, "dev-only tool page"],
-  [/^js\/(three-viewer|viewer-entry|hdr-worker)\.js$/, "unbundled module source (the built pages load the hashed chunk)"],
+  [/^js\/(three-viewer|viewer-entry|hdr-worker|stack-scene)\.js$/, "unbundled module source (the built pages load the hashed chunk)"],
   [/\.(exr|map)$/i, "source art / sourcemap"],
   [/^(node_modules|scripts|dev-guidelines|\.git|\.github)\//, "repo-internal folder"],
   [/^(README|CLAUDE)\.md$/, "repo doc"],

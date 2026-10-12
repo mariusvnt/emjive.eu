@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-This starts Vite's dev server (see `tooling.md`). You need a real server rather than opening `index.html` directly — the product grid loads its data via `fetch`, which browsers block on `file://`, and `js/three-viewer.js` additionally needs Vite specifically to resolve its bare-specifier imports (`three`, `three/addons/...`).
+This starts Vite's dev server (see `tooling.md`). You need a real server rather than opening `index.html` directly — the gallery loads its data via `fetch`, which browsers block on `file://`, and `js/three-viewer.js` additionally needs Vite specifically to resolve its bare-specifier imports (`three`, `three/addons/...`).
 
 ## Adding a product
 
@@ -120,11 +120,12 @@ rendered from the data, so there's nothing to hand-sync.
 shape as `per-metal-specs` below — leave a metal's value as `""` until you
 have a real render for it (`npm run auto-render` fills these in; nothing
 else does). `default-metal` (further up) is a separate field — it only
-picks which of these icons the *homepage* grid card shows, since there's no
-metal picker there to switch it.
+picks which metal the *homepage* gallery shows (the stack's models, the grid's
+tiles and the Select sheet's start), since there's no metal picker there to
+switch it.
 
-Leave `assets.model: ""` if there's no 3D file yet — the card will just show
-`assets.icons[metal]` instead. The homepage card itself still displays nothing but
+Leave `assets.model: ""` if there's no 3D file yet — the stack and the focus row
+will just show `assets.icons[metal]` instead. The homepage itself still displays nothing but
 the model/icon and a `Name.category` label; `description` and
 `per-metal-specs` only appear once you click through to the product page.
 Reload the page and the new card appears automatically.
@@ -327,7 +328,7 @@ still points at it) for an existing key.
 ### Choosing a product's metal
 
 Add `"default-metal"` to a product entry to pick which PBR material preset the
-homepage card (and the product page, by default) applies to every mesh of
+homepage gallery (and the product page, by default) applies to every mesh of
 its 3D model, overriding whatever materials the model file itself has:
 
 ```json
@@ -377,7 +378,7 @@ the tool only edits an already-existing entry's values.
 The viewer construction itself (renderer/scene/camera setup, camera-orbit/
 idle-reset behaviour, and applying `METAL_PRESETS`) lives in one place —
 `buildThreeViewer()` in `js/three-viewer.js`, exposed as
-`window.EmjiveModelViewer` — shared by both the homepage grid and the
+`window.EmjiveModelViewer` — shared by the homepage (the stack's models, built by `js/stack-scene.js`, and the focused product's viewer) and the
 product page's carousel, so a metal swap on the product page re-tints the
 same model in place instead of reloading it or resetting the camera angle.
 

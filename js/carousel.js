@@ -64,7 +64,7 @@
 
   // Below this much pointer movement, a release counts as a tap (center
   // whichever slide it started on) rather than a drag — same threshold
-  // js/main.js's wireModelClickNavigation uses for the equivalent
+  // js/gallery-stack.js's focused model uses for the equivalent
   // click-vs-drag problem on the 3D models. Doubles as the axis-lock slop
   // below, so there's a single "did this actually move" threshold rather
   // than two competing ones.

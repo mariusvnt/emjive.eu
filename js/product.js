@@ -679,7 +679,7 @@
     }
 
     /* ---- releasing the viewer while the page is frozen --------------------
-       Same reasoning as js/main.js's releaseAllViewers, from the other end
+       Same reasoning as js/gallery-stack.js's pagehide, from the other end
        of the same navigation. Pressing Back doesn't end this page: it goes
        into the back/forward cache holding its WebGL context, its decoded
        model and its PMREM environment, while the grid it returns to rebuilds

@@ -1,0 +1,465 @@
+/* ==========================================================================
+   em·ji·ve — the homepage gallery (index.html only)
+
+   Two views of the active series' products, one at a time — data-gallery-view
+   on <html>, decided in the <head> by js/scroll-memory.js:
+     stack  the products come up out of the hero onto the x-ray hand, and the
+            visitor picks one out of the stack to look at (js/gallery-stack.js,
+            mounted from here);
+     grid   tiles in columns, built here: no 3D, each tile a strip of slides
+            (the model's own view, then the photos) swiped sideways; a tap
+            opens the Modify sheet in its Select mode, without leaving the page.
+   And the hero: data-hero="play" plays the reveal first, "skip" lands on the
+   gallery at rest. It plays once per device — this file sets the seen flag
+   once it has played out — and "scan the hand again" plays it again.
+
+   Owns: loading the products, the grid, the two controls (the view switch,
+   the replay) and the veil both cross through, the filter's effect on both
+   views (js/main.js owns the filter row and calls setFilter()), and telling
+   js/scroll-memory.js what the visitor changes, so Back finds it again.
+
+   window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
+   ========================================================================== */
+
+(function () {
+  "use strict";
+
+  var grid = document.getElementById("productGrid");
+  var stage = document.getElementById("galleryStage");
+  var section = document.getElementById("products");
+  if (!grid || !stage || !section || !window.EmjiveSeries) return;
+
+  var html = document.documentElement;
+  var viewToggle = document.getElementById("galleryViewToggle");
+  var replayButton = document.getElementById("heroReplay");
+
+  // The same two keys js/scroll-memory.js reads in the <head>.
+  var SEEN_KEY = "emjive_hero_seen";
+  var VIEW_KEY = "emjive_gallery_view";
+  // The veil's fade (--fade-standard), plus a margin for its fallback timer.
+  var VEIL_MS = 300;
+  // How long the arrival loader waits on the grid's first tiles at most.
+  var FIRST_TILES_MS = 4000;
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function writeLocal(name, value) {
+    try { window.localStorage.setItem(name, value); } catch (e) { /* blocked: the default comes back next visit */ }
+  }
+
+  function view() {
+    return html.getAttribute("data-gallery-view") === "grid" ? "grid" : "stack";
+  }
+
+  function heroMode() {
+    return html.getAttribute("data-hero") === "skip" ? "skip" : "play";
+  }
+
+  function remember(patch) {
+    var memory = window.EmjiveScrollMemory;
+    if (memory && memory.remember) memory.remember(patch);
+  }
+
+  function landing() {
+    var memory = window.EmjiveScrollMemory;
+    return (memory && memory.landing && memory.landing()) || {};
+  }
+
+  function hero() {
+    return window.EmjiveSeriesHero && window.EmjiveSeriesHero.setMode ? window.EmjiveSeriesHero : null;
+  }
+
+  // Instant, whatever html { scroll-behavior: smooth } says — the page jumps
+  // under the veil, where nobody sees it travel.
+  function jumpToTop() {
+    var previous = html.style.scrollBehavior;
+    html.style.scrollBehavior = "auto";
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    } catch (e) {
+      window.scrollTo(0, 0);
+    }
+    if (previous) html.style.scrollBehavior = previous;
+    else html.style.removeProperty("scroll-behavior");
+  }
+
+  var state = {
+    products: null,
+    slug: null,
+    tiles: [],
+    stack: null,
+    cats: [],
+    onShowAll: null,
+    emptyMsg: null,
+    // The entrance's progress, as the hero last published it.
+    stage: null
+  };
+
+  /* ---- the veil -------------------------------------------------------------
+     A switch of view and a replay both change the page wholesale — its
+     height, what's in it, where it's scrolled — so they cross through the
+     page background: it fades in, `change` runs, it fades back out. */
+  var veil = el("div", "gallery-veil");
+  veil.setAttribute("aria-hidden", "true");
+  document.body.appendChild(veil);
+  var veilToken = 0;
+
+  function throughVeil(change) {
+    var token = ++veilToken;
+    var done = false;
+    function swap() {
+      if (done || token !== veilToken) return;
+      done = true;
+      veil.removeEventListener("transitionend", onEnd);
+      change();
+      // Two frames: the page's new shape is laid out and painted under the
+      // veil before it lifts.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (token === veilToken) veil.classList.remove("is-veiled");
+        });
+      });
+    }
+    function onEnd(e) {
+      if (e.target === veil && e.propertyName === "opacity") swap();
+    }
+    veil.addEventListener("transitionend", onEnd);
+    veil.classList.add("is-veiled");
+    setTimeout(swap, VEIL_MS + 50);
+  }
+
+  /* ---- the controls ---------------------------------------------------------- */
+
+  function syncControls() {
+    if (viewToggle) viewToggle.textContent = view() === "grid" ? "switch to stack view" : "switch to grid view";
+    // The replay is offered once the reveal is over, not while the visitor is
+    // still in it.
+    var atRest = heroMode() === "skip" || state.stage === 1;
+    section.classList.toggle("is-at-rest", atRest);
+    if (replayButton) replayButton.inert = !atRest;
+  }
+
+  // Either view lands at rest: the hero has had its turn (a visitor leaving
+  // it for the other view has had enough of it), the page is at the top.
+  function switchView(next) {
+    if (next === view()) return;
+    throughVeil(function () {
+      html.setAttribute("data-gallery-view", next);
+      html.setAttribute("data-hero", "skip");
+      writeLocal(VIEW_KEY, next);
+      writeLocal(SEEN_KEY, "1");
+      remember({ view: next, hero: "skip", focused: null });
+      if (state.stack) state.stack.setActive(next === "stack");
+      jumpToTop();
+      if (hero()) hero().setMode();
+      placeEmptyMessage();
+      syncControls();
+    });
+  }
+
+  // Back to the beginning of the reveal: the photo of the hand, the stack
+  // gathered back below the screen (the rings back on the hand). Scrolling
+  // plays it all again.
+  function replay() {
+    throughVeil(function () {
+      html.setAttribute("data-hero", "play");
+      remember({ hero: "play", focused: null });
+      if (state.stack) state.stack.reset();
+      jumpToTop();
+      if (hero()) hero().setMode();
+      syncControls();
+    });
+  }
+
+  if (viewToggle) {
+    viewToggle.addEventListener("click", function () {
+      switchView(view() === "grid" ? "stack" : "grid");
+    });
+  }
+  if (replayButton) replayButton.addEventListener("click", replay);
+
+  // The entrance's progress (series/<slug>/hero.js). Its end is where the
+  // hero has been seen: from then on this device lands on the gallery.
+  if (window.EmjiveHero) {
+    window.EmjiveHero.onStage(function (progress) {
+      var was = state.stage;
+      state.stage = progress;
+      if (progress === 1 && heroMode() === "play") writeLocal(SEEN_KEY, "1");
+      if ((was === 1) !== (progress === 1)) syncControls();
+    });
+  }
+  syncControls();
+
+  /* ---- the grid ---------------------------------------------------------------
+     A tile: its pictures in a strip (the model's own default view — the
+     fallback-img the 3D viewer starts from elsewhere, or the icon for a
+     product with no model — then the photos), dots under them when there's
+     more than one, and the name. Swiped natively (overflow + scroll snap): a
+     swipe that scrolls never becomes a click, so a click anywhere on the
+     tile is a tap meant for it. */
+  function slide(src, alt, modifier) {
+    var img = el("img", "grid-tile__slide " + modifier);
+    img.src = src;
+    img.alt = alt;
+    img.width = 512;
+    img.height = 512;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.draggable = false;
+    return img;
+  }
+
+  function wireDots(slides, dots) {
+    var buttons = Array.prototype.slice.call(dots.children);
+    var current = -1;
+    function sync() {
+      var width = slides.clientWidth || 1;
+      var index = Math.max(0, Math.min(buttons.length - 1, Math.round(slides.scrollLeft / width)));
+      if (index === current) return;
+      if (buttons[current]) buttons[current].classList.remove("is-current");
+      buttons[index].classList.add("is-current");
+      current = index;
+    }
+    slides.addEventListener("scroll", sync, { passive: true });
+    buttons.forEach(function (button, i) {
+      button.addEventListener("click", function (e) {
+        // A dot pages the strip; it isn't a tap on the tile.
+        e.stopPropagation();
+        slides.scrollTo({ left: i * slides.clientWidth, behavior: "smooth" });
+      });
+    });
+    sync();
+  }
+
+  function openSelect(product, returnFocus) {
+    if (window.EmjiveSelectionBar && window.EmjiveSelectionBar.openSelect) {
+      window.EmjiveSelectionBar.openSelect(product, state.slug, { returnFocus: returnFocus });
+      return;
+    }
+    // No bar to select into (its scripts failed): the product's own page.
+    window.location.href = window.EmjiveSeries.productHref(product, state.slug);
+  }
+
+  function buildTile(product) {
+    var tile = el("article", "grid-tile");
+    var frame = el("div", "grid-tile__frame");
+    var slides = el("div", "grid-tile__slides");
+    var assets = product.assets || {};
+    var metal = product["default-metal"];
+    var name = product.name || "";
+    var first = (assets.model && assets["fallback-img"] && assets["fallback-img"][metal]) ||
+      (assets.icons && assets.icons[metal]);
+    var firstImg = null;
+    if (first) {
+      firstImg = slide(first, name, "grid-tile__slide--model");
+      slides.appendChild(firstImg);
+    }
+    (assets.photos || []).forEach(function (photo) {
+      slides.appendChild(slide(photo.src, photo.description || name, "grid-tile__slide--photo"));
+    });
+    frame.appendChild(slides);
+
+    if (slides.children.length > 1) {
+      slides.tabIndex = 0;
+      slides.setAttribute("role", "group");
+      slides.setAttribute("aria-roledescription", "carousel");
+      slides.setAttribute("aria-label", name + " pictures");
+      var dots = el("span", "grid-tile__dots");
+      dots.setAttribute("aria-hidden", "true");
+      for (var i = 0; i < slides.children.length; i++) {
+        var dot = el("button", "grid-tile__dot");
+        dot.type = "button";
+        dot.tabIndex = -1;
+        dots.appendChild(dot);
+      }
+      frame.appendChild(dots);
+      wireDots(slides, dots);
+    }
+    tile.appendChild(frame);
+
+    var label = el("button", "grid-tile__label");
+    label.type = "button";
+    label.setAttribute("aria-label", "Select " + name + (product.category ? ", " + product.category : ""));
+    label.appendChild(el("span", "grid-tile__label-name", name));
+    if (product.category) label.appendChild(el("span", "grid-tile__label-type", "." + product.category.toLowerCase()));
+    tile.appendChild(label);
+
+    tile.addEventListener("click", function () { openSelect(product, label); });
+
+    // The model's picture hides behind a loader until it has loaded, as the
+    // old cards' did (js/loader.js).
+    if (firstImg && window.EmjiveLoader) {
+      window.EmjiveLoader.cover(frame, window.EmjiveLoader.imageReady(firstImg));
+    }
+    return { product: product, el: tile, firstImg: firstImg };
+  }
+
+  function renderGrid(products) {
+    grid.innerHTML = "";
+    state.tiles = products.map(function (product) {
+      var tile = buildTile(product);
+      grid.appendChild(tile.el);
+      return tile;
+    });
+  }
+
+  // A grid landing straight on the page (no hero first): its first tiles are
+  // the first paint, so they are what the arrival loader waits for.
+  function releaseLoaderOnTiles() {
+    if (!window.EmjiveLoader) return;
+    var top = window.innerHeight || 0;
+    var waits = state.tiles.filter(function (tile) {
+      if (!tile.firstImg || tile.el.hidden) return false;
+      return tile.el.getBoundingClientRect().top < top;
+    }).map(function (tile) { return window.EmjiveLoader.imageReady(tile.firstImg); });
+    Promise.race([
+      Promise.all(waits),
+      new Promise(function (resolve) { setTimeout(resolve, FIRST_TILES_MS); })
+    ]).then(function () { window.EmjiveLoader.pageReady(); });
+  }
+
+  /* ---- filtering ---------------------------------------------------------------
+     js/main.js's filter row decides the categories; both views hide what
+     doesn't match without rebuilding anything. Kept until the products are in
+     when it comes first (a ?cat= in the address). */
+  function counts() {
+    var out = {};
+    (state.products || []).forEach(function (product) {
+      out[product.category] = (out[product.category] || 0) + 1;
+    });
+    return out;
+  }
+
+  function matches(product) {
+    return !state.cats.length || state.cats.indexOf(product.category) !== -1;
+  }
+
+  // The empty filter's message, in whichever view is showing.
+  function placeEmptyMessage() {
+    if (!state.emptyMsg) return;
+    var host = view() === "grid" ? grid : stage;
+    if (state.emptyMsg.parentNode !== host) host.appendChild(state.emptyMsg);
+  }
+
+  function showEmpty(empty) {
+    if (!empty) {
+      if (state.emptyMsg) state.emptyMsg.hidden = true;
+      return;
+    }
+    var text = "Nothing in " + state.cats.map(function (c) { return "." + c; }).join(" or ") + " in this series yet. ";
+    if (!state.emptyMsg) {
+      // Reuses .product-grid__loading as the empty state — it already spans
+      // the full grid row, centered and muted.
+      state.emptyMsg = el("p", "product-grid__loading");
+      state.emptyMsg.setAttribute("role", "status");
+      state.emptyMsg.appendChild(document.createTextNode(text));
+      var showAll = el("button", "btn", "Show all");
+      showAll.type = "button";
+      showAll.addEventListener("click", function () {
+        if (state.onShowAll) state.onShowAll();
+      });
+      state.emptyMsg.appendChild(showAll);
+    } else {
+      state.emptyMsg.firstChild.nodeValue = text;
+    }
+    state.emptyMsg.hidden = false;
+    placeEmptyMessage();
+  }
+
+  function applyFilter() {
+    var visible = 0;
+    state.tiles.forEach(function (tile) {
+      tile.el.hidden = !matches(tile.product);
+      if (!tile.el.hidden) visible++;
+    });
+    if (state.stack) state.stack.setFilter(state.products.filter(matches).map(function (p) { return p.id; }));
+    showEmpty(state.products.length > 0 && visible === 0);
+  }
+
+  /* ---- loading ---------------------------------------------------------------- */
+
+  function showLoadFailure() {
+    grid.innerHTML = "";
+    // Where the visitor is looking: when the series index itself failed, no
+    // hero will ever arrive, so its (empty) slot — the whole first screen —
+    // carries the message. If the hero did load and only the products
+    // failed, the message goes where the products would have been.
+    var heroSlot = document.getElementById("seriesHero");
+    var host;
+    if (heroSlot && !heroSlot.children.length && view() === "stack") {
+      host = heroSlot;
+      host.classList.add("page-message--hero");
+    } else {
+      host = el("div", "page-message--grid");
+      if (view() === "grid") grid.appendChild(host);
+      else {
+        host.classList.add("product-grid__loading");
+        stage.appendChild(host);
+      }
+    }
+    window.EmjiveMessage.show(host,
+      "The gallery couldn't be loaded. Check your connection and try again.",
+      { label: "Reload" }, "alert");
+  }
+
+  function signalContentReady() {
+    if (window.EmjiveScrollMemory) window.EmjiveScrollMemory.contentReady();
+  }
+
+  window.EmjiveSeries.ready
+    .then(function (ctx) {
+      state.slug = ctx.slug;
+      return window.EmjiveSeries.loadProducts(ctx.slug);
+    })
+    .then(function (products) {
+      state.products = products;
+      if (!products.length) {
+        grid.appendChild(el("p", "product-grid__loading",
+          "No products yet — add some to this series' products.json (see data/series.json)"));
+      }
+      renderGrid(products);
+      if (window.EmjiveGalleryStack) {
+        state.stack = window.EmjiveGalleryStack.mount(stage, {
+          products: products,
+          slug: state.slug,
+          active: view() === "stack",
+          focused: landing().focused,
+          onFocusChange: function (id) { remember({ focused: id }); }
+        });
+      }
+      applyFilter();
+      window.dispatchEvent(new CustomEvent("emjive:gallery-filtered", { detail: { counts: counts() } }));
+      if (view() === "grid" && heroMode() === "skip") releaseLoaderOnTiles();
+      // The gallery is the last thing that changes this page's height, so
+      // this is the signal js/scroll-memory.js is waiting on to finish
+      // restoring a back-navigation's scroll position.
+      signalContentReady();
+    })
+    .catch(function (err) {
+      console.error("Could not load the gallery:", err);
+      showLoadFailure();
+      if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
+      // Still signalled: a failed fetch means the height this page is ever
+      // going to have is the height it has now.
+      signalContentReady();
+    });
+
+  window.EmjiveGallery = {
+    // cats: the categories to show ([] for all). onShowAll: what the empty
+    // filter's "Show all" does (the filter row's own reset). Returns the
+    // number of products per category, or null before the products are in
+    // — they're reported then through "emjive:gallery-filtered".
+    setFilter: function (cats, onShowAll) {
+      state.cats = (cats || []).slice();
+      if (onShowAll) state.onShowAll = onShowAll;
+      if (!state.products) return null;
+      applyFilter();
+      return counts();
+    }
+  };
+})();

@@ -3779,11 +3779,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    The two shapes are inversions, drawn last so they are over the label, the
    slider and the buttons (pointer-events: none): a white box with
    mix-blend-mode: difference inverts what is under it, exactly. isolation
-   keeps the blending inside the overlay. The disc is a white circle, so what
-   is inside it is inverted. The card is the opposite: a transparent box whose
-   huge white shadow is what blends, so what is outside it is inverted and
-   what is inside is left alone. Both are centred on the screen and sized in
-   px from JS (the calibration's px per mm). ---- */
+   keeps the blending inside the overlay. The ring's lines are white bars, so
+   what they cross is inverted. The card's is the opposite: a transparent
+   band the screen's width whose huge white shadow is what blends, so what is
+   above and below it is inverted and what is inside is left alone. Both are
+   sized in px from JS (the calibration's px per mm). ---- */
 .size-finder {
   position: fixed;
   inset: 0;
@@ -3929,14 +3929,17 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   text-align: left;
 }
 /* The same size as the labels, 1rem — all the text in the finder is, the
-   buttons apart, which keep the site's button size — with 1.5rem between the paragraph and the table. */
+   buttons apart, which keep the site's button size — with 1.25rem between the paragraphs (as the labels' have) and 2.5rem before the table (the two margins collapse into the larger one). */
 .size-finder__chart .size-guide__how,
 .size-finder__chart .size-guide__table {
   font-size: 1rem;
   line-height: 1.45;
 }
 .size-finder__chart .size-guide__how {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.size-finder__chart .size-guide__how + .size-guide__scroll {
+  margin-top: 2.5rem;
 }
 .size-finder__chart .size-guide__how {
   color: var(--white);
@@ -3948,49 +3951,96 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--white);
 }
 
-/* The slider and Validate. At the bottom of the screen while calibrating, with
-   the line the card's bottom edge goes on just above the slider; under the disc
-   while measuring, below the biggest the
-   circle gets (--finder-r, set from JS) so it doesn't move as the circle grows. */
+/* The slider and Validate, at the bottom of the screen, with — while
+   calibrating — the line the card's bottom edge goes on just above the slider.
+   The strip itself takes no touch (the ring's lines run under it): only the
+   button and the slider's dot do. */
 .size-finder__controls {
   position: absolute;
   left: 0;
   right: 0;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1.5rem;
   padding: 0 var(--edge-px);
+  pointer-events: none;
   transition: opacity var(--fade-quick) ease;
+}
+.size-finder__controls .size-finder__button {
+  pointer-events: auto;
 }
 /* Squeezed down: Validate 1rem and the slider 2rem lower than the ring step's
    spacing would put them, which takes the card's bottom edge (the marker, a
    gap above the slider) 2rem lower with the slider. */
 .size-finder[data-step="calibrate"] .size-finder__controls {
-  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  /* 1rem lower than the ring step's Validate (the card's bottom edge, the
+     marker above the slider, goes with them). */
+  bottom: max(0.5rem, env(safe-area-inset-bottom));
   gap: 0.5rem;
 }
 .size-finder[data-step="calibrate"] .size-finder__edge {
   margin-bottom: 1rem;
 }
-.size-finder[data-step="measure"] .size-finder__controls {
-  top: calc(50% + var(--finder-r, 5rem) + 4.5rem);
-}
+/* The lines' centre, and the result's circle, stand a little under the
+   screen's centre, to leave the label room above: js/size-finder.js sets
+   --finder-cy (on a whole device pixel). */
 .size-finder.is-swapping .size-finder__top,
 .size-finder.is-swapping .size-finder__result,
 .size-finder.is-swapping .size-finder__controls {
   opacity: 0;
 }
 
-/* The ring's circle: a plain white outline at the screen's centre (its
-   thickness set by js/size-finder.js, whose measured diameter is the INNER
-   circle), on the measure step and kept on the result screen, with the buttons
-   under it. */
+/* The ring's three lines (js/size-finder.js makeLine). The bar is an
+   inversion, like the card window — a white bar with mix-blend-mode:
+   difference, drawn over everything, so what it crosses is inverted — and
+   takes no touch. It and its strip are 200vmax long, centred, so they run past
+   the screen's edges whatever the turn: infinite. JS sets the rest (the
+   bar's thickness, and the turn and push out along the line's normal of both).
+   Only on the measure step; they fade out on Validate. */
+.size-finder__line,
+.size-finder__line-hit {
+  position: absolute;
+  top: var(--finder-cy, 50%);
+  left: 50%;
+  width: 200vmax;
+  margin-left: -100vmax;
+}
+.size-finder__line {
+  background: var(--white);
+  mix-blend-mode: difference;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
+}
+.size-finder__line.is-on {
+  opacity: 1;
+}
+/* A keyboard's focus shows on the bar, a soft halo like the slider dot's. */
+.size-finder__line.is-focused {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35);
+}
+/* What takes the pointer: a transparent strip along the line, 2rem wide so a
+   finger can find it, taking a touch for the line to be dragged from anywhere.
+   Only there on the measure step. */
+.size-finder__line-hit {
+  display: none;
+  height: 2rem;
+  margin-top: -1rem;
+  touch-action: none;
+}
+.size-finder[data-step="measure"] .size-finder__line-hit,
+.size-finder[data-step="measure2"] .size-finder__line-hit {
+  display: block;
+}
+/* The result's circle: a plain white outline (its thickness set by
+   js/size-finder.js, whose measured diameter is the INNER circle) where the
+   triangle's inscribed circle was, with the buttons under it. */
 .size-finder__outline {
   position: absolute;
-  top: 50%;
+  top: var(--finder-cy, 50%);
   left: 50%;
-  transform: translate(-50%, -50%);
   box-sizing: border-box;
   border-radius: 50%;
   pointer-events: none;
@@ -4065,14 +4115,18 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35);
 }
 
-/* The card window. */
+/* The card window: the gap between the calibration's two bands, the screen's
+   whole width, so its huge white shadow makes a band above it and a band
+   below it, and nothing at its sides. Standing on its edge (js/size-finder.js
+   sets --finder-edge to the marker's height, and the height): its bottom edge,
+   the bottom band's, is fixed; the top band comes down and up with the
+   slider. */
 .size-finder__card {
   position: absolute;
-  left: 50%;
-  /* Standing on its edge (js/size-finder.js sets --finder-edge to the marker's
-     height): its bottom edge is fixed, it grows and shrinks upward. */
+  left: 0;
+  width: 100%;
   top: var(--finder-edge, 50%);
-  transform: translate(-50%, -100%);
+  transform: translateY(-100%);
   pointer-events: none;
   mix-blend-mode: difference;
   opacity: 0;
@@ -4096,18 +4150,19 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-finder .size-finder__back:focus-visible {
   position: absolute;
 }
-/* The slider shows focus on its dot. */
-.size-finder .size-finder__slider[tabindex]:focus-visible {
+/* The slider shows focus on its dot, and the lines on their bar. */
+.size-finder .size-finder__slider[tabindex]:focus-visible,
+.size-finder .size-finder__line-hit[tabindex]:focus-visible {
   outline: none;
 }
 
-/* While a card or a ring lies on the screen (calibrate, measure), and on the
-   result screen where it has just been lifted off, nothing answers a touch but
-   the slider's dot, Validate (or the result's buttons), the arrow and the cross: the
-   label can't be grabbed or scrolled, there is no pinching or double-tapping
-   to zoom, no selecting. */
+/* While a card or a ring lies on the screen (calibrate, measure), and on the result screen where it has just been lifted off,
+   nothing answers a touch but the slider's dot, Validate (or the result's
+   buttons), the arrow and the cross: the label can't be grabbed or scrolled,
+   there is no pinching or double-tapping to zoom, no selecting. */
 .size-finder[data-step="calibrate"],
 .size-finder[data-step="measure"],
+.size-finder[data-step="measure2"],
 .size-finder[data-step="result"] {
   touch-action: none;
   -webkit-user-select: none;
@@ -4116,6 +4171,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .size-finder[data-step="calibrate"] .size-finder__top,
 .size-finder[data-step="measure"] .size-finder__top,
+.size-finder[data-step="measure2"] .size-finder__top,
 .size-finder[data-step="result"] .size-finder__top {
   pointer-events: none;
 }

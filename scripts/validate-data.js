@@ -140,13 +140,13 @@ const indexSchema = {
           sizes: { type: "array", items: str },
           unit: str,
           // The size guide the product page and the two size sheets show: a
-          // few words on how to measure, and a table (js/selection.js's
+          // few paragraphs on how to measure, and a table (js/selection.js's
           // fillSizeGuide).
           "size-guide": {
             type: "object",
             required: ["how", "head", "rows"],
             properties: {
-              how: str,
+              how: { type: "array", items: str, minItems: 1 },
               head: { type: "array", items: str, minItems: 1 },
               rows: { type: "array", items: { type: "array", items: str } }
             }

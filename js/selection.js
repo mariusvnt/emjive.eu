@@ -277,17 +277,19 @@
   }
 
   // The size guide (the chart step of js/size-finder.js): `guide` is the
-  // category's "size-guide" in data/series.json — { how, head, rows: one a
-  // size } — built into `container` as a few words and a table. Returns
+  // category's "size-guide" in data/series.json — { how: paragraphs, head, rows:
+  // one a size } — built into `container` as a few paragraphs and a table. Returns
   // whether there was anything to build (a category with no guide gets no
   // "Find my size" button).
   function fillSizeGuide(container, guide) {
     container.innerHTML = "";
     if (!guide || !guide.rows || !guide.rows.length) return false;
-    var how = document.createElement("p");
-    how.className = "size-guide__how";
-    how.textContent = guide.how || "";
-    container.appendChild(how);
+    (guide.how || []).forEach(function (paragraph) {
+      var how = document.createElement("p");
+      how.className = "size-guide__how";
+      how.textContent = paragraph;
+      container.appendChild(how);
+    });
     // Turned: the data has a row a size (and a head naming the columns), the
     // table a row a fact — its label first, then one column a size: three
     // rows. Wider than its room, it scrolls on its own.

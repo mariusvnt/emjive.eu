@@ -60,7 +60,12 @@ existing one — `bones` is the only one so far. To start a *new* series, see
      each model and each wireframe to the path its `products.json` entry names,
      keeps a model's lost rotation (see below), and runs `optimize-models` over
      what it wrote. A later file overrides earlier nodes of the same name
-     (`... items.glb rib-cage-1.glb items-wireframes.glb`). See `tooling.md`.
+     (`... items.glb rib-cage-1.glb items-wireframes.glb`). A third export, the
+     **print models** as one binary STL (`... items-stl.stl`), is cut up and
+     matched to the entries the same way and written to each one's `stl` path
+     (name it in `products.json` first: `<slug>_stl.stl` beside the model). They
+     are what is weighed and priced, are **not in git** and not in the build.
+     See `tooling.md`.
    - **Keep the model's orientation when replacing one.** The saved
      fallback/icon/top-shot renders were made with the old file's node
      rotation/scale; a re-export that drops it turns the live model away
@@ -142,14 +147,16 @@ each with just `price` (a plain number — `0` renders as "TBD", so
 leave it `0` until you have a real price rather than inventing one). It is the
 selling price, shown in the product page's label bar. The Characteristics
 section is not hand-written: it shows weight, size and a cost breakdown
-derived from the model's measured `geometry` and the per-metal `metal-costs`
+derived from the piece's measured `geometry` (the print model's,
+`geometry.print`, where it has one) and the per-metal `metal-costs`
 in `data/series.json`, and re-renders whenever a visitor switches the metal
 picker.
 
 **Do not write the entry's `"geometry"` by hand — run `npm run
 measure-models` once the entry exists** (and its model is final). It reads
-the `.glb`, and adds a `"geometry"` line (volume, minimum bounding box, a hash
-of the model file) right after `per-metal-specs`. `npm run verify` fails
+the `.glb` — and the `.stl` the product names in `assets.stl`, if it does —
+and adds a `"geometry"` line (volume, minimum bounding box, the print model's
+volume and box, a hash of each file) right after `per-metal-specs`. `npm run verify` fails
 until every product has one, and again whenever its model changes afterwards
 (including a re-run of `npm run optimize-models`): re-run the script. It prints a
 table with each model's volume and box, and warns about meshes that aren't
@@ -186,13 +193,13 @@ ring with a plain or a twisted shank — `designs` in `data.md`):
 2. Add the `designs` block to the product by hand, after `assets`: `default`,
    the `options` the page will offer (`key`, `label`, `multiple` for toggles,
    `choices`) and a `list` entry per design — `key`, `name` and `picks` for the
-   default; `key`, `name`, `picks` and the `model`, `wireframe`, `icons` and
-   `fallback-img` paths (named `<slug>-<key lower-cased>_…`, the per-metal maps
+   default; `key`, `name`, `picks` and the `model`, `wireframe`, `stl`, `icons`
+   and `fallback-img` paths (named `<slug>-<key lower-cased>_…`, the per-metal maps
    with `""` until rendered) for each other. Every design must be a different
    combination of picks. `json-tool` carries the block through but has no form
    for it.
-3. `npm run split-models -- <models.glb> <wireframes.glb>` (writes the files the
-   entries name and optimizes them), `npm run measure-models` (each design's
+3. `npm run split-models -- <models.glb> <wireframes.glb> [<stl>]` (writes the files the
+   entries name and optimizes the models), `npm run measure-models` (each design's
    `geometry`), `npm run auto-render -- --product=<slug>` (each design's icons
    and fallback images, in the product's own camera) and `npm run verify`. If the
    default design's model changes shape, its product-level renders (including the
@@ -380,8 +387,10 @@ from one row of spheres, adding a metal changes every metal's slot, so re-run
 `"metal-costs"` entry for it in `data/series.json` (density in g/cm³, price
 per gram, production cost per cm³: the Characteristics section's weight and
 cost rows are computed from them, and `validate-data` fails without one),
-and a `per-metal-specs` entry for it on every product, since the page looks
-values up by metal name.
+a `"metal-composition"` entry (what it is made of, the line under the picker
+in the specs stage) and a `"metal-technology"` one (which printing technology
+makes it), and a `per-metal-specs` entry for it on every product, since the
+page looks values up by metal name.
 
 `npm run json-tool`'s Global tab handles the first of those places —
 add (or remove) a metal there and it only ever touches the `"metals"`
@@ -390,8 +399,8 @@ doing by hand exactly as described above. Removing a metal there is more
 thorough than the JSON-only add: it's blocked if any product still uses it
 as `default-metal`, and otherwise cascades through every product in every
 series, dropping that metal's key from `per-metal-specs`/`icons`/
-`fallback-img`/`top-shot` wherever it appears, and its `metal-costs` entry
-too — see `tooling.md`.
+`fallback-img`/`top-shot` wherever it appears, and its `metal-costs` and
+`metal-composition` entries too — see `tooling.md`.
 
 To **tune an existing metal's values** (rather than add a new one),
 `scene-tool.html` previews the change live before you commit to it: pick

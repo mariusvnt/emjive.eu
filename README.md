@@ -10,8 +10,8 @@ tapped; tap one to turn it round — or a plain grid of photos for a quick
 pick. Falls back to photos if no model is set yet. Clicking a product opens its
 detail page — a three-stage scroll: a feed of photos and a description, the
 3D model with a metal picker and, for some items, a choice of designs, then
-its specs (a size you set by dragging a circle round the model, dimensions,
-cost) — and a "Select size" flow that adds to a real, localStorage-backed
+its specs (a size you set by dragging a circle round the model, dimensions
+and weight, cost) — and a "Select size" flow that adds to a real, localStorage-backed
 selection you can review on a dedicated order page — item rows you can
 modify or unselect (with a few seconds to undo), a shipping pick, a terms
 toggle, and a "Proceed to checkout" bar — with a floating selection bar
@@ -191,8 +191,9 @@ series/<slug>/                                  One series' hero bundle (html/cs
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
-scripts/split-models.js                         One Blender export of every model, cut into the catalog's model + wireframe files (npm run split-models)
-scripts/measure-models.js                       Each model's volume + size, written into products.json (npm run measure-models)
+scripts/split-models.js                         One Blender export of every model, cut into the catalog's model + wireframe + print (STL) files (npm run split-models)
+scripts/measure-models.js                       Each model's and print model's volume + size, written into products.json (npm run measure-models)
+scripts/stl.js                                  Reads/cuts/writes binary STLs (the print models, which are not in git)
 scripts/slugs.js                                An item's address (/<name>) and the names it may not take
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
 json-tool.html, scripts/json-tool-server.js     Edit/add/remove series & products (npm run json-tool)
@@ -216,8 +217,9 @@ This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
 from here. Eight of the nine current products still have no photography,
 no description, and no selling price. (Each product's weight, size and an
-estimated production cost are real: they're derived from its 3D model's
-measured volume — see `npm run measure-models` in the dev-guidelines.)
+estimated production cost are real: they're derived from the measured volume
+of the piece as it is printed — its STL, kept out of git — see
+`npm run measure-models` in the dev-guidelines.)
 `launch-order.html`'s review page goes
 all the way to a "Proceed to checkout" button, but there's still no real
 payment step behind it — no backend exists yet to hand that off to (e.g. a

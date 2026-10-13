@@ -282,14 +282,14 @@
         "default": "1L2L3",
         "options": [
           { "key": "ribs",  "label": "Ribs",  "multiple": true, "choices": ["1", "2", "3"] },
-          { "key": "bound", "label": "Bound", "choices": ["separate", "linked"] }
+          { "key": "bound", "label": "Bound", "choices": ["linked", "unlinked"] }
         ],
         "list": [
           { "key": "1L2L3", "name": "rib-cage-1L2L3", "picks": { "ribs": ["1", "2", "3"], "bound": "linked" } },
           {
             "key": "123",
             "name": "rib-cage-123",
-            "picks": { "ribs": ["1", "2", "3"], "bound": "separate" },
+            "picks": { "ribs": ["1", "2", "3"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.915, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.439, 0.796, -3.63], "axes": [[-0.45552, 0.8902, -0.00639], [0.77527, 0.39316, -0.49435], [0.43755, 0.23014, 0.86924]] }, "model-sha1": "74b60db08928671f3ec9df0ccc4a92844377fcd8" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-123_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-123_wireframe.glb",
@@ -299,7 +299,7 @@
           {
             "key": "12",
             "name": "rib-cage-12",
-            "picks": { "ribs": ["1", "2"], "bound": "separate" },
+            "picks": { "ribs": ["1", "2"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.613, "dimensions-mm": [24.7, 24.5, 10.5], "min-box": { "center": [0.009, 0.457, -4.009], "axes": [[0.6539, 0.74733, 0.11794], [0.75658, -0.6459, -0.10194], [0, -0.15589, 0.98777]] }, "model-sha1": "6420f9afa7c5f00a38a30af45d121047031c1e10" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-12_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-12_wireframe.glb",
@@ -319,7 +319,7 @@
           {
             "key": "23",
             "name": "rib-cage-23",
-            "picks": { "ribs": ["2", "3"], "bound": "separate" },
+            "picks": { "ribs": ["2", "3"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.629, "dimensions-mm": [24.6, 24.6, 13.6], "min-box": { "center": [-0.001, 0.525, -6.29], "axes": [[0.70648, -0.67307, 0.21875], [0.70773, 0.67189, -0.21836], [0, 0.30909, 0.95103]] }, "model-sha1": "e4795e295dfef08b4dc39e7ec2ddc03a1bc60025" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-23_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-23_wireframe.glb",
@@ -339,7 +339,7 @@
           {
             "key": "13",
             "name": "rib-cage-13",
-            "picks": { "ribs": ["1", "3"], "bound": "separate" },
+            "picks": { "ribs": ["1", "3"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.616, "dimensions-mm": [24.7, 23.9, 18.8], "min-box": { "center": [-0.487, 0.616, -3.618], "axes": [[0.45841, 0.88809, -0.03405], [0.79019, -0.38975, 0.47296], [-0.40676, 0.24372, 0.88043]] }, "model-sha1": "4e5926471b9f0e8a7fb945747a083612866f3036" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-13_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-13_wireframe.glb",
@@ -349,7 +349,7 @@
           {
             "key": "1",
             "name": "rib-cage-1",
-            "picks": { "ribs": ["1"], "bound": "separate" },
+            "picks": { "ribs": ["1"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.283, "dimensions-mm": [24.5, 24.1, 3.9], "min-box": { "center": [-0.052, 0.062, -0.632], "axes": [[-0.65909, 0.74409, 0.10927], [0.75207, 0.65209, 0.09576], [0, -0.1453, 0.98939]] }, "model-sha1": "a4ae20f02d39ef4613555315d6ab369ee5be4a1d" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-1_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-1_wireframe.glb",
@@ -359,7 +359,7 @@
           {
             "key": "2",
             "name": "rib-cage-2",
-            "picks": { "ribs": ["2"], "bound": "separate" },
+            "picks": { "ribs": ["2"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.327, "dimensions-mm": [25, 24.2, 5.6], "min-box": { "center": [-0.15, 0.544, -4.34], "axes": [[-0.46104, 0.88678, -0.03258], [0.88738, 0.46073, -0.01693], [0, 0.03671, 0.99933]] }, "model-sha1": "66419123c9fc460a92b3322979c76e2d065da68d" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-2_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-2_wireframe.glb",
@@ -369,7 +369,7 @@
           {
             "key": "3",
             "name": "rib-cage-3",
-            "picks": { "ribs": ["3"], "bound": "separate" },
+            "picks": { "ribs": ["3"], "bound": "unlinked" },
             "geometry": { "volume-cm3": 0.3, "dimensions-mm": [24.1, 24, 9.2], "min-box": { "center": [-0.02, 0.237, -8.513], "axes": [[-0.67917, 0.69804, -0.22687], [0.73398, 0.64592, -0.20993], [0, 0.30909, 0.95103]] }, "model-sha1": "7cd673c5a8281e23b3078005988ebb1f5d342842" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-3_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-3_wireframe.glb",

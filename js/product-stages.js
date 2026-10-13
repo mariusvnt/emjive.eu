@@ -39,22 +39,24 @@
    what CSS can't fade: .is-feed-gone once the feed has faded out
    (FEED_GONE_AT) and .is-design-out until design's things start to come in
    (DESIGN_FROM) — what is out of sight takes no taps and shows no loader.
-   It calls onChange({ toDesign, toSpecs, leave, along, stage }) when they
-   change, for what CSS can't do (js/product.js: the model). `along`, 0 to 1,
-   is how far the page is through the design stretch and the transition to
-   specs together, linear in the scroll from the stretch's first pixel: the
-   model's rise to its place in specs runs on it.
+   It calls onChange({ toDesign, toSpecs, leave, along, ramp, stage }) when
+   they change, for what CSS can't do (js/product.js: the model). `along`, 0
+   to 1, is how far the page is through the design stretch and the transition
+   to specs together, linear in the scroll from the stretch's first pixel: the
+   model's rise to its place in specs runs on it. `ramp` is the share of the
+   design stretch its browsing eases in over (see entry(), below; the model's
+   rise follows the same curve).
 
-   Returns { scrollToStage(index) }. Focus moving into an element marked
+   Returns { scrollToStage(index), restart(), update() }. Focus moving into an element marked
    data-stage-owner="inspiration|design|specs" (or several, space apart)
    while another stage is showing scrolls to that one (the first), so the
    keyboard can reach everything — but only focus a keyboard put there
    (:focus-visible). A click on the model focuses its viewer without any such
    intent.
 
-   The show loops: scrolling on at the very end of specs — a fresh wheel
-   gesture, swipe or key, never the tail of the one that got there — takes
-   the show back to the start: everything fades out to the page's background
+   The show doesn't loop: at the end of specs the page just ends, and a
+   "Back to photos" button there (js/product.js) calls restart(), which takes
+   the show back to the start — everything fades out to the page's background
    (.is-veiled, css/style.css), the page jumps to the top while nothing shows,
    and the first stage fades back in.
    ========================================================================== */
@@ -88,7 +90,8 @@
   // the speed (the transition before it has come to rest, and a browse at full
   // pace from the first pixel was an abrupt start). `a` is the ramp's share of
   // the stretch (the third of the screen over the stretch's length, at most
-  // all of it). Reaches 1 at u = 1, and is 0 at 0.
+  // all of it). Reaches 1 at u = 1, and is 0 at 0. The design stretch and the
+  // specs stretch both begin with it.
   var ENTRY_SCREENS = 1 / 3;
   // How fast the show browses the specs column once up to speed: 15px up for
   // every 24px scrolled. The specs stretch is then as long as it takes to
@@ -157,7 +160,7 @@
     var onChange = (options && options.onChange) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
-    var state = { toDesign: -1, toSpecs: -1, leave: -1, along: -1, stage: "", browse: "" };
+    var state = { toDesign: -1, toSpecs: -1, leave: -1, along: -1, ramp: -1, stage: "", browse: "" };
     // Where each stage sits, in page scroll, as last measured.
     var stops = [0, 0, 0];
 
@@ -250,8 +253,8 @@
     function publish(next) {
       var key = next.browse.join(",");
       if (next.toDesign === state.toDesign && next.toSpecs === state.toSpecs && next.leave === state.leave &&
-          next.along === state.along && next.stage === state.stage && key === state.browse) return;
-      state = { toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, stage: next.stage, browse: key };
+          next.along === state.along && next.ramp === state.ramp && next.stage === state.stage && key === state.browse) return;
+      state = { toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, ramp: next.ramp, stage: next.stage, browse: key };
       stageEl.style.setProperty("--to-design", next.toDesign.toFixed(4));
       stageEl.style.setProperty("--to-specs", next.toSpecs.toFixed(4));
       stageEl.style.setProperty("--leave", next.leave.toFixed(4));
@@ -260,13 +263,13 @@
       var inFlow = next.stage === "flow";
       stageEl.classList.toggle("is-feed-gone", !inFlow && next.toDesign >= FEED_GONE_AT);
       stageEl.classList.toggle("is-design-out", !inFlow && next.toDesign <= DESIGN_FROM);
-      onChange({ toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, stage: next.stage });
+      onChange({ toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, ramp: next.ramp, stage: next.stage });
     }
 
     function update() {
       ticking = false;
       if (flow.matches) {
-        publish({ toDesign: 1, toSpecs: 0, stage: "flow", browse: [0, 0, 0], leave: 0, along: 0 });
+        publish({ toDesign: 1, toSpecs: 0, stage: "flow", browse: [0, 0, 0], leave: 0, along: 0, ramp: 1 });
         return;
       }
       syncFeedHold();
@@ -281,7 +284,7 @@
       // stretch.
       var s1 = s - m.offset;
       if (!(m.move > 0)) {
-        publish({ toDesign: toDesign, toSpecs: 0, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, 0, 0], leave: 0, along: 0 });
+        publish({ toDesign: toDesign, toSpecs: 0, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, 0, 0], leave: 0, along: 0, ramp: 1 });
         return;
       }
       var toSpecs = ease((s1 - m.hold) / m.move);
@@ -302,13 +305,16 @@
       var lead = m.hold2 > 0 ? Math.min(screenRamp * LEAD_RAMPS, m.move / 2) : 0;
       var length = m.hold2 + lead;
       var ramp = length > 0 ? Math.min(1, screenRamp / length) : 1;
+      // Design's stretch eases in the same way as specs'.
+      var ramp1 = m.hold > 0 ? Math.min(1, screenRamp / m.hold) : 1;
       publish({
         toDesign: toDesign,
         toSpecs: toSpecs,
         stage: stage,
-        browse: [browse0, through(0, m.hold), entry(through(m.hold + m.move - lead, length), ramp)],
+        browse: [browse0, entry(through(0, m.hold), ramp1), entry(through(m.hold + m.move - lead, length), ramp)],
         leave: leave,
-        along: clamp01(s1 / (m.hold + m.move))
+        along: clamp01(s1 / (m.hold + m.move)),
+        ramp: ramp1
       });
     }
 
@@ -339,82 +345,31 @@
       if (index !== -1) scrollToStage(index);
     });
 
-    /* ---- looping ------------------------------------------------------- */
+    /* ---- back to the start --------------------------------------------- */
 
-    // A gesture only counts as fresh once the page has been still for this
-    // long: a trackpad's momentum goes on firing wheel events after the page
-    // has reached the end, and must not carry straight on into the loop.
-    var LOOP_QUIET_MS = 300;
-    var LOOP_SWIPE_PX = 36;
-    var lastActivity = 0;
-    var looping = false;
-    var touchY = null;
-
-    function atEnd() {
-      return !flow.matches && state.stage === "specs" &&
-        window.pageYOffset >= document.documentElement.scrollHeight - window.innerHeight - 2;
-    }
-
-    // The loop: everything fades to the background (the veil class, a fade
-    // the CSS owns), the page is taken to the top while nothing shows, and
-    // the veil lifts, the first stage fading back in. Straight to the top
-    // under reduced motion.
+    // Everything fades to the background (the veil class, a fade the CSS
+    // owns), the page is taken to the top while nothing shows, and the veil
+    // lifts, the first stage fading back in. Straight to the top under
+    // reduced motion.
     var VEIL_MS = 550;
-    function loop() {
-      if (looping) return;
+    var restarting = false;
+    function restart() {
+      if (restarting) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         return;
       }
-      looping = true;
+      restarting = true;
       stageEl.classList.add("is-veiled");
       setTimeout(function () {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         update();
         requestAnimationFrame(function () {
           stageEl.classList.remove("is-veiled");
-          setTimeout(function () { looping = false; }, VEIL_MS);
+          setTimeout(function () { restarting = false; }, VEIL_MS);
         });
       }, VEIL_MS);
     }
-
-    // Anything that moves or tries to move the page restarts the quiet
-    // clock; a gesture at the end counts only if the clock had run out
-    // before it began.
-    function freshGesture() {
-      var now = performance.now();
-      var fresh = now - lastActivity > LOOP_QUIET_MS;
-      lastActivity = now;
-      return fresh;
-    }
-
-    window.addEventListener("wheel", function (e) {
-      var fresh = freshGesture();
-      if (e.deltaY > 0 && fresh && atEnd()) loop();
-    }, { passive: true });
-    window.addEventListener("touchstart", function (e) {
-      touchY = e.touches.length === 1 ? e.touches[0].clientY : null;
-    }, { passive: true });
-    window.addEventListener("touchmove", function (e) {
-      if (touchY === null || !atEnd()) return;
-      if (touchY - e.touches[0].clientY > LOOP_SWIPE_PX) {
-        touchY = null;
-        loop();
-      }
-    }, { passive: true });
-    window.addEventListener("keydown", function (e) {
-      var typing = e.target.closest && e.target.closest("input, textarea, select, [contenteditable]");
-      var down = e.key === "ArrowDown" || e.key === "PageDown" || e.key === "End" || (e.key === " " && !typing);
-      if (typing || !down) return;
-      var fresh = freshGesture();
-      if (fresh && atEnd()) {
-        e.preventDefault();
-        loop();
-      }
-    });
-    // The page moving by itself (the scroll of an earlier gesture, a loop)
-    // is activity too.
-    window.addEventListener("scroll", function () { lastActivity = performance.now(); }, { passive: true });
 
     window.addEventListener("scroll", requestUpdate, { passive: true });
     window.addEventListener("resize", requestUpdate);
@@ -424,8 +379,8 @@
     window.addEventListener("pageshow", requestUpdate);
     update();
 
-    return { scrollToStage: scrollToStage, update: requestUpdate };
+    return { scrollToStage: scrollToStage, restart: restart, update: requestUpdate };
   }
 
-  window.EmjiveProductStages = { mount: mount, screenPx: screenPx };
+  window.EmjiveProductStages = { mount: mount, screenPx: screenPx, entry: entry };
 })();

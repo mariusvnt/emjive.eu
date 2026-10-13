@@ -61,11 +61,16 @@ const ASSETS_ROOT = join(REPO_ROOT, "assets", "series");
 // centre. Mirrored by --xray-crop (css/style.css) and --hero-crop
 // (series/<slug>/hero.css); validate-data.js compares them.
 //   xray: the backdrop is centred in a box wider than a phone, so a phone shows
-//         the middle ~70% of it at most (a 640px-wide viewport); 0.74 clears that.
+//         the middle part of it only. The box is --xray-width wide (css/style.css:
+//         a function of the screen's width) and a 375px phone — where the screen
+//         is the largest share of it — shows 0.83 of it, a 640px one 0.74. 0.85
+//         clears both, so the cut picture always reaches past the screen's
+//         edges (0.74 left a band of page background at the sides of a narrow
+//         phone's screen).
 //   hero: the picture is as tall as the screen, so a portrait phone (aspect
 //         <= 3:5, see PHONE_QUERY) shows at most 0.6 * 9/16 = 34% of its width;
 //         0.40 clears that.
-const PHONE_CROP = { xray: 0.74, hero: 0.4 };
+const PHONE_CROP = { xray: 0.85, hero: 0.4 };
 
 // Quality below the 82 the rest of the site uses for the low versions: they are
 // the throwaway first look, the full file follows. The x-ray is a soft,

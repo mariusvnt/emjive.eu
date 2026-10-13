@@ -252,7 +252,7 @@ export { toolkit };
   var BOX_EDGE_DEVICE_PX = 1;
   // The edges and the faces are the colour the page gives the lines
   // (--category-col); the edges this opaque at full (they fade in with the
-  // box).
+  // box). The dimension labels are the same colour and the same opacity.
   var BOX_EDGE_OPACITY = 0.16;
   // How much better (in NDC) another run of edges has to be before the
   // measured edges move to it — otherwise two near-equal candidates flicker while rotating.
@@ -1423,6 +1423,9 @@ export { toolkit };
     // The model, its edges and the brackets, in the group the fit scales.
     var fitGroup = null;
     var fitScale = 1;
+    // The farthest a corner of the box (or, with no box, the bounding sphere)
+    // reaches from the orbit target, in world units (computeFit).
+    var fitReach = 0;
     // What frameCamera() framed: the sphere (the cut travels across it) and
     // the radius the view actually fits (the sphere, times the orbit's zoom).
     var frameSphere = null;
@@ -1607,6 +1610,8 @@ export { toolkit };
         var label = document.createElement("span");
         label.className = "emjive-3d-viewer__dim";
         label.setAttribute("aria-hidden", "true");
+        // The box's own colour, at the box's own opacity (placeLabel).
+        label.style.color = lineColor.getStyle();
         wrapper.appendChild(label);
         bracketLabels.push(label);
       });
@@ -1629,6 +1634,7 @@ export { toolkit };
     // camera is framed.
     function computeFit() {
       fitScale = 1;
+      fitReach = 0;
       if (!framedRadius) return;
       var reach = frameSphere ? frameSphere.radius : 0;
       if (minBox) {
@@ -1640,6 +1646,7 @@ export { toolkit };
           reach = Math.max(reach, corner.distanceTo(controls.target));
         }
       }
+      fitReach = reach;
       var room = framedRadius * 0.95;
       fitScale = Math.min(1, room / (reach * BLUEPRINT_SIZE_MAX));
     }
@@ -1696,7 +1703,7 @@ export { toolkit };
       var reach = BRACKET_LABEL_PX + Math.abs(px) * label.offsetWidth / 2 + Math.abs(py) * label.offsetHeight / 2;
       label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
         "px) translate(-50%, -50%)";
-      label.style.opacity = String(opacity);
+      label.style.opacity = String(opacity * BOX_EDGE_OPACITY);
     }
 
     // Model-space point -> pixels from the viewer's top-left, into `out`.
@@ -2007,6 +2014,11 @@ export { toolkit };
 
     // ---- idle reset / nudge / drift state (per-instance) ----
     var isDragging = false;
+    // How many times POST_INERTIA_PAUSE the viewer waits before easing back
+    // to its default pose (handle.setRollbackPauseScale): the product page's
+    // design stage, where the visitor is looking at what they changed, waits
+    // longer.
+    var rollbackPauseScale = 1;
     var waitingForSettle = false;
     var pauseTimeoutId = null;
     var resetTweenActive = false;
@@ -2288,6 +2300,27 @@ export { toolkit };
           bottom: (1 - (v.y - r) * k) / 2 * currentHeight,
           top: (1 - (v.y + r) * k) / 2 * currentHeight
         };
+      },
+      // How long the stillness lasts, as a multiple of the usual, before the
+      // model eases back to its default pose once released. Applies from the
+      // next release.
+      setRollbackPauseScale: function (scale) {
+        rollbackPauseScale = scale > 0 ? scale : 1;
+      },
+      // What the page needs to draw a circle round the model that is as big as
+      // the model is: the reach of its box from the middle of the viewer, in
+      // pixels, for a model at the fit and the base size (the radius of the
+      // circle at fit 1 and size factor 1 is reachPx * fitScale; the model's
+      // scale at fit f and size factor s is 1 + (fitScale * s - 1) * f, the
+      // radius of the circle then is reachPx times that). null until the
+      // model is in.
+      sizeRing: function () {
+        if (!blueprint || !modelLoaded || !fitReach) return null;
+        camera.updateMatrixWorld();
+        var depth = camera.position.distanceTo(controls.target);
+        if (!(depth > 0)) return null;
+        var perUnit = camera.projectionMatrix.elements[5] / depth * currentHeight / 2;
+        return { reachPx: fitReach * perUnit, fitScale: fitScale };
       },
       // The viewer is out of sight: no drawing and no idle nudge until it's
       // back (it then redraws once, in case the canvas was discarded).
@@ -2635,7 +2668,7 @@ export { toolkit };
                 resetTweenFromUp.copy(camera.up);
                 resetTweenStartTime = performance.now();
                 resetTweenActive = true;
-              }, POST_INERTIA_PAUSE);
+              }, POST_INERTIA_PAUSE * rollbackPauseScale);
             }
           }
         }

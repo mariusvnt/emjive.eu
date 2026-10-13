@@ -11,7 +11,7 @@
    where it becomes the gallery's old row — the live 3D model to turn, the
    bar behind it, the name — and a tap on the model, the bar or the name
    opens its page. The first such tap also turns gravity on: the others drop
-   into a pile, and from then on the phone's own movements tilt it.
+   into a pile.
 
    Two ways of drawing the stack, the same layout and the same wave:
      - the 3D stack (js/stack-scene.js, a lazy chunk with three.js and a
@@ -26,7 +26,7 @@
    product page's (one WebGL context), whichever draws the rest.
 
    window.EmjiveGalleryStack = { mount(stage, options) } -> {
-     setFilter(ids), setActive(on), reset()
+     setFilter(ids), setActive(on)
    } — mounted by js/gallery.js. options: products, slug, active, focused
    (an id to start focused on: Back from its page), onFocusChange(id|null).
    ========================================================================== */
@@ -66,14 +66,6 @@
   var FADE_MS = 150;
   // A press that moves further than this is a scroll, not a tap.
   var TAP_SLOP = 6;
-
-  // ---- device motion --------------------------------------------------------
-  var STANDARD_GRAVITY = 9.81;
-  // Low-pass on the sensor: each reading moves the gravity this share of the
-  // way towards itself.
-  var MOTION_SMOOTHING = 0.15;
-  // A shake can push past 1 g, but not without bound.
-  var MOTION_MAX_G = 2.5;
 
   var reducedMotion = window.matchMedia
     ? window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -466,8 +458,6 @@
       labelType.textContent = product.category ? "." + product.category.toLowerCase() : "";
       barLink.href = item.href;
       label.href = item.href;
-      var r = figure.getBoundingClientRect();
-      focusEl.style.setProperty("--focus-origin", (r.left + r.width / 2) + "px");
     }
 
     // A click on the model (not a drag that turned it) opens the product's
@@ -699,90 +689,13 @@
       if (hadFocus || opts.fromKeyboard) item.listButton.focus();
     }
 
-    /* ---- gravity and the phone's movements --------------------------------------
-       The first tap on a product turns gravity on — and, where there is one,
-       the motion sensor, whose permission (iOS) can only be asked inside that
-       tap. Gravity is the sensor's, rotated from the device's axes to the
-       screen's; with no sensor, or a refusal, it simply points down. */
-    var motion = { asked: false, g: null, flip: null };
-
-    function enableGravity(fromGesture) {
-      if (!state.gravity) {
-        state.gravity = true;
-        if (state.scene) state.scene.enableGravity();
-      }
-      if (!fromGesture || motion.asked) return;
-      var DeviceMotion = window.DeviceMotionEvent;
-      if (!DeviceMotion) return;
-      motion.asked = true;
-      if (typeof DeviceMotion.requestPermission === "function") {
-        // Called synchronously from the tap, as iOS demands. A request that
-        // fails (not in a gesture after all, a transient error) is asked
-        // again on the next tap; a refusal stands until the page is reloaded.
-        DeviceMotion.requestPermission().then(function (answer) {
-          if (answer === "granted") listenToMotion();
-          else console.warn("emjive: motion access was " + answer + "; the stack stays upright");
-        }).catch(function (err) {
-          motion.asked = false;
-          console.warn("emjive: could not ask for motion access", err);
-        });
-      } else {
-        // iOS shows the method only on secure pages (https, or localhost):
-        // over plain http it is missing, no prompt can appear and the sensor
-        // stays silent.
-        if (window.isSecureContext === false) {
-          console.warn("emjive: device motion needs a secure page (https) on iOS; the stack stays upright");
-        }
-        listenToMotion();
-      }
-    }
-
-    function screenAngle() {
-      var o = window.screen && window.screen.orientation;
-      if (o && typeof o.angle === "number") return o.angle;
-      return typeof window.orientation === "number" ? window.orientation : 0;
-    }
-
-    // accelerationIncludingGravity is the reaction to gravity, in the
-    // device's axes (x right, y up, z out of the screen): gravity itself is
-    // its opposite, turned by the screen's angle into the screen's axes.
-    // Browsers have disagreed on its sign (iOS Safari has long reported the
-    // other one), so the first steady reading decides: the phone is held up
-    // in front of the visitor, so "down" is towards the screen's bottom.
-    function onMotion(e) {
-      var a = e.accelerationIncludingGravity;
-      if (!a || a.x === null || a.y === null || a.z === null) return;
-      var angle = screenAngle() * Math.PI / 180;
-      var gx = -a.x / STANDARD_GRAVITY;
-      var gy = -a.y / STANDARD_GRAVITY;
-      var gz = -a.z / STANDARD_GRAVITY;
-      var sx = gx * Math.cos(angle) - gy * Math.sin(angle);
-      var sy = gx * Math.sin(angle) + gy * Math.cos(angle);
-      if (motion.flip === null) {
-        if (Math.abs(sy) < 0.3) return;
-        motion.flip = sy > 0;
-      }
-      if (motion.flip) {
-        sx = -sx;
-        sy = -sy;
-        gz = -gz;
-      }
-      var g = motion.g || { x: sx, y: sy, z: gz };
-      g.x += (sx - g.x) * MOTION_SMOOTHING;
-      g.y += (sy - g.y) * MOTION_SMOOTHING;
-      g.z += (gz - g.z) * MOTION_SMOOTHING;
-      var length = Math.sqrt(g.x * g.x + g.y * g.y + g.z * g.z);
-      if (length > MOTION_MAX_G) {
-        g.x *= MOTION_MAX_G / length;
-        g.y *= MOTION_MAX_G / length;
-        g.z *= MOTION_MAX_G / length;
-      }
-      motion.g = g;
-      if (state.scene && state.gravity) state.scene.setGravity(g.x, g.y, g.z);
-    }
-
-    function listenToMotion() {
-      window.addEventListener("devicemotion", onMotion);
+    /* ---- gravity ----------------------------------------------------------------
+       The first tap on a product turns gravity on: the others drop into a
+       pile. It always points down — the phone's own movements don't tilt it. */
+    function enableGravity() {
+      if (state.gravity) return;
+      state.gravity = true;
+      if (state.scene) state.scene.enableGravity();
     }
 
     /* ---- taps on the stack ----------------------------------------------------- */
@@ -808,7 +721,7 @@
       var id = pick(e.clientX, e.clientY, e.target);
       var item = id !== null && id !== undefined ? state.byId[String(id)] : null;
       if (item) {
-        enableGravity(true);
+        enableGravity();
         focus(item);
       } else {
         unfocus();
@@ -865,7 +778,6 @@
       });
       state.scene = scene;
       stage.classList.add("is-3d");
-      if (state.gravity && motion.g) scene.setGravity(motion.g.x, motion.g.y, motion.g.z);
     }
 
     function wantScene() {
@@ -1039,17 +951,6 @@
         placeFocusRow();
         relayout(false);
         whenPageRevealed(startScene);
-      },
-
-      // The hero plays again: back to before the entrance — nothing focused,
-      // no gravity, the rings back on the hand — and everything follows the
-      // entrance again as it's scrolled through.
-      reset: function () {
-        unfocus({ instant: true });
-        state.gravity = false;
-        if (state.scene) state.scene.reset();
-        layout();
-        setStage(0);
       }
     };
   }

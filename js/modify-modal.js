@@ -8,12 +8,13 @@
    A bottom sheet (.size-modal--drawer, same as product.html's size sheet)
    resting just above whichever bar the page has — right on top of the
    tapped row, when that's in the bar's drawer — holding:
-     - a small, working copy of the product carousel, its top half sticking
-       out above the sheet: the live 3D model (drag rotates it) plus the
-       product's photos, paged by the same code as product.html's carousel
-       (js/carousel.js). The sheet never waits for the model: it opens on
-       the model's poster image, and the viewer is built once it has slid
-       in (scheduleViewer);
+     - the live 3D model (drag rotates it), its top half sticking out above
+       the sheet, in the frame of product.html's carousel (js/carousel.js,
+       with the one slide: no paging, no photos here), and next to it a
+       "See photos" button — for a product that has photos — which takes
+       the visitor to the product page, where they are the first stage. The
+       sheet never waits for the model: it opens on the model's poster
+       image, and the viewer is built once it has slid in (scheduleViewer);
      - the metal picker, which re-tints that model in place;
      - the size field, pre-filled with the item's current size, with the
        "Find my size" button inline to its right (the size finder,
@@ -36,8 +37,8 @@
    simply slide out through their own edges.
 
    Its Select mode (openSelect, the homepage grid's tiles) is the same sheet
-   for a product not selected yet: the strip is one Select button, the item
-   is the product at its default metal with no size, and Select adds it.
+   for a product not selected yet: the strip is one Add button, the item
+   is the product at its default metal with no size, and Add adds it.
 
    window.EmjiveModifyModal = { open(item, index, options),
      openSelect(product, slug, options), isOpen() }.
@@ -129,6 +130,11 @@
   viewport.appendChild(track);
   carouselEl.appendChild(viewport);
   carouselFrame.appendChild(carouselEl);
+  // Next to the model: the product's photos are its page's first stage.
+  var photosToggle = el("button", "size-modal__photos-toggle", "See photos");
+  photosToggle.type = "button";
+  photosToggle.hidden = true;
+  carouselFrame.appendChild(photosToggle);
 
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
@@ -222,7 +228,7 @@
   var unselectBtn = stripButton("modify-strip__unselect", "modify-strip__label", "Unselect");
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
   // Select mode's one button, in place of the two above.
-  var selectBtn = stripButton("modify-strip__select", "modify-strip__label", "Select");
+  var selectBtn = stripButton("modify-strip__select", "modify-strip__label", "Add");
   // After the buttons, so it paints over the label it inverts.
   var saveBand = stripBand("modify-strip__band");
   strip.appendChild(unselectBtn);
@@ -420,10 +426,11 @@
     tintAfterPaint();
   }
 
-  /* ---- carousel slides ---------------------------------------------------
-     Slide 1 is the model — its poster image to begin with (see
-     scheduleViewer), or the icon for a product with no model — then the
-     photos. No captions and no x-ray backdrop at this size. */
+  /* ---- the model's slide ---------------------------------------------------
+     The one slide is the model — its poster image to begin with (see
+     scheduleViewer), or the icon for a product with no model. The photos
+     aren't here (the "See photos" button next to it goes to them). No
+     captions and no x-ray backdrop at this size. */
   function iconSlide() {
     var src = iconSrc(state.selectedMetal);
     if (!src) return null;
@@ -466,12 +473,23 @@
       if (fallback) track.appendChild(fallback);
     }
 
-    ((product.assets && product.assets.photos) || []).forEach(function (photo) {
-      track.appendChild(window.EmjiveCarousel.imageSlide(photo.src, product.name));
-    });
-
-    carouselFrame.classList.toggle("product-carousel--single", track.children.length <= 1);
+    photosToggle.hidden = !(product.assets && product.assets.photos && product.assets.photos.length);
+    carouselFrame.classList.add("product-carousel--single");
   }
+
+  // The photos are the first stage of the product's page: there, if this is
+  // that page already (the sheet opened from its own bar's drawer), the sheet
+  // closes and the page goes back to the top.
+  function seePhotos() {
+    var href = window.EmjiveSeries.productHref(state.product);
+    if (window.location.pathname.replace(/\/+$/, "") === href) {
+      close();
+      window.scrollTo({ top: 0, left: 0 });
+      return;
+    }
+    window.location.href = href;
+  }
+  photosToggle.addEventListener("click", seePhotos);
 
   // The sheet goes up first and the model follows. Building a viewer means a
   // fresh WebGL context and a synchronous shader compile (js/three-viewer.js),
@@ -753,7 +771,7 @@
     state.selectedMetal = item.metal;
     state.options = options;
     state.mode = options.mode === "select" ? "select" : "modify";
-    modal.setAttribute("aria-label", state.mode === "select" ? "Select " + (product.name || "item") : "Modify selection");
+    modal.setAttribute("aria-label", state.mode === "select" ? "Add " + (product.name || "item") : "Modify selection");
 
     // Every metal's icon and poster fetched and decoded now, so a pick
     // swaps the row's icon and the carousel's stand-in at once.

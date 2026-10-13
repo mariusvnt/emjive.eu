@@ -7,7 +7,7 @@
    slab in depth, so the pile stays a pile and never wanders off behind
    itself. js/gallery-stack.js owns everything about the stack that isn't
    drawing or physics — the layout, the wave, the rings, the focus row, the
-   taps, the device's motion — and drives this through the handle returned
+   taps — and drives this through the handle returned
    by createStackScene(). One WebGL context and one environment map for all
    of it, where the old grid had one of each per card.
 
@@ -29,10 +29,10 @@
      the entrance (setEntrance(p < 1))  no physics: each model is placed
                                         where the shared wave puts it
                                         (options.poseAt)
-     floating (p = 1, no gravity yet)   bodies drift about their places
-                                        (springs and a slow noise), turning
-     gravity (enableGravity)            they fall and pile up; setGravity()
-                                        tilts it with the phone
+     floating (p = 1, no gravity yet)   bodies stay where they are, each
+                                        turning slowly about the vertical
+                                        axis and nothing else; no collisions
+     gravity (enableGravity)            they fall and pile up
    ========================================================================== */
 
 import * as T from "three";
@@ -49,16 +49,15 @@ var GRAVITY = 30;
 var STEP = 1 / 60;
 var MAX_SUBSTEPS = 3;
 
-// Floating: a pull back towards its place (per second squared, per unit
-// away), a slow drifting force, the damping that keeps both gentle, and how
-// fast each one turns.
-var FLOAT_SPRING = 2.5;
-var FLOAT_NOISE = 0.35;
-var FLOAT_DAMPING = 0.6;
+// Floating: how fast each one turns about the vertical axis (radians per
+// second, about; each has its own speed and way round).
 var FLOAT_SPIN = 0.5;
-var FLOAT_SPIN_DAMPING = 0.01;
 // Falling.
 var FALL_DAMPING = 0.05;
+// A margin all round each collider, on top of its model's minimum box (in
+// world units: 2px): two models never touch face to face, they come to rest
+// a hair apart, which keeps a pile from jittering where its boxes graze.
+var COLLIDER_MARGIN = 0.02;
 // The slab's depth, over the largest body's diagonal: room for any of them
 // to turn every way between its two faces.
 var DEPTH_ROOM = 1.05;
@@ -67,8 +66,6 @@ var DEPTH_ROOM = 1.05;
 // model let go of takes to shrink back to its size in the stack.
 var FLY_MS = 550;
 var SHRINK_MS = 350;
-// A change of gravity smaller than this (in g) doesn't wake a sleeping pile.
-var GRAVITY_WAKE = 0.02;
 
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
 function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
@@ -315,10 +312,11 @@ export function createStackScene(options) {
       half = size.multiplyScalar(k / 2);
       offset = entry.box.getCenter(new T.Vector3()).sub(entry.center).multiplyScalar(k);
     }
-    // Never thinner than a sliver, or a flat one slips through the others.
-    half.x = Math.max(half.x, 0.02);
-    half.y = Math.max(half.y, 0.02);
-    half.z = Math.max(half.z, 0.02);
+    // Never thinner than a sliver, or a flat one slips through the others;
+    // and the margin round it all.
+    half.x = Math.max(half.x, 0.02) + COLLIDER_MARGIN;
+    half.y = Math.max(half.y, 0.02) + COLLIDER_MARGIN;
+    half.z = Math.max(half.z, 0.02) + COLLIDER_MARGIN;
     return { half: half, offset: offset, orient: orient };
   }
 
@@ -385,17 +383,29 @@ export function createStackScene(options) {
     walls.forEach(function (wall) { world.addBody(wall); });
   }
 
-  // The focus row's figure: the pile keeps off it while it's there.
+  // The focus row's figure: the pile keeps off it while it's there — and off
+  // the strip of the domain between it and the left wall, which is narrower
+  // than a model (the row sits at the content's margin): a model that got
+  // into it, wedged between the figure and the wall, stayed there. So the
+  // body is one box, from the left wall and the top of the domain to the
+  // figure's right side and bottom.
+  var lastSlot = null;
   function setSlotBody(slot) {
     if (slotBody) {
       world.removeBody(slotBody);
       slotBody = null;
     }
+    lastSlot = slot || null;
     if (!slot) return;
+    var d = options.domain();
     var half = slot.size * 0.4 / PX;
+    var left = Math.min(d.left / PX, slot.x / PX - half);
+    var right = slot.x / PX + half;
+    var top = Math.max(-d.top / PX, -slot.y / PX + half);
+    var bottom = -slot.y / PX - half;
     slotBody = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC });
-    slotBody.addShape(new CANNON.Box(new CANNON.Vec3(half, half, depth)));
-    slotBody.position.set(slot.x / PX, -slot.y / PX, 0);
+    slotBody.addShape(new CANNON.Box(new CANNON.Vec3((right - left) / 2, (top - bottom) / 2, depth)));
+    slotBody.position.set((left + right) / 2, (top + bottom) / 2, 0);
     world.addBody(slotBody);
   }
 
@@ -410,6 +420,8 @@ export function createStackScene(options) {
     camera.bottom = -h / PX;
     camera.updateProjectionMatrix();
     buildWalls();
+    // The focus row has moved with the screen.
+    if (lastSlot && options.slot) setSlotBody(options.slot());
     dirty = true;
   }
 
@@ -471,21 +483,19 @@ export function createStackScene(options) {
     entry.inWorld = false;
   }
 
-  // Floating or falling: how a body moves.
+  // Floating or falling: how a body moves. Floating is not physics: the body
+  // stays where it is and is turned by floatSpin(), touching nothing; falling
+  // is (gravity switched on, everything colliding).
   function tuneBody(entry) {
     var b = entry.body;
     if (gravityOn) {
       b.linearDamping = FALL_DAMPING;
       b.angularDamping = FALL_DAMPING;
       b.allowSleep = true;
+      b.collisionFilterMask = -1;
     } else {
-      b.linearDamping = FLOAT_DAMPING;
-      b.angularDamping = FLOAT_SPIN_DAMPING;
       b.allowSleep = false;
-      if (b.angularVelocity.lengthSquared() < 1e-6) {
-        var a = entry.phase;
-        b.angularVelocity.set(Math.cos(a), Math.sin(a * 1.7), Math.sin(a)).scale(FLOAT_SPIN, b.angularVelocity);
-      }
+      b.collisionFilterMask = 0;
     }
   }
 
@@ -512,23 +522,25 @@ export function createStackScene(options) {
      flight, a floating stack (always), a pile until it sleeps. */
   var lastTime = 0;
   var raf = 0;
-  var force = new CANNON.Vec3();
+  var yAxis = new T.Vector3(0, 1, 0);
 
-  function floatForces(now) {
-    var t = now / 1000;
+  // Floating, a model's idle: it turns about the vertical axis (the world's
+  // y, up on the screen) and nothing else — it doesn't drift from its place.
+  // The body is turned along with it, for the picking and for the moment
+  // gravity takes over.
+  function floatSpin(dt) {
+    var moved = false;
     entries.forEach(function (entry) {
-      if (!entry.inWorld) return;
-      var b = entry.body;
-      var home = targets[entry.id];
-      var hx = home ? home.x / PX : b.position.x;
-      var hy = home ? -home.y / PX : b.position.y;
-      force.set(
-        -FLOAT_SPRING * (b.position.x - hx) + FLOAT_NOISE * Math.sin(t * 0.7 + entry.phase),
-        -FLOAT_SPRING * (b.position.y - hy) + FLOAT_NOISE * Math.cos(t * 0.53 + entry.phase * 1.3),
-        0
-      );
-      b.applyForce(force);
+      if (!entry.inWorld || entry.anim) return;
+      var speed = FLOAT_SPIN * (0.7 + 0.6 * Math.abs(Math.cos(entry.phase))) * (Math.sin(entry.phase * 2.3) < 0 ? -1 : 1);
+      tmpQ.setFromAxisAngle(yAxis, speed * dt);
+      entry.group.quaternion.premultiply(tmpQ);
+      var q = entry.group.quaternion;
+      entry.body.quaternion.set(q.x, q.y, q.z, q.w);
+      twistSprite(entry);
+      moved = true;
     });
+    return moved;
   }
 
   // A picture standing in for a model always faces the camera; it turns with
@@ -598,9 +610,12 @@ export function createStackScene(options) {
     var changed = dirty;
     dirty = false;
     if (!kinematic) {
-      if (!gravityOn) floatForces(now);
-      world.step(STEP, dt, MAX_SUBSTEPS);
-      if (syncFromBodies()) changed = true;
+      if (!gravityOn) {
+        if (floatSpin(dt)) changed = true;
+      } else {
+        world.step(STEP, dt, MAX_SUBSTEPS);
+        if (syncFromBodies()) changed = true;
+      }
     }
     if (runAnimations(now)) changed = true;
     if (changed) draw();
@@ -821,18 +836,6 @@ export function createStackScene(options) {
     },
 
     // In g, in the screen's axes (x right, y up, z towards the visitor).
-    setGravity: function (x, y, z) {
-      var next = new CANNON.Vec3(x * GRAVITY, y * GRAVITY, z * GRAVITY);
-      var change = next.vsub(gravity).length() / GRAVITY;
-      gravity.copy(next);
-      if (!gravityOn) return;
-      world.gravity.copy(gravity);
-      if (change > GRAVITY_WAKE) {
-        entries.forEach(function (entry) {
-          if (entry.inWorld) entry.body.wakeUp();
-        });
-      }
-    },
 
     pick: function (x, y) {
       return kinematic ? null : pick(x, y);
@@ -940,29 +943,6 @@ export function createStackScene(options) {
     },
 
     resize: resize,
-
-    // The hero plays again: gravity off, every model back to before the
-    // entrance (gallery-stack.js then publishes it from 0).
-    reset: function () {
-      gravityOn = false;
-      world.gravity.set(0, 0, 0);
-      setSlotBody(null);
-      targets = options.targets ? options.targets() : targets;
-      entries.forEach(function (entry) {
-        removeFromWorld(entry);
-        if (entry.anim) {
-          entry.anim.resolve();
-          entry.anim = null;
-        }
-        entry.shrink = null;
-        entry.out = false;
-        entry.group.visible = entry.visible;
-        entry.body.angularVelocity.set(0, 0, 0);
-        entry.restQ.copy(restFor(entry, targets[entry.id]));
-      });
-      kinematic = true;
-      dirty = true;
-    },
 
     dispose: dispose
   };

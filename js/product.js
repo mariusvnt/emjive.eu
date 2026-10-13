@@ -29,6 +29,9 @@
   // number as DESIGN_FROM in js/product-stages.js and --d-in's in
   // css/style.css.
   var DESIGN_FROM = 0.55;
+  // How many times the usual stillness a model waits in the design stage
+  // before easing back to its default pose.
+  var DESIGN_ROLLBACK_PAUSE = 3;
 
   var state = {
     product: null,
@@ -69,6 +72,12 @@
     // specs, linear in the scroll from its first pixel: what the model's rise
     // runs on.
     along: 0,
+    // The share of the design stretch its browsing eases in over
+    // (js/product-stages.js).
+    ramp: 1,
+    // The viewer's rollback pause, as a multiple (DESIGN_ROLLBACK_PAUSE in
+    // the design stage); kept so a viewer built later starts with it.
+    rollbackPauseScale: 1,
     sweep: 0,
     fit: 0,
     // The chosen ring size over the model's base size (setModelSize), and
@@ -76,6 +85,10 @@
     // none: the label bar then shows no size).
     sizeFactor: 1,
     sizeText: "",
+    // The size circle's elements (wireSizeRing) and its sizes as last worked
+    // out (syncSizeRing).
+    sizeRing: null,
+    ringGeo: null,
     // How far the model is lifted on the page, in pixels (refreshStage): on its
     // way to its place in specs, from the first pixel of scrolling.
     lift: 0,
@@ -493,15 +506,17 @@
   // The description (plain text under the title — no heading, nothing to
   // open; a product without one shows nothing there rather than a
   // placeholder), then the product's photos (product.assets.photos) one
-  // under the other, each with what it shows under it — "On display: " and
-  // its description, an em-dash for none. The first photo is the first
-  // paint's picture and is requested at once; the others only once that has
-  // been painted (loadRest, from loadRemainingAssets). Each of those waits
-  // out a loader of its own (js/loader.js cover()); the first is what the
-  // page's arrival loader waits on, and shows as soon as that lifts. A
-  // photo's height is its own
-  // (square until it has loaded), so the feed's room to scroll is measured
-  // again as each one arrives (fitFeed).
+  // under the other, with no gap between them, each with the name of what it
+  // shows in its bottom right corner (its description, set like an item's name
+  // — see captionFor; none, none). After the last, the trail: the last row of
+  // its pixels carried on down, going to the page's colour (buildTrail). The
+  // first photo is the first paint's picture and is requested at once; the
+  // others only once that has been painted (loadRest, from
+  // loadRemainingAssets). Each of those waits out a loader of its own
+  // (js/loader.js cover()); the first is what the page's arrival loader waits
+  // on, and shows as soon as that lifts. A photo's height is its own (square
+  // until it has loaded), so the feed's room to scroll is measured again as
+  // each one arrives (fitFeed).
   function renderFeed(product) {
     var description = document.getElementById("productDescription");
     description.textContent = product.description || "";
@@ -510,6 +525,12 @@
     var list = document.getElementById("productFeed");
     list.innerHTML = "";
     var photos = (product.assets && product.assets.photos) || [];
+    var last = photos.length - 1;
+    var trail = null;
+    if (photos.length) {
+      trail = el("div", "product-feed__trail");
+      trail.setAttribute("aria-hidden", "true");
+    }
     var loaders = photos.map(function (photo, i) {
       var figure = el("figure", "product-feed__photo");
       var frame = el("div", "product-feed__frame");
@@ -520,8 +541,8 @@
       if (i === 0) img.fetchPriority = "high";
       else img.loading = "lazy";
       frame.appendChild(img);
+      if (photo.description) frame.appendChild(captionFor(photo.description));
       figure.appendChild(frame);
-      figure.appendChild(el("figcaption", "product-feed__caption", "On display: " + (photo.description || "—")));
       list.appendChild(figure);
       var started = null;
       return function load() {
@@ -529,14 +550,74 @@
         img.src = photo.src;
         started = window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
         if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
-        started.then(function () { fitFeed(); });
+        started.then(function () {
+          figure.classList.add("is-loaded");
+          if (i === last) buildTrail(trail, img);
+          fitFeed();
+        });
         return started;
       };
     });
+    if (trail) list.appendChild(trail);
     return {
       firstReady: loaders.length ? loaders[0]() : Promise.resolve(),
       loadRest: function () { loaders.forEach(function (load) { load(); }); }
     };
+  }
+
+  // A photo's caption: the name of the item on it, set as an item's name is
+  // everywhere (the label bar's, the rows'): the name in the main face, then
+  // ".category.metal.size" in the mono one, smaller, the size's fraction small
+  // (EmjiveSelection.appendSize). Written in white and inverted over the
+  // photo by blending (css/style.css .product-feed__caption).
+  function captionFor(text) {
+    var caption = el("figcaption", "product-feed__caption");
+    var dot = text.indexOf(".");
+    caption.appendChild(el("span", "product-feed__caption-name", dot === -1 ? text : text.slice(0, dot)));
+    if (dot !== -1) {
+      var type = el("span", "product-feed__caption-type");
+      var rest = text.slice(dot);
+      var sized = /^(.*)\.(\d+(?:\.\d+)?)$/.exec(rest);
+      if (sized) {
+        type.appendChild(document.createTextNode(sized[1] + "."));
+        window.EmjiveSelection.appendSize(type, sized[2]);
+      } else {
+        type.textContent = rest;
+      }
+      caption.appendChild(type);
+    }
+    return caption;
+  }
+
+  // The trail under the last photo: its last row of pixels, copied twice into
+  // canvases one pixel tall that the CSS stretches over the trail's height
+  // (css/style.css .product-feed__trail) — the stretched row is the same
+  // colours as the photo's edge, so there is no seam — one in its own colours
+  // and one that goes to grey, and a layer in the page's own background over
+  // both. Each of those two takes more of the picture the further down it
+  // goes, on a smooth curve, so that the row goes from the picture's colours
+  // through grey to --bg exactly at the bottom, and a change to --bg is
+  // followed with no script. A picture the page can't read back (a failed
+  // load) leaves no trail.
+  function buildTrail(trail, img) {
+    if (!trail || trail.firstChild || !img.naturalWidth) return;
+    try {
+      var width = Math.min(img.naturalWidth, 1600);
+      var row = document.createElement("canvas");
+      row.width = width;
+      row.height = 1;
+      row.getContext("2d").drawImage(img, 0, img.naturalHeight - 1, img.naturalWidth, 1, 0, 0, width, 1);
+      var grey = document.createElement("canvas");
+      grey.width = width;
+      grey.height = 1;
+      grey.getContext("2d").drawImage(row, 0, 0);
+      grey.className = "product-feed__trail-grey";
+      trail.appendChild(row);
+      trail.appendChild(grey);
+      trail.classList.add("is-built");
+    } catch (err) {
+      trail.innerHTML = "";
+    }
   }
 
   /* ---- 2b. the model (design, then specs) ---------------------------------- */
@@ -656,6 +737,7 @@
       // Out of sight while the design stage is (the inspiration stage): no
       // drawing, no idle nudge.
       handle.setPaused(state.designOut);
+      handle.setRollbackPauseScale(state.rollbackPauseScale);
       // Wherever the show is now — a rebuild after the Modify sheet or Back
       // can land in specs.
       applyStageToViewer();
@@ -920,14 +1002,20 @@
   function pickChoice(product, option, choice) {
     var picks = nextPicks(product, option, choice);
     if (!picks) return;
+    // A choice of a plain option that no design has with the other picks as
+    // they are (a link between ribs that aren't side by side) is out: a tap
+    // does nothing.
+    if (!option.multiple && !exactDesign(product, picks)) return;
     var design = landingDesign(product, option, picks);
     if (design) onDesignSelect(product, design.key);
   }
 
   // The choices' states, for the current design: pressed (its picks), dimmed
   // (not one of them, and no design has the combination a tap would make — a
-  // chosen one is never dimmed, whatever turning it off would land on),
-  // disabled (the last one on of a multiple option).
+  // chosen one is never dimmed, whatever turning it off would land on; a
+  // toggle of a multiple option still goes to the nearest design, the choice
+  // of a plain one is disabled as well), disabled (the last one on of a
+  // multiple option; a dimmed choice of a plain one).
   function syncDesignChoices(product) {
     var design = currentDesign(product);
     var buttons = document.querySelectorAll("#productOptions .product-option__choice");
@@ -939,9 +1027,10 @@
       var on = current.indexOf(choice) !== -1;
       var last = !!option.multiple && on && current.length === 1;
       var picks = last ? null : nextPicks(product, option, choice);
+      var unavailable = !on && !(picks && exactDesign(product, picks));
       button.setAttribute("aria-pressed", String(on));
-      button.setAttribute("aria-disabled", String(last));
-      button.classList.toggle("is-unavailable", !on && !(picks && exactDesign(product, picks)));
+      button.setAttribute("aria-disabled", String(last || (unavailable && !option.multiple)));
+      button.classList.toggle("is-unavailable", unavailable);
     });
   }
 
@@ -1195,6 +1284,14 @@
     // feed's room it fitted then is only taken into the track now.
     fitFeed();
     stages.update();
+    // The end of specs: the way back to the first stage (there is no loop).
+    var restart = document.getElementById("productRestart");
+    if (restart) {
+      restart.addEventListener("click", function () {
+        restart.blur();
+        stages.restart();
+      });
+    }
     var resizeQueued = false;
     window.addEventListener("resize", function () {
       if (resizeQueued) return;
@@ -1210,6 +1307,7 @@
     state.toDesign = stage.toDesign;
     state.toSpecs = stage.toSpecs;
     state.along = stage.along || 0;
+    state.ramp = stage.ramp || 1;
     state.flow = stage.stage === "flow";
     refreshStage();
     // The cost chart builds once the last stage is fully in, and starts over
@@ -1232,6 +1330,14 @@
     if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
     // Out of sight (before design's things start to come in): the viewer
     // holds still — no drawing, no idle nudge.
+    // In design, where the visitor looks at what they have changed, a released
+    // model waits three times as long before easing back to its pose (not in
+    // specs, nor in the plain column).
+    var pauseScale = stage.stage === "design" ? DESIGN_ROLLBACK_PAUSE : 1;
+    if (pauseScale !== state.rollbackPauseScale) {
+      state.rollbackPauseScale = pauseScale;
+      if (state.modelHandle && state.modelHandle.setRollbackPauseScale) state.modelHandle.setRollbackPauseScale(pauseScale);
+    }
     var out = !state.flow && stage.toDesign <= DESIGN_FROM;
     if (out === state.designOut) return;
     state.designOut = out;
@@ -1240,14 +1346,16 @@
 
   // The feed is taller than the screen as soon as it has a photo or two: the
   // inspiration stage's stretch of scrolling takes it up (css/style.css
-  // .product-feed) by what it takes for its end to clear the two bars at the
-  // bottom by FEED_CLEAR_REM — the band over them (.product-bottom-veil) and a
-  // little more — published as --feed-room, which js/product-stages.js turns
-  // into the stretch's length. Measured as the feed would stand unshifted,
+  // .product-feed) by what it takes for its end — the trail under the last
+  // photo, already the page's colour there — to stand FEED_CLEAR_REM above the
+  // two bars at the bottom: in the band over them (.product-bottom-veil, 5rem
+  // tall) but above its strong blurs, which would otherwise draw the picture's
+  // colours down into the end of the trail. Published as --feed-room, which
+  // js/product-stages.js turns into the stretch's length. Measured as the feed would stand unshifted,
   // against the bars as high as they ever are (the smallest viewport's
   // bottom), so it holds still once it has moved; again whenever a photo
   // arrives (it was a square until then) and on every resize.
-  var FEED_CLEAR_REM = 3;
+  var FEED_CLEAR_REM = 4;
   var feedRoom = 0;
   var barsHeightProbe = null;
   function fitFeed() {
@@ -1328,15 +1436,29 @@
   // first and slowing gently to a stop there — so that the show coming back
   // down to rest as specs arrives never takes the model with it. (The
   // browsing that follows starts before the transition ends,
-  // js/product-stages.js, and takes it up from there.)
-  function modelRise(w, place, room, ratio) {
+  // js/product-stages.js, and takes it up from there.) The stretch's browsing
+  // eases in (js/product-stages.js entry(), over `ramp` of the stretch, the
+  // show's own curve), so it speeds up from rest by the same amount as the
+  // show does, and the model goes on from there at the pace it has got to.
+  function modelRise(w, place, room, ratio, ramp) {
     var wh = ratio / (ratio + 1);
     var x = clamp(w, 0, 1);
-    if (x <= wh) return wh > 0 ? room * (x / wh) : 0;
+    var a = ramp > 0 ? Math.min(1, ramp) : 1;
+    if (x <= wh) return wh > 0 ? room * browseEntry(x / wh, a) : 0;
     var u = (x - wh) / (1 - wh);
     var dist = place - room;
-    if (dist > 1) return room + dist * (1 - Math.pow(1 - u, clamp(room / (ratio * dist), 1.5, 6)));
+    // The pace the browsing ends at, over the one of a straight line.
+    var pace = 1 / (1 - a / 2);
+    if (dist > 1) return room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
     return room + dist * u * u * (3 - 2 * u);
+  }
+
+  // How far a stretch's browsing has got (0 to 1) at u of the way through it:
+  // js/product-stages.js's ramp, from there.
+  function browseEntry(u, a) {
+    var stages = window.EmjiveProductStages;
+    if (stages && stages.entry) return stages.entry(u, a);
+    return clamp(u, 0, 1);
   }
 
   // The t at which ease(u) = t, by bisection.
@@ -1436,7 +1558,7 @@
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
       place = Math.max(0, box.top + box.height / 2 + browsed - middle);
     }
-    var path = modelRise(state.along, place, room, ratio);
+    var path = modelRise(state.along, place, room, ratio, state.ramp);
     var span = state.flow ? null : modelSpan();
     if (span && span.bottom > span.top) {
       // The model's foot and head where they stand at rest (nothing applied).
@@ -1453,7 +1575,7 @@
       t0 = clamp(1 - (restBottom - room + h / 2) / (viewport + h), 0.08, 0.7);
       t1 = clamp(1 - (restTop - room + h / 2) / (viewport + h), t0 + 0.1, 0.92);
       var along = function (x) {
-        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio);
+        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio, state.ramp);
       };
       var knots = [0, t0, t1, 1];
       var places = [viewport + h / 2, restBottom - along(t0), restTop - along(t1), -h / 2];
@@ -1473,30 +1595,31 @@
     // the show does by itself — it goes up for the design stretch's browsing
     // and comes back down as specs arrives (css/style.css --browse-px).
     var wh = ratio / (ratio + 1);
-    var browsing = room * (wh > 0 ? clamp(state.along / wh, 0, 1) : 1) * (1 - state.fit);
+    var browsing = room * (wh > 0 ? browseEntry(clamp(state.along / wh, 0, 1), state.ramp > 0 ? Math.min(1, state.ramp) : 1) : 1) * (1 - state.fit);
     state.lift = path - browsing;
     stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
     stageEl.style.setProperty("--t0", t0.toFixed(4));
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
+    syncSizeRing();
     fitBrowse(stageEl);
     fitFeed();
     applyStageToViewer();
   }
 
   // The specs stage's column (size, picker, printing technology, costs, shipping,
-  // returns) is tall, and starts under where the model stands: its end can be
-  // under the bars at the bottom of the screen, out of reach (the page doesn't
-  // scroll there). So the stage's stretch of scrolling takes the show up by
-  // what it takes for the end to clear the bars by BROWSE_CLEAR_REM (a blank
-  // four separation gaps tall) — never less than the two bars' own height
-  // (css/style.css --browse-room). Measured as the column would stand
-  // unshifted, so it holds still once it has moved.
-  var BROWSE_CLEAR_REM = 16;
+  // returns, the button back to the photos) is tall, and starts under where
+  // the model stands: its end can be under the bars at the bottom of the
+  // screen, out of reach (the page doesn't scroll there). So the stage's
+  // stretch of scrolling takes the show up by what it takes for the end (the
+  // button) to clear the bars by BROWSE_CLEAR_REM — never less than the two
+  // bars' own height (css/style.css --browse-room). Measured as the column
+  // would stand unshifted, so it holds still once it has moved.
+  var BROWSE_CLEAR_REM = 8;
   var browseRoom = 0;
   function fitBrowse(stageEl) {
     var room = 0;
-    var blocks = stageEl.querySelectorAll(".product-logistics__block");
+    var blocks = stageEl.querySelectorAll(".product-logistics__block, .product-restart");
     var bar = document.getElementById("productSelectBar");
     if (!state.flow && blocks.length && bar) {
       var clear = BROWSE_CLEAR_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
@@ -1522,8 +1645,8 @@
   // bar, and to the dimensions and the cost diagram.
   var SPECS_ANCHOR = 0.25;
   var SPECS_HALF_HEIGHT = 0.13;
-  // The gap before the model in specs, on top of where it would stand: 8rem.
-  var SPECS_GAP_REM = 8;
+  // The gap before the model in specs, on top of where it would stand: 9.5rem.
+  var SPECS_GAP_REM = 9.5;
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 70;
@@ -1537,6 +1660,145 @@
       renderSpecs();
       renderLabelType(state.product);
     }
+    syncSizeRing();
+  }
+
+  /* ---- the size circle ---------------------------------------------------- */
+
+  // How far from the line a touch still takes the circle, each way, and the
+  // room the box has beyond the largest circle.
+  var RING_BAND_PX = 22;
+  var RING_PAD_PX = 4;
+  // Arrow keys: the step, and with Shift the fine one, in millimetres.
+  var RING_KEY_STEP = 0.5;
+  var RING_KEY_FINE = 0.1;
+  var RING_KEY_PAGE = 5;
+
+  // The circle's sizes in pixels, from the viewer's: now (at the fit and the
+  // size the page is at), at the largest size (what the layout under it makes
+  // room for), and per millimetre at the fit — the circle's radius is the
+  // model's reach from its middle, which scales with the size. null with no
+  // live model.
+  function ringGeometry() {
+    var handle = state.modelHandle;
+    var g = handle && handle.sizeRing && handle.sizeRing();
+    if (!g) return null;
+    var scale = 1 + (g.fitScale * state.sizeFactor - 1) * state.fit;
+    return {
+      now: g.reachPx * scale,
+      max: g.reachPx * g.fitScale * (SIZE_MAX_MM / SIZE_BASE_MM),
+      perMm: g.reachPx * g.fitScale / SIZE_BASE_MM
+    };
+  }
+
+  // A disc as an SVG path: for the band, an annulus (evenodd) of two.
+  function ringDisc(c, r) {
+    return "M " + (c - r).toFixed(1) + " " + c.toFixed(1) + " a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (2 * r).toFixed(1) +
+      " 0 a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (-2 * r).toFixed(1) + " 0 Z ";
+  }
+
+  // The circle drawn at the right size (--ring-r), its box and the band that
+  // takes a touch (an annulus: clip-path clips hit-testing as well as
+  // painting) — and what the layout needs: the circle's radius at the largest
+  // size (--ring-r-max, on the design frame), under which the column starts.
+  // Run whenever the size, the fit, the model or the screen changes.
+  var ringShape = "";
+  function syncSizeRing() {
+    var ring = state.sizeRing;
+    if (!ring || !designFrameEl) return;
+    var g = state.flow ? null : ringGeometry();
+    state.ringGeo = g;
+    if (!g) {
+      if (!ring.el.hidden) ring.el.hidden = true;
+      designFrameEl.style.removeProperty("--ring-r-max");
+      ringShape = "";
+      return;
+    }
+    ring.el.hidden = false;
+    var box = 2 * (g.max + RING_BAND_PX + RING_PAD_PX);
+    var shape = box.toFixed(1) + "|" + g.now.toFixed(1);
+    if (shape !== ringShape) {
+      ringShape = shape;
+      var c = box / 2;
+      var inner = Math.max(0, g.now - RING_BAND_PX);
+      var path = "path(evenodd, \"" + ringDisc(c, g.now + RING_BAND_PX) + (inner > 0 ? ringDisc(c, inner) : "") + "\")";
+      ring.hit.style.webkitClipPath = path;
+      ring.hit.style.clipPath = path;
+      ring.el.style.setProperty("--ring-box", box.toFixed(1) + "px");
+      ring.el.style.setProperty("--ring-r", g.now.toFixed(1) + "px");
+      designFrameEl.style.setProperty("--ring-r-max", g.max.toFixed(1) + "px");
+    }
+    var given = state.sizeText !== "";
+    ring.el.classList.toggle("is-unset", !given);
+    ring.hit.setAttribute("aria-valuenow", given ? state.sizeText : String(SIZE_BASE_MM));
+    ring.hit.setAttribute("aria-valuetext", (given ? state.sizeText : String(SIZE_BASE_MM)) + " mm");
+  }
+
+  // The circle's touches and keys: a drag on its band takes the circle to the
+  // finger (the size is the circle's radius over the pixels a millimetre is),
+  // from where it was grabbed — the grip on the line follows the finger
+  // round — to the nearest tenth, between the ends. The field follows.
+  function wireSizeRing(field) {
+    var el = document.getElementById("productSizeRing");
+    var hit = document.getElementById("productSizeRingHit");
+    if (!el || !hit) return;
+    state.sizeRing = { el: el, hit: hit };
+    var grabbed = null;
+
+    function setSize(mm) {
+      mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
+      field.value = mm.toFixed(1);
+      setModelSize(field.value);
+    }
+
+    function currentSize() {
+      var mm = parseFloat(field.value);
+      return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
+    }
+
+    function follow(e) {
+      var g = state.ringGeo;
+      if (!g || !grabbed) return;
+      var r = el.getBoundingClientRect();
+      var dx = e.clientX - (r.left + r.width / 2);
+      var dy = e.clientY - (r.top + r.height / 2);
+      el.style.setProperty("--ring-angle", (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + "deg");
+      setSize((Math.sqrt(dx * dx + dy * dy) - grabbed.offset) / g.perMm);
+    }
+
+    hit.addEventListener("pointerdown", function (e) {
+      if ((e.pointerType === "mouse" && e.button !== 0) || !state.ringGeo) return;
+      e.preventDefault();
+      var r = el.getBoundingClientRect();
+      var dx = e.clientX - (r.left + r.width / 2);
+      var dy = e.clientY - (r.top + r.height / 2);
+      // Where on the band it was taken, so the circle doesn't jump to it.
+      grabbed = { id: e.pointerId, offset: Math.sqrt(dx * dx + dy * dy) - state.ringGeo.now };
+      try { hit.setPointerCapture(e.pointerId); } catch (err) { /* a pointer that is already gone */ }
+      follow(e);
+    });
+    hit.addEventListener("pointermove", function (e) {
+      if (grabbed && e.pointerId === grabbed.id) follow(e);
+    });
+    function release(e) {
+      if (grabbed && e.pointerId === grabbed.id) grabbed = null;
+    }
+    hit.addEventListener("pointerup", release);
+    hit.addEventListener("pointercancel", release);
+
+    hit.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? RING_KEY_FINE : RING_KEY_STEP;
+      var next = null;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") next = currentSize() + step;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = currentSize() - step;
+      else if (e.key === "PageUp") next = currentSize() + RING_KEY_PAGE;
+      else if (e.key === "PageDown") next = currentSize() - RING_KEY_PAGE;
+      else if (e.key === "Home") next = SIZE_MIN_MM;
+      else if (e.key === "End") next = SIZE_MAX_MM;
+      if (next === null) return;
+      e.preventDefault();
+      setSize(next);
+    });
   }
 
   // .has-brackets: the model shows its own dimensions, so the text row
@@ -1619,29 +1881,21 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The specs stage's own size: a slider from 40 to 70 and, right of it, a
-    // field to type an exact size in (any orderable size, in or out of the
-    // slider's range). The two follow each other. What the field holds is what
-    // the sheet opens with; it never works the other way round — the sheet
-    // doesn't write back — so a visitor who never gave a size in specs keeps
-    // getting an empty sheet, an earlier Add included. Same filtering as the
-    // sheet's field; Enter opens the sheet with it. The slider's range is in
-    // millimetres, the one unit with a size run today (a category with no
-    // unit never gets this row at all).
+    // The specs stage's own size: a field to type an exact size in (any
+    // orderable size, in or out of the circle's range) and the circle round
+    // the model, which is as big as the model is at that size and can be
+    // dragged to change it — the two follow each other (setModelSize drives
+    // the circle). What the field holds is what the sheet opens with; it
+    // never works the other way round — the sheet doesn't write back — so a
+    // visitor who never gave a size in specs keeps getting an empty sheet, an
+    // earlier Add included. Same filtering as the sheet's field; Enter opens
+    // the sheet with it. The circle's range is in millimetres, the one unit
+    // with a size run today (a category with no unit never gets this row at
+    // all).
     var specsSize = document.getElementById("productSizeInput");
-    var specsRange = document.getElementById("productSizeRange");
     document.getElementById("productSizeUnit").textContent = unit;
     document.getElementById("productSize").hidden = false;
-    // Until a size has been given the thumb rests mid-way, dimmed: there is
-    // no size yet, only somewhere to start from.
-    function syncRangeFromField() {
-      var size = parseFloat(specsSize.value);
-      var given = window.EmjiveSelection.isValidSize(specsSize.value) && isFinite(size);
-      specsRange.classList.toggle("is-unset", !given);
-      if (given) specsRange.value = String(Math.max(+specsRange.min, Math.min(+specsRange.max, size)));
-    }
-    specsRange.classList.add("is-unset");
-    // The specs stage's "Find my size", under the slider and the field.
+    // The specs stage's "Find my size", centred under the field.
     var specsFinderToggle = document.getElementById("productSizeFinderToggle");
     specsFinderToggle.hidden = !hasFinder;
     specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize); });
@@ -1652,19 +1906,12 @@
       state.seedSize = null;
       if (specsSize.value !== "") return;
       specsSize.value = String(SIZE_BASE_MM);
-      syncRangeFromField();
       setModelSize(specsSize.value);
     };
-    specsRange.addEventListener("input", function () {
-      // Every tenth of a millimetre between the ends.
-      specsSize.value = Number(specsRange.value).toFixed(1);
-      specsRange.classList.remove("is-unset");
-      setModelSize(specsSize.value);
-    });
+    wireSizeRing(specsSize);
     specsSize.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
       if (cleaned !== specsSize.value) specsSize.value = cleaned;
-      syncRangeFromField();
       setModelSize(specsSize.value);
     });
     specsSize.addEventListener("keydown", function (e) {

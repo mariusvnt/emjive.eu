@@ -919,13 +919,12 @@ html[data-gallery-view="grid"] .gallery-stage {
   display: none;
 }
 
-/* ---- the two controls under the header ----------------------------------
-   "switch to grid view" / "switch to stack view" at the top right, "scan the
-   hand again" at the top left (js/gallery.js). Plain text, like the header's
-   rubrics; mix-blend-mode keeps it legible over the photo, the x-ray and the
-   page alike. Under the header (and its menu), over the gallery. The replay
-   only once the reveal is over (.products.is-at-rest): before that, the
-   visitor is in it. */
+/* ---- the control under the header ----------------------------------------
+   "switch to grid view" / "switch to stack view" at the top right
+   (js/gallery.js). Plain text in the site's button format (the --button-*
+   tokens, as the Select bar's); mix-blend-mode keeps it legible over the photo,
+   the x-ray and the page alike. Under the header (and its menu), over the
+   gallery. */
 :root {
   --gallery-controls-height: 2.5rem;
 }
@@ -941,25 +940,21 @@ html[data-gallery-view="grid"] .gallery-stage {
   color: var(--white);
   mix-blend-mode: difference;
   font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  letter-spacing: 0.02em;
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
   cursor: pointer;
   transition: opacity var(--fade-standard) ease, visibility 0s;
   -webkit-tap-highlight-color: transparent;
 }
 .gallery-control--view { right: 0; }
-.gallery-control--replay { left: 0; }
-.products:not(.is-at-rest) .gallery-control--replay {
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
-}
 @media (hover: hover) {
   .gallery-control:hover { opacity: 0.6; }
 }
 
 /* ---- the veil -------------------------------------------------------------
-   What a switch of view and a replay of the hero cross through
+   What a switch of view crosses through
    (js/gallery.js): the page background, over everything but the header, the
    controls and the bars, fading in, the page changing under it, fading back
    out. */
@@ -1064,7 +1059,7 @@ html[data-gallery-view="grid"] .gallery-stage {
    left half, the full-width bar behind it, the name in the right half), at
    the top of the domain. It stays laid out while hidden so its box can be
    measured: the model flies to exactly there. The figure fades in over the
-   model as it lands, then the bar grows out of the model's middle and the
+   model as it lands, then the bar comes in from the screen's left edge and the
    name comes in; going, the name leaves first, the bar after, the figure
    last. */
 :root {
@@ -1112,7 +1107,9 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 .stack-focus .product-card__bar-link {
   transform: translateY(-50%) scaleX(0);
-  transform-origin: var(--focus-origin, 50%) 50%;
+  /* The bar, the screen's width, comes in from the screen's left edge (and
+     leaves towards it). */
+  transform-origin: 0 50%;
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
 }
 .stack-focus.is-labelled .product-card__bar-link {
@@ -1887,12 +1884,6 @@ html[data-gallery-view="grid"] .gallery-stage {
   -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
   mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
 }
-/* The drawer keeps the fade it always had: only the last 1rem, since its
-   rows carry no price column and the label runs the full width. */
-.order-item--drawer .order-item__meta {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 1rem), transparent 100%);
-}
 .order-item__name { font-family: var(--font-main); color: var(--white); }
 .order-item__attrs {
   font-size: calc(0.75rem * var(--text-scale));
@@ -2292,10 +2283,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   --d-on: calc(var(--d-in) * var(--p-out));
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
   --specs-on: var(--s-in);
-  /* How far design's side things have gone, eased in — slow at first, faster
-     toward the end (the square of how far --p-out has fallen): they slide
-     out to the screen's edge as they fade, one step per scroll. */
-  --out-ease: calc((1 - var(--p-out)) * (1 - var(--p-out)));
   --lift: 0px;
   /* The specs column's two vertical gaps, and only these two: the standard one
      between rows, and the separation one between clusters of them — the
@@ -2340,8 +2327,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   flex-direction: column;
   align-items: center;
 }
-/* The loop at the end of specs (js/product-stages.js): the whole stage
-   fades to the page's background, and back. */
+/* The way back from the end of specs (js/product-stages.js restart(), the
+   "Back to photos" button): the whole stage fades to the page's background,
+   and back. */
 .product-stage__pin {
   transition: opacity 0.55s ease;
 }
@@ -2396,22 +2384,28 @@ body:has(.order-checkout-bar:not([hidden])) {
 
 /* ---- 1. the feed (inspiration) ----
    The description, plain text 1.5rem under the title and left-aligned with
-   it, then the photos one under the other, each with "On display: ..."
-   under it at its right edge. The photos are a column of their own, centred:
-   the full width of the screen on a phone, a tile wide (the model's, at most
-   560px) on anything wider. The stage's first stretch of scrolling takes the
-   whole feed up by its room (--feed-room, js/product.js fitFeed), one for one
-   with the scroll, and as design comes in it fades out (--i-out) carrying on
-   up a little (--feed-exit). It lies over the design frame, which is out of
-   sight until then. */
+   it, then the photos one under the other with no gap between them, each with
+   the name of what it shows in its bottom right corner, and under the last
+   one its trail. The feed is as wide as the screen and the photos are its
+   column, flush with the left edge of the page's content span (the screen's
+   own left edge, unless the screen is wider than --max): the full width on a
+   phone, a tile wide (the model's, at most 560px) on anything wider. The stage's first
+   stretch of scrolling takes the whole feed up by its room (--feed-room,
+   js/product.js fitFeed), one for one with the scroll, and as design comes in
+   it fades out (--i-out) carrying on up a little (--feed-exit). It lies over
+   the design frame, which is out of sight until then. */
 .product-feed {
   --feed-w: min(560px, 100%);
   --feed-exit: 6rem;
+  /* How tall the trail under the last photo is. */
+  --trail-h: 32rem;
   position: absolute;
   z-index: 3;
   top: 0;
-  left: 0;
-  right: 0;
+  /* The screen's width, centred on the show (itself centred on the screen). */
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -2426,20 +2420,21 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__description {
   align-self: stretch;
   max-width: 640px;
-  margin: 0;
+  /* From the content's left edge: the margin a wide screen has, plus the
+     page margin. */
+  margin: 0 var(--edge-px) 0 calc(max(0px, 50vw - var(--max) / 2) + var(--edge-px));
   color: var(--black);
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
   line-height: 1.7;
 }
 .product-feed__photos {
-  /* Centred, past the content's own margins on a phone (a column wider than
-     its container overflows both sides alike). */
-  align-self: center;
+  align-self: flex-start;
+  /* The content span's left edge: the screen's, up to --max wide. */
+  margin-left: max(0px, calc(50vw - var(--max) / 2));
   width: var(--feed-w);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
 }
 .product-feed__photos:empty {
   display: none;
@@ -2463,18 +2458,77 @@ body:has(.order-checkout-bar:not([hidden])) {
   user-select: none;
   -webkit-user-select: none;
 }
+/* The caption, in the photo's bottom right corner: white, blended by
+   difference — an inversion of whatever is under the letters, the site's
+   own way of writing over a picture (.gallery-control) — and set as an
+   item's name is (js/product.js captionFor): the name in the main face,
+   ".category.metal.size" after it in the mono one, smaller. Only once the
+   photo is in. */
 .product-feed__caption {
-  margin-top: 0.5rem;
-  font-family: var(--font-main);
+  position: absolute;
+  right: var(--edge-px);
+  bottom: 0.75rem;
+  max-width: calc(100% - 2 * var(--edge-px));
+  color: var(--white);
+  mix-blend-mode: difference;
   font-size: calc(0.75rem * var(--text-scale));
   line-height: 1.2;
-  color: var(--category-col);
   text-align: right;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
 }
-@media (max-width: 640px) {
-  .product-feed__caption {
-    padding: 0 var(--edge-px);
-  }
+.product-feed__photo.is-loaded .product-feed__caption {
+  opacity: 1;
+}
+.product-feed__caption-name {
+  font-family: var(--font-main);
+}
+.product-feed__caption-type {
+  font-family: var(--font-secondary);
+  font-size: 0.65em;
+  margin-left: 0.3em;
+}
+/* The trail under the last photo (js/product.js buildTrail): the photo's last
+   row of pixels, carried on down — two canvases a pixel tall stretched over
+   the trail's height, so every row of it is that row — which goes to the
+   page's background. A canvas of its own colours; over it a copy in grey,
+   and over both a layer in --bg, each one more there the further down: the
+   alpha of each follows a smooth curve (smoothstep, in nine stops) from none
+   at the top to all of it at the bottom — the grey a little before the
+   bottom (at 0.7 of the height) — so a row is a bit more grey and a bit
+   lighter than the one above it, down to a row that is --bg exactly. Nothing
+   in it names a colour but --bg, so a change of the background is followed
+   by itself. The height is reserved from the start (the page is the page's
+   colour there anyway). */
+.product-feed__trail {
+  position: relative;
+  align-self: flex-start;
+  width: var(--feed-w);
+  height: var(--trail-h);
+  overflow: hidden;
+  pointer-events: none;
+}
+.product-feed__trail > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.product-feed__trail > .product-feed__trail-grey {
+  filter: grayscale(1);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
+}
+.product-feed__trail.is-built::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 12.5%, rgba(0, 0, 0, 0.156) 25%, rgba(0, 0, 0, 0.316) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.684) 62.5%, rgba(0, 0, 0, 0.844) 75%, rgba(0, 0, 0, 0.957) 87.5%, #000 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 12.5%, rgba(0, 0, 0, 0.156) 25%, rgba(0, 0, 0, 0.316) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.684) 62.5%, rgba(0, 0, 0, 0.844) 75%, rgba(0, 0, 0, 0.957) 87.5%, #000 100%);
 }
 
 /* The scan band: a full-screen-width inversion band riding the cut of the
@@ -2679,7 +2733,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    outright while a sheet rests where it stands (the page lock,
    html.is-modal-open) or an Add's peek has the bars on the move. */
 .product-bottom-veil {
-  --S: 6rem;
+  --S: 5rem;
   position: fixed;
   z-index: 89;
   left: 0;
@@ -2830,11 +2884,21 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
      picker and the column: the page's own left edge, which on a screen wider
      than the content is where the content starts. */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
-  /* Where the column under the model starts in specs: just under the model,
-     which stands on the first quarter of the screen in specs (8rem lower) —
-     its middle is --lift above the tile's middle, and its brackets reach
-     about a quarter of the tile below that. */
-  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + var(--gap-row));
+  /* How far the content's left edge is from the screen's (the margin a wide
+     screen has, plus the page margin) — and so, from its right edge, the
+     right one. In vw rather than %, which would be read against whatever box
+     it is used in. */
+  --inset-x: calc(max(0px, calc(50vw - var(--max) / 2)) + var(--edge-px));
+  /* The model's box's bottom, from the frame's top: it goes up with the model
+     (the lift). What stands under the model in design — the picker, the
+     options — hangs from here. */
+  --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
+  /* Where the column under the model starts in specs: just under the circle
+     that is the size (js/product.js syncSizeRing publishes its radius at the
+     largest size, --ring-r-max — and its labels' room) or, with none, under
+     the box's brackets, which reach about a quarter of the tile below the
+     model's middle; the model's middle is --lift above the tile's. */
+  --below-top: calc(var(--tile) / 2 - var(--lift) + max(var(--ring-r-max, 0px) + 0.75rem, var(--tile) * 0.26) + var(--gap-row));
 }
 @media (max-width: 640px) {
   .product-design-frame {
@@ -2911,10 +2975,14 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 /* A smartphone: the same query as PHONE_QUERY in js/loader.js (which picks the
    file) — and --xray-crop is PHONE_CROP.xray in scripts/make-image-variants.js
-   (which cuts it); scripts/validate-data.js fails the build if they differ. */
+   (which cuts it); scripts/validate-data.js fails the build if they differ.
+   0.85: the screen is never more than 0.83 of the whole picture's width on a
+   phone (at about 375px; less from there up and down), so the cut picture is
+   always wider than the screen — no cut edge shows, and no band of the
+   page's background at its sides. */
 @media (max-width: 640px) and (max-aspect-ratio: 3/5) {
   .product-design__xray {
-    --xray-crop: 0.74;
+    --xray-crop: 0.85;
   }
 }
 
@@ -3016,9 +3084,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    stands on the first quarter of the screen in specs: the model's middle is
    --lift above the tile's middle, and its brackets reach about a quarter of
    the tile below that. Transparent: the x-ray shows under it. Only what takes
-   taps takes them (the picker, the size's field and slider). */
+   taps takes them (the picker, the size's field). */
 .product-below {
-  --stack-h: calc(3 * var(--metal-square) + 2 * var(--metal-gap));
   position: absolute;
   z-index: 2;
   left: calc(var(--edge-left) + var(--edge-px));
@@ -3037,21 +3104,22 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   gap: var(--gap-row);
   pointer-events: none;
 }
-/* The picker: in design, a stack of squares beside the model, its middle on
-   the tile's middle, the content's left edge for its left. It comes in with
-   design's things, and as specs comes in it fades out with them and back in
-   with specs' (--d-on, --specs-on: never both) — and it changes place in the blank
-   between (js/product.js puts .is-specs-layout on the stage mid-blank): under
-   the model, in the column of the others, with its label. It goes with
-   logistics. */
+/* The picker: in design, a row of squares under the model, centred on the
+   screen (the name of the chosen metal after the last square,
+   .product-metals__tag below), a gap under the model's box and up with it by
+   the lift. It comes in with design's things, and as specs comes in it fades
+   out with them and back in with specs' (--d-on, --specs-on: never both) —
+   and it changes place in the blank between (js/product.js puts
+   .is-specs-layout on the stage mid-blank): in the column of the others, at
+   the left, with its label. It goes with logistics. */
 .product-material {
   position: absolute;
-  left: 0;
-  top: calc(var(--tile) / 2 - var(--stack-h) / 2);
-  /* To the left edge of the screen as it fades: its own left is the content's
-     (the margin a wide screen has, plus the page margin) and 6rem more takes it
-     clear with its name. Not in the specs column: .is-specs-layout, below. */
-  transform: translateX(calc(var(--out-ease) * -1 * (max(0px, calc(50vw - var(--max) / 2)) + var(--edge-px) + 6rem)));
+  /* The screen's middle, measured from the column's own left (the column
+     starts --inset-x in; it is never wider than the screen less two of
+     those), the picker's squares centred on it. */
+  left: calc(50vw - var(--inset-x));
+  top: calc(var(--model-bottom) + var(--gap-row));
+  transform: translateX(-50%);
   /* In and out with design, in with specs: never two of those at once (each
      phase waits for the one before). */
   opacity: calc(var(--d-on) + var(--specs-on));
@@ -3086,15 +3154,16 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    choice is its name with the site's dot before it, always there and filled
    on the chosen one(s) (the same recipe as the shipping pick list), so a
    choice never shifts when it is picked. A choice that would land on another
-   design than the one its combination names is dimmed (still a tap away);
-   the last one on of a multiple option can't be turned off. Absolute, just
-   under the model's box, and up with it by the lift; in and out with design
-   (--d-on). */
+   design than the one its combination names is dimmed (a toggle of several
+   still goes to the nearest design; the choice of a plain option, like linked
+   or unlinked, does nothing); the last one on of a multiple option can't be
+   turned off. Absolute, under the picker (a gap under it), and up with the
+   model by the lift; in and out with design (--d-on). */
 .product-options {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift) + var(--gap-row));
+  top: calc(var(--model-bottom) + var(--gap-row) * 2 + var(--metal-square));
   display: flex;
   flex-direction: column;
   gap: calc(var(--gap-row) / 2);
@@ -3153,126 +3222,114 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-option__choice[aria-disabled="true"] {
   cursor: default;
 }
-/* The specs stage's size: the label "Size" on the left, then — in the column
-   where the printing technology's name stands — the slider and, to its right,
-   the typed field (the size sheet's own, .size-modal__custom-*, the iOS
-   no-zoom input included), and under them the "Find my size" button.
-   In and out with specs. */
+/* The specs stage's size: the typed field centred on the screen under the
+   circle that is the model's size (.product-size-ring, below), and the "Find my
+   size" button centred under the field. The field is the sheet's own
+   (.size-modal__custom-*, the iOS no-zoom input included). In and out with
+   specs. */
 .product-size {
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-  align-items: baseline;
+  position: relative;
+  /* Centred on the screen: its own middle on the screen's, measured from the
+     column's left. */
+  left: calc(50vw - var(--inset-x));
+  transform: translateX(-50%);
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
   opacity: var(--specs-on);
 }
 .product-size[hidden] {
   display: none;
 }
-.product-size__label {
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.5;
-  color: var(--black);
-}
 .product-size__controls {
   pointer-events: auto;
   display: flex;
-  /* The slider's line is the field's underline (see below), so the two share
-     a bottom edge. */
-  align-items: flex-end;
-  /* The picker's gap (--metal-gap) between the slider and the field. */
-  gap: var(--metal-gap);
-  min-width: 0;
+  justify-content: center;
 }
 /* The field and its underline. */
 .product-size__field {
   position: relative;
   flex: none;
   display: flex;
-  /* The row's baseline is the field's, so that the label lines up with its
-     figures (a row's baseline comes from its first item, and the slider,
-     first now, has no text). The field is the tallest item, so it still sits
-     at the row's bottom beside the slider. */
-  align-self: baseline;
 }
-/* The slider: a hairline track and the selection dot (--dot, the one that
-   marks the picker's chosen name), both in --category-col (a field's underline
-   colour). What takes the grip is a box four times the dot's size, centred on it
-   (the thumb is that box, with the dot drawn in its middle) — a silent help,
-   never drawn: no background, outline, shadow or tap highlight of its own;
-   keyboard focus shows by the dot going black. The track runs exactly along the size field's
-   underline: the input is a thumb's height tall with a generous padding to
-   find with a finger (centred, so the track stays in the middle of it), and
-   is shifted down so that middle is the underline's line. Dimmed until a size
-   has been given. */
-.product-size__range {
-  --hit: calc(var(--dot) * 4);
-  --range-pad: 0.5rem;
-  --tick: var(--category-col);
-  -webkit-appearance: none;
-  appearance: none;
-  box-sizing: content-box;
-  flex: 1 1 4rem;
-  min-width: 3rem;
-  max-width: 12rem;
-  height: var(--hit);
-  padding: var(--range-pad) 0;
-  margin: 0 0 calc(var(--hit) / -2 - var(--range-pad) + 0.5px);
-  background: transparent;
-  cursor: pointer;
-  touch-action: pan-y;
+
+/* ---- the size circle ----
+   A circle round the model (js/product.js syncSizeRing), as big as the model
+   is at the size the field holds: it grows and shrinks with it — the model
+   scales with the size — and it is the way to change it: drag it to scale it
+   up and down (the field follows, and the other way round). Over the model,
+   in the frame, centred on the model's middle, up with it by the lift; in with
+   specs. The line is only drawn; what takes a touch is a band round it
+   (.product-size-ring__hit: the whole box, clipped to the circle's band —
+   clip-path clips hit-testing too, as for the viewer's own overlay), and the
+   dot on the line, the slider's old grip, marks where it was last taken. The
+   box is as big as the circle at its largest, and a band's width more
+   (--ring-box); --ring-r is the circle's radius now, --ring-angle where the
+   dot is. */
+.product-size-ring {
+  --ring-r: 0px;
+  --ring-angle: -40deg;
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: calc(var(--tile) / 2 - var(--lift));
+  width: var(--ring-box, 0px);
+  height: var(--ring-box, 0px);
+  transform: translate(-50%, -50%);
+  opacity: var(--specs-on);
+  pointer-events: none;
+}
+.product-size-ring[hidden] {
+  display: none;
+}
+.product-size-ring.is-unset {
+  opacity: calc(var(--specs-on) * 0.35);
+}
+.product-size-ring__line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--ring-r) * 2);
+  height: calc(var(--ring-r) * 2);
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--category-col);
+  border-radius: 50%;
+}
+/* The dot: the picker's own selection dot, drawn on the line, its hit area
+   (the band) a good deal larger. */
+.product-size-ring__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--dot);
+  height: var(--dot);
+  margin: calc(var(--dot) / -2) 0 0 calc(var(--dot) / -2);
+  border-radius: 50%;
+  background: var(--category-col);
+  transform: rotate(var(--ring-angle)) translateX(var(--ring-r));
+}
+.product-size-ring__hit {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+  pointer-events: none;
   outline: none;
   -webkit-tap-highlight-color: transparent;
 }
-.product-size__range:focus-visible {
-  --tick: var(--black);
+.product-size-ring__hit:active {
+  cursor: grabbing;
 }
-.product-size__range::-webkit-slider-runnable-track {
-  height: 1px;
-  background: var(--category-col);
+.product-stage[data-stage="specs"] .product-size-ring__hit {
+  pointer-events: auto;
 }
-.product-size__range::-moz-range-track {
-  height: 1px;
-  background: var(--category-col);
+/* Keyboard focus shows by the dot going black, as the slider's did. */
+.product-size-ring__hit:focus-visible ~ .product-size-ring__dot {
+  background: var(--black);
 }
-.product-size__range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: var(--hit);
-  height: var(--hit);
-  margin-top: calc((1px - var(--hit)) / 2);
-  box-sizing: border-box;
-  /* The grip box is the dot with a transparent border of one and a half times
-     its size all round; the dot, drawn in the padding box, is a circle exactly
-     like the picker's (.product-metals__tag::before). */
-  border: calc((var(--hit) - var(--dot)) / 2) solid transparent;
-  border-radius: 50%;
-  background: var(--tick);
-  background-clip: padding-box;
-  box-shadow: none;
-  outline: none;
-  transition: opacity var(--fade-quick) ease;
-}
-.product-size__range::-moz-range-thumb {
-  width: var(--hit);
-  height: var(--hit);
-  box-sizing: border-box;
-  border: calc((var(--hit) - var(--dot)) / 2) solid transparent;
-  border-radius: 50%;
-  background: var(--tick);
-  background-clip: padding-box;
-  box-shadow: none;
-  outline: none;
-  transition: opacity var(--fade-quick) ease;
-}
-/* On the narrowest screens (the row leaves the slider under about 5rem) it goes
-   altogether, leaving the field. */
-@media (max-width: 19.99rem) {
-  .product-size__range {
-    display: none;
-  }
-}
-.product-size__range.is-unset::-webkit-slider-thumb { opacity: 0.35; }
-.product-size__range.is-unset::-moz-range-thumb { opacity: 0.35; }
 /* ---- the metal picker (js/metal-picker.js) ----
    Three squares, --metal-gap apart, each showing its metal's swatch (a square
    made by scripts/auto-render.js, shown as it is), a dot in the middle of the
@@ -3337,11 +3394,14 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   pointer-events: none;
   transition: transform var(--fade-standard) ease;
 }
-:is(.product-metals--row, .product-stage.is-specs-layout .product-metals) {
+/* A row — the Modify sheet's, and the product page's picker, which stands
+   under the model in design and in the specs column (the name after the last
+   square either way). */
+:is(.product-metals--row, .product-stage .product-metals) {
   flex-direction: row;
   align-items: center;
 }
-:is(.product-metals--row, .product-stage.is-specs-layout .product-metals) .product-metals__tag {
+:is(.product-metals--row, .product-stage .product-metals) .product-metals__tag {
   left: calc(var(--metal-count, 3) * (var(--metal-square) + var(--metal-gap)) - var(--metal-gap) + 0.6rem);
   transform: none;
 }
@@ -3638,6 +3698,40 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition: left var(--resize) ease, width var(--resize) ease;
   transition-delay: 0s;
 }
+/* The button at the very end, back to the first stage (js/product-stages.js
+   restart()), in the Select button's format, in the value column of the
+   tables above it. In with specs (the logistics' own opacity), a tap only in
+   specs. */
+.product-restart {
+  position: relative;
+  align-self: flex-start;
+  /* Centred on the screen, as the size field is, and well under the end of
+     the specs. */
+  left: calc(50vw - var(--inset-x));
+  transform: translateX(-50%);
+  margin: calc(var(--gap-group) * 1.5) 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: var(--specs-on);
+  pointer-events: none;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-stage[data-stage="specs"] .product-restart {
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .product-stage[data-stage="specs"] .product-restart:hover { opacity: 0.6; }
+}
 .product-logistics p {
   margin: 0;
   font-family: var(--font-main);
@@ -3677,12 +3771,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   }
   .product-feed {
     position: static;
+    width: auto;
+    margin: 0 0 3rem;
     transform: none;
     opacity: 1;
-    margin-bottom: 3rem;
+  }
+  .product-detail__description {
+    margin: 0;
+  }
+  .product-feed__photos {
+    margin-left: 0;
   }
   .product-design-frame {
     --tile: min(560px, 100vw - 4rem, 70svh);
+    /* The screen's width, on the screen (the column it is in is padded). */
+    left: 50%;
+    margin-left: -50vw;
     height: auto;
     display: flex;
     flex-direction: column;
@@ -3731,7 +3835,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   }
   .product-logistics {
     opacity: 1;
-    padding-bottom: 3rem;
+  }
+  .product-restart {
+    opacity: 1;
+    pointer-events: auto;
+    margin-bottom: 3rem;
+  }
+  .product-size-ring {
+    display: none;
   }
 }
 
@@ -4085,10 +4196,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-size__finder-toggle[hidden] {
   display: none;
 }
+/* In the sheets: at the right end of the size field's row, on its line. */
+.size-modal__finder-toggle {
+  margin-left: auto;
+}
 .product-size__finder-toggle {
-  grid-column: 2;
-  justify-self: start;
-  margin-top: 0.6rem;
+  align-self: center;
   padding: 0;
   pointer-events: auto;
 }
@@ -4432,7 +4545,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 
 /* The slider (js/size-finder.js makeSlider): a hairline track and a round
-   dot, white (the size slider's shape, .product-size__range). Only the dot
+   dot, white (the size circle's dot, .product-size-ring__dot). Only the dot
    takes a touch — the slider and its track are pointer-events: none — and
    its hit area is twice its size, a silent help: a transparent circle round
    it (::before), never drawn. --pos is the dot's place, 0 to 1. */
@@ -4593,6 +4706,41 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    within, or a short viewport would push it off the top of the screen. */
 .size-modal--modify .size-modal__panel {
   max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
+}
+/* "See photos", next to the model (js/modify-modal.js): to its right, just under
+   the line where the sheet's own surface begins (the frame's lower half is
+   painted, its upper half is not), in the site's button format. The frame
+   takes no taps, so the button asks for them. */
+.size-modal__photos-toggle {
+  position: absolute;
+  z-index: 2;
+  top: calc(50% + 0.5rem);
+  left: calc(50% + var(--mini-tile) * 0.375 + 0.75rem);
+  padding: 0.3rem 0;
+  border: none;
+  background: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity var(--fade-quick) ease;
+}
+.size-modal__photos-toggle[hidden] {
+  display: none;
+}
+@media (max-width: 640px) {
+  .size-modal__photos-toggle {
+    left: calc(50% + var(--mini-tile) * 0.33 + 0.75rem);
+  }
+}
+@media (hover: hover) {
+  .size-modal__photos-toggle:hover { opacity: 0.6; }
 }
 /* The model's stand-in while the sheet slides in (js/modify-modal.js builds
    the viewer only once it has): its poster image, in a box sized exactly

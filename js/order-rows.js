@@ -41,8 +41,8 @@
      listEl             the <ul> the rows are rendered into
      rowClass           an extra class on every <li> (the drawer's
                         "order-item--drawer")
-     showPrice          the order list shows each row's price; the drawer
-                        doesn't
+     showPrice          each row shows its price, to the right of its label (the
+                        order list and the bar's drawer alike)
      onModify(binding)  a row was tapped — binding.item / binding.index
      dropAtOnce         a dropped undo line (another row was tapped while it
                         was on offer) leaves the list at once instead of

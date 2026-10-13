@@ -123,7 +123,7 @@
   var rows = window.EmjiveOrderRows.create({
     listEl: rowsEl,
     rowClass: "order-item--drawer",
-    showPrice: false,
+    showPrice: true,
     dropAtOnce: true,
     onModify: openModify,
     onResize: syncDrawerHeight
@@ -133,7 +133,7 @@
   var previewRows = window.EmjiveOrderRows.create({
     listEl: previewList,
     rowClass: "order-item--drawer",
-    showPrice: false,
+    showPrice: true,
     onModify: function () {}
   });
 

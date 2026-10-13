@@ -11,10 +11,10 @@
             opens the Modify sheet in its Select mode, without leaving the page.
    And the hero: data-hero="play" plays the reveal first, "skip" lands on the
    gallery at rest. It plays once per device — this file sets the seen flag
-   once it has played out — and "scan the hand again" plays it again.
+   once it has played out.
 
-   Owns: loading the products, the grid, the two controls (the view switch,
-   the replay) and the veil both cross through, the filter's effect on both
+   Owns: loading the products, the grid, the control (the view switch) and the
+   veil the switch crosses through, the filter's effect on both
    views (js/main.js owns the filter row and calls setFilter()), and telling
    js/scroll-memory.js what the visitor changes, so Back finds it again.
 
@@ -31,7 +31,6 @@
 
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
-  var replayButton = document.getElementById("heroReplay");
 
   // The same two keys js/scroll-memory.js reads in the <head>.
   var SEEN_KEY = "emjive_hero_seen";
@@ -101,9 +100,9 @@
   };
 
   /* ---- the veil -------------------------------------------------------------
-     A switch of view and a replay both change the page wholesale — its
-     height, what's in it, where it's scrolled — so they cross through the
-     page background: it fades in, `change` runs, it fades back out. */
+     A switch of view changes the page wholesale — its height, what's in it,
+     where it's scrolled — so it crosses through the page background: it fades
+     in, `change` runs, it fades back out. */
   var veil = el("div", "gallery-veil");
   veil.setAttribute("aria-hidden", "true");
   document.body.appendChild(veil);
@@ -133,15 +132,10 @@
     setTimeout(swap, VEIL_MS + 50);
   }
 
-  /* ---- the controls ---------------------------------------------------------- */
+  /* ---- the control ----------------------------------------------------------- */
 
   function syncControls() {
     if (viewToggle) viewToggle.textContent = view() === "grid" ? "switch to stack view" : "switch to grid view";
-    // The replay is offered once the reveal is over, not while the visitor is
-    // still in it.
-    var atRest = heroMode() === "skip" || state.stage === 1;
-    section.classList.toggle("is-at-rest", atRest);
-    if (replayButton) replayButton.inert = !atRest;
   }
 
   // Either view lands at rest: the hero has had its turn (a visitor leaving
@@ -162,35 +156,18 @@
     });
   }
 
-  // Back to the beginning of the reveal: the photo of the hand, the stack
-  // gathered back below the screen (the rings back on the hand). Scrolling
-  // plays it all again.
-  function replay() {
-    throughVeil(function () {
-      html.setAttribute("data-hero", "play");
-      remember({ hero: "play", focused: null });
-      if (state.stack) state.stack.reset();
-      jumpToTop();
-      if (hero()) hero().setMode();
-      syncControls();
-    });
-  }
-
   if (viewToggle) {
     viewToggle.addEventListener("click", function () {
       switchView(view() === "grid" ? "stack" : "grid");
     });
   }
-  if (replayButton) replayButton.addEventListener("click", replay);
 
   // The entrance's progress (series/<slug>/hero.js). Its end is where the
   // hero has been seen: from then on this device lands on the gallery.
   if (window.EmjiveHero) {
     window.EmjiveHero.onStage(function (progress) {
-      var was = state.stage;
       state.stage = progress;
       if (progress === 1 && heroMode() === "play") writeLocal(SEEN_KEY, "1");
-      if ((was === 1) !== (progress === 1)) syncControls();
     });
   }
   syncControls();

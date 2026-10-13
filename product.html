@@ -143,8 +143,10 @@
         <div class="product-stage__show">
 
           <!-- Inspiration, the first stage: the description, then the photos
-               one under the other (the full width of a phone's screen), each
-               with what it shows under it. The stage's scrolling takes the
+               one under the other with no gap (the full width of a phone's
+               screen, flush left on a wide one), each with the name of what
+               it shows in its bottom right corner, and under the last one its
+               trail into the page's colour. The stage's scrolling takes the
                column up under the title bar, as a feed (js/product.js renders
                it). -->
           <div class="product-feed" id="productFeedColumn">
@@ -161,6 +163,16 @@
             <img class="product-design__xray" id="productDesignXray" alt="" decoding="async" hidden />
             <div class="product-model" id="productModel"></div>
 
+            <!-- Specs: a circle round the model, as big as the model is at the
+                 size the field holds — draggable, to scale it up and down
+                 (js/product.js syncSizeRing). Hidden for a category with no
+                 unit, and when there is no live model to measure. -->
+            <div class="product-size-ring" id="productSizeRing" data-stage-owner="specs" hidden>
+              <span class="product-size-ring__line" aria-hidden="true"></span>
+              <span class="product-size-ring__dot" aria-hidden="true"></span>
+              <span class="product-size-ring__hit" id="productSizeRingHit" role="slider" tabindex="0" aria-label="Size" aria-valuemin="40" aria-valuemax="70" aria-valuenow="62"></span>
+            </div>
+
             <!-- Under the model, everything that goes with it, in one column
                  (css/style.css .product-below): in design, the options of a
                  product with several designs; in specs, the size, the metal
@@ -175,18 +187,17 @@
                    design. -->
               <div class="product-options" id="productOptions" data-stage-owner="design" hidden></div>
 
-              <!-- The size, from specs on — the slider from 40 to 70 and the
-                   field to type an exact size in, with the "Find my size"
-                   button (the size finder, js/size-finder.js) on a row of its
-                   own under them (js/product.js). The Select
-                   sheet opens with it. Hidden for a category with no unit. -->
+              <!-- The size, from specs on — the field to type an exact size in,
+                   centred under the circle round the model (above), which is
+                   the other way to give one, with the "Find my size" button
+                   (the size finder, js/size-finder.js) centred under it
+                   (js/product.js). The Select sheet opens with it. Hidden for
+                   a category with no unit. -->
               <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
-                <label class="product-size__label" for="productSizeInput">Size</label>
                 <div class="product-size__controls">
-                  <input class="product-size__range" id="productSizeRange" type="range" min="40" max="70" step="0.1" value="62" aria-label="Size" />
                   <span class="product-size__field">
                     <span class="size-modal__custom-underline">
-                      <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
+                      <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" aria-label="Size" />
                       <span class="size-modal__custom-unit" id="productSizeUnit"></span>
                     </span>
                   </span>
@@ -264,6 +275,10 @@
                     <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
                   </div>
                 </section>
+
+                <!-- The end of the page: back to the first stage, the photos
+                     (js/product-stages.js restart()). -->
+                <button class="product-restart" id="productRestart" type="button" data-stage-owner="specs">Back to photos</button>
               </div>
 
             </div>

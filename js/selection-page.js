@@ -132,7 +132,7 @@
   var drawerRows = window.EmjiveOrderRows.create({
     listEl: rowDrawerList,
     rowClass: "order-item--drawer",
-    showPrice: false,
+    showPrice: true,
     onModify: function () {}
   });
   // The index of the item the drawer is showing, while it's open.

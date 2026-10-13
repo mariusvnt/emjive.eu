@@ -5,11 +5,13 @@ each collection brings its own products, its own homepage hero animation,
 and its own design manifest, with one field in `data/series.json` deciding
 which one the homepage shows. A homepage gallery that is either a stack of
 the items' 3D models (glTF/GLB) rising out of the hero onto the x-ray hand —
-floating, then falling into a pile that follows gravity (and a phone's
-movements); tap one to turn it round — or a plain grid of photos for a quick
+floating, turning slowly, then falling into a pile when the first one is
+tapped; tap one to turn it round — or a plain grid of photos for a quick
 pick. Falls back to photos if no model is set yet. Clicking a product opens its
-detail page — a carousel, a metal picker, a description, metal-dependent
-specs, and a "Select size" flow that adds to a real, localStorage-backed
+detail page — a three-stage scroll: a feed of photos and a description, the
+3D model with a metal picker and, for some items, a choice of designs, then
+its specs (a size you set by dragging a circle round the model, dimensions,
+cost) — and a "Select size" flow that adds to a real, localStorage-backed
 selection you can review on a dedicated order page — item rows you can
 modify or unselect (with a few seconds to undo), a shipping pick, a terms
 toggle, and a "Proceed to checkout" bar — with a floating selection bar
@@ -37,9 +39,9 @@ the gallery loads its data via `fetch`, which browsers block on
 
 The dev server runs over HTTPS with a self-signed certificate
 (`@vitejs/plugin-basic-ssl`), so your browser will warn about it once. That's
-deliberate: iOS only offers the motion-sensor permission (the stack tilts with
-the phone) on secure pages, so a phone on the same Wi-Fi can only try it at
-`https://<your-ip>:5173/` (`npm run dev -- --host`).
+deliberate: it was put there for iOS's motion-sensor permission, which only
+secure pages can ask, and it stays so a phone on the same Wi-Fi gets a secure
+context like the real site: `https://<your-ip>:5173/` (`npm run dev -- --host`).
 
 ## Deploying
 
@@ -189,6 +191,7 @@ series/<slug>/                                  One series' hero bundle (html/cs
 assets/                                         Images, 3D models, fonts, HDRIs
 scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
+scripts/split-models.js                         One Blender export of every model, cut into the catalog's model + wireframe files (npm run split-models)
 scripts/measure-models.js                       Each model's volume + size, written into products.json (npm run measure-models)
 scripts/slugs.js                                An item's address (/<name>) and the names it may not take
 scene-tool.html, scripts/scene-tool-server.js   Camera/HDRI/swatch/shader tuning (npm run scene-tool)
@@ -211,7 +214,7 @@ tooling, and the assets folder).
 
 This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
-from here. Ten of the eleven current products still have no photography,
+from here. Eight of the nine current products still have no photography,
 no description, and no selling price. (Each product's weight, size and an
 estimated production cost are real: they're derived from its 3D model's
 measured volume — see `npm run measure-models` in the dev-guidelines.)

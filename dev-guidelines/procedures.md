@@ -54,6 +54,13 @@ existing one — `bones` is the only one so far. To start a *new* series, see
      script prints — a welded manifold mesh is ~0.5:1, the bad ones were
      ~1.9:1), fix that in Blender with smooth shading + merge-by-distance and
      decimate before exporting.
+   - **A batch export of every model** (one glTF with a root node per model,
+     and a second one with their wireframes as thick bars): don't cut it up by
+     hand — `npm run split-models -- items.glb items-wireframes.glb` writes
+     each model and each wireframe to the path its `products.json` entry names,
+     keeps a model's lost rotation (see below), and runs `optimize-models` over
+     what it wrote. A later file overrides earlier nodes of the same name
+     (`... items.glb rib-cage-1.glb items-wireframes.glb`). See `tooling.md`.
    - **Keep the model's orientation when replacing one.** The saved
      fallback/icon/top-shot renders were made with the old file's node
      rotation/scale; a re-export that drops it turns the live model away
@@ -149,18 +156,18 @@ table with each model's volume and box, and warns about meshes that aren't
 watertight, whose volume is then only approximate — fix the mesh if the number
 matters. `json-tool` doesn't run it either; its add/edit responses remind you.
 
-`assets.photos` is extra photography for the product page's carousel, beyond the
-always-present 3D model slide (or the `assets.icons[metal]` fallback if there's no
-model). Leave it as `[]` until you have real photos — the carousel hides its
-arrows/dots entirely rather than showing a placeholder when there's only one
-slide. Each entry is `{ "src": "...", "description": "..." }`, not a bare path —
-`description` is what the product page prints under that photo as
-"On display: ...", `npm run json-tool` gives each saved photo its own text
+`assets.photos` is the product page's photography — its first stage, a feed of
+photos one under the other (the Modify sheet doesn't show them; it offers a "See
+photos" button to the page). Leave it as `[]` until you have real photos — the stage
+is then the description alone, and the Modify sheet has no button. Each entry is
+`{ "src": "...", "description": "..." }`, not a bare path —
+`description` is the name of the item on the photo, written as an item's name is
+(`Furcula.ring.steel.62`), printed in the photo's bottom-right corner — `npm run json-tool` gives each saved photo its own text
 input for it (immediate save, not deferred to the product Save button), and an
-empty one just falls back to an em-dash rather than an empty label.
+empty one means no caption.
 
 `assets` also holds a few other per-product files: `xray` (a single path,
-used as the carousel's backdrop — leave `""` until you have one),
+used as the design stage's backdrop behind the model — leave `""` until you have one),
 `top-shot` (one entry per metal, same shape as `icons` — `npm run
 auto-render` fills these in too, same as icons), and `fallback-img` (also
 one entry per metal, same shape — the 3D viewer's pre-load poster, likewise
@@ -169,6 +176,27 @@ same as `top-shot`). Each icon also has a generated 128px thumbnail,
 `<name>_icon_<metal>_128.webp` (the selection bar's and the order rows'
 image): `auto-render` writes them after a render, `npm run image-variants`
 writes any that are missing, and `npm run verify` fails if one is.
+
+**A product with several designs** (a rib-cage with ribs that come and go, a
+ring with a plain or a twisted shank — `designs` in `data.md`):
+1. In Blender, one root node per design, named so the slug of the name is the
+   design's `name` (`rib-cage-1L2`); the default design's node is the product's
+   own name or the name its `designs.list` entry gives. A wireframe node of each
+   is `<name>-wireframes`.
+2. Add the `designs` block to the product by hand, after `assets`: `default`,
+   the `options` the page will offer (`key`, `label`, `multiple` for toggles,
+   `choices`) and a `list` entry per design — `key`, `name` and `picks` for the
+   default; `key`, `name`, `picks` and the `model`, `wireframe`, `icons` and
+   `fallback-img` paths (named `<slug>-<key lower-cased>_…`, the per-metal maps
+   with `""` until rendered) for each other. Every design must be a different
+   combination of picks. `json-tool` carries the block through but has no form
+   for it.
+3. `npm run split-models -- <models.glb> <wireframes.glb>` (writes the files the
+   entries name and optimizes them), `npm run measure-models` (each design's
+   `geometry`), `npm run auto-render -- --product=<slug>` (each design's icons
+   and fallback images, in the product's own camera) and `npm run verify`. If the
+   default design's model changes shape, its product-level renders (including the
+   top shot) are re-done by the same `auto-render` run.
 
 `hero-hand-visibility` controls whether/how this product's `assets.top-shot[metal]`
 image appears overlaid on the homepage hero's x-ray hand. Leave
@@ -379,7 +407,7 @@ The viewer construction itself (renderer/scene/camera setup, camera-orbit/
 idle-reset behaviour, and applying `METAL_PRESETS`) lives in one place —
 `buildThreeViewer()` in `js/three-viewer.js`, exposed as
 `window.EmjiveModelViewer` — shared by the homepage (the stack's models, built by `js/stack-scene.js`, and the focused product's viewer) and the
-product page's carousel, so a metal swap on the product page re-tints the
+product page's model in the design stage, so a metal swap on the product page re-tints the
 same model in place instead of reloading it or resetting the camera angle.
 
 ### Re-rendering icons and metal swatches after a shader change
@@ -614,7 +642,7 @@ Two things read it back:
   centered "No selected item" state once it's empty again.
 
 Both lists open the same **Modify sheet** (`js/modify-modal.js`): metal and
-size, with the item's own carousel, resting on the tapped row. While it's
+size, with the item's own 3D model (and, for a product with photos, a "See photos" button to its page), resting on the tapped row. While it's
 up, the page's bar turns into its **Unselect | Save** strip; Unselect
 removes the item and offers **Undo** on the item's own line in the list for a few seconds. See
 `client-scripts.md` for the mechanics.

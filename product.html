@@ -61,8 +61,8 @@
 <!-- Lazy 3D viewer loader (see js/viewer-entry.js). No data-viewer on <html>
      here on purpose: the three.js chunk (and the HDRI and model) are the
      heaviest things on the page and none of them is part of its first
-     paint, so js/product.js asks for them only once the images that are
-     (the x-ray backdrop and the model's poster) have arrived. -->
+     paint, so js/product.js asks for them only once what is (the
+     description and the feed's first photo) has arrived. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body>
@@ -114,9 +114,10 @@
 
     <!-- The show: a tall track (.product-stage) holding one sticky stage.
          Scrolling down the track doesn't move the page, it moves the show
-         on, presentation -> specs (js/product-stages.js, which publishes
-         --to-specs for css/style.css to fade everything from). The title bar stays at the top throughout. -->
-    <div class="product-stage" id="productStage" data-stage="presentation">
+         on, inspiration -> design -> specs (js/product-stages.js, which
+         publishes --to-design and --to-specs for css/style.css to fade
+         everything from). The title bar stays at the top throughout. -->
+    <div class="product-stage" id="productStage" data-stage="inspiration">
       <div class="product-stage__pin">
 
         <!-- 1. Product label -->
@@ -133,57 +134,46 @@
           </span>
           <img class="product-detail__label-thumb" id="productLabelThumb" alt="" hidden />
           <h1 class="product-detail__label-text">
-            <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-type" id="productLabelType"></span>
+            <span class="product-detail__label-name" id="productLabelName"></span><span class="product-detail__label-design" id="productLabelDesign"></span><span class="product-detail__label-type" id="productLabelType"></span>
           </h1>
           <span class="product-detail__label-price" id="productLabelPrice" aria-live="polite" aria-atomic="true"></span>
         </div>
 
-        <!-- 2. Description: plain text under the title (presentation) -->
-        <p class="product-detail__description" id="productDescription" hidden></p>
-
-        <!-- 3. The show area -->
+        <!-- 2. The show area -->
         <div class="product-stage__show">
 
-          <!-- Carousel: 3D model (always slide 1) + real product photos.
-               No visible arrows/outline — navigate by dragging horizontally,
-               or tapping a slide to center it (see js/product.js). In specs
-               the photos and the x-ray fade, the strip holds the model and
-               the model turns into a wireframe with its dimensions.
+          <!-- Inspiration, the first stage: the description, then the photos
+               one under the other (the full width of a phone's screen), each
+               with what it shows under it. The stage's scrolling takes the
+               column up under the title bar, as a feed (js/product.js renders
+               it). -->
+          <div class="product-feed" id="productFeedColumn">
+            <p class="product-detail__description" id="productDescription" hidden></p>
+            <div class="product-feed__photos" id="productFeed"></div>
+          </div>
 
-               Everything else of the show that is placed against the model
-               lives in this frame too (it shares the frame's --tile): the
-               metal picker, the specs stage's size row and its figures. -->
-          <div class="product-carousel-frame" id="productCarouselFrame">
-            <img class="product-carousel__xray" id="productCarouselXray" alt="" fetchpriority="high" decoding="async" hidden />
-            <div class="product-carousel" id="productCarousel">
-              <div class="product-carousel__viewport">
-                <div class="product-carousel__track" id="productCarouselTrack"></div>
-              </div>
-            </div>
+          <!-- Design, then specs: the model (its poster until the 3D viewer is
+               built, js/product.js), over its x-ray. Everything else of the
+               show that is placed against the model lives in this frame too (it
+               shares the frame's --tile): the metal picker beside it, the
+               design options under it, and the specs stage's column. -->
+          <div class="product-design-frame" id="productDesignFrame">
+            <img class="product-design__xray" id="productDesignXray" alt="" decoding="async" hidden />
+            <div class="product-model" id="productModel"></div>
 
-            <!-- Presentation only: a band from the screen's left edge to 2rem
-                 inside the content's left edge, in the same blur and
-                 chromatic aberration as the title bar's (css/style.css
-                 .product-edge-veil), fading out past it, so what slides in
-                 under the picker (the photos, the model) goes soft there.
-                 Over the carousel, under the picker. -->
-            <span class="product-edge-veil" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-            </span>
-            <!-- And the same the other way round at the right edge: full from 2rem
-                 inside the content's right edge (the whole margin of a wide
-                 screen included) to the screen's edge, fading in over the same
-                 span. -->
-            <span class="product-edge-veil product-edge-veil--right" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-            </span>
-
-            <!-- Under the model in specs, everything that goes with it, in one
-                 column (css/style.css .product-below): the size, the metal
+            <!-- Under the model, everything that goes with it, in one column
+                 (css/style.css .product-below): in design, the options of a
+                 product with several designs; in specs, the size, the metal
                  picker and the printing technology, each a table of two columns
-                 — a label and its value. In presentation the picker is the one
-                 thing shown, beside the model. -->
+                 — a label and its value. In design the picker stands beside the
+                 model. -->
             <div class="product-below">
+
+              <!-- Design: one row per option of the product's designs (its
+                   "designs" in products.json) — a label and its choices
+                   (js/product.js renderDesigns). Hidden for a product with one
+                   design. -->
+              <div class="product-options" id="productOptions" data-stage-owner="design" hidden></div>
 
               <!-- The size, from specs on — the slider from 40 to 70 and the
                    field to type an exact size in, with the "Find my size"
@@ -205,10 +195,10 @@
               </div>
 
               <!-- Metal selection: a stack of squares, built by
-                   js/metal-picker.js. Beside the model in presentation; in
-                   specs it is under it, with its label (it fades out and in
-                   between, js/product.js). -->
-              <div class="product-material">
+                   js/metal-picker.js. Beside the model in design; in specs it
+                   is under it, with its label (it fades out and in between,
+                   js/product.js). -->
+              <div class="product-material" data-stage-owner="design specs">
                 <span class="product-material__label" aria-hidden="true">Material</span>
                 <div class="product-metals" id="productMetals"></div>
               </div>
@@ -291,6 +281,14 @@
   </div>
 </main>
 
+<!-- Just above the bottom bars, across the screen: the title bar's blur and
+     chromatic aberration again, faint at its top and full where it meets the
+     bars, so what slides down under them (the feed, the specs column) goes
+     soft on its way (css/style.css .product-bottom-veil). Rides the bars. -->
+<span class="product-bottom-veil" aria-hidden="true">
+  <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+</span>
+
 <!-- Select / Add bar: a blurred strip (two opposed sets of layered blurs,
      css/style.css .glass__blur) floating on top of the selection
      bar (css/style.css, .product-select-bar), shown by js/product.js once
@@ -359,10 +357,11 @@
      That order is the contract. js/viewer-entry.js (a module, in <head>) is
      first on the deferred queue, so window.EmjiveLoadViewer exists before
      any of these run. The helpers come before the scripts that use them:
-     focus-trap.js, carousel.js and product-stages.js (window.EmjiveFocusTrap/
-     EmjiveCarousel/EmjiveProductStages) before product.js;
+     focus-trap.js and product-stages.js (window.EmjiveFocusTrap/
+     EmjiveProductStages) before product.js;
      carousel.js/order-rows.js/modify-modal.js are the
-     Modify sheet and its parts, reachable from the bar's drawer on every
+     Modify sheet and its parts (its small carousel is carousel.js's; the
+     page itself has none), reachable from the bar's drawer on every
      page, and order-rows.js has to precede selection-bar.js, which builds
      its drawer rows with it at load. main.js and product.js run last, the
      same order they ran in when only those two were deferred. -->

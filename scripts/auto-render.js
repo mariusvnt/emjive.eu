@@ -9,11 +9,18 @@
    supersample-then-downscale tricks.
 
    Usage:
-     node scripts/auto-render.js [metal ...] [--series=<slug>] [--swatches-only]
+     node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only]
      node scripts/auto-render.js --image-variants [--series=<slug>]
      npm run auto-render -- steel bronze
      npm run auto-render -- --series=bones
+     npm run auto-render -- --product=rib-cage,foramen
      npm run auto-render -- --image-variants
+
+   --product limits a run to those products (their designs included) and
+   leaves the metal squares alone. A product with several designs gets, for
+   each design but its default, an icon and a fallback image of its own
+   (from the product's camera; no top shot — only the default design is
+   ever shown on the hero), written into that design's entry.
 
    With no metal names given, renders every metal in data/series.json's
    top-level "metals" list. With no --series, walks every series listed
@@ -678,6 +685,52 @@ function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPat
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
+// The same per-metal patch for one of a product's other designs: an entry of
+// its "designs" list, found by its unique "key" (never "id" — that would end
+// the product's slice above early) inside the product's own text, then its
+// own "<blockKey>": {...} map ("icons" or "fallback-img"; a design has no
+// top shot). The product's own maps come before "designs" in the block, so
+// updateProductMetalFieldInText never reaches a design's.
+function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal, newRelPath) {
+  const idAnchor = `"id": "${product.id}"`;
+  const productStart = text.indexOf(idAnchor);
+  if (productStart === -1) return null;
+  const nextIdIdx = text.indexOf('"id": "', productStart + idAnchor.length);
+  const productEnd = nextIdIdx === -1 ? text.length : nextIdIdx;
+  const listIdx = text.indexOf('"list": [', productStart);
+  if (listIdx === -1 || listIdx > productEnd) return null;
+  const keyAnchor = `"key": "${designKey}"`;
+  const startIdx = text.indexOf(keyAnchor, listIdx);
+  if (startIdx === -1 || startIdx > productEnd) return null;
+  const nextKeyIdx = text.indexOf('"key": "', startIdx + keyAnchor.length);
+  const blockEnd = nextKeyIdx === -1 || nextKeyIdx > productEnd ? productEnd : nextKeyIdx;
+  const block = text.slice(startIdx, blockEnd);
+
+  const blockPattern = new RegExp(`"${blockKey}":\\s*\\{[^}]*\\}`);
+  const blockMatch = block.match(blockPattern);
+  if (!blockMatch) return null;
+  const metalKeyPattern = new RegExp(`("${metal}":\\s*)"[^"]*"`);
+  if (!metalKeyPattern.test(blockMatch[0])) return null;
+  const newBlock = block.replace(blockMatch[0], blockMatch[0].replace(metalKeyPattern, `$1"${newRelPath}"`));
+  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+}
+
+// A product as one of its other designs would show it: the design's model
+// and renders in place of the product's, the product's camera kept (every
+// design of a product is framed by the same camera, js/series.js
+// resolveDesign).
+function designView(product, design) {
+  return Object.assign({}, product, {
+    assets: Object.assign({}, product.assets, {
+      model: design.model,
+      wireframe: design.wireframe || "",
+      icons: design.icons || {},
+      "fallback-img": design["fallback-img"] || {}
+    }),
+    geometry: design.geometry
+  });
+}
+
 // Repo-root-relative output folder for one product's renders, built from
 // the series layout rather than inferred from wherever product.assets.model
 // happens to sit. Deriving it from path.dirname(product.assets.model) —
@@ -770,6 +823,11 @@ async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
   const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
+  // Only these products (their names as slugs, comma-separated), designs
+  // included — a model replaced or added without re-rendering the whole
+  // catalog. The swatches aren't redone on such a run.
+  const productArg = (args.find((a) => a.startsWith("--product=")) || "").split("=")[1];
+  const onlyProducts = productArg ? productArg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null;
   // Just the metal-sample squares — no product icons/top shots, no
   // products.json writes. The loop for tuning the swatch scene
   // (scene-tool.html's swatch mode) without re-rendering the catalog.
@@ -824,9 +882,15 @@ async function main() {
     const raw = fs.readFileSync(absPath, "utf8");
     return { slug: s.slug, absPath, raw, text: raw, data: JSON.parse(raw), hdri: allHdris[s.hdri] };
   });
+  if (onlyProducts) {
+    const known = new Set(targets.flatMap((t) => t.data.products.map((p) => slug(p.name))));
+    const unknownProducts = onlyProducts.filter((p) => !known.has(p));
+    if (unknownProducts.length) throw new Error("Unknown product(s): " + unknownProducts.join(", ") + " — must be among: " + [...known].join(", "));
+  }
 
   console.log("auto-render — metal(s): " + metals.join(", ") +
-    " — series: " + targets.map((t) => t.slug).join(", "));
+    " — series: " + targets.map((t) => t.slug).join(", ") +
+    (onlyProducts ? " — product(s): " + onlyProducts.join(", ") : ""));
   warnCategoryDrift(seriesIndex, targets);
   warnHdriDrift(seriesIndex);
   warnSwatchSceneDrift(seriesIndex);
@@ -883,6 +947,7 @@ async function main() {
         const rel = path.relative(ROOT, target.absPath).replace(/\\/g, "/");
 
         for (const product of target.data.products) {
+          if (onlyProducts && !onlyProducts.includes(slug(product.name))) continue;
           const folder = productFolder(target.slug, product);
 
           // The model is the one asset this tool doesn't write, so a model
@@ -962,13 +1027,46 @@ async function main() {
               );
             }
           }
+
+          // Its other designs (the default is the product itself, done
+          // above): an icon and a fallback-img each, from the product's
+          // camera, named <product>-<design key>_... in the product's folder.
+          // No top shot: the hero and the homepage stack only ever show the
+          // default design.
+          const designs = product.designs;
+          for (const design of (designs && designs.list) || []) {
+            if (design.key === designs.default) continue;
+            const base = folder + "/" + slug(product.name) + "-" + slug(design.key);
+            const view = designView(product, design);
+            const designFallbackRel = base + "_fallback-img_" + metal + ".webp";
+            const designIconRel = base + "_icon_" + metal + ".webp";
+            console.log("  design " + design.key + ": [" + target.slug + "] " + product.name + " (" + metal + ") -> " + designIconRel);
+            await renderIconAndFallback(page, view, metal, path.join(ROOT, designFallbackRel), path.join(ROOT, designIconRel), target.hdri);
+            for (const [field, newRel] of [["fallback-img", designFallbackRel], ["icons", designIconRel]]) {
+              const oldRel = design[field] && design[field][metal];
+              if (oldRel === newRel) continue;
+              const patched = updateDesignMetalFieldInText(target.text, product, design.key, field, metal, newRel);
+              if (patched) {
+                target.text = patched;
+                if (oldRel && path.resolve(path.join(ROOT, oldRel)) !== path.resolve(path.join(ROOT, newRel))) deleteIfExists(path.join(ROOT, oldRel));
+              } else {
+                console.warn(
+                  "  could not find design " + design.key + "'s " + field + "." + metal + " line in " + rel +
+                  " for " + product.name + " — set it by hand: " + newRel
+                );
+              }
+            }
+          }
         }
       }
 
     }
 
-    console.log("\n--- swatches ---");
-    await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
+    // A run limited to some products leaves the metal squares as they are.
+    if (!onlyProducts) {
+      console.log("\n--- swatches ---");
+      await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
+    }
 
     for (const target of targets) {
       if (target.text !== target.raw) {

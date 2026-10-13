@@ -2229,9 +2229,10 @@ body:has(.order-checkout-bar:not([hidden])) {
      is stuck from the very first scroll pixel, so the title bar never moves.
      Never above the header's own bottom edge. */
   --stage-top: max(clamp(4rem, 10vw, 7rem), var(--header-height));
-  /* How much scrolling the transition (presentation -> specs) takes — the
-     knob for how long the show is. */
+  /* How much scrolling the transition to specs takes — the knob for how long
+     the show is — and the one to design (a plain fade, shorter). */
   --stage-step: 200svh;
+  --stage-step-in: 100svh;
   max-width: var(--max);
   margin: 0 auto;
   padding: var(--stage-top) var(--edge-px) 0;
@@ -2244,47 +2245,56 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 .product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
-/* ---- the show: two stages on one sticky stage ----
+/* ---- the show: three stages on one sticky stage ----
    .product-stage is a tall track and .product-stage__pin the one screen
-   that sticks inside it while the track scrolls by: presentation, then specs
-   (product.html). js/product-stages.js publishes how far along the show is as
-   one eased number on the track, --to-specs (0 -> 1); the track is a stretch
-   of scrolling in each stage (in which the show browses, see --browse below)
-   and the transition between them, a stretch being --hold-ratio of the
-   transition.
-   Nothing crossfades. What presentation shows fades out, there is a blank,
-   and what specs shows fades in — each of those a phase of the transition, as
-   a 0 -> 1 variable:
-     --p-out   presentation's things going: from the first pixel of scrolling
-               (--leave, linear in the scroll, js/product-stages.js) to the point
-               where --to-specs reaches --t0
+   that sticks inside it while the track scrolls by: inspiration, design, then
+   specs (product.html). js/product-stages.js publishes how far along the show
+   is as two eased numbers on the track, --to-design and --to-specs (0 -> 1
+   each); the track is a stretch of scrolling in each stage (in which the show
+   browses, see --browse below) and the transitions between them.
+   Nothing crossfades. What a stage shows fades out, there is a blank, and
+   what the next shows fades in — each of those a phase of a transition, as a
+   0 -> 1 variable:
+     --i-out   inspiration's things (the feed) going: the first 0.45 of the
+               way to design
+     --d-in    design's things arriving: its last 0.45 (js/product-stages.js
+               has the same two numbers, FEED_GONE_AT and DESIGN_FROM)
+     --p-out   design's things going: from the first pixel of the design
+               stretch (--leave, linear in the scroll, js/product-stages.js)
+               to the point where --to-specs reaches --t0
      --s-in    specs' things arriving (--t1 -> 1)
    --t0 and --t1 are set by js/product.js from where the model is on screen
    (the blank is the model's own sweep from metal to wireframe, under the
    inversion band); --lift is how far the model stands higher on the page in
    specs, its middle on the first quarter of the screen, and a gap lower (also js/product.js).
-   --specs-on is what specs shows.
-   data-stage (the nearest stage) only decides what takes taps.
+   --d-on is what design shows, --specs-on what specs shows.
+   data-stage (the nearest stage) only decides what takes taps; what is out
+   of sight altogether takes none (.is-feed-gone, .is-design-out).
 
    The pin fills the screen between the stick point and the two bars at the
    bottom, measured in svh — the smallest viewport — so iOS Safari's toolbar
    collapsing never resizes it (and with it the 3D canvas). The track is that
-   plus the scrolling of the two stretches and the transition, and ends
+   plus the scrolling of the three stretches and the two transitions, and ends
    exactly where the page does. */
 .product-stage {
+  --to-design: 0;
   --to-specs: 0;
-  /* How far presentation's things have gone, linear in the scroll from its
-     first pixel; --t0 is where it ends, in --to-specs (js/product-stages.js). */
+  /* How far design's things have gone, linear in the scroll from the first
+     pixel of its stretch; --t0 is where it ends, in --to-specs
+     (js/product-stages.js). */
   --leave: 0;
   --t0: 0.3;
   --t1: 0.6;
   --hold-ratio: 0.3;
+  --i-out: clamp(0, 1 - var(--to-design) / 0.45, 1);
+  --d-in: clamp(0, (var(--to-design) - 0.55) / 0.45, 1);
   --p-out: clamp(0, 1 - var(--leave), 1);
+  --d-on: calc(var(--d-in) * var(--p-out));
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
   --specs-on: var(--s-in);
-  /* How far presentation's side things have gone, eased in — slow at first,
-     faster toward the end (the square of how far --p-out has fallen): they
-     slide out to the screen's edge as they fade, one step per scroll. */
+  /* How far design's side things have gone, eased in — slow at first, faster
+     toward the end (the square of how far --p-out has fallen): they slide
+     out to the screen's edge as they fade, one step per scroll. */
   --out-ease: calc((1 - var(--p-out)) * (1 - var(--p-out)));
   --lift: 0px;
   /* The specs column's two vertical gaps, and only these two: the standard one
@@ -2296,25 +2306,31 @@ body:has(.order-checkout-bar:not([hidden])) {
   --gap-group: 4rem;
   --gap-extra: calc(var(--gap-group) - var(--gap-row));
   /* Room to browse a stage (js/product-stages.js): how far through each
-     stage's stretch of scrolling the page is. The show goes up by that much of
-     the stage's room: the two bottom bars' height and a blank (--room-0) in
-     presentation, which it
-     holds through the fade to specs until the model's fit begins (--s-in) —
-     the model's own rise — and then comes back down; in specs, whatever it
-     takes for the end of the column to clear the bars, and no less than they
-     are tall (--browse-room, js/product.js fitBrowse). */
+     stage's stretch of scrolling the page is (--browse-0, -1, -2). In
+     inspiration the feed goes up by its own room (--feed-room, js/product.js
+     fitFeed: what it takes for its end to clear the bars). Then the show goes
+     up by that much of the stage's room: the two bottom bars' height and a
+     blank (--room-0) in design, which it holds through the fade to specs
+     until the model's fit begins (--s-in) — the model's own rise — and then
+     comes back down; in specs, whatever it takes for the end of the column to
+     clear the bars, and no less than they are tall (--browse-room,
+     js/product.js fitBrowse). */
   --bars-h: calc(var(--selection-bar-height) + var(--select-bar-height));
-  /* The first stage's room: the bars' height and a blank, 4rem, more. */
+  /* The design stage's room: the bars' height and a blank, 4rem, more. */
   --room-0: calc(var(--bars-h) + 4rem);
   --browse-0: 0;
   --browse-1: 0;
+  --browse-2: 0;
+  --feed-room: 0px;
   --browse-room: 0px;
-  --browse-px: calc(var(--room-0) * var(--browse-0) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-1));
+  --browse-px: calc(var(--room-0) * var(--browse-1) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-2));
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
-  /* The first stretch and the transition, then the end stretch — as long as the
-     first unless js/product-stages.js has set --end-hold: the time it takes to
-     browse the specs column at a set pace. */
-  height: calc(var(--pin-h) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
+  /* The inspiration stretch (--feed-hold, js/product-stages.js: the time it
+     takes to browse the feed), the transition to design, the design stretch
+     and the transition to specs, then the end stretch — as long as the design
+     stretch unless js/product-stages.js has set --end-hold: the time it takes
+     to browse the specs column at a set pace. */
+  height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
 }
 .product-stage__pin {
   position: sticky;
@@ -2340,36 +2356,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   z-index: 3;
 }
 
-/* The description: plain text 1.5rem under the title, left-aligned with it,
-   presentation only. */
-.product-detail__description {
-  flex: 0 0 auto;
-  align-self: stretch;
-  max-width: 640px;
-  margin: 1.5rem 0 0;
-  color: var(--black);
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.7;
-  opacity: var(--p-out);
-  /* It goes up with the show. */
-  transform: translateY(calc(var(--browse-0) * -1 * var(--room-0)));
-  /* No background of its own, and above the show's x-ray backdrop, which
-     reaches up behind it and shows through. */
-  position: relative;
-  /* 1.5rem higher than its place in the column, which the show under it
-     keeps. */
-  top: -1.5rem;
-  z-index: 1;
-}
-
-/* Whatever height is left goes to the carousel (and, laid over the same
-   room, the logistics text). A size container, so the carousel's tile can be
-   bounded by this height (100cqh, see .product-carousel-frame) as well as by
-   the width. Nothing here clips: the carousel breaks out to the screen's
-   edges and its x-ray backdrop, taller than the tile on purpose, reaches up
-   behind the description and down behind the bars, showing through the
-   transparent picker, size row and figures laid over it. */
+/* Whatever height is left goes to the show: the feed, and the design frame
+   (and, laid over the same room, the specs column). A size container, so the
+   model's tile can be bounded by this height (100cqh, see
+   .product-design-frame) as well as by the width. Nothing here clips: the
+   frame breaks out to the screen's edges and its x-ray backdrop, taller than
+   the tile on purpose, reaches up behind the title bar and down behind the
+   bars, showing through the transparent picker, size row and figures laid
+   over it; the feed runs on below the bars until browsed. */
 .product-stage__show {
   position: relative;
   flex: 1 1 auto;
@@ -2386,11 +2380,101 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 
 /* What takes taps: only what its stage is showing. (Focus still reaches
-   everything; js/product-stages.js scrolls to the stage it's in.) */
-.product-stage[data-stage="specs"] .product-carousel__slide--photo,
-.product-stage[data-stage="presentation"] .product-size__controls,
-.product-stage[data-stage="presentation"] .product-size__finder-toggle {
+   everything; js/product-stages.js scrolls to the stage it's in.) What is out
+   of sight altogether — the feed once it has faded, the design frame before
+   design starts to come in (js/product-stages.js) — is hidden outright: its
+   viewer, picker and options take no taps and its loader shows nothing. */
+.product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__controls,
+.product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__finder-toggle,
+.product-stage[data-stage="specs"] .product-options {
   pointer-events: none;
+}
+.product-stage.is-feed-gone .product-feed,
+.product-stage.is-design-out .product-design-frame {
+  visibility: hidden;
+}
+
+/* ---- 1. the feed (inspiration) ----
+   The description, plain text 1.5rem under the title and left-aligned with
+   it, then the photos one under the other, each with "On display: ..."
+   under it at its right edge. The photos are a column of their own, centred:
+   the full width of the screen on a phone, a tile wide (the model's, at most
+   560px) on anything wider. The stage's first stretch of scrolling takes the
+   whole feed up by its room (--feed-room, js/product.js fitFeed), one for one
+   with the scroll, and as design comes in it fades out (--i-out) carrying on
+   up a little (--feed-exit). It lies over the design frame, which is out of
+   sight until then. */
+.product-feed {
+  --feed-w: min(560px, 100%);
+  --feed-exit: 6rem;
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  opacity: var(--i-out);
+  transform: translateY(calc((var(--browse-0) * var(--feed-room) + var(--to-design) * var(--feed-exit)) * -1));
+}
+@media (max-width: 640px) {
+  .product-feed {
+    --feed-w: 100vw;
+  }
+}
+.product-detail__description {
+  align-self: stretch;
+  max-width: 640px;
+  margin: 0;
+  color: var(--black);
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.7;
+}
+.product-feed__photos {
+  /* Centred, past the content's own margins on a phone (a column wider than
+     its container overflows both sides alike). */
+  align-self: center;
+  width: var(--feed-w);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.product-feed__photos:empty {
+  display: none;
+}
+.product-feed__photo {
+  margin: 0;
+}
+/* The photo's box: square until the picture has loaded, then the picture's
+   own shape (aspect-ratio: auto 1 / 1). A loader crosses it meanwhile
+   (js/loader.js cover()), and the picture fades in after it. */
+.product-feed__frame {
+  position: relative;
+}
+.product-feed__frame > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: auto 1 / 1;
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.product-feed__caption {
+  margin-top: 0.5rem;
+  font-family: var(--font-main);
+  font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1.2;
+  color: var(--category-col);
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .product-feed__caption {
+    padding: 0 var(--edge-px);
+  }
 }
 
 /* The scan band: a full-screen-width inversion band riding the cut of the
@@ -2571,199 +2655,114 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: block;
   backdrop-filter: url(#emjiveAberration);
 }
-/* The edges' bands: the title bar's blur and chromatic aberration again, on
-   its side. From the screen's left edge, every layer is fully there (on a wide
-   screen too: the content's margin is under it) up to the mark --m — 2rem
-   inside the content's edge — and then fades out going right, over a span
-   --S: at least 3.5rem, as wide as the margin is, at most 200px. The screen's
-   right edge has the band the other way round (.product-edge-veil--right,
-   below; --dir is the way a fade runs); both stand where they do whatever the
-   picker is doing.
-   The blurs are spaced evenly along that span, the strongest nearest the mark:
-   five layers, 1px, 3px, 6px, 12px and 24px, each fading out over .4 of the
-   span (a cosine in five stops), each starting .15 of the span further in than
-   the one before — so going in from the mark the 24px goes first, then the 12px,
-   and so on, the 1px last, at the span's far end. (--q is how far past the mark
-   a layer's fade starts, in spans.) The 12px and 24px only exist where there is
-   a margin, and fade out from the margin's own inner edge (--margin), not from
-   the mark: none at all on a screen with none. The aberration is spaced the
-   same way, but one layer short — the last blur, the 24px, has none: three
-   layers over the blurs, splitting the colours .75px, 1.5px and 3px, each on
-   the shape (--q) of the 3px, 6px and 12px blur it goes with, the last gated
-   by the margin as well, so a narrow screen has two and a wide one three.
-   The band is as tall as the carousel (it goes up with it, by --lift), over the
-   carousel and under the picker (.product-below, later in the frame), and grows
-   a wedge above and below it: a right triangle against the carousel's top (and
-   bottom) edge, its right angle at the screen's edge, as high as .45 of its own
-   width (--hw) but never more than the span, the effect fading out along its
-   diagonal — so the blur spreads past the carousel as it nears the edge.
-   Each layer is one tall element whose mask is three images added up: the
-   band, the wedge above, the wedge below (--mc, --mt, --mb).
-   Presentation only, and at full strength until it ends: the photos slide out
-   of the screen as they fade (--out-ease), and
-   the layers switch off, all at once, when --p-out reaches 0 — the moment
-   those are out of the viewport (opacity: clamp(0, --p-out * 1000, 1)); no
-   fade of their own — an opacity on a backdrop filter crossfades the filtered
-   image over the unfiltered one, which ghosts. Never an opacity on their
-   parent either (it would starve them of the backdrop). */
-.product-edge-veil {
-  /* The page's margin on a wide screen, as a length (--edge-left, which holds
-     a percentage, would be read against the layer it is used in): half the
-     frame's width less half the content's. */
-  --margin: max(0px, calc(50cqw - var(--sb-w, 0px) / 2 - var(--max) / 2));
-  --m: calc(var(--margin) + 2rem);
-  --S: clamp(3.5rem, var(--margin), 200px);
-  --dir: to right;
-  /* The way each wedge's fade runs: from its corner at the edge. */
-  --dtop: to top right;
-  --dbot: to bottom right;
-  /* How far the widest wedge reaches above (and below) the carousel. */
-  --hmax: min(calc((var(--m) + var(--S)) * 0.45), var(--S));
-  position: absolute;
-  z-index: 2;
-  /* The frame is 100vw wide, which takes in the scrollbar, so it sticks out
-     half of it on each side (--sb-w, js/main.js): the band starts at the edge
-     that is seen, which its edge masking counts on. */
-  left: calc(var(--sb-w, 0px) / 2);
-  top: 0;
-  width: calc(var(--m) + var(--S));
-  height: var(--tile);
-  transform: translateY(calc(var(--lift) * -1));
-  pointer-events: none;
-}
-.product-edge-veil > span {
-  /* Never takes a press, whatever the layers' filters do: drags across the
-     bands are the carousel's (js/carousel.js). */
-  pointer-events: none;
-  --q: 0;
-  --fr: calc(var(--S) * 0.4);
-  /* Where this layer's flat part ends, its width, and the height of its
-     wedges. */
-  --x: calc(var(--m) + var(--q) * var(--S));
-  --w: calc(var(--x) + var(--fr));
-  --hw: min(calc(var(--w) * 0.45), var(--S));
-  /* How far in from each end its mask starts to show: the aberration layers
-     hide their edge columns this way (below), at the screen's edge and at the
-     inner end alike (--fe: the fade, short of that end). --ox is where the
-     wedges' masks start, from this layer's left, and they stop --D short of
-     the other end. */
-  --D: 0px;
-  --fe: calc(var(--fr) - var(--D));
-  --ox: var(--D);
-  --mc: linear-gradient(var(--dir), #000 0, #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fr) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fr) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fr) * 0.75), transparent calc(var(--x) + var(--fr)));
-  --mt: linear-gradient(var(--dtop), #000 0%, rgba(0, 0, 0, 0.854) 12.5%, rgba(0, 0, 0, 0.5) 25%, rgba(0, 0, 0, 0.146) 37.5%, transparent 50%);
-  --mb: linear-gradient(var(--dbot), #000 0%, rgba(0, 0, 0, 0.854) 12.5%, rgba(0, 0, 0, 0.5) 25%, rgba(0, 0, 0, 0.146) 37.5%, transparent 50%);
-  position: absolute;
-  top: calc(var(--hmax) * -1);
-  bottom: calc(var(--hmax) * -1);
+/* The band over the bottom bars: the title bar's blur and chromatic
+   aberration again, across the screen just above the Select bar, faint at its
+   top and full where it meets the bars — so what slides down under them (the
+   feed, the specs column) goes soft on its way rather than being cut by the
+   bar's edge. Fixed, and riding the bars: its bottom is the Select bar's top
+   (--selection-bar-stack-height, published by js/selection-bar.js as the
+   drawer opens or an Add peeks, with the same 0.3s ease). On in every stage:
+   over the page's plain background there is nothing for it to show.
+   The blurs are spaced up its height --S, the strongest nearest the bars:
+   five layers, 1px, 3px, 6px, 12px and 24px, each fully there from the bars up
+   to --q of the height and fading out over .4 of it (a cosine in five stops),
+   each starting .15 lower than the one before — so going up from the bars the
+   24px goes first, then the 12px, and so on, the 1px last. The aberration is
+   three layers over the blurs, splitting the colours .75px, 1.5px and 3px
+   vertically (Chromium only, .has-backdrop-svg, the filters built by
+   js/main.js), each on the shape of the 3px, 6px and 12px blur it goes with.
+   A layer's rows nearest the bars — as far as its colours shift, and a little
+   more — have lost a channel (a yellow or a cyan line against a light page),
+   so its mask shows nothing there (--D).
+   Never a fade of its own (an opacity on a backdrop filter crossfades the
+   filtered image over the unfiltered one, which ghosts): it is switched off
+   outright while a sheet rests where it stands (the page lock,
+   html.is-modal-open) or an Add's peek has the bars on the move. */
+.product-bottom-veil {
+  --S: 6rem;
+  position: fixed;
+  z-index: 89;
   left: 0;
-  width: var(--w);
-  /* 1 until --p-out is nothing, then 0 at once (it is 0 or 1 beyond the thousandth). */
-  opacity: clamp(0, calc(var(--p-out) * 1000), 1);
-  -webkit-mask-image: var(--mc), var(--mt), var(--mb);
-  mask-image: var(--mc), var(--mt), var(--mb);
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% var(--tile), calc(100% - 2 * var(--D)) var(--hw), calc(100% - 2 * var(--D)) var(--hw);
-  mask-size: 100% var(--tile), calc(100% - 2 * var(--D)) var(--hw), calc(100% - 2 * var(--D)) var(--hw);
-  -webkit-mask-position: 0 var(--hmax), var(--ox) calc(var(--hmax) - var(--hw)), var(--ox) calc(var(--hmax) + var(--tile));
-  mask-position: 0 var(--hmax), var(--ox) calc(var(--hmax) - var(--hw)), var(--ox) calc(var(--hmax) + var(--tile));
+  right: 0;
+  bottom: calc(var(--selection-bar-stack-height, var(--selection-bar-height)) + var(--select-bar-height));
+  height: var(--S);
+  pointer-events: none;
+  transition: bottom 0.3s ease;
 }
-.product-edge-veil > span:nth-child(1) {
+html.is-modal-open .product-bottom-veil,
+body:has(.selection-bar.is-peek-up) .product-bottom-veil,
+body:has(.product-select-bar[hidden]) .product-bottom-veil {
+  visibility: hidden;
+}
+.product-bottom-veil > span {
+  --q: 0;
+  --D: 0px;
+  --x: calc(var(--q) * var(--S));
+  --fr: calc(var(--S) * 0.4);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--S);
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to top, transparent 0, transparent var(--D), #000 calc(var(--D) + var(--D) * 2), #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fr) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fr) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fr) * 0.75), transparent calc(var(--x) + var(--fr)));
+  mask-image: linear-gradient(to top, transparent 0, transparent var(--D), #000 calc(var(--D) + var(--D) * 2), #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fr) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fr) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fr) * 0.75), transparent calc(var(--x) + var(--fr)));
+}
+.product-bottom-veil > span:nth-child(1) {
   --q: 0.6;
   -webkit-backdrop-filter: blur(1px);
   backdrop-filter: blur(1px);
 }
-.product-edge-veil > span:nth-child(2) {
+.product-bottom-veil > span:nth-child(2) {
   --q: 0.45;
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
-.product-edge-veil > span:nth-child(3) {
+.product-bottom-veil > span:nth-child(3) {
   --q: 0.3;
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
-/* The strong ones, from the margin's inner edge, and none where there is no
-   margin (a width of a thousand margins, held to the layer's own). */
-.product-edge-veil > span:nth-child(4),
-.product-edge-veil > span:nth-child(5),
-.product-edge-veil > span:nth-child(8) {
-  --x: calc(var(--margin) + var(--q) * var(--S));
-  --w: min(calc(var(--x) + var(--fr)), calc(var(--margin) * 1000));
-}
-.product-edge-veil > span:nth-child(4) {
+.product-bottom-veil > span:nth-child(4) {
   --q: 0.15;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-.product-edge-veil > span:nth-child(5) {
+.product-bottom-veil > span:nth-child(5) {
   --q: 0;
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
-/* Chromium only, as the title bar's (.has-backdrop-svg, js/main.js): red and
-   blue split sideways. A layer's edge columns — the first --D px at each end,
-   as far as it shifts and a little more — have lost a channel (red and green
-   with no blue reads as a yellow band; no red, a cyan line, which even a few
-   percent of the mask shows against a light page), so its masks show nothing
-   there: the band fades in after --D and out before the inner end, and the
-   wedges stop --D short of both ends. */
-.product-edge-veil > span:nth-child(6),
-.product-edge-veil > span:nth-child(7),
-.product-edge-veil > span:nth-child(8) {
+.product-bottom-veil > span:nth-child(6),
+.product-bottom-veil > span:nth-child(7),
+.product-bottom-veil > span:nth-child(8) {
   display: none;
-  --mc: linear-gradient(var(--dir), transparent 0, transparent var(--D), #000 calc(var(--D) + 4px), #000 var(--x), rgba(0, 0, 0, 0.854) calc(var(--x) + var(--fe) * 0.25), rgba(0, 0, 0, 0.5) calc(var(--x) + var(--fe) * 0.5), rgba(0, 0, 0, 0.146) calc(var(--x) + var(--fe) * 0.75), transparent calc(var(--x) + var(--fe)));
 }
-.product-edge-veil > span:nth-child(6) {
+.product-bottom-veil > span:nth-child(6) {
   --q: 0.45;
   --D: 2px;
 }
-.product-edge-veil > span:nth-child(7) {
+.product-bottom-veil > span:nth-child(7) {
   --q: 0.3;
   --D: 3px;
 }
-.product-edge-veil > span:nth-child(8) {
+.product-bottom-veil > span:nth-child(8) {
   --q: 0.15;
   --D: 5px;
 }
-.has-backdrop-svg .product-edge-veil > span:nth-child(6),
-.has-backdrop-svg .product-edge-veil > span:nth-child(7),
-.has-backdrop-svg .product-edge-veil > span:nth-child(8) {
+.has-backdrop-svg .product-bottom-veil > span:nth-child(6),
+.has-backdrop-svg .product-bottom-veil > span:nth-child(7),
+.has-backdrop-svg .product-bottom-veil > span:nth-child(8) {
   display: block;
 }
-.has-backdrop-svg .product-edge-veil > span:nth-child(6) {
-  backdrop-filter: url(#emjiveAberrationXS);
+.has-backdrop-svg .product-bottom-veil > span:nth-child(6) {
+  backdrop-filter: url(#emjiveAberrationS);
 }
-.has-backdrop-svg .product-edge-veil > span:nth-child(7) {
-  backdrop-filter: url(#emjiveAberrationX);
+.has-backdrop-svg .product-bottom-veil > span:nth-child(7) {
+  backdrop-filter: url(#emjiveAberration);
 }
-.has-backdrop-svg .product-edge-veil > span:nth-child(8) {
-  backdrop-filter: url(#emjiveAberrationX3);
-}
-/* The right edge's: the same band mirrored, with the same span and mark
-   (--margin: the margin a wide screen has, which is all under the band; none
-   on a narrow one). Its colours split outward, the other way round to the left
-   edge's, and its wedges' corners are at the right edge. */
-.product-edge-veil--right {
-  --dir: to left;
-  --dtop: to top left;
-  --dbot: to bottom left;
-  left: auto;
-  right: calc(var(--sb-w, 0px) / 2);
-}
-.product-edge-veil--right > span {
-  left: auto;
-  right: 0;
-}
-.has-backdrop-svg .product-edge-veil--right > span:nth-child(6) {
-  backdrop-filter: url(#emjiveAberrationXRS);
-}
-.has-backdrop-svg .product-edge-veil--right > span:nth-child(7) {
-  backdrop-filter: url(#emjiveAberrationXR);
-}
-.has-backdrop-svg .product-edge-veil--right > span:nth-child(8) {
-  backdrop-filter: url(#emjiveAberrationXR3);
+.has-backdrop-svg .product-bottom-veil > span:nth-child(8) {
+  backdrop-filter: url(#emjiveAberration3);
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
@@ -2790,6 +2789,11 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-detail__label-name {
   font-family: var(--font-main);
 }
+/* The chosen design, after the name ("-1L2": js/product.js renderLabelDesign),
+   in the name's own type: together they are the design's name. */
+.product-detail__label-design {
+  font-family: var(--font-main);
+}
 .product-detail__label-type {
   font-family: var(--font-secondary);
   font-size: 0.65em;
@@ -2803,127 +2807,86 @@ body:has(.order-checkout-bar:not([hidden])) {
   white-space: nowrap;
 }
 
-/* ---- 2. carousel ----
-   A free-drag filmstrip (no snapping — see js/carousel.js), not a
-   one-slide-at-a-time paginator: every image is square, and the tile size
-   (--tile, used as both width and height throughout) is capped at 560px
-   but shrinks on narrower containers so the viewport always exceeds one
-   tile by >= 4rem — since js/carousel.js rests on (and rubber-bands
-   dragging past) the first/last tile CENTERED rather than flush to an
-   edge, that reservation splits into a >= 2rem peek on each side, not
-   just one.
-   The viewport stays full width and the carousel stays scrollable even
-   when every tile would technically fit at once (e.g. few photos on a
-   wide screen) — it always rests on the first tile centered rather than
-   collapsing to a static "show everything, hug the content" layout.
-   width: 100vw (rather than 100%) breaks the frame out of .product-detail's
-   centered/padded column to span the full viewport edge-to-edge —
-   .product-stage__show's justify-content: center then centers this
-   wider-than-its-container box the same way it would a narrower one, no
-   separate breakout trick needed (unlike the left:50%+translateX(-50%)
-   technique .product-card__bar-link/.product-detail__label-bar::before use
-   elsewhere, which is only for absolutely-positioned overlays, not a
-   normal-flow box like this one that needs to reserve its own real layout
-   height).
-   --tile and container-type live on this outer frame, not .product-carousel
-   itself, so .product-carousel__xray below — a sibling of .product-carousel,
-   not a descendant — can size itself off var(--tile) too: nesting it inside
-   .product-carousel directly put it inside that inline-size containment,
-   which was quietly constraining its height to fit rather than letting it
-   bleed past the carousel's own box the way a plain sibling can. */
-.product-carousel-frame {
+/* ---- 2. the design frame (design, then specs) ----
+   A band across the whole screen — width: 100vw breaks it out of
+   .product-detail's centred, padded column, and .product-stage__show's
+   justify-content: center centres it all the same — as tall as the model's
+   tile (--tile, used as both width and height: at most 560px, 4rem narrower
+   than the screen, and no taller than the show). It holds the model in its
+   middle over its x-ray, and everything placed against the model: the metal
+   picker beside it, the design options under it, the specs column. Not a
+   container itself: --tile reads the screen's width (100vw, which the frame
+   is) and the show's height (100cqh, the show being the size container), the
+   same for the frame and everything in it. */
+.product-design-frame {
   position: relative;
-  width: 100vw;
-  container-type: inline-size;
-  /* Bounded by the height too: 100cqh is .product-stage__show's (the
-     nearest container that answers height queries — this one only answers
-     width), less the photos' caption band when there is one. */
-  --tile: min(560px, 100cqw - 4rem, 100cqh - var(--caption-room));
-  --caption-room: 0px;
-  /* Below, only when .product-carousel--has-photos is also set —
-     .product-carousel__viewport adds these on top of --tile so a photo
-     slide's caption gets real reserved room instead of eating into the
-     photo's own --tile box (see that class further down). */
-  --caption-gap: 2px;
-  /* Tied to .product-carousel__caption's own font-size below, not just a
-     matching guess — that rule sets line-height: 1 and clips overflow, so
-     this box must always equal its text's rendered height exactly or the
-     caption gets cropped. Scaling by --text-scale keeps the two in sync. */
-  --caption-h: calc(0.75rem * var(--text-scale));
-}
-.product-carousel-frame.product-carousel--has-photos {
-  --caption-room: calc(var(--caption-gap) + var(--caption-h));
-}
-/* No peek to reserve space for when there's nothing to peek at. */
-.product-carousel-frame.product-carousel--single {
-  --tile: min(560px, 100cqw, 100cqh - var(--caption-room));
-}
-/* In the stage the frame is an item of a flex row (.product-stage__show),
-   where it would shrink to the column's width — an inline-size container
-   has no minimum width of its own — and lose the breakout to the screen's
-   edges. */
-.product-stage .product-carousel-frame {
   flex-shrink: 0;
-  /* Where the screen's left edge is for what is anchored to it — the metal
-     picker's bars, which poke in from it, and the figures' column: the
-     page's own left edge, which on a screen wider than the content is where
-     the content starts (the bars carry on to the screen's edge from there,
-     see .product-below). */
+  width: 100vw;
+  --tile: min(560px, 100vw - 4rem, 100cqh);
+  height: var(--tile);
+  /* The model's box: three quarters of the tile, two thirds on a phone. */
+  --model-size: calc(var(--tile) * 0.75);
+  /* Where the screen's left edge is for what is anchored to it — the
+     picker and the column: the page's own left edge, which on a screen wider
+     than the content is where the content starts. */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
-  /* Where the column under the model starts (the specs stage's, and the
-     logistics stage's in the same place): just under the model, which stands
-     on the first quarter of the screen in specs (8rem lower) — its middle is --lift above
-     the tile's middle, and its brackets reach about a quarter of the tile
-     below that. */
+  /* Where the column under the model starts in specs: just under the model,
+     which stands on the first quarter of the screen in specs (8rem lower) —
+     its middle is --lift above the tile's middle, and its brackets reach
+     about a quarter of the tile below that. */
   --below-top: calc(var(--tile) / 2 - var(--lift) + var(--tile) * 0.26 + var(--gap-row));
 }
-/* The stages: the photos and the x-ray go as specs comes in (the model
-   stays — it turns into its wireframe instead, js/three-viewer.js), and the
-   whole strip is the model alone. A model that isn't live (its poster, the
-   icon fallback) turns grey with it rather than staying in metal. */
-.product-stage .product-carousel {
-  /* Up by the lift. */
-  transform: translateY(calc(var(--lift) * -1));
+@media (max-width: 640px) {
+  .product-design-frame {
+    --model-size: calc(var(--tile) * 0.66);
+  }
 }
-.product-stage .product-carousel__xray {
-  /* Fading from the first pixel, and gone at the end of the first stage's
-     stretch of scrolling (--browse-0 reaching 1), where the transition to specs
-     begins. */
-  opacity: calc(1 - var(--browse-0));
+
+/* The model's box, in the tile's middle, and up by the lift (its rise to its
+   place in specs). In with design (--d-in), and there from then on: in specs
+   it turns grey and shrinks into its box (js/three-viewer.js). Only a circle
+   of the viewer answers to a drag (.emjive-3d-viewer__hit); a drag that
+   starts anywhere else scrolls the page. A model that isn't live (its poster,
+   the icon fallback) turns grey with specs rather than staying in metal. */
+.product-model {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: var(--model-size);
+  height: var(--model-size);
+  transform: translate(-50%, calc(-50% - var(--lift)));
+  opacity: var(--d-in);
 }
-/* The photos hold their opacity for the first fifth of the way out (they are
-   already sliding), and are gone where the rest of presentation's things are
-   (the x-ray, above, goes sooner). */
-.product-stage .product-carousel__slide--photo {
-  opacity: clamp(0, calc(var(--p-out) / 0.8), 1);
+.product-model .emjive-3d-viewer,
+.product-model .size-modal__model-poster {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
-/* The photos stand to the right of the model (the carousel centres it as the
-   transition starts) and slide out to the screen's right edge as they fade,
-   a half screen by the end (--out-ease, linked to the scroll). */
-.product-stage .product-carousel__slide--photo {
-  transform: translateX(calc(var(--out-ease) * 50vw));
+.product-model__icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.product-stage .product-carousel__slide:not(.product-carousel__slide--photo) img {
+.product-model img {
   filter: grayscale(var(--to-specs));
 }
-.product-carousel.is-locked .product-carousel__viewport,
-.product-carousel.is-locked .product-carousel__viewport:active {
-  cursor: default;
-}
-/* Behind .product-carousel (z-index: 1, below) — a static, non-scrolling
-   x-ray backdrop for the product. Real product x-ray source images have a
-   fair amount of transparent padding baked in around the actual artwork
-   (same as the hand x-ray renders elsewhere on the site), so sizing this
-   at exactly --tile made the bleed technically real but visually
-   unnoticeable — the box overflowed the filmstrip's height, but the
-   visible artwork inside it didn't reach far enough to show. Scaled up
-   past the tile size instead (1.75x, floored at 512px so it stays
-   substantial even for a small --tile on narrow screens) — tune
-   --xray-width's multiplier/floor directly if that's still too
-   subtle/too much. Still 3:4 (taller than wide), still centered on the
-   filmstrip. See js/product.js for the per-product src/hidden toggle
-   (product.assets.xray). */
-.product-carousel__xray {
+
+/* Behind the model — a static, non-scrolling x-ray backdrop for the product.
+   Real product x-ray source images have a fair amount of transparent padding
+   baked in around the actual artwork, so it is sized well past the tile
+   (1.66x, floored at 512px so it stays substantial even for a small --tile on
+   narrow screens). 3:4 (taller than wide), centred on the tile. In with design
+   (--d-in), and fading out from the first pixel of the design stage's stretch
+   of scrolling (--browse-1), gone where the transition to specs begins —
+   sooner than design's other things. See js/product.js for the per-product
+   src/hidden toggle (product.assets.xray). */
+.product-design__xray {
   /* 0.88 on a narrow screen (400px and under), 1.1 on a wide one (1440px and
      over), a straight line between by the viewport's width: tan(atan2(a, b))
      is the unitless a / b. */
@@ -2944,21 +2907,35 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: calc(var(--xray-width) * 4 / 3);
   object-fit: cover;
   pointer-events: none;
+  opacity: calc(var(--d-in) * (1 - var(--browse-1)));
 }
 /* A smartphone: the same query as PHONE_QUERY in js/loader.js (which picks the
    file) — and --xray-crop is PHONE_CROP.xray in scripts/make-image-variants.js
    (which cuts it); scripts/validate-data.js fails the build if they differ. */
 @media (max-width: 640px) and (max-aspect-ratio: 3/5) {
-  .product-carousel__xray {
+  .product-design__xray {
     --xray-crop: 0.74;
   }
 }
+
+/* ---- the carousel (the Modify sheet's) ----
+   js/modify-modal.js builds a small carousel at the top of its sheet with
+   this markup, paged by js/carousel.js: a free-drag filmstrip (no snapping),
+   every slide a square --tile wide (the sheet sets its own, --mini-tile,
+   further down), resting on the first slide centred and rubber-banding past
+   either end. */
+.product-carousel-frame {
+  position: relative;
+  width: 100vw;
+  container-type: inline-size;
+  --tile: min(560px, 100cqw - 4rem);
+}
+/* No peek to reserve space for when there's nothing to peek at. */
+.product-carousel-frame.product-carousel--single {
+  --tile: min(560px, 100cqw);
+}
 .product-carousel {
   position: relative;
-  /* Own stacking context (position + z-index together) so this whole
-     component paints as one unit above .product-carousel__xray, rather
-     than .product-carousel__viewport's own z-index being compared
-     against the xray directly. */
   z-index: 1;
   width: 100%;
 }
@@ -2971,14 +2948,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: transparent;
   cursor: grab;
   touch-action: pan-y;
-}
-/* Extra room below --tile for every slide's caption band — reserved on
-   the viewport (not on each .product-carousel__slide, which stays fixed
-   at exactly --tile below) so a photo still fills --tile edge-to-edge
-   and tiles flush against its neighbors instead of getting letterboxed
-   to make room for its own caption. */
-.product-carousel--has-photos .product-carousel__viewport {
-  height: calc(var(--tile) + var(--caption-gap) + var(--caption-h));
 }
 .product-carousel--single .product-carousel__viewport {
   cursor: default;
@@ -2994,28 +2963,19 @@ body:has(.order-checkout-bar:not([hidden])) {
   height: 100%;
   width: max-content;
   /* Its own layer from the start, so that its glides (a tap, the way home) run
-     on the compositor and don't wait on the main thread: Safari, with the model's
-     canvas and the edge bands' backdrop filters around, otherwise drops the
-     frames of a glide and what is left reads as a snap. */
+     on the compositor and don't wait on the main thread. */
   will-change: transform;
 }
 .product-carousel__slide {
   flex: 0 0 var(--tile);
   width: var(--tile);
-  /* Fixed at --tile (not 100% of the viewport) so a photo slide's own
-     framing never changes when .product-carousel--has-photos grows the
-     viewport taller to fit captions below — every slide type keeps
-     lining up in the same top --tile band regardless of viewport
-     height. */
   height: var(--tile);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
 }
-/* object-fit: contain (not cover, unlike .product-card__figure) — these
-   are real product photos, not the grid's zoomed model framing, so
-   nothing should get cropped out. */
+/* object-fit: contain — real product photos, nothing cropped out. */
 .product-carousel__slide > img,
 .product-carousel__slide .emjive-3d-viewer {
   width: 100%;
@@ -3033,11 +2993,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Smaller than the slide on purpose, and only a circle of it answers to a
-   drag (.emjive-3d-viewer__hit, above): a drag that starts in the circle
-   rotates the model (TrackballControls), one that starts anywhere else on the
-   slide pages the carousel or scrolls the page (js/carousel.js), and there's
-   no arrow/dot/keyboard nav to fall back on for a pointer. */
+/* Smaller than the slide on purpose: a drag that starts on the model rotates
+   it (TrackballControls), one that starts anywhere else on the slide pages
+   the carousel. */
 .product-carousel__slide--model .emjive-3d-viewer {
   width: 75%;
   height: 75%;
@@ -3048,40 +3006,11 @@ body:has(.order-checkout-bar:not([hidden])) {
     height: 66%;
   }
 }
-/* A real product photo (product.assets.photos), unlike the model/icon
-   slide above, carries its own "on display:" caption naming which
-   finish/context that shot is showing — js/product.js's buildPhotoSlide.
-   The <img> itself is untouched (still the plain full-bleed rule above,
-   filling --tile edge-to-edge so it stays flush against its neighbor
-   tiles); the caption is pinned to the slide's own bottom-right corner —
-   hugging its photo's right edge — inside the extra band
-   .product-carousel--has-photos reserves below --tile on the viewport.
-   Still a real child of .product-carousel__slide, the flex item
-   .product-carousel__track drags/transforms, so it rides the same plane
-   as its photo through any carousel motion. */
-.product-carousel__caption {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: var(--caption-gap);
-  height: var(--caption-h);
-  line-height: 1;
-  font-family: var(--font-main);
-  font-size: calc(0.75rem * var(--text-scale));
-  color: var(--category-col);
-  text-align: right;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (max-width: 640px) {
-  .product-carousel__caption { font-size: 0.5rem; }
-}
 
-/* Under the model in specs: everything that goes with it, in one column
-   (product.html .product-below) — the metal picker, the size, the weight and
-   the printing technology — from the content's left edge, each a table of
+/* Under the model: everything that goes with it, in one column
+   (product.html .product-below) — in design, the design options; in specs, the
+   size, the metal picker and the printing technology, the costs, shipping and
+   returns — from the content's left edge, each a table of
    two columns, a label and its value (--label-col, --label-gap; the first
    column is the same in all of them). It starts just under the model, which
    stands on the first quarter of the screen in specs: the model's middle is
@@ -3094,7 +3023,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   z-index: 2;
   left: calc(var(--edge-left) + var(--edge-px));
   /* The column starts at the frame's top, and its padding is what puts it
-     under the model: the picker (absolute, beside the model in presentation)
+     under the model: the picker (absolute, beside the model in design)
      measures from the frame itself, with nothing that moves with the scroll
      in its place. */
   top: 0;
@@ -3108,10 +3037,10 @@ body:has(.order-checkout-bar:not([hidden])) {
   gap: var(--gap-row);
   pointer-events: none;
 }
-/* The picker: in presentation, a stack of squares beside the model, its middle
-   on the tile's middle, the content's left edge for its left. As specs
-   comes in it fades out with presentation's things and back in with specs'
-   (--p-out, --specs-on: never both) — and it changes place in the blank
+/* The picker: in design, a stack of squares beside the model, its middle on
+   the tile's middle, the content's left edge for its left. It comes in with
+   design's things, and as specs comes in it fades out with them and back in
+   with specs' (--d-on, --specs-on: never both) — and it changes place in the blank
    between (js/product.js puts .is-specs-layout on the stage mid-blank): under
    the model, in the column of the others, with its label. It goes with
    logistics. */
@@ -3123,9 +3052,9 @@ body:has(.order-checkout-bar:not([hidden])) {
      (the margin a wide screen has, plus the page margin) and 6rem more takes it
      clear with its name. Not in the specs column: .is-specs-layout, below. */
   transform: translateX(calc(var(--out-ease) * -1 * (max(0px, calc(50vw - var(--max) / 2)) + var(--edge-px) + 6rem)));
-  /* Out with presentation, in with specs: never two of those at once (each
+  /* In and out with design, in with specs: never two of those at once (each
      phase waits for the one before). */
-  opacity: calc(var(--p-out) + var(--specs-on));
+  opacity: calc(var(--d-on) + var(--specs-on));
 }
 .product-material__label {
   display: none;
@@ -3151,27 +3080,78 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-stage .product-metals {
   pointer-events: auto;
 }
-/* Paging the strip on to the photos (js/carousel.js sets --paged-px, how far
-   it has moved, and --paged, 0 to 1, on the frame, tweened with the strip)
-   takes the picker along with it, one for one, and fades it out by the time
-   the strip is 30% of a tile along. Not in the specs column, where the strip
-   is held at home. */
-@property --paged {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 0;
+/* The design options (a product with several designs, js/product.js
+   renderDesigns): under the model in design, one row per option — its label,
+   then its choices — a table of two columns like the specs column's. Each
+   choice is its name with the site's dot before it, always there and filled
+   on the chosen one(s) (the same recipe as the shipping pick list), so a
+   choice never shifts when it is picked. A choice that would land on another
+   design than the one its combination names is dimmed (still a tap away);
+   the last one on of a multiple option can't be turned off. Absolute, just
+   under the model's box, and up with it by the lift; in and out with design
+   (--d-on). */
+.product-options {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift) + var(--gap-row));
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gap-row) / 2);
+  opacity: var(--d-on);
 }
-@property --paged-px {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
+.product-options[hidden] {
+  display: none;
 }
-.product-stage:not(.is-specs-layout) .product-metals {
-  opacity: calc(1 - var(--paged));
-  translate: calc(var(--paged-px) * -1) 0;
+.product-option {
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+  align-items: baseline;
 }
-.product-stage:not(.is-specs-layout) .product-carousel-frame.is-paged .product-metals {
-  pointer-events: none;
+.product-option__label {
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  color: var(--black);
+}
+.product-option__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  pointer-events: auto;
+}
+.product-option__choice {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  font-family: var(--font-secondary);
+  font-size: calc(0.65rem * var(--text-scale));
+  line-height: 1.5;
+  color: var(--category-col);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-option__choice::before {
+  content: "";
+  flex: none;
+  width: var(--dot);
+  height: var(--dot);
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: transparent;
+}
+.product-option__choice[aria-pressed="true"]::before {
+  background: var(--category-col);
+}
+.product-option__choice.is-unavailable {
+  opacity: 0.35;
+}
+.product-option__choice[aria-disabled="true"] {
+  cursor: default;
 }
 /* The specs stage's size: the label "Size" on the left, then — in the column
    where the printing technology's name stands — the slider and, to its right,
@@ -3667,12 +3647,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 
 /* ---- a screen too short to pin the stage (a phone on its side) ----
-   No room for a title, a carousel and the rest in one screen, so the show is
-   laid out as a plain column — description, carousel, then (all in the
-   carousel's frame) the picker, the size and the figures, then shipping &
-   returns — everything shown at once, the title bar still sticking under the
-   header. js/product-stages.js stands down on the same query
-   (data-stage="flow") and the model stays in metal. */
+   No room for a title, the model and the rest in one screen, so the show is
+   laid out as a plain column — the description and the photos, the model,
+   then (all in the design frame) the design options, the picker, the size and
+   the figures, then shipping & returns — everything shown at once, the title
+   bar still sticking under the header. js/product-stages.js stands down on
+   the same query (data-stage="flow") and the model stays in metal. */
 @media (max-height: 560px) {
   .product-stage {
     height: auto;
@@ -3695,18 +3675,31 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     container-type: normal;
     transform: none;
   }
-  .product-stage .product-carousel-frame {
-    --tile: min(560px, 100cqw - 4rem, 70svh);
+  .product-feed {
+    position: static;
+    transform: none;
+    opacity: 1;
+    margin-bottom: 3rem;
+  }
+  .product-design-frame {
+    --tile: min(560px, 100vw - 4rem, 70svh);
+    height: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
   }
-  .product-stage .product-carousel {
-    align-self: stretch;
+  .product-model {
+    position: relative;
+    left: auto;
+    top: auto;
+    flex: none;
+    transform: none;
+    opacity: 1;
   }
-  .product-stage .product-carousel__xray {
+  .product-design__xray {
     top: calc(var(--tile) / 2);
+    opacity: 1;
   }
   .product-below {
     position: static;
@@ -3716,23 +3709,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     align-self: flex-start;
     pointer-events: auto;
   }
+  .product-options {
+    position: static;
+    opacity: 1;
+  }
   .product-material {
     position: static;
     display: grid;
     grid-template-columns: var(--label-col) minmax(0, 1fr);
     column-gap: var(--label-gap);
     opacity: 1;
+    transform: none;
   }
   .product-material__label {
     display: block;
-  }
-  /* The picker is in the column, not beside the model: paging the strip leaves
-     it be. */
-  .product-stage:not(.is-specs-layout) .product-carousel-frame.is-paged .product-metals,
-  .product-stage:not(.is-specs-layout) .product-metals {
-    opacity: 1;
-    translate: none;
-    pointer-events: auto;
   }
   .product-size,
   .product-specs,
@@ -3743,6 +3733,17 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     opacity: 1;
     padding-bottom: 3rem;
   }
+}
+
+/* The model's loader (js/product.js) is on the design frame, across the
+   screen at the model's height, over everything laid in the frame: the
+   picker, the options, the size row. It goes up with the model. Out of sight
+   with the frame before design comes in (.is-design-out). */
+.product-design-frame > .loader {
+  inset: 0 0 auto 0;
+  height: var(--tile);
+  z-index: 5;
+  transform: translateY(calc(var(--lift) * -1));
 }
 
 /* ---- the model's dimension labels ----
@@ -5429,17 +5430,6 @@ input:focus-visible,
   pointer-events: none;
 }
 
-/* The product page's loader (js/product.js) is on the carousel's frame, over
-   the strip's own band of it, and over everything laid in the frame: the
-   picker, the edge bands, the size row. It goes up with the carousel. */
-.product-carousel-frame > .loader {
-  inset: 0 0 auto 0;
-  height: var(--tile);
-  z-index: 5;
-}
-.product-stage .product-carousel-frame > .loader {
-  transform: translateY(calc(var(--lift) * -1));
-}
 
 /* Created at mount, shown only after --loader-delay. */
 .loader.is-waiting {

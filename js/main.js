@@ -15,8 +15,8 @@
   /* ---- chromatic aberration (Chromium only) ------------------------------
      The blurred strips (the product page's title bar, the Select bar, the
      checkout bar: css/style.css) split red and blue a pixel and a half apart,
-     vertically (the metal picker's edge blur, sideways: two filters, one for
-     each way), with an SVG filter used as a backdrop-filter — which only
+     vertically (the product page's band over its bottom bars at three
+     strengths), with an SVG filter used as a backdrop-filter — which only
      Chromium runs on a backdrop. A browser with that engine says so in its
      brands (Chrome, Edge, Brave...; none of the WebKit browsers, iPhone's
      Chrome among them, has them): it gets the filter in the page and
@@ -56,35 +56,14 @@
       node("feBlend", { "in": "rg", in2: "bShifted", mode: "screen" }, filter);
     }
     aberration("emjiveAberration", "dy");
-    aberration("emjiveAberrationX", "dx");
-    aberration("emjiveAberrationXR", "dx", true);
-    // The edge bands' other strengths (css/style.css .product-edge-veil):
-    // 0.75px, and 3px (which only a screen with a margin shows).
-    aberration("emjiveAberrationXS", "dx", false, 0.75);
-    aberration("emjiveAberrationXRS", "dx", true, 0.75);
-    aberration("emjiveAberrationX3", "dx", false, 3);
-    aberration("emjiveAberrationXR3", "dx", true, 3);
+    // The product page's band over the bottom bars (css/style.css
+    // .product-bottom-veil) has three strengths, the 1.5px above among them:
+    // 0.75px, and 3px nearest the bars.
+    aberration("emjiveAberrationS", "dy", false, 0.75);
+    aberration("emjiveAberration3", "dy", false, 3);
     document.body.appendChild(svg);
     document.documentElement.classList.add("has-backdrop-svg");
   })();
-
-  /* ---- scrollbar width ------------------------------------------------------
-     Published as --sb-w on <html> (0 wherever scrollbars float over the page).
-     The 100vw breakouts (the product page's carousel frame, and the blurred
-     bands anchored to its two ends) are as wide as the window including the
-     scrollbar, so they stick out half of it past each edge of the page: the
-     bands' edge masking (css/style.css .product-edge-veil) has to know it to
-     line up with the edge that is actually seen. */
-  function publishScrollbarWidth() {
-    var root = document.documentElement;
-    root.style.setProperty("--sb-w", Math.max(0, window.innerWidth - root.clientWidth) + "px");
-  }
-  publishScrollbarWidth();
-  window.addEventListener("resize", publishScrollbarWidth);
-  // A scrollbar comes and goes as the page grows past the window or shrinks
-  // back (content arriving after load, a sheet locking the scroll): the root's
-  // own width is what changes then, and a window resize doesn't say so.
-  if (window.ResizeObserver) new ResizeObserver(publishScrollbarWidth).observe(document.documentElement);
 
   /* ---- header menu toggle ------------------------------------------------- */
 

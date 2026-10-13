@@ -1,10 +1,12 @@
 /* ==========================================================================
    J&MV — product detail page
-   Resolves ?id= against the active series' products.json and renders the label, carousel,
-   metal picker, description, characteristics and size/selection flow — the
-   two stages of product.html's show (presentation, specs), whose
-   scrolling js/product-stages.js drives; this file reacts to it for the parts
-   CSS can't do (the model's grey sweep, the carousel holding the model).
+   Resolves the item from the address against the active series'
+   products.json and renders the label, the feed of photos, the model, the
+   metal picker and the design options, the characteristics and the
+   size/selection flow — the three stages of product.html's show
+   (inspiration, design, specs), whose scrolling js/product-stages.js drives;
+   this file reacts to it for the parts CSS can't do (the model's grey sweep,
+   its rise to its place in specs, the feed's room to scroll).
    ========================================================================== */
 
 (function () {
@@ -15,22 +17,28 @@
 
   var loadingEl = document.getElementById("productDetailLoading");
   var contentEl = document.getElementById("productDetailContent");
-
-  // The drag/paging/tap-to-center behaviour lives in js/carousel.js, shared
-  // with the Modify sheet's small carousel — wired once here, since the
-  // viewport/track are static markup in product.html and only the slides
-  // inside the track change per product. dragScroll: a vertical drag on it
-  // scrolls the page (the model's circle apart, see createModelViewer).
-  var carouselEl = document.getElementById("productCarousel");
-  var carousel = window.EmjiveCarousel(carouselEl, { dragScroll: true });
-  // The frame around it (see carouselLoadHold).
-  var carouselFrameEl = document.getElementById("productCarouselFrame");
-  // How far presentation's things have gone (--leave) when the carousel's strip
-  // is held on the model.
-  var HOLD_AT = 0.25;
+  var stageEl = document.getElementById("productStage");
+  // The design stage's frame (a --tile tall band across the screen, the
+  // model in its middle) and the model's own box in it.
+  var designFrameEl = document.getElementById("productDesignFrame");
+  var modelBoxEl = document.getElementById("productModel");
+  // js/product-stages.js's handle, once mounted (wireStages).
+  var stages = null;
+  // Up to here of the way to design (--to-design), design's things haven't
+  // started to come in: the model is out of sight and holds still. The same
+  // number as DESIGN_FROM in js/product-stages.js and --d-in's in
+  // css/style.css.
+  var DESIGN_FROM = 0.55;
 
   var state = {
     product: null,
+    // The product as its chosen design (EmjiveSeries.resolveDesign): what the
+    // model, the label's thumbnail, the specs and the selection read. The
+    // product itself for one with a single design.
+    view: null,
+    designKey: "",
+    // The loader hold over the model while a design's model is on its way.
+    swapHold: null,
     metals: [],
     // data/series.json's "metal-costs", keyed by metal (see computeCosts).
     metalCosts: {},
@@ -40,7 +48,7 @@
     technologies: {},
     selectedMetal: null,
     modelHandle: null,
-    // The model slide's poster <img> while the viewer isn't in yet.
+    // The model box's poster <img> while the viewer isn't in yet.
     posterImg: null,
     // The x-ray backdrop's original file (the page shows a version of it
     // chosen for the viewport — see startXray) and whether the viewport
@@ -48,13 +56,18 @@
     xraySrc: "",
     xrayWatching: false,
     iconFallbackImg: null,
-    // How far the show has gone (js/product-stages.js): presentation ->
-    // specs, 0 to 1 — and what that makes of the model (refreshStage). Kept so
-    // a viewer built later (first mount, after the Modify sheet, after Back)
-    // starts where the page is.
+    // How far the show has gone (js/product-stages.js): inspiration ->
+    // design and design -> specs, 0 to 1 each — and what that makes of the
+    // model (refreshStage). Kept so a viewer built later (first mount, after
+    // the Modify sheet, after Back) starts where the page is.
+    toDesign: 0,
     toSpecs: 0,
-    // How far the page is through the first stretch and the transition, linear
-    // in the scroll from its first pixel: what the model's rise runs on.
+    // Whether design's things are out of sight (the inspiration stage): the
+    // viewer is paused then.
+    designOut: true,
+    // How far the page is through the design stretch and the transition to
+    // specs, linear in the scroll from its first pixel: what the model's rise
+    // runs on.
     along: 0,
     sweep: 0,
     fit: 0,
@@ -69,9 +82,6 @@
     // Whether the specs size has been given its starting value (62).
     sizeSeeded: false,
     seedSize: null,
-    // Whether the carousel is held on the model (presentation's things are on
-    // their way out).
-    carouselHeld: false,
     // The timer that marks the cost chart as played out.
     settleTimer: 0
   };
@@ -83,16 +93,16 @@
     return node;
   }
 
-  // One loader for the whole carousel — the model's, the photos' and the icon
-  // fallback's waits all go through it (js/loader.js, "a loader shared by
-  // several assets"), and it only shows while one of them is both loading and
-  // on screen. A hold on it names the slide the asset appears in. null when
-  // there is no loader (js/loader.js missing, reduced motion). It is mounted on
-  // the carousel's frame, not the carousel itself, which is a stacking context
-  // of its own: there it passed under the metal picker and the edge bands.
-  function carouselLoadHold(slide) {
-    if (!window.EmjiveLoader || !slide) return null;
-    var hold = window.EmjiveLoader.mount(carouselFrameEl || carouselEl, { target: slide });
+  // The model's loader: on the design frame, crossing the screen at the
+  // model's height (the model's box itself is smaller than its tile, and has
+  // no visible edge), for the model's first load and for each design's model
+  // after it. It only counts while the model is on screen (js/loader.js, "a
+  // loader shared by several assets"), and CSS keeps it out of sight while
+  // the design stage is (.is-design-out). null when there is no loader
+  // (js/loader.js missing, reduced motion).
+  function modelLoadHold() {
+    if (!window.EmjiveLoader || !designFrameEl) return null;
+    var hold = window.EmjiveLoader.mount(designFrameEl, { target: modelBoxEl });
     return hold && typeof hold.done === "function" ? hold : null;
   }
 
@@ -181,12 +191,10 @@
 
   // The page renders as soon as the product data is in — it does NOT wait for
   // the 3D viewer chunk (js/viewer-entry.js, ~165KB gzipped plus evaluation).
-  // The model's slide starts as its poster
-  // image and the viewer takes that slot over once the chunk, and the images
-  // the first paint is waiting on, are in (mountViewerWhenReady below). The
-  // x-ray backdrop is the page's largest image; it used to be requested only
-  // after the chunk had arrived and then fought the HDRI and the model for
-  // bandwidth.
+  // The first paint is the inspiration stage (the description and the feed's
+  // first photo); the model's box starts as its poster image, out of sight
+  // until the design stage, and the viewer takes it over once the chunk is in
+  // (mountViewer below).
   function init() {
     window.EmjiveSeries.ready
       .then(function (ctx) {
@@ -243,60 +251,54 @@
     document.title = (product.name || "Product") + " — em·ji·ve";
     updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
+    // The product opens on its default design.
+    state.view = window.EmjiveSeries.resolveDesign(product).view;
+    state.designKey = state.view.designKey;
 
-    // First, ahead of everything else this function builds: the x-ray
-    // backdrop is the largest image on the page — what the first paint is
-    // really waiting on — so its request goes out before any other image's.
-    var xrayReady = startXray(product);
+    // First, ahead of everything else this function builds: the feed's first
+    // photo is what the first paint is really waiting on, so its request
+    // goes out before any other image's.
+    var feed = renderFeed(product);
 
     renderLabel(product);
-    var carouselParts = renderCarousel(product);
+    var modelParts = renderModel(product);
+    renderDesigns(product);
     renderMetalOptions(product);
-    renderSpecs(product);
+    renderSpecs();
     renderPrinting();
-    // Plain text under the title — no heading, nothing to open. A product
-    // without one shows nothing there rather than a placeholder.
-    var description = document.getElementById("productDescription");
-    description.textContent = product.description || "";
-    description.hidden = !product.description;
     wireSelectButton(product);
 
     loadingEl.hidden = true;
     contentEl.hidden = false;
 
-    // Carousel geometry (js/carousel.js's getBoundingClientRect calls) can
-    // only be measured once #productDetailContent is actually visible —
-    // while it's [hidden], every element in it has a zero-size box, which
-    // would read as a zero-width tile/carousel and rest at offset 0
-    // instead of centering the first tile.
-    carousel.sync(true);
-    // After the carousel, for the same reason (the stages measure the track)
-    // and because a page restored part way down starts with the carousel
-    // already held on the model.
+    // Once #productDetailContent is visible: the stages measure the track,
+    // and the feed's room is measured off its laid-out height (while it's
+    // [hidden], every element in it has a zero-size box).
     wireStages();
 
-    // The arrival loader (js/loader.js) lifts once the images the first
-    // paint is made of are in, rather than on a blank page that fills in
+    // The arrival loader (js/loader.js) lifts once the picture the first
+    // paint is made of is in, rather than on a blank page that fills in
     // underneath it; and everything that isn't needed for that paint waits
-    // until then, so none of it competes with those images for bandwidth.
+    // until then, so none of it competes with that picture for bandwidth.
     var firstPaintReady = Promise.race([
-      Promise.all([xrayReady, carouselParts.posterReady]),
+      feed.firstReady,
       new Promise(function (resolve) { setTimeout(resolve, FIRST_PAINT_WAIT_MS); })
     ]);
     firstPaintReady.then(pageReady);
-    // ...and not before they have actually been painted: the images being
-    // downloaded is not the same moment as them being on screen, and anything
+    // ...and not before it has actually been painted: the image being
+    // downloaded is not the same moment as it being on screen, and anything
     // started in between (the viewer, the environment map, the model) is
     // competing with a paint that has not happened yet.
     firstPaintReady
       .then(afterFirstPaint)
-      .then(function () { loadRemainingAssets(product, carouselParts); });
+      .then(function () { loadRemainingAssets(product, feed, modelParts); });
   }
 
-  // Resolves once the browser has painted the carousel's first picture — the
-  // x-ray backdrop or the model's poster, whichever the browser reports as the
-  // largest paint inside the carousel frame — or after a short cap, or at the
-  // next two frames where the Largest Contentful Paint API is missing.
+  // Resolves once the browser has painted the first stage's largest picture —
+  // the feed's first photo, or the description where there is none, whichever
+  // the browser reports as the largest paint inside the feed — or after a
+  // short cap, or at the next two frames where the Largest Contentful Paint
+  // API is missing.
   var AFTER_PAINT_CAP_MS = 2000;
 
   function afterFirstPaint() {
@@ -310,7 +312,7 @@
         resolve();
       }
       setTimeout(finish, AFTER_PAINT_CAP_MS);
-      var frame = document.getElementById("productCarouselFrame");
+      var frame = document.getElementById("productFeedColumn");
       try {
         observer = new PerformanceObserver(function (list) {
           list.getEntries().forEach(function (entry) {
@@ -328,23 +330,23 @@
   // cover (or the viewer, photos and other icons behind it) up indefinitely.
   var FIRST_PAINT_WAIT_MS = 6000;
 
-  // The x-ray backdrop: static, independent of the metal and the slides. No
-  // product.assets.xray (Foramen/Disc today) means no backdrop at all, rather
-  // than a broken image. Resolves once the image is loaded and decoded (or
-  // failed), so callers can wait on it.
+  // The x-ray backdrop behind the model in the design stage: static,
+  // independent of the metal and the design. No product.assets.xray means no
+  // backdrop at all, rather than a broken image. Not part of the first paint
+  // (the design stage is a scroll away): started after it, with the rest.
   function startXray(product) {
-    var xray = document.getElementById("productCarouselXray");
+    var xray = document.getElementById("productDesignXray");
     var xraySrc = product.assets && product.assets.xray;
     if (!xraySrc) {
       xray.hidden = true;
-      return Promise.resolve();
+      return;
     }
     // The low-res version for this viewport first (~25-50KB against ~320KB
-    // for the original): it is what the first paint waits on.
-    // loadRemainingAssets() swaps the high-res one in afterwards. A phone's
-    // versions are cropped to the middle of the picture, which is why the
-    // phone rule for .product-carousel__xray in css/style.css narrows the box
-    // to match. Without EmjiveLoader, the original directly.
+    // for the original); loadRemainingAssets() swaps the high-res one in once
+    // the model is on screen. A phone's versions are cropped to the middle of
+    // the picture, which is why the phone rule for .product-design__xray in
+    // css/style.css narrows the box to match. Without EmjiveLoader, the
+    // original directly.
     var loader = window.EmjiveLoader;
     state.xraySrc = xraySrc;
     if (loader) {
@@ -363,34 +365,40 @@
       xray.src = xraySrc;
     }
     xray.hidden = false;
-    return loader ? loader.imageReady(xray) : Promise.resolve();
   }
 
   // What the first paint did not need: the other metals' icons (so a pick
   // swaps the label thumbnail at once — the selected one's is already in),
-  // the photo slides, and the 3D viewer.
-  function loadRemainingAssets(product, carouselParts) {
-    var icons = (product.assets && product.assets.icons) || {};
-    window.EmjiveOrderRows.preload(Object.keys(icons)
-      .filter(function (m) { return m !== state.selectedMetal; })
-      .map(function (m) { return icons[m]; }));
-    carouselParts.photoSlides.forEach(function (slide) { slide.loadImage(); });
-    carouselParts.mountViewer();
+  // the rest of the feed's photos, the 3D viewer and the x-ray behind it.
+  function loadRemainingAssets(product, feed, modelParts) {
+    preloadIcons(state.view);
+    feed.loadRest();
+    modelParts.mountViewer();
+    startXray(product);
     // The sharp x-ray replaces the small one once the model is on screen
     // (or, at the latest, VIEWER_SETTLE_WAIT_MS after the first paint), so
     // its 320KB never competes with the viewer, the environment map and the
     // model for the link.
     if (state.xraySrc && window.EmjiveLoader) {
       Promise.race([
-        carouselParts.viewerSettled,
+        modelParts.viewerSettled,
         new Promise(function (resolve) { setTimeout(resolve, VIEWER_SETTLE_WAIT_MS); })
       ]).then(function () {
         window.EmjiveLoader.upgradeImage(
-          document.getElementById("productCarouselXray"),
+          document.getElementById("productDesignXray"),
           window.EmjiveLoader.versions(state.xraySrc, true).hi
         );
       });
     }
+  }
+
+  // A design's icons for the metals not showing, fetched and decoded ahead of
+  // a pick (js/order-rows.js preload), so the label's thumbnail swaps at once.
+  function preloadIcons(view) {
+    var icons = (view.assets && view.assets.icons) || {};
+    window.EmjiveOrderRows.preload(Object.keys(icons)
+      .filter(function (m) { return m !== state.selectedMetal; })
+      .map(function (m) { return icons[m]; }));
   }
 
   var VIEWER_SETTLE_WAIT_MS = 20000;
@@ -399,10 +407,27 @@
 
   function renderLabel(product) {
     document.getElementById("productLabelName").textContent = product.name || "";
+    renderLabelDesign(product);
     renderLabelType(product);
 
-    renderLabelThumb(product);
+    renderLabelThumb();
     renderLabelPrice(product);
+  }
+
+  // The chosen design, after the name, as its own name has it: the product's
+  // name and what the design adds to it ("rib-cage" + "-1L2"; nothing for a
+  // design named as the product is). A product with one design has none.
+  function renderLabelDesign(product) {
+    var node = document.getElementById("productLabelDesign");
+    var name = String(product.name || "");
+    var designName = String(state.view.designName || "");
+    var suffix = "";
+    if (product.designs && designName) {
+      suffix = designName.toLowerCase().indexOf(name.toLowerCase()) === 0 ? designName.slice(name.length) : " " + designName;
+    }
+    if (node.textContent === suffix) return;
+    node.textContent = suffix;
+    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
   }
 
   // ".category.metal", like the rows' label in the selection lists — and
@@ -433,9 +458,10 @@
   // consistent transparent-background framing rather than a real photo's
   // arbitrary crop. No thumbnail at all if there's no icon for the
   // currently selected metal, rather than showing a broken or placeholder
-  // image. Re-run from onMetalSelect too (not just the initial render), so
-  // the thumbnail always matches whichever finish is currently selected.
-  function renderLabelThumb(product) {
+  // image. Re-run from onMetalSelect and onDesignSelect too (not just the
+  // initial render), so the thumbnail always matches whichever finish and
+  // design are currently selected.
+  function renderLabelThumb() {
     var thumb = document.getElementById("productLabelThumb");
     // A picture arriving under the label bar's invert band is a change in
     // place the band has to re-sample — see resampleBand() in
@@ -446,7 +472,8 @@
         window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
       });
     }
-    var thumbSrc = (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || "";
+    var view = state.view;
+    var thumbSrc = (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || "";
     if (thumbSrc) {
       thumb.src = thumbSrc;
       thumb.hidden = false;
@@ -461,53 +488,96 @@
       window.EmjiveSelection.formatPrice(details.price || 0);
   }
 
-  /* ---- 2. carousel ------------------------------------------------------ */
+  /* ---- 2. the feed (inspiration) ------------------------------------------ */
 
-  function renderCarousel(product) {
-    var track = document.getElementById("productCarouselTrack");
-    // .product-carousel--single lives on the outer frame, not
-    // #productCarousel itself — see css/style.css's .product-carousel-frame
-    // comment for why --tile (which that class's override also targets)
-    // had to move up there.
-    var carouselFrame = document.getElementById("productCarouselFrame");
-    track.innerHTML = "";
+  // The description (plain text under the title — no heading, nothing to
+  // open; a product without one shows nothing there rather than a
+  // placeholder), then the product's photos (product.assets.photos) one
+  // under the other, each with what it shows under it — "On display: " and
+  // its description, an em-dash for none. The first photo is the first
+  // paint's picture and is requested at once; the others only once that has
+  // been painted (loadRest, from loadRemainingAssets). Each of those waits
+  // out a loader of its own (js/loader.js cover()); the first is what the
+  // page's arrival loader waits on, and shows as soon as that lifts. A
+  // photo's height is its own
+  // (square until it has loaded), so the feed's room to scroll is measured
+  // again as each one arrives (fitFeed).
+  function renderFeed(product) {
+    var description = document.getElementById("productDescription");
+    description.textContent = product.description || "";
+    description.hidden = !product.description;
 
-    // (The static x-ray backdrop behind the filmstrip is startXray()'s: it is
-    // requested ahead of everything this function builds.)
+    var list = document.getElementById("productFeed");
+    list.innerHTML = "";
+    var photos = (product.assets && product.assets.photos) || [];
+    var loaders = photos.map(function (photo, i) {
+      var figure = el("figure", "product-feed__photo");
+      var frame = el("div", "product-feed__frame");
+      var img = document.createElement("img");
+      img.alt = (product.name || "") + (photo.description ? " — " + photo.description : "");
+      img.decoding = "async";
+      img.draggable = false;
+      if (i === 0) img.fetchPriority = "high";
+      else img.loading = "lazy";
+      frame.appendChild(img);
+      figure.appendChild(frame);
+      figure.appendChild(el("figcaption", "product-feed__caption", "On display: " + (photo.description || "—")));
+      list.appendChild(figure);
+      var started = null;
+      return function load() {
+        if (started) return started;
+        img.src = photo.src;
+        started = window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
+        if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
+        started.then(function () { fitFeed(); });
+        return started;
+      };
+    });
+    return {
+      firstReady: loaders.length ? loaders[0]() : Promise.resolve(),
+      loadRest: function () { loaders.forEach(function (load) { load(); }); }
+    };
+  }
 
-    var slideSources = [];
-    var modelSlide = null;
-    // Resolves once the slide the first paint shows — the model's poster, or
-    // the icon of a model-less product — is in. render() lifts the arrival
-    // loader on it.
-    var posterReady = Promise.resolve();
-    var photoSlides = [];
+  /* ---- 2b. the model (design, then specs) ---------------------------------- */
+
+  // The model's box, in the middle of the design frame: its poster (the
+  // viewer's own, fallback-img, so the swap moves nothing) until the 3D viewer
+  // takes it over; a plain icon for a product without a model, or when the
+  // viewer can't be had. The viewer is built for the design and the metal
+  // chosen when it arrives (state.view, state.selectedMetal), and a design
+  // picked later swaps its model in place (onDesignSelect).
+  function renderModel(product) {
+    var box = modelBoxEl;
+    box.innerHTML = "";
+    box.classList.remove("is-model");
+    state.modelHandle = null;
+    state.posterImg = null;
+    state.iconFallbackImg = null;
     // Resolves when the 3D model is on screen — or will never be (no viewer,
     // failed, no model at all). What render() holds the sharp x-ray back for:
     // that swap is polish, and should not share the link with the model.
     var settleViewer;
     var viewerSettled = new Promise(function (resolve) { settleViewer = resolve; });
-    // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused
-    // here so the viewer construction/material logic lives in exactly one
-    // place. It can return null if the browser couldn't grant a WebGL
-    // context (see its own comment) — falls through to the same icon
-    // fallback branch a product with no "assets.model" field at all uses,
-    // rather than leaving the carousel empty.
-    // Factored out of the assignment below so the freeze/restore pair at the
-    // bottom of this function can rebuild an identical viewer later. Reads
-    // state.selectedMetal at call time, so a rebuild picks up whatever metal
-    // is selected then rather than the one the page opened on.
+    var hasModel = !!(product.assets && product.assets.model);
+
+    // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused here
+    // so the viewer construction/material logic lives in exactly one place.
+    // It can return null if the browser couldn't grant a WebGL context (see
+    // its own comment) — that takes the icon fallback. Reads state.view and
+    // state.selectedMetal at call time, so a rebuild (after the Modify sheet,
+    // after Back) picks up whatever is chosen now.
     function buildModelViewer() {
       // The viewer is a separate module: if it never arrived (its hashed file
       // gone after a deploy while this page's HTML was cached, a blocked
-      // request) the carousel takes the icon fallback below, exactly as it
-      // does for a browser with no WebGL.
+      // request) the box takes the icon fallback, exactly as it does for a
+      // browser with no WebGL.
       if (typeof window.EmjiveModelViewer !== "function") return null;
-      // The model's wait goes through the carousel's one shared loader (see
-      // loadHoldFor): held on the model's slide, handed to the viewer, which
-      // releases it when the model is on screen or has failed or the viewer is
-      // disposed. If no viewer comes back the hold is released here.
-      var hold = carouselLoadHold(modelSlide);
+      // The model's wait goes through the frame's loader (modelLoadHold):
+      // handed to the viewer, which releases it when the model is on screen
+      // or has failed or the viewer is disposed. If no viewer comes back the
+      // hold is released here.
+      var hold = modelLoadHold();
       var viewer = null;
       try {
         viewer = createModelViewer(hold);
@@ -519,25 +589,21 @@
     }
 
     function createModelViewer(loadHold) {
-      return window.EmjiveModelViewer(product, state.selectedMetal, {
+      return window.EmjiveModelViewer(state.view, state.selectedMetal, {
         hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
-        // The carousel's shared loader, held on this slide while the model
-        // loads (false: none, e.g. reduced motion) — the viewer's box has no
-        // visible edge, and the loader belongs to the whole strip anyway.
+        // The frame's loader, held on the model while it loads (false: none,
+        // e.g. reduced motion) — the viewer's box has no visible edge.
         loader: loadHold || false,
         // Only a circle of the viewer is the model's to drag: its radius
         // leaves a quarter of the viewer's width as a margin. A press outside
-        // it pages the carousel or scrolls the page (js/carousel.js).
+        // it scrolls the page.
         hitCircle: 0.25,
-        // Fires for an initial load/HDRI failure OR — since
-        // three-viewer.js also treats a WebGL context loss as a failure
-        // — for a model that HAD already loaded and was on screen: iOS
-        // Safari can silently reclaim a GPU context under memory
-        // pressure at any time, not just during load. Previously nothing
-        // here handled this at all (unlike js/main.js's grid), so either
-        // failure just left an empty, permanently blank 3D-viewer slide
-        // with no fallback ever shown.
-        onError: replaceModelSlideWithIcon,
+        // Fires for an initial load/HDRI failure OR — since three-viewer.js
+        // also treats a WebGL context loss as a failure — for a model that
+        // HAD already loaded and was on screen: iOS Safari can silently
+        // reclaim a GPU context under memory pressure at any time, not just
+        // during load.
+        onError: replaceModelWithIcon,
         onReady: function () {
           settleViewer();
           syncBracketsFlag();
@@ -548,90 +614,64 @@
       });
     }
 
-    state.modelHandle = null;
-    state.posterImg = null;
-    if (product.assets && product.assets.model) {
-      // Smaller than the photo slides on purpose, and only a circle of it
-      // takes a drag (hitCircle, createModelViewer): the empty space around
-      // is what a drag or swipe can start from to page the carousel or
-      // scroll the page without landing on the viewer's own
-      // TrackballControls.
-      // Holds the model's poster until mountViewer() swaps the viewer in.
-      modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
-      posterReady = showPoster();
-      track.appendChild(modelSlide);
-      slideSources.push("model");
-    } else {
-      var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
-      if (fallbackIconSrc) {
-        var iconSlide = window.EmjiveCarousel.imageSlide(fallbackIconSrc, product.name, { loaderHost: carouselFrameEl || carouselEl });
-        // Kept so onMetalSelect can swap its src on a metal switch — this
-        // slide isn't rebuilt then, only the 3D viewer path re-tints live,
-        // so a static image needs its own explicit update.
-        state.iconFallbackImg = iconSlide.querySelector("img");
-        if (window.EmjiveLoader) posterReady = window.EmjiveLoader.imageReady(state.iconFallbackImg);
-        track.appendChild(iconSlide);
-        slideSources.push("icon");
-      }
-    }
-
-    // The model slide before the viewer is in: its poster image (the same
-    // one the viewer shows over its own canvas until the model is drawn), in
-    // a box sized exactly like the viewer that replaces it, so the swap moves
-    // nothing — the Modify sheet's stand-in for the same reason (js/modify-
-    // modal.js posterBox(), .size-modal__model-poster in css/style.css).
+    // The box before the viewer is in: its poster image (the same one the
+    // viewer shows over its own canvas until the model is drawn), sized
+    // exactly like the viewer that replaces it, so the swap moves nothing —
+    // the Modify sheet's stand-in for the same reason (js/modify-modal.js
+    // posterBox(), .size-modal__model-poster in css/style.css).
     function showPoster() {
-      modelSlide.innerHTML = "";
+      box.innerHTML = "";
       state.posterImg = null;
-      var src = posterSrcFor(product, state.selectedMetal);
-      if (!src) return Promise.resolve();
-      var box = el("div", "size-modal__model-poster");
+      var src = posterSrcFor(state.view, state.selectedMetal);
+      if (!src) return;
+      var poster = el("div", "size-modal__model-poster");
       var img = document.createElement("img");
       img.src = src;
       img.alt = product.name || "";
       img.draggable = false;
-      box.appendChild(img);
-      modelSlide.appendChild(box);
+      poster.appendChild(img);
+      box.appendChild(poster);
       state.posterImg = img;
-      return window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
     }
 
     // Swaps the viewer in for the poster. Also what restoreModelViewer() calls
     // after a back/forward-cache restore. No WebGL context to be had (or the
     // viewer module never arrived) means the icon fallback, as always.
     function attachViewer() {
-      if (state.modelHandle || !modelSlide) return;
-      // The slide loses this class the moment replaceModelSlideWithIcon
-      // takes it over, which is exactly the case that must NOT be rebuilt —
-      // the visitor is looking at the icon fallback, and a viewer appended
+      if (state.modelHandle) return;
+      // The box loses .is-model the moment replaceModelWithIcon takes it
+      // over, which is exactly the case that must NOT be rebuilt — the
+      // visitor is looking at the icon fallback, and a viewer appended
       // underneath it would be an invisible second context.
-      if (!modelSlide.classList.contains("product-carousel__slide--model")) return;
+      if (!box.classList.contains("is-model")) return;
       var handle = buildModelViewer();
       if (!handle) {
-        replaceModelSlideWithIcon();
+        replaceModelWithIcon();
         return;
       }
       state.modelHandle = handle;
       state.posterImg = null;
-      modelSlide.innerHTML = "";
-      modelSlide.appendChild(handle.el);
+      box.innerHTML = "";
+      box.appendChild(handle.el);
+      // Out of sight while the design stage is (the inspiration stage): no
+      // drawing, no idle nudge.
+      handle.setPaused(state.designOut);
       // Wherever the show is now — a rebuild after the Modify sheet or Back
       // can land in specs.
       applyStageToViewer();
     }
 
-    // Called by render() once the first paint's images are in. Waits for the
-    // viewer chunk (already downloading since the HTML — see the modulepreload
-    // injectLoadHints() adds), then builds it when the browser is idle:
-    // creating a WebGL context and compiling shaders is a long task that
-    // should not land on top of the images and text arriving.
+    // Called by render() once the first paint is in. Asks for the viewer
+    // chunk, then builds it when the browser is idle: creating a WebGL
+    // context and compiling shaders is a long task that should not land on
+    // top of the images and text arriving.
     function mountViewer() {
-      if (!modelSlide) {
+      if (!hasModel) {
         settleViewer();
         return;
       }
       if (!window.EmjiveLoadViewer) {
-        replaceModelSlideWithIcon();
+        replaceModelWithIcon();
         return;
       }
       // The chunk, the environment map and the model are independent
@@ -640,56 +680,54 @@
       // once instead of one after another (the viewer's own requests then
       // reuse these, being the same URL fetched the same way).
       hintFetch(window.EmjiveSeries.hdriPath(state.seriesSlug));
-      hintFetch(product.assets.model);
+      hintFetch(state.view.assets.model);
       window.EmjiveLoadViewer().then(function () {
         whenIdle(attachViewer);
-      }, replaceModelSlideWithIcon);
+      }, replaceModelWithIcon);
     }
 
-    // Swaps a failed model slide's contents for the same icon fallback a
-    // model-less product gets, IN PLACE — the slide itself (its position in
-    // the track and therefore the carousel's own bounds/offset math) never
-    // changes, only what's rendered inside it,
-    // so a failure arriving well after the carousel has already been
-    // measured/scrolled can't desync its geometry. Reuses
-    // state.iconFallbackImg (not a separate field) so onMetalSelect's
-    // existing "if (state.iconFallbackImg) swap its src" branch already
-    // handles a later metal switch with no further changes needed here.
-    function replaceModelSlideWithIcon() {
+    // The permanent fallback, for a viewer that failed (a load or HDRI
+    // failure, a lost context): the box shows the metal's icon instead, as a
+    // product without a model does. state.iconFallbackImg is what
+    // onMetalSelect and onDesignSelect re-point on a pick.
+    function replaceModelWithIcon() {
       if (state.modelHandle) {
         state.modelHandle.dispose();
         state.modelHandle = null;
       }
       settleViewer();
       syncBracketsFlag();
-      if (!modelSlide) return;
-      modelSlide.classList.remove("product-carousel__slide--model");
-      modelSlide.innerHTML = "";
+      showIcon();
+    }
+
+    function showIcon() {
+      box.classList.remove("is-model");
+      box.innerHTML = "";
       state.posterImg = null;
-      var fallbackIconSrc = product.assets && product.assets.icons && product.assets.icons[state.selectedMetal];
-      if (fallbackIconSrc) {
-        var img = document.createElement("img");
-        img.src = fallbackIconSrc;
-        img.alt = product.name || "";
-        img.loading = "lazy";
-        img.draggable = false;
-        modelSlide.appendChild(img);
-        state.iconFallbackImg = img;
-      }
+      state.iconFallbackImg = null;
+      var src = state.view.assets && state.view.assets.icons && state.view.assets.icons[state.selectedMetal];
+      if (!src) return;
+      var img = document.createElement("img");
+      img.className = "product-model__icon";
+      img.src = src;
+      img.alt = product.name || "";
+      img.draggable = false;
+      box.appendChild(img);
+      state.iconFallbackImg = img;
     }
 
     /* ---- releasing the viewer while the page is frozen --------------------
        Same reasoning as js/gallery-stack.js's pagehide, from the other end
        of the same navigation. Pressing Back doesn't end this page: it goes
        into the back/forward cache holding its WebGL context, its decoded
-       model and its PMREM environment, while the grid it returns to rebuilds
-       several viewers of its own. Both pages' footprints counted against one
-       page-wide iOS Safari budget is what tips it over.
+       model and its PMREM environment, while the gallery it returns to
+       builds its own. Both pages' footprints counted against one page-wide
+       iOS Safari budget is what tips it over.
 
-       Deliberately NOT replaceModelSlideWithIcon: that's the permanent
-       fallback for a viewer that genuinely failed, and it rewrites the slide
-       so no rebuild is possible afterwards. This leaves the slide alone, so
-       coming back from the cache restores the real thing.
+       Deliberately NOT replaceModelWithIcon: that's the permanent fallback
+       for a viewer that genuinely failed, and it rewrites the box so no
+       rebuild is possible afterwards. This leaves the box alone, so coming
+       back from the cache restores the real thing.
        --------------------------------------------------------------------- */
     function releaseModelViewer() {
       hideScanBand();
@@ -701,25 +739,24 @@
       state.modelHandle = null;
     }
 
-    function restoreModelViewer() {
-      attachViewer();
-    }
+    if (hasModel) {
+      box.classList.add("is-model");
+      showPoster();
 
-    if (modelSlide) {
       window.addEventListener("pagehide", releaseModelViewer);
       window.addEventListener("pageshow", function (e) {
-        if (e.persisted) restoreModelViewer();
+        if (e.persisted) attachViewer();
       });
 
       // The Modify sheet (js/modify-modal.js, opened from a row of the
       // selection bar's drawer) builds a viewer of its own — a second WebGL
-      // context, a second PMREM environment and a second decode of a model
-      // that can be over a hundred MB — while this page's carousel viewer
-      // sits behind the sheet's backdrop, drawing nothing anyone is looking
-      // at. The page's own model goes back to its poster for as long as the
-      // sheet is up, and the real viewer is rebuilt once the sheet's own has
-      // been freed ("emjive:modify-close" is dispatched after that, see
-      // cleanup() there). Same swap as the back/forward-cache path above.
+      // context, a second PMREM environment and a second decode — while this
+      // page's viewer sits behind the sheet's backdrop, drawing nothing
+      // anyone is looking at. The page's own model goes back to its poster
+      // for as long as the sheet is up, and the real viewer is rebuilt once
+      // the sheet's own has been freed ("emjive:modify-close" is dispatched
+      // after that, see cleanup() there). Same swap as the back/forward-cache
+      // path above.
       var viewerHeldForModify = false;
       window.addEventListener("emjive:modify-open", function () {
         if (!state.modelHandle) return;
@@ -732,33 +769,11 @@
         viewerHeldForModify = false;
         attachViewer();
       });
+    } else {
+      showIcon();
     }
 
-    ((product.assets && product.assets.photos) || []).forEach(function (photo) {
-      var slide = buildPhotoSlide(photo, product.name);
-      photoSlides.push(slide);
-      track.appendChild(slide);
-      slideSources.push(photo.src);
-    });
-
-    carouselFrame.classList.toggle("product-carousel--single", slideSources.length <= 1);
-    // Reserves extra room below --tile for the photo slides' caption
-    // band — see css/style.css — rather than shrinking the photo slide
-    // itself to fit a caption inside it, which would letterbox every
-    // photo and break the flush, edge-to-edge tiling against its
-    // neighbors in the filmstrip.
-    carouselFrame.classList.toggle(
-      "product-carousel--has-photos",
-      ((product.assets && product.assets.photos) || []).length > 0
-    );
-    // Bounds aren't synced here — #productDetailContent is still [hidden]
-    // at this point (render() calls this before unhiding it), so every
-    // element would measure as zero-size. render() does the initial
-    // carousel.sync(true) itself, right after unhiding.
-
     return {
-      posterReady: posterReady,
-      photoSlides: photoSlides,
       mountViewer: mountViewer,
       viewerSettled: viewerSettled
     };
@@ -767,8 +782,8 @@
   // What stands in for the model until its viewer is built: the viewer's own
   // poster (fallback-img, the model's default-orbit capture, so it lines up
   // with the live canvas's first frame), else the metal's icon.
-  function posterSrcFor(product, metal) {
-    var assets = product.assets || {};
+  function posterSrcFor(view, metal) {
+    var assets = view.assets || {};
     return (assets["fallback-img"] && assets["fallback-img"][metal]) ||
       (assets.icons && assets.icons[metal]) || "";
   }
@@ -791,25 +806,178 @@
     else setTimeout(fn, 0);
   }
 
-  // Real product photos (product.assets.photos), unlike the model/icon
-  // slide, carry their own "on display:" legend — which finish/context
-  // that specific shot is showing. The <img> itself stays a plain
-  // full-bleed slide child (js/carousel.js's imageSlide), so it still fills
-  // --tile edge-to-edge and tiles flush against its neighbors; the caption
-  // is a separately-positioned sibling anchored to the slide's own
-  // bottom-right corner in the extra band css/style.css's
-  // .product-carousel--has-photos reserves below --tile — a real child of
-  // product-carousel__slide either way, so it rides the carousel
-  // drag/transform as one unit with its photo. Falls back to an em-dash for
-  // an empty description, same convention renderSpecs's rows use for a
-  // missing value.
-  function buildPhotoSlide(photo, alt) {
-    // Deferred: the photos are off screen, so they start downloading only
-    // after the page's first paint (render() → loadRemainingAssets).
-    var slide = window.EmjiveCarousel.imageSlide(photo.src, alt, { deferred: true, loaderHost: carouselFrameEl || carouselEl });
-    slide.classList.add("product-carousel__slide--photo");
-    slide.appendChild(el("p", "product-carousel__caption", "On display: " + (photo.description || "—")));
-    return slide;
+  /* ---- 2c. the design options (design) ------------------------------------- */
+
+  // A product with several designs (its "designs" in products.json: the
+  // options and every design they lead to) gets one row per option under the
+  // model: its label, then its choices, each a button with the site's dot
+  // before the chosen one(s). A "multiple" option (the rib-cage's ribs) is a
+  // set of toggles, the last one on not turned off; any other is one choice
+  // of several. Every design is a combination of picks, so a pick lands on
+  // the design that has them all — or, when no design has that combination
+  // (a link between ribs that aren't side by side), on the one that keeps the
+  // pick just made and as many of the others as it can (the first listed of
+  // equals). A choice that would land somewhere other than its exact
+  // combination is dimmed, still there to be tapped.
+  function renderDesigns(product) {
+    var host = document.getElementById("productOptions");
+    host.innerHTML = "";
+    var designs = product.designs;
+    if (!designs || !Array.isArray(designs.options) || !Array.isArray(designs.list) || designs.list.length < 2) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    designs.options.forEach(function (option, i) {
+      var row = el("div", "product-option");
+      row.setAttribute("role", "group");
+      var label = el("span", "product-option__label", option.label);
+      label.id = "productOptionLabel" + i;
+      row.setAttribute("aria-labelledby", label.id);
+      var choices = el("div", "product-option__choices");
+      option.choices.forEach(function (choice) {
+        var button = el("button", "product-option__choice", choice);
+        button.type = "button";
+        button.setAttribute("data-option", option.key);
+        button.setAttribute("data-choice", choice);
+        button.addEventListener("click", function () { pickChoice(product, option, choice); });
+        choices.appendChild(button);
+      });
+      row.appendChild(label);
+      row.appendChild(choices);
+      host.appendChild(row);
+    });
+    syncDesignChoices(product);
+  }
+
+  function currentDesign(product) {
+    var list = product.designs.list;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].key === state.designKey) return list[i];
+    }
+    return list[0];
+  }
+
+  // A design's picks for one option, as a list (one item for a plain option).
+  function picksOf(design, option) {
+    var pick = design.picks && design.picks[option.key];
+    return Array.isArray(pick) ? pick.slice() : pick === undefined ? [] : [pick];
+  }
+
+  function samePicks(a, b) {
+    if (a.length !== b.length) return false;
+    var x = a.slice().sort();
+    var y = b.slice().sort();
+    for (var i = 0; i < x.length; i++) {
+      if (x[i] !== y[i]) return false;
+    }
+    return true;
+  }
+
+  // The picks a tap on `choice` would make, from the current design's: null
+  // for turning off the last one on of a multiple option.
+  function nextPicks(product, option, choice) {
+    var design = currentDesign(product);
+    var picks = {};
+    product.designs.options.forEach(function (o) { picks[o.key] = picksOf(design, o); });
+    if (option.multiple) {
+      var set = picks[option.key];
+      var at = set.indexOf(choice);
+      if (at === -1) set.push(choice);
+      else if (set.length === 1) return null;
+      else set.splice(at, 1);
+    } else {
+      picks[option.key] = [choice];
+    }
+    return picks;
+  }
+
+  function exactDesign(product, picks) {
+    var options = product.designs.options;
+    return product.designs.list.find(function (design) {
+      return options.every(function (o) { return samePicks(picksOf(design, o), picks[o.key]); });
+    }) || null;
+  }
+
+  function landingDesign(product, option, picks) {
+    var exact = exactDesign(product, picks);
+    if (exact) return exact;
+    var best = null;
+    var bestScore = -1;
+    product.designs.list.forEach(function (design) {
+      if (!samePicks(picksOf(design, option), picks[option.key])) return;
+      var score = product.designs.options.filter(function (o) {
+        return o !== option && samePicks(picksOf(design, o), picks[o.key]);
+      }).length;
+      if (score > bestScore) {
+        best = design;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
+  function pickChoice(product, option, choice) {
+    var picks = nextPicks(product, option, choice);
+    if (!picks) return;
+    var design = landingDesign(product, option, picks);
+    if (design) onDesignSelect(product, design.key);
+  }
+
+  // The choices' states, for the current design: pressed (its picks), dimmed
+  // (not one of them, and no design has the combination a tap would make — a
+  // chosen one is never dimmed, whatever turning it off would land on),
+  // disabled (the last one on of a multiple option).
+  function syncDesignChoices(product) {
+    var design = currentDesign(product);
+    var buttons = document.querySelectorAll("#productOptions .product-option__choice");
+    Array.prototype.forEach.call(buttons, function (button) {
+      var option = product.designs.options.find(function (o) { return o.key === button.getAttribute("data-option"); });
+      if (!option) return;
+      var choice = button.getAttribute("data-choice");
+      var current = picksOf(design, option);
+      var on = current.indexOf(choice) !== -1;
+      var last = !!option.multiple && on && current.length === 1;
+      var picks = last ? null : nextPicks(product, option, choice);
+      button.setAttribute("aria-pressed", String(on));
+      button.setAttribute("aria-disabled", String(last));
+      button.classList.toggle("is-unavailable", !on && !(picks && exactDesign(product, picks)));
+    });
+  }
+
+  // Another design: the label, the thumbnail, the specs (its geometry) and
+  // the model follow it. The viewer swaps its model in place, the camera kept
+  // (handle.setProduct), under the frame's loader until the new one is in; a
+  // model not built yet is simply built as this design (state.view).
+  function onDesignSelect(product, key) {
+    if (key === state.designKey) return;
+    state.designKey = key;
+    state.view = window.EmjiveSeries.resolveDesign(product, key).view;
+    syncDesignChoices(product);
+    renderLabelDesign(product);
+    renderLabelThumb();
+    if (state.iconFallbackImg) {
+      state.iconFallbackImg.src = (state.view.assets && state.view.assets.icons && state.view.assets.icons[state.selectedMetal]) || "";
+    }
+    if (state.posterImg) state.posterImg.src = posterSrcFor(state.view, state.selectedMetal);
+    renderSpecs();
+    preloadIcons(state.view);
+    if (state.modelHandle && state.modelHandle.setProduct) {
+      if (state.swapHold) state.swapHold.done();
+      var hold = state.swapHold = modelLoadHold();
+      var release = function () {
+        if (hold) hold.done();
+        if (state.swapHold === hold) state.swapHold = null;
+      };
+      state.modelHandle.setProduct(state.view, {
+        onReady: function () {
+          release();
+          syncBracketsFlag();
+          refreshStage();
+        },
+        onError: release
+      });
+    }
   }
 
   /* ---- 3. metal selection ------------------------------------------------ */
@@ -868,17 +1036,18 @@
     // The text and thumbnail under the label bar's invert band would show
     // their old value a moment longer in Safari otherwise.
     window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
-    // The label thumbnail (and, for model-less products, the carousel's
-    // fallback slide) are static images — each needs its own explicit swap
-    // to the new metal's icon.
-    renderLabelThumb(product);
+    // The label thumbnail (and the model box's icon fallback) are static
+    // images — each needs its own explicit swap to the new metal's icon, the
+    // chosen design's.
+    var view = state.view;
+    renderLabelThumb();
     if (state.iconFallbackImg) {
-      state.iconFallbackImg.src = (product.assets && product.assets.icons && product.assets.icons[metal]) || "";
+      state.iconFallbackImg.src = (view.assets && view.assets.icons && view.assets.icons[metal]) || "";
     }
     // The model's poster, if the viewer isn't in yet: the viewer is built for
     // whichever metal is selected when it arrives.
-    if (state.posterImg) state.posterImg.src = posterSrcFor(product, metal);
-    renderSpecs(product);
+    if (state.posterImg) state.posterImg.src = posterSrcFor(view, metal);
+    renderSpecs();
     renderPrinting();
     tintAfterPaint();
   }
@@ -913,9 +1082,9 @@
   // by a factor weighs and costs that factor cubed (the model is scaled the
   // same on every axis); the diagram's bars are shares of that cost — the raw
   // materials', the manufacturing's — so they always fill their column, and
-  // move with the metal only.
-  function renderSpecs(product) {
-    var geometry = product.geometry || {};
+  // move with the metal only. The geometry is the chosen design's.
+  function renderSpecs() {
+    var geometry = (state.view && state.view.geometry) || {};
     var dims = geometry["dimensions-mm"];
     var f = state.sizeFactor;
     var volume = geometry["volume-cm3"] * f * f * f;
@@ -1001,9 +1170,13 @@
   // The show's scroll (js/product-stages.js) gives two eased numbers, and
   // css/style.css fades everything from them — in phases, never crossfading:
   // what a stage shows fades out, there is a blank, then what the next shows
-  // fades in. This is the rest: the model, and the carousel holding it.
+  // fades in. This is the rest: the feed's room to scroll, and the model.
   //
-  // Presentation -> specs is the one with the model in it, and its blank is
+  // Inspiration -> design is a plain fade (the feed out, the model, the
+  // picker and the options in); the model holds still out of sight before
+  // it (state.designOut).
+  //
+  // Design -> specs is the one with the model in it, and its blank is
   // the model's own change. A full-width inversion band (the hero's frontier
   // band) travels the whole height of the screen over the transition, from
   // under the page to over it, and the model's metal -> grey sweep is
@@ -1015,10 +1188,13 @@
   // follows from there on. The three are worked out from where the model is
   // on screen, so they hold on any screen.
   function wireStages() {
-    var stageEl = document.getElementById("productStage");
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
-    window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
+    stages = window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
+    // mount() has already published once, before this handle existed: the
+    // feed's room it fitted then is only taken into the track now.
+    fitFeed();
+    stages.update();
     var resizeQueued = false;
     window.addEventListener("resize", function () {
       if (resizeQueued) return;
@@ -1031,6 +1207,7 @@
   }
 
   function onStageChange(stage) {
+    state.toDesign = stage.toDesign;
     state.toSpecs = stage.toSpecs;
     state.along = stage.along || 0;
     state.flow = stage.stage === "flow";
@@ -1051,19 +1228,50 @@
         costs.classList.remove("is-built", "is-settled");
       }
     }
-    // Presentation's things start going with the first pixel of scrolling, and
-    // slide out to the sides of a model that has to be centred. Until they are
-    // well on their way (HOLD_AT) the strip stays where the visitor paged it
-    // to, whatever the page does; from then it is taken home, if it was paged
-    // on, and held.
+    // The size field gets its starting value as design's things start going.
     if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
-    var hold = stage.toSpecs > 0 || stage.leave >= HOLD_AT;
-    if (hold === state.carouselHeld) return;
-    state.carouselHeld = hold;
-    // Locked first: a strip taken home while held leaves the picker where
-    // paging it put it (js/carousel.js).
-    carousel.setLocked(hold);
-    if (hold) carousel.goHome();
+    // Out of sight (before design's things start to come in): the viewer
+    // holds still — no drawing, no idle nudge.
+    var out = !state.flow && stage.toDesign <= DESIGN_FROM;
+    if (out === state.designOut) return;
+    state.designOut = out;
+    if (state.modelHandle) state.modelHandle.setPaused(out);
+  }
+
+  // The feed is taller than the screen as soon as it has a photo or two: the
+  // inspiration stage's stretch of scrolling takes it up (css/style.css
+  // .product-feed) by what it takes for its end to clear the two bars at the
+  // bottom by FEED_CLEAR_REM — the band over them (.product-bottom-veil) and a
+  // little more — published as --feed-room, which js/product-stages.js turns
+  // into the stretch's length. Measured as the feed would stand unshifted,
+  // against the bars as high as they ever are (the smallest viewport's
+  // bottom), so it holds still once it has moved; again whenever a photo
+  // arrives (it was a square until then) and on every resize.
+  var FEED_CLEAR_REM = 3;
+  var feedRoom = 0;
+  var barsHeightProbe = null;
+  function fitFeed() {
+    var feed = document.getElementById("productFeedColumn");
+    var show = document.querySelector(".product-stage__show");
+    if (!stageEl || !feed || !show) return;
+    var room = 0;
+    if (!state.flow) {
+      if (!barsHeightProbe) {
+        barsHeightProbe = el("div", null);
+        barsHeightProbe.setAttribute("aria-hidden", "true");
+        barsHeightProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--bars-h)";
+        stageEl.appendChild(barsHeightProbe);
+      }
+      var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var showTop = show.getBoundingClientRect().top + browsePx();
+      var bottom = showTop + feed.offsetTop + feed.offsetHeight;
+      var barsTop = screenHeight() - barsHeightProbe.offsetHeight;
+      room = Math.max(0, bottom - (barsTop - FEED_CLEAR_REM * rem));
+    }
+    if (Math.abs(room - feedRoom) < 0.5) return;
+    feedRoom = room;
+    stageEl.style.setProperty("--feed-room", room.toFixed(1) + "px");
+    if (stages) stages.update();
   }
 
   // How far the show stands scrolled up by browsing a stage, in pixels (its
@@ -1106,17 +1314,16 @@
       var top = handle.el.getBoundingClientRect().top;
       return { top: top + own.top, bottom: top + own.bottom };
     }
-    var slide = document.querySelector(".product-carousel__slide--model");
-    if (!slide) return null;
-    var r = slide.getBoundingClientRect();
+    if (!modelBoxEl || !modelBoxEl.classList.contains("is-model")) return null;
+    var r = modelBoxEl.getBoundingClientRect();
     var mid = r.top + r.height / 2;
-    return { top: mid - r.height * 0.33, bottom: mid + r.height * 0.33 };
+    return { top: mid - r.height * 0.44, bottom: mid + r.height * 0.44 };
   }
 
   // How far up the model stands (in pixels, from where it stands at rest) when
-  // the page is `w` of the way through the first stretch and the transition,
+  // the page is `w` of the way through the design stretch and the transition,
   // and its place in specs is `place` up. One path, from the first pixel of
-  // scrolling: it goes up with the show while the first stretch browses
+  // that stretch: it goes up with the show while the stretch browses
   // (`room` by its end), and then goes on to its place, at the same speed at
   // first and slowing gently to a stop there — so that the show coming back
   // down to rest as specs arrives never takes the model with it. (The
@@ -1201,7 +1408,6 @@
   // does. Run on every change of the scroll and of the screen's size, and
   // whenever a viewer arrives.
   function refreshStage() {
-    var stageEl = document.getElementById("productStage");
     var band = document.getElementById("productScan");
     if (!stageEl) return;
     var t = state.toSpecs;
@@ -1217,19 +1423,18 @@
     // screen's height — or just under the title bar, if the model is so tall
     // that its head would run under it — and then SPECS_GAP_REM lower, the
     // gap before the model. How far up that is from where the
-    // model stands at rest (`place`): the slide's middle, less the lift and
-    // the browsing it is under now.
-    var slide = document.querySelector(".product-carousel__slide--model");
+    // model stands at rest (`place`): the middle of its tile (the design
+    // frame, which the lift doesn't move), less the browsing it is under now.
     var place = 0;
-    if (slide && !state.flow) {
-      var box = slide.getBoundingClientRect();
+    if (designFrameEl && !state.flow) {
+      var box = designFrameEl.getBoundingClientRect();
       var titleBar = document.querySelector(".product-detail__label-bar");
       // (The model, with its dimensions, stands about this tall: the share
       // of the tile it fills at the size it is fitted to.)
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
-      place = Math.max(0, box.top + box.height / 2 + state.lift + browsed - middle);
+      place = Math.max(0, box.top + box.height / 2 + browsed - middle);
     }
     var path = modelRise(state.along, place, room, ratio);
     var span = state.flow ? null : modelSpan();
@@ -1264,8 +1469,8 @@
     // of the blank, where nothing of it shows.
     stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
-    // What the carousel is lifted by, on top of the show: the path less what
-    // the show does by itself — it goes up for the first stretch's browsing
+    // What the model is lifted by, on top of the show: the path less what
+    // the show does by itself — it goes up for the design stretch's browsing
     // and comes back down as specs arrives (css/style.css --browse-px).
     var wh = ratio / (ratio + 1);
     var browsing = room * (wh > 0 ? clamp(state.along / wh, 0, 1) : 1) * (1 - state.fit);
@@ -1275,6 +1480,7 @@
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
     fitBrowse(stageEl);
+    fitFeed();
     applyStageToViewer();
   }
 
@@ -1328,7 +1534,7 @@
     state.sizeText = given ? String(+mm.toFixed(2)) : "";
     if (state.modelHandle) state.modelHandle.setSize(state.sizeFactor);
     if (state.product) {
-      renderSpecs(state.product);
+      renderSpecs();
       renderLabelType(state.product);
     }
   }
@@ -1553,19 +1759,24 @@
     function confirmAdd(quiet) {
       if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
       var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
-      window.EmjiveSelection.addItem({
+      var view = state.view;
+      var item = {
         // Which series this came from — product ids are only unique within
         // one, so the id alone no longer identifies a piece.
         series: state.seriesSlug,
         productId: product.id,
-        name: product.name,
+        // The chosen design's name and icon (the product's own for a product
+        // with one design), so every list shows the piece as it was chosen.
+        name: view.designName || product.name,
         category: product.category,
         metal: state.selectedMetal,
         // Stored in its one canonical form ("62.5" -> "62.50", "62." -> "62").
         size: window.EmjiveSelection.normalizeSize(customInput.value),
         price: details.price || 0,
-        image: (product.assets && product.assets.icons && product.assets.icons[state.selectedMetal]) || ""
-      });
+        image: (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || ""
+      };
+      if (product.designs) item.design = state.designKey;
+      window.EmjiveSelection.addItem(item);
       closeModal(quiet);
     }
 

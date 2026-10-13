@@ -806,6 +806,22 @@ async function handleProductEdit(req, res) {
       moveAssetFile(p.src, newRel, moved, warnings);
       return { src: newRel, description: p.description };
     });
+    // The other designs' models and wireframes go with the product's (their
+    // renders, like the product's own, are auto-render's to redo).
+    if (merged.designs) {
+      merged.designs = Object.assign({}, merged.designs, {
+        list: (merged.designs.list || []).map((d) => {
+          const next = Object.assign({}, d);
+          ["model", "wireframe"].forEach((key) => {
+            if (!next[key]) return;
+            const newRel = newFolder + "/" + path.basename(next[key]);
+            moveAssetFile(next[key], newRel, moved, warnings);
+            next[key] = newRel;
+          });
+          return next;
+        })
+      });
+    }
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
       " — run `npm run auto-render` to regenerate icons/fallback-img/top-shots there; stale renders were left behind in the old folder."

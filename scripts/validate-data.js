@@ -195,6 +195,81 @@ const indexSchema = {
 
 const metalMap = { type: "object", additionalProperties: str };
 
+// Written by `npm run measure-models`, never by hand — on a product, and on
+// each of its designs but the default (whose model is the product's).
+const geometrySchema = {
+  type: "object",
+  required: ["volume-cm3", "dimensions-mm", "min-box", "model-sha1"],
+  properties: {
+    "volume-cm3": { type: "number", exclusiveMinimum: 0 },
+    "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+    // The minimum-volume box's pose: the product page's dimension
+    // brackets are drawn on it (js/three-viewer.js, options.blueprint).
+    "min-box": {
+      type: "object",
+      required: ["center", "axes"],
+      properties: {
+        center: { type: "array", items: num, minItems: 3, maxItems: 3 },
+        axes: {
+          type: "array",
+          minItems: 3,
+          maxItems: 3,
+          items: { type: "array", items: num, minItems: 3, maxItems: 3 }
+        }
+      }
+    },
+    "model-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
+  }
+};
+
+// A product's designs (the product page's design stage): the options a
+// visitor picks from, and every design those picks can land on. The
+// product's own fields are its default design; the other designs carry their
+// own model, wireframe, renders and geometry. Entries are keyed "key", never
+// "id" — scripts/auto-render.js slices product blocks on "id".
+const designsSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["default", "options", "list"],
+  properties: {
+    default: str,
+    options: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "label", "choices"],
+        properties: {
+          key: { type: "string", minLength: 1 },
+          label: { type: "string", minLength: 1 },
+          multiple: { type: "boolean" },
+          choices: { type: "array", minItems: 2, items: { type: "string", minLength: 1 } }
+        }
+      }
+    },
+    list: {
+      type: "array",
+      minItems: 2,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "name", "picks"],
+        properties: {
+          key: { type: "string", minLength: 1 },
+          name: { type: "string", minLength: 1 },
+          picks: { type: "object", additionalProperties: { anyOf: [str, { type: "array", items: str }] } },
+          geometry: geometrySchema,
+          model: str,
+          wireframe: str,
+          icons: metalMap,
+          "fallback-img": metalMap
+        }
+      }
+    }
+  }
+};
+
 const productSchema = {
   type: "object",
   required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "geometry", "assets"],
@@ -212,31 +287,7 @@ const productSchema = {
         properties: { price: { type: "number", minimum: 0 } }
       }
     },
-    // Written by `npm run measure-models`, never by hand.
-    geometry: {
-      type: "object",
-      required: ["volume-cm3", "dimensions-mm", "min-box", "model-sha1"],
-      properties: {
-        "volume-cm3": { type: "number", exclusiveMinimum: 0 },
-        "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
-        // The minimum-volume box's pose: the product page's dimension
-        // brackets are drawn on it (js/three-viewer.js, options.blueprint).
-        "min-box": {
-          type: "object",
-          required: ["center", "axes"],
-          properties: {
-            center: { type: "array", items: num, minItems: 3, maxItems: 3 },
-            axes: {
-              type: "array",
-              minItems: 3,
-              maxItems: 3,
-              items: { type: "array", items: num, minItems: 3, maxItems: 3 }
-            }
-          }
-        },
-        "model-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
-      }
-    },
+    geometry: geometrySchema,
     "hero-hand-visibility": {
       type: "object",
       required: ["visible", "x", "y", "scale", "rotation"],
@@ -264,7 +315,8 @@ const productSchema = {
           items: { type: "object", required: ["src", "description"], properties: { src: str, description: str } }
         }
       }
-    }
+    },
+    designs: designsSchema
   }
 };
 
@@ -297,6 +349,95 @@ function validate(where, schema, data) {
     fail(where, (err.instancePath || "/") + " " + err.message + (err.params && err.params.additionalProperty ? " (" + err.params.additionalProperty + ")" : ""));
   }
   return false;
+}
+
+// A measured model's "geometry" against its file: model-sha1 pins the
+// measurements to the exact model they were taken from
+// (scripts/measure-models.js), and the brackets are built on min-box as a
+// box — three unit axes at right angles. Anything else (a hand edit, a bad
+// merge) draws a skewed box labelled with numbers it doesn't measure.
+function checkGeometry(label, modelRel, geometry) {
+  if (modelRel && existsExactCase(modelRel)) {
+    const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, modelRel))).digest("hex");
+    if (sha1 !== geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
+  }
+  const boxAxes = geometry["min-box"].axes;
+  const dot3 = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const skew = Math.max(
+    ...boxAxes.map((a) => Math.abs(dot3(a, a) - 1)),
+    Math.abs(dot3(boxAxes[0], boxAxes[1])),
+    Math.abs(dot3(boxAxes[0], boxAxes[2])),
+    Math.abs(dot3(boxAxes[1], boxAxes[2]))
+  );
+  if (skew > 1e-3) fail(label, "geometry.min-box axes are not three unit vectors at right angles (run `npm run measure-models`)");
+}
+
+// A product's designs, beyond their shape (designsSchema): the default is
+// one of them and is the product's own (no files of its own); every other
+// one has its model, renders and measurements; each design's picks name one
+// choice of every option (a non-empty set of them for a "multiple" one),
+// and no two designs share them — or a visitor's picks couldn't tell which
+// model to show.
+function checkDesigns(label, product, metals) {
+  const designs = product.designs;
+  const options = new Map(designs.options.map((o) => [o.key, o]));
+  if (options.size !== designs.options.length) fail(label, "designs.options has two options with the same key");
+  for (const option of designs.options) {
+    if (new Set(option.choices).size !== option.choices.length) fail(label, 'designs option "' + option.key + '" lists a choice twice');
+  }
+  const keys = new Set();
+  const names = new Set();
+  const picked = new Set();
+  for (const design of designs.list) {
+    const at = label + " design " + design.key;
+    if (keys.has(design.key)) fail(at, "two designs share this key");
+    if (options.has(design.key)) fail(at, "its key is also an option's key (designs are found by it in products.json)");
+    keys.add(design.key);
+    if (names.has(slugify(design.name))) fail(at, 'two designs share the name "' + design.name + '"');
+    names.add(slugify(design.name));
+
+    for (const pickKey of Object.keys(design.picks)) {
+      if (!options.has(pickKey)) fail(at, 'picks "' + pickKey + '", which is not an option');
+    }
+    const signature = [];
+    for (const option of designs.options) {
+      const pick = design.picks[option.key];
+      const values = Array.isArray(pick) ? pick : pick === undefined ? [] : [pick];
+      if (option.multiple ? !Array.isArray(pick) || !values.length : typeof pick !== "string") {
+        fail(at, 'picks needs ' + (option.multiple ? "a non-empty list" : "one choice") + ' for "' + option.key + '"');
+      }
+      for (const value of values) {
+        if (!option.choices.includes(value)) fail(at, 'picks "' + value + '" for "' + option.key + '", which is not one of its choices');
+      }
+      signature.push(option.key + "=" + values.slice().sort().join("+"));
+    }
+    if (picked.has(signature.join("|"))) fail(at, "another design has the same picks");
+    picked.add(signature.join("|"));
+
+    const own = ["model", "wireframe", "icons", "fallback-img", "geometry"].filter((f) => design[f] !== undefined);
+    if (design.key === designs.default) {
+      if (own.length) fail(at, "is the default design, which is the product's own: it can't have " + own.join(", ") + " of its own");
+      continue;
+    }
+    for (const field of ["model", "icons", "fallback-img", "geometry"]) {
+      if (design[field] === undefined) fail(at, 'has no "' + field + '"');
+    }
+    if (!design.model || !design.icons || !design["fallback-img"] || !design.geometry) continue;
+    checkPath(at + " model", design.model);
+    checkPath(at + " wireframe", design.wireframe);
+    for (const field of ["icons", "fallback-img"]) {
+      for (const metal of metals) {
+        if (!design[field][metal]) fail(at, field + ' has no "' + metal + '"');
+      }
+      for (const [metal, rel] of Object.entries(design[field])) {
+        if (!metals.has(metal)) fail(at, field + ' has unknown metal "' + metal + '"');
+        checkPath(at + " " + field + "." + metal, rel);
+        if (field === "icons") checkVariants(at + " icons." + metal, rel, ["128"]);
+      }
+    }
+    checkGeometry(at, design.model, design.geometry);
+  }
+  if (!keys.has(designs.default)) fail(label, 'designs.default "' + designs.default + '" is not one of its designs');
 }
 
 /* ---- run --------------------------------------------------------------- */
@@ -431,24 +572,8 @@ if (index && validate("data/series.json", indexSchema, index)) {
         }
         checkPath(label + " assets.model", product.assets.model);
         checkPath(label + " assets.wireframe", product.assets.wireframe);
-        // geometry.model-sha1 pins the measurements to the exact model file
-        // they were taken from (scripts/measure-models.js).
-        if (product.assets.model && existsExactCase(product.assets.model)) {
-          const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, product.assets.model))).digest("hex");
-          if (sha1 !== product.geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
-        }
-        // The brackets are built on these as a box: three unit axes at right
-        // angles. Anything else (a hand edit, a bad merge) draws a skewed box
-        // labelled with numbers it doesn't measure.
-        const boxAxes = product.geometry["min-box"].axes;
-        const dot3 = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
-        const skew = Math.max(
-          ...boxAxes.map((a) => Math.abs(dot3(a, a) - 1)),
-          Math.abs(dot3(boxAxes[0], boxAxes[1])),
-          Math.abs(dot3(boxAxes[0], boxAxes[2])),
-          Math.abs(dot3(boxAxes[1], boxAxes[2]))
-        );
-        if (skew > 1e-3) fail(label, "geometry.min-box axes are not three unit vectors at right angles (run `npm run measure-models`)");
+        checkGeometry(label, product.assets.model, product.geometry);
+        if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));

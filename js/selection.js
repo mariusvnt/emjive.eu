@@ -24,10 +24,13 @@
 
   // Stored shape: { v: STORAGE_VERSION, items: [...] }. The version is what
   // lets a future change to an item's fields migrate old carts instead of
-  // guessing. The original format — a bare array of items, written by every
-  // release before this one — is still read (as "version 0") and is simply
-  // rewritten in the new shape on the next write.
-  var STORAGE_VERSION = 1;
+  // guessing. Version 2 came with the catalog's renumbering (two pairs of
+  // products merged into products with designs, 11 -> 9, ids 01-09): a
+  // productId saved before it can name a different item now (joint's "09" is
+  // omoplates'), so an older cart — version 1, or the bare array every
+  // release before that wrote — is dropped rather than misread. Carts only
+  // ever lived on test devices then: there was no checkout yet.
+  var STORAGE_VERSION = 2;
 
   // localStorage is writable by anything on the origin and survives across
   // deploys, so what comes back can be stale, hand-edited or corrupt. One bad
@@ -56,6 +59,9 @@
       image: isSafeImagePath(raw.image) ? raw.image : ""
     });
     if (item.series != null) item.series = String(item.series);
+    // Which of the product's designs (its "designs" list); absent for a
+    // product that has only one.
+    if (item.design != null) item.design = String(item.design);
     return item;
   }
 
@@ -74,8 +80,8 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return [];
       var parsed = JSON.parse(raw);
-      var list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : []);
-      return sanitizeItems(list);
+      if (!parsed || parsed.v !== STORAGE_VERSION || !Array.isArray(parsed.items)) return [];
+      return sanitizeItems(parsed.items);
     } catch (e) {
       return [];
     }
@@ -118,9 +124,11 @@
     return readAll();
   }
 
-  // item: { series, productId, name, category, metal, size, price, image } —
-  // a self-contained snapshot, so launch-order.html never needs to re-fetch/
-  // join against any products.json to render itself.
+  // item: { series, productId, design, name, category, metal, size, price,
+  // image } — a self-contained snapshot, so launch-order.html never needs to
+  // re-fetch/join against any products.json to render itself. For a product
+  // with several designs, `design` is the chosen one's key and `name` and
+  // `image` are that design's (EmjiveSeries.resolveDesign).
   //
   // `series` is what makes productId meaningful: ids are only unique within
   // one series' catalog. Selections saved before it existed simply have no
@@ -182,7 +190,7 @@
   // their key stable across renders, so an existing cart doesn't read as
   // all-new and replay every entrance animation.
   function itemKey(item) {
-    return (item.series || "") + "|" + item.productId + "|" + item.metal + "|" + item.size;
+    return (item.series || "") + "|" + item.productId + "|" + (item.design || "") + "|" + item.metal + "|" + item.size;
   }
 
   // Which single change turns oldKeys into keys: one item inserted at

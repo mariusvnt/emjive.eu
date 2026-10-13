@@ -1261,19 +1261,24 @@ export { toolkit };
     // both for the initial default framing and as the direct replacement
     // for model-viewer's jumpCameraToGoal()+camera-orbit combo in
     // scripts/auto-render.js's top-shot render path.
-    function frameCamera(orbitConfig) {
-      if (!modelRoot) return;
-      var orbit = parseOrbitConfig(orbitConfig);
-      // A blueprint viewer's model sits in a group that the specs stage
-      // shrinks (see updateBlueprint); the framing is always the model's own
-      // size, so that scale is set aside while measuring.
+    // The model's bounding sphere, at its own size: a blueprint viewer's
+    // model sits in a group that the specs stage shrinks (see
+    // updateBlueprint), so that scale is set aside while measuring (the next
+    // draw puts it back).
+    function measureModel() {
       if (fitGroup) {
         fitGroup.scale.setScalar(1);
         fitGroup.position.set(0, 0, 0);
         fitGroup.updateMatrixWorld(true);
       }
       var box = new THREE.Box3().setFromObject(modelRoot);
-      var sphere = box.getBoundingSphere(new THREE.Sphere());
+      return box.getBoundingSphere(new THREE.Sphere());
+    }
+
+    function frameCamera(orbitConfig) {
+      if (!modelRoot) return;
+      var orbit = parseOrbitConfig(orbitConfig);
+      var sphere = measureModel();
       frameSphere = sphere.clone();
       framedRadius = sphere.radius * (orbit.radiusPercent / 100);
       if (fitGroup) needsRender = true;
@@ -1430,6 +1435,9 @@ export { toolkit };
     var wireRoot = null;
     var wireMaterial = null;
     var wireStarted = false;
+    // Bumped whenever the model the wireframe belongs to goes (a swap, a
+    // dispose): a wireframe still on its way for the old one is dropped.
+    var wireGeneration = 0;
     // The wireframe's arrays, as JavaScript typed arrays, until uploaded.
     var wireCpuBytes = 0;
     var minBox = null;
@@ -1473,8 +1481,9 @@ export { toolkit };
       var src = product.assets && product.assets.wireframe;
       if (!blueprint || wireStarted || !src || isDisposed || !fitGroup) return;
       wireStarted = true;
+      var generation = wireGeneration;
       loadModelFile(src, function (gltf) {
-        if (isDisposed) {
+        if (isDisposed || generation !== wireGeneration) {
           disposeObject3D(gltf.scene);
           return;
         }
@@ -1838,7 +1847,13 @@ export { toolkit };
       }
     }
 
+    // Everything the blueprint drew for the model it was built for: on
+    // dispose, and when setProduct() swaps the model for another (whose
+    // wireframe and box are its own). Taken out of the scene as well as
+    // freed, and forgotten, so the next model can build its own.
     function disposeBlueprint() {
+      wireGeneration++;
+      wireStarted = false;
       if (wireRoot) {
         if (wireRoot.parent) wireRoot.parent.remove(wireRoot);
         disposeObject3D(wireRoot);
@@ -1847,15 +1862,18 @@ export { toolkit };
       window.EmjiveMem.cpuGeometryBytes -= wireCpuBytes;
       wireCpuBytes = 0;
       if (boxEdges) {
+        if (boxEdges.parent) boxEdges.parent.remove(boxEdges);
         boxEdges.geometry.dispose();
         boxEdges.material.dispose();
         boxEdges = null;
       }
       if (boxMesh) {
+        if (boxMesh.parent) boxMesh.parent.remove(boxMesh);
         boxMesh.geometry.dispose();
         boxMesh.material.dispose();
         boxMesh = null;
       }
+      minBox = null;
       bracketLabels.forEach(function (label) { if (label.parentNode) label.parentNode.removeChild(label); });
       bracketLabels.length = 0;
     }
@@ -1969,6 +1987,12 @@ export { toolkit };
         scheduleIdleNudge();
         if (blueprint) loadWireframe();
         if (options.onReady) options.onReady();
+        // Another model asked for while this one was still on its way.
+        if (pendingSwap) {
+          var swap = pendingSwap;
+          pendingSwap = null;
+          swapModel(swap.next, swap.opts);
+        }
       })
       // Previously absent, which made any model/HDRI failure an unhandled
       // promise rejection — noisy, and on a page with several viewers,
@@ -2110,6 +2134,89 @@ export { toolkit };
       });
     }
 
+    /* ---- swapping the model in place (handle.setProduct) -------------------
+       js/product.js's design stage: a product with several designs shows
+       each with its own model in this one viewer, rather than a new viewer
+       (a new WebGL context, PMREM and shader compile, and the poster in
+       between) per pick. `next` is the product as that design
+       (EmjiveSeries.resolveDesign): its own model, wireframe and geometry,
+       the product's camera. The camera is left exactly where it is — every
+       design of a product is authored in one frame, so the parts that differ
+       appear and go where they stand — and the old model stays on screen
+       until the new one is decoded; then the metal, the blueprint's state,
+       its box and its wireframe are redone for it. The latest pick wins: a
+       model arriving for an earlier one is freed on arrival. Asked for
+       before the first model is in, it waits for it. opts: { onReady,
+       onError }. --------------------------------------------------------- */
+    var swapToken = 0;
+    var pendingSwap = null;
+    var WIRE_AFTER_SWAP_MS = 1500;
+    var wireTimer = 0;
+    function swapModel(next, opts) {
+      opts = opts || {};
+      var src = next && next.assets && next.assets.model;
+      if (isDisposed || options.swatch || !src) return;
+      if (!modelLoaded) {
+        pendingSwap = { next: next, opts: opts };
+        return;
+      }
+      var token = ++swapToken;
+      clearTimeout(wireTimer);
+      if (src === (product.assets && product.assets.model)) {
+        product = next;
+        if (opts.onReady) opts.onReady();
+        return;
+      }
+      preloadDracoDecoder();
+      loadModelFile(src, function (gltf) {
+        if (isDisposed || token !== swapToken) {
+          disposeObject3D(gltf.scene);
+          return;
+        }
+        var old = modelRoot;
+        if (blueprint) disposeBlueprint();
+        if (old) {
+          if (old.parent) old.parent.remove(old);
+          disposeObject3D(old);
+        }
+        releaseHeldCpuBytes();
+        product = next;
+        wrapper.setAttribute("aria-label", (next.designName || next.name || "Product") + ", 3D model");
+        modelRoot = gltf.scene;
+        heldCpuBytes = cpuGeometryBytes(modelRoot);
+        window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
+        applyMaterial();
+        if (blueprint && fitGroup) {
+          fitGroup.add(modelRoot);
+          buildBrackets();
+        } else {
+          scene.add(modelRoot);
+        }
+        // The sweep runs across the new model; the view still fits what it
+        // was framed for (framedRadius), the camera not having moved.
+        frameSphere = measureModel();
+        if (blueprint) {
+          computeFit();
+          updateBlueprint();
+        }
+        renderer.render(scene, camera);
+        if (!isStatic && !isFreeOrbit) releaseGeometryArrays(modelRoot);
+        needsRender = true;
+        // Its wireframe (a few hundred thousand triangles) once the pick has
+        // settled, not on every one of a quick run of them — or at once if
+        // the sweep is already under way (setBlueprint).
+        if (blueprint) {
+          if (blueprintSweep > 0) loadWireframe();
+          else wireTimer = setTimeout(loadWireframe, WIRE_AFTER_SWAP_MS);
+        }
+        if (opts.onReady) opts.onReady();
+      }, function (err) {
+        if (token !== swapToken) return;
+        console.error("emjive: failed to load model", src, err);
+        if (opts.onError) opts.onError(err);
+      });
+    }
+
     function ignore() {}
     var handle = {
       el: wrapper,
@@ -2135,6 +2242,8 @@ export { toolkit };
         frameCamera(orbitConfig);
         renderer.render(scene, camera);
       },
+      // Another model in this viewer, the camera kept (see swapModel).
+      setProduct: swapModel,
       // Blueprint viewers only (options.blueprint; a no-op otherwise): how
       // far the metal -> grey sweep has gone (`sweep`) and how far the
       // fit has (`fit`: the shrink that makes room for the brackets, which
@@ -2147,6 +2256,9 @@ export { toolkit };
         if (sweep === blueprintSweep && fit === blueprintFit) return;
         blueprintSweep = sweep;
         blueprintFit = fit;
+        // A swapped-in model's wireframe, still waiting for its pick to
+        // settle, is wanted now (a no-op once it has started).
+        if (sweep > 0 && modelLoaded) loadWireframe();
         needsRender = true;
       },
       // The chosen ring size over the model's base size: the model (once the
@@ -2218,6 +2330,7 @@ export { toolkit };
       dispose: function () {
         if (isDisposed) return;
         isDisposed = true;
+        clearTimeout(wireTimer);
         // A loader still waiting on this viewer has nothing left to wait for.
         if (loadGate) loadGate.done();
         cancelReturnToPose();

@@ -842,7 +842,9 @@
             window.EmjiveOrderRows.notice("This item listing couldn't be found, please reload.");
             return;
           }
-          show(item, index, product, slug, options || {});
+          // The item's design (its model, icons and poster), as chosen on the
+          // product page; the sheet doesn't change it.
+          show(item, index, window.EmjiveSeries.resolveDesign(product, item.design).view, slug, options || {});
         });
       })
       // Without this, a failed data/series.json or products.json fetch made
@@ -864,6 +866,9 @@
   function openSelect(product, slug, options) {
     if (state.isOpen || !product) return;
     state.openToken++;
+    // A product with several designs is added as its default one, the design
+    // the gallery shows (picking another is the product page's job).
+    product = window.EmjiveSeries.resolveDesign(product).view;
     var metal = product["default-metal"];
     var specs = (product["per-metal-specs"] && product["per-metal-specs"][metal]) || {};
     var icons = (product.assets && product.assets.icons) || {};
@@ -878,13 +883,14 @@
     var item = {
       series: slug || window.EmjiveSeries.slug,
       productId: product.id,
-      name: product.name,
+      name: product.designName,
       category: product.category,
       metal: metal,
       size: lastSize,
       price: specs.price || 0,
       image: icons[metal] || ""
     };
+    if (product.designKey) item.design = product.designKey;
     var opts = {};
     Object.keys(options || {}).forEach(function (key) { opts[key] = options[key]; });
     opts.mode = "select";

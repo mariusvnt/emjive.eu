@@ -59,10 +59,12 @@ function bool(b) {
 // measuring script added. "min-box" is the minimum-volume box's pose
 // (centre + axes, the axes in the same order as dimensions-mm) — the
 // product page draws its dimension brackets on it; omitted when absent.
-function geometryLine(g) {
+// `indent` is the line's own: a product's (6 spaces) by default, a design
+// entry's inside its product's "designs" list (12) otherwise.
+function geometryLine(g, indent) {
   const triple = (v) => "[" + (v || []).map(num).join(", ") + "]";
   const box = g["min-box"];
-  return '      "geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
+  return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
     ', "dimensions-mm": ' + triple(g["dimensions-mm"]) +
     (box
       ? ', "min-box": { "center": ' + triple(box.center) +
@@ -367,6 +369,51 @@ function renderMetalPathMap(map, metals, indent) {
 // Full-block renderer for one product, shared by product add AND edit.
 // Field order/shape matches the real hand-authored file exactly — see
 // data/series/bones/products.json's Furcula entry.
+// A product's "designs" block (the design stage's options and every design
+// they lead to — data.md). Hand-authored, never edited by the tool: carried
+// through so a rewrite never drops it, in canonical form — the default
+// design (which is the product's own, with no files) on one line, every
+// other design on lines of its own, its "geometry" (measure-models.js's)
+// straight after its picks, then its model, wireframe and one-line
+// per-metal maps for the metals given.
+function renderDesignsBlock(designs, metals) {
+  const strList = (list) => "[" + (list || []).map((v) => '"' + esc(v) + '"').join(", ") + "]";
+  const picks = (p) => "{ " + Object.keys(p || {}).map((k) =>
+    '"' + esc(k) + '": ' + (Array.isArray(p[k]) ? strList(p[k]) : '"' + esc(p[k]) + '"')).join(", ") + " }";
+  const metalLine = (map) => "{ " + metals.map((m) => '"' + m + '": "' + esc((map || {})[m] || "") + '"').join(", ") + " }";
+  const options = (designs.options || []).map((o) =>
+    '          { "key": "' + esc(o.key) + '", "label": "' + esc(o.label) + '"' +
+    (o.multiple ? ', "multiple": true' : "") + ', "choices": ' + strList(o.choices) + " }");
+  const list = (designs.list || []).map((d) => {
+    const head = '"key": "' + esc(d.key) + '", "name": "' + esc(d.name) + '", "picks": ' + picks(d.picks);
+    if (d.key === designs.default) return "          { " + head + " }";
+    const pad = "            ";
+    return [
+      "          {",
+      pad + '"key": "' + esc(d.key) + '",',
+      pad + '"name": "' + esc(d.name) + '",',
+      pad + '"picks": ' + picks(d.picks) + ",",
+      ...(d.geometry ? [geometryLine(d.geometry, pad)] : []),
+      pad + '"model": "' + esc(d.model) + '",',
+      ...(d.wireframe ? [pad + '"wireframe": "' + esc(d.wireframe) + '",'] : []),
+      pad + '"icons": ' + metalLine(d.icons) + ",",
+      pad + '"fallback-img": ' + metalLine(d["fallback-img"]),
+      "          }"
+    ].join("\n");
+  });
+  return [
+    '      "designs": {',
+    '        "default": "' + esc(designs.default) + '",',
+    '        "options": [',
+    options.join(",\n"),
+    "        ],",
+    '        "list": [',
+    list.join(",\n"),
+    "        ]",
+    "      }"
+  ].join("\n");
+}
+
 function renderProductBlock(p, metals) {
   const specs = p["per-metal-specs"] || {};
   const perMetal = metals
@@ -427,7 +474,8 @@ function renderProductBlock(p, metals) {
     renderMetalPathMap(assets["top-shot"], metals, "          "),
     "        },",
     '        "photos": ' + photos,
-    "      }",
+    p.designs ? "      }," : "      }",
+    ...(p.designs ? [renderDesignsBlock(p.designs, metals)] : []),
     "    }"
   ].join("\n");
 }

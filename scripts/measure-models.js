@@ -37,8 +37,13 @@
    Meshes that aren't watertight (open or non-manifold edges) still get a
    volume — it's just approximate — and are flagged in the summary table.
 
-   Only the "geometry" line inside each product block is touched; the rest
-   of products.json is left byte-for-byte alone.
+   A product with several designs (its "designs" list) has one model per
+   design: the default design's is the product's own, measured as above;
+   each other design's gets its own "geometry" line inside its entry of the
+   list, right after its "picks".
+
+   Only the "geometry" lines (the product's and its designs') are touched;
+   the rest of products.json is left byte-for-byte alone.
 
    Usage:
      npm run measure-models                 measure every product, write products.json
@@ -373,6 +378,55 @@ function withGeometry(blockText, g, eol) {
   return cleaned.replace(anchor, (m) => m + eol + geometryLine(g));
 }
 
+// The same for one design of a product (an entry of its "designs" list,
+// itself a block of its own lines): its "geometry" line goes straight after
+// its one-line "picks". Returns null if the entry has no picks line.
+const DESIGN_INDENT = "            ";
+function withDesignGeometry(entryText, g, eol) {
+  const cleaned = entryText.replace(/\r?\n {12}"geometry": \{[^\r\n]*\},(?=\r?\n)/, "");
+  const anchor = /( {12}"picks": \{[^\r\n]*\},)(?=\r?\n)/;
+  if (!anchor.test(cleaned)) return null;
+  return cleaned.replace(anchor, (m) => m + eol + geometryLine(g, DESIGN_INDENT));
+}
+
+// One model file measured: what goes in a "geometry" line, plus the figures
+// the summary table shows. null (and a message) when it can't be.
+async function measureFile(io, label, modelRel) {
+  const modelPath = modelRel && join(REPO_ROOT, modelRel);
+  if (!modelPath || !existsSync(modelPath)) {
+    console.error("  " + label + ": model file missing (" + modelRel + ")");
+    return null;
+  }
+  const document = await io.read(modelPath);
+  const welded = weldTriangles(collectTriangles(document));
+  if (!welded.corners.length) {
+    console.error("  " + label + ": model has no triangles");
+    return null;
+  }
+  const volume = measureVolume(welded);
+  const box = await minimumBox(welded.positions);
+  const geometry = {
+    "volume-cm3": Number((volume.mm3 / 1000).toFixed(3)),
+    "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
+    "min-box": {
+      center: box.center.map((c) => Number(c.toFixed(3))),
+      axes: box.axes.map((a) => a.map((x) => Number(x.toFixed(5))))
+    },
+    "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
+  };
+  return {
+    geometry,
+    row: {
+      product: label,
+      "volume cm3": geometry["volume-cm3"],
+      "box mm": geometry["dimensions-mm"].join(" x "),
+      "box/aabb": (box.volume / box.axisAlignedVolume).toFixed(2),
+      shells: volume.shells,
+      "open edges": volume.openEdges
+    }
+  };
+}
+
 // ---- main -----------------------------------------------------------------------
 
 async function main() {
@@ -394,53 +448,49 @@ async function main() {
     let text = readFileSync(productsPath, "utf8");
     const data = JSON.parse(text);
 
+    const eol = text.includes("\r\n") ? "\r\n" : "\n";
     for (const product of data.products || []) {
       const label = series.slug + "/" + product.name;
-      const modelRel = product.assets && product.assets.model;
-      const modelPath = modelRel && join(REPO_ROOT, modelRel);
-      if (!modelPath || !existsSync(modelPath)) {
-        console.error("  " + label + ": model file missing (" + modelRel + ")");
+      const measured = await measureFile(io, label, product.assets && product.assets.model);
+      if (!measured) {
         failed = true;
         continue;
       }
-
-      const document = await io.read(modelPath);
-      const welded = weldTriangles(collectTriangles(document));
-      if (!welded.corners.length) {
-        console.error("  " + label + ": model has no triangles");
-        failed = true;
-        continue;
-      }
-      const volume = measureVolume(welded);
-      const box = await minimumBox(welded.positions);
-
-      const geometry = {
-        "volume-cm3": Number((volume.mm3 / 1000).toFixed(3)),
-        "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
-        "min-box": {
-          center: box.center.map((c) => Number(c.toFixed(3))),
-          axes: box.axes.map((a) => a.map((x) => Number(x.toFixed(5))))
-        },
-        "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
-      };
 
       const span = blocks.findProductBlockSpan(text, product.id);
-      const patchedBlock = span && withGeometry(text.slice(span.start, span.end), geometry, text.includes("\r\n") ? "\r\n" : "\n");
+      let patchedBlock = span && withGeometry(text.slice(span.start, span.end), measured.geometry, eol);
       if (!patchedBlock) {
         console.error("  " + label + ": could not locate its block (or per-metal-specs) in " + series.products);
         failed = true;
         continue;
       }
-      text = text.slice(0, span.start) + patchedBlock + text.slice(span.end);
+      rows.push(measured.row);
 
-      rows.push({
-        product: label,
-        "volume cm3": geometry["volume-cm3"],
-        "box mm": geometry["dimensions-mm"].join(" x "),
-        "box/aabb": (box.volume / box.axisAlignedVolume).toFixed(2),
-        shells: volume.shells,
-        "open edges": volume.openEdges
-      });
+      // Its other designs (the default one is the product's own model, just
+      // measured): each its own model and its own "geometry" line, inside
+      // its entry of the product's "designs" list.
+      const designs = product.designs;
+      for (const design of (designs && designs.list) || []) {
+        if (design.key === designs.default) continue;
+        const designLabel = label + " [" + design.key + "]";
+        const designMeasured = await measureFile(io, designLabel, design.model);
+        if (!designMeasured) {
+          failed = true;
+          continue;
+        }
+        const list = patchedBlock.indexOf('"list": [');
+        const entrySpan = list === -1 ? null : blocks.findBlockSpanByAnchor(patchedBlock.slice(list), "key", design.key);
+        const entry = entrySpan && withDesignGeometry(patchedBlock.slice(list + entrySpan.start, list + entrySpan.end), designMeasured.geometry, eol);
+        if (!entry) {
+          console.error("  " + designLabel + ": could not locate its entry (or its picks) in " + series.products);
+          failed = true;
+          continue;
+        }
+        patchedBlock = patchedBlock.slice(0, list + entrySpan.start) + entry + patchedBlock.slice(list + entrySpan.end);
+        rows.push(designMeasured.row);
+      }
+
+      text = text.slice(0, span.start) + patchedBlock + text.slice(span.end);
     }
 
     if (!dryRun) writeFileSync(productsPath, text, "utf8");

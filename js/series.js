@@ -154,6 +154,44 @@
     return "/" + productSlug(product);
   }
 
+  // A product as one of its designs (its "designs" list, data/series/<slug>/
+  // products.json): the product's own fields are its default design; any
+  // other design brings its own model, wireframe, icons, fallback image and
+  // geometry, and keeps everything else — the name and address, the prices,
+  // the camera (every design is framed by the product's), the x-ray, the
+  // photos. Returns { view, design }: `view` is what the viewer, the label
+  // and the selection read, with `designKey` and `designName` added (the
+  // design's name, e.g. "rib-cage-1L2"; the product's name when it has no
+  // designs); `design` is the entry, null for a product without designs.
+  // An unknown or missing key is the default design — a saved selection
+  // whose design has since been removed still opens.
+  function resolveDesign(product, key) {
+    var designs = product && product.designs;
+    var list = (designs && designs.list) || [];
+    var design = null;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].key === key) design = list[i];
+    }
+    if (!design) {
+      for (var j = 0; j < list.length; j++) {
+        if (list[j].key === designs.default) design = list[j];
+      }
+    }
+    var view = Object.assign({}, product);
+    view.designKey = design ? design.key : "";
+    view.designName = design ? design.name : (product && product.name) || "";
+    if (design && design.key !== designs.default) {
+      view.assets = Object.assign({}, product.assets, {
+        model: design.model || "",
+        wireframe: design.wireframe || "",
+        icons: design.icons || {},
+        "fallback-img": design["fallback-img"] || {}
+      });
+      view.geometry = design.geometry || null;
+    }
+    return { view: view, design: design };
+  }
+
   /* ---------------------------------------------------------------------
    * Hero <-> chrome scroll bridge.
    *
@@ -568,6 +606,7 @@
     manifestHref: manifestHref,
     productHref: productHref,
     productSlug: productSlug,
+    resolveDesign: resolveDesign,
 
     // The raw ?series= value, with no featured-series fallback applied.
     // series.html needs this: silently showing the featured series' manifest

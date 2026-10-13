@@ -442,6 +442,8 @@ async function handleGlobalMetal(req, res) {
     // Its metal-costs entry goes with it (validate-data rejects a cost entry
     // for a metal that isn't in the list).
     patched = blocks.removeObjectEntryInText(patched, '"metal-costs": {', metal) || patched;
+    // ...and its metal-composition one (the same check).
+    patched = blocks.removeObjectEntryInText(patched, '"metal-composition": {', metal) || patched;
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
     // Cascade cleanup: strip the removed metal's key from every product's
@@ -486,7 +488,8 @@ async function handleGlobalMetal(req, res) {
       'Added "' + metal + '" to data/series.json\'s metals list. Still needed by hand: a METAL_PRESETS.' + metal +
       ' entry in js/three-viewer.js, and a .product-metals__option[data-metal="' + metal + '"] rule in css/style.css ' +
       "— this tool does not touch either file — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
-      "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it). " +
+      "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it), a \"" + metal +
+      '" entry under "metal-composition" and one under "metal-technology". ' +
       "Existing products won't have a \"" + metal +
       '" entry under per-metal-specs until you re-save them here, either.'
   });
@@ -793,7 +796,7 @@ async function handleProductEdit(req, res) {
   const moved = [];
   const warnings = [];
   if (oldFolder !== newFolder) {
-    ["model", "wireframe", "xray"].forEach((key) => {
+    ["model", "wireframe", "stl", "xray"].forEach((key) => {
       const oldRel = merged.assets[key];
       if (oldRel) {
         const newRel = newFolder + "/" + path.basename(oldRel);
@@ -806,13 +809,13 @@ async function handleProductEdit(req, res) {
       moveAssetFile(p.src, newRel, moved, warnings);
       return { src: newRel, description: p.description };
     });
-    // The other designs' models and wireframes go with the product's (their
+    // The other designs' models, wireframes and print models go with the product's (their
     // renders, like the product's own, are auto-render's to redo).
     if (merged.designs) {
       merged.designs = Object.assign({}, merged.designs, {
         list: (merged.designs.list || []).map((d) => {
           const next = Object.assign({}, d);
-          ["model", "wireframe"].forEach((key) => {
+          ["model", "wireframe", "stl"].forEach((key) => {
             if (!next[key]) return;
             const newRel = newFolder + "/" + path.basename(next[key]);
             moveAssetFile(next[key], newRel, moved, warnings);

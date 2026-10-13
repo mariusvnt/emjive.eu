@@ -49,6 +49,10 @@
     // "printing-technologies" (technology -> { name, description }).
     metalTechnology: {},
     technologies: {},
+    // data/series.json's "metal-composition" (metal -> what it is made of).
+    compositions: {},
+    // Each photo's caption with the picture under it, for inkCaption.
+    captions: [],
     selectedMetal: null,
     modelHandle: null,
     // The model box's poster <img> while the viewer isn't in yet.
@@ -215,6 +219,7 @@
         state.metalCosts = ctx.index["metal-costs"] || {};
         state.metalTechnology = ctx.index["metal-technology"] || {};
         state.technologies = ctx.index["printing-technologies"] || {};
+        state.compositions = ctx.index["metal-composition"] || {};
         return findProduct(ctx.slug, getRequest());
       })
       .then(function (found) {
@@ -279,6 +284,7 @@
     renderMetalOptions(product);
     renderSpecs();
     renderPrinting();
+    renderComposition();
     wireSelectButton(product);
 
     loadingEl.hidden = true;
@@ -524,6 +530,7 @@
 
     var list = document.getElementById("productFeed");
     list.innerHTML = "";
+    state.captions = [];
     var photos = (product.assets && product.assets.photos) || [];
     var last = photos.length - 1;
     var trail = null;
@@ -541,7 +548,12 @@
       if (i === 0) img.fetchPriority = "high";
       else img.loading = "lazy";
       frame.appendChild(img);
-      if (photo.description) frame.appendChild(captionFor(photo.description));
+      var caption = null;
+      if (photo.description) {
+        caption = captionFor(photo.description);
+        frame.appendChild(caption);
+        state.captions.push({ img: img, caption: caption });
+      }
       figure.appendChild(frame);
       list.appendChild(figure);
       var started = null;
@@ -551,6 +563,8 @@
         started = window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
         if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
         started.then(function () {
+          // The caption's ink is set before it can show (.is-loaded).
+          inkCaption(img, caption);
           figure.classList.add("is-loaded");
           if (i === last) buildTrail(trail, img);
           fitFeed();
@@ -559,6 +573,7 @@
       };
     });
     if (trail) list.appendChild(trail);
+    wireCaptionInk();
     return {
       firstReady: loaders.length ? loaders[0]() : Promise.resolve(),
       loadRest: function () { loaders.forEach(function (load) { load(); }); }
@@ -568,8 +583,8 @@
   // A photo's caption: the name of the item on it, set as an item's name is
   // everywhere (the label bar's, the rows'): the name in the main face, then
   // ".category.metal.size" in the mono one, smaller, the size's fraction small
-  // (EmjiveSelection.appendSize). Written in white and inverted over the
-  // photo by blending (css/style.css .product-feed__caption).
+  // (EmjiveSelection.appendSize). Its colour is inkCaption's (css/style.css
+  // .product-feed__caption).
   function captionFor(text) {
     var caption = el("figcaption", "product-feed__caption");
     var dot = text.indexOf(".");
@@ -589,6 +604,73 @@
     return caption;
   }
 
+  // The colour of a caption follows the corner it stands on: white over a dark
+  // one, black over a light one. The part of the picture under the caption
+  // (its box and INK_PAD_PX more all round, in the picture's own pixels) is
+  // read back through a 16 by 8 canvas, which averages it, and the mean
+  // luminance of those pixels (WCAG's relative luminance) is set against
+  // INK_THRESHOLD: 0.179, where white and black are equally readable. Set as
+  // data-ink (css/style.css .product-feed__caption); a picture the page can't
+  // read back leaves the caption as it was, white inverted by blending.
+  // Run when a photo arrives, and again whenever the screen's width changes
+  // (the caption covers a different part of the picture).
+  var INK_PAD_PX = 6;
+  var INK_THRESHOLD = 0.179;
+  var INK_COLS = 16;
+  var INK_ROWS = 8;
+  var inkContext = null;
+  function inkCaption(img, caption) {
+    if (!caption || !img.naturalWidth) return;
+    var shown = img.getBoundingClientRect();
+    var box = caption.getBoundingClientRect();
+    if (!(shown.width > 0) || !(box.width > 0)) return;
+    var k = img.naturalWidth / shown.width;
+    var x0 = Math.max(0, (box.left - INK_PAD_PX - shown.left) * k);
+    var y0 = Math.max(0, (box.top - INK_PAD_PX - shown.top) * k);
+    var x1 = Math.min(img.naturalWidth, (box.right + INK_PAD_PX - shown.left) * k);
+    var y1 = Math.min(img.naturalHeight, (box.bottom + INK_PAD_PX - shown.top) * k);
+    if (x1 - x0 < 1 || y1 - y0 < 1) return;
+    try {
+      if (!inkContext) {
+        var canvas = document.createElement("canvas");
+        canvas.width = INK_COLS;
+        canvas.height = INK_ROWS;
+        inkContext = canvas.getContext("2d", { willReadFrequently: true });
+      }
+      inkContext.clearRect(0, 0, INK_COLS, INK_ROWS);
+      inkContext.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, INK_COLS, INK_ROWS);
+      var data = inkContext.getImageData(0, 0, INK_COLS, INK_ROWS).data;
+      var sum = 0;
+      for (var i = 0; i < data.length; i += 4) {
+        sum += 0.2126 * linearChannel(data[i]) + 0.7152 * linearChannel(data[i + 1]) + 0.0722 * linearChannel(data[i + 2]);
+      }
+      caption.setAttribute("data-ink", sum / (data.length / 4) < INK_THRESHOLD ? "white" : "black");
+    } catch (err) {
+      // A picture that won't be read back (a tainted canvas): as it was.
+    }
+  }
+
+  // An sRGB channel (0-255) as light, 0 to 1.
+  function linearChannel(value) {
+    var c = value / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+
+  var captionInkWired = false;
+  function wireCaptionInk() {
+    if (captionInkWired) return;
+    captionInkWired = true;
+    var queued = false;
+    window.addEventListener("resize", function () {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () {
+        queued = false;
+        state.captions.forEach(function (c) { inkCaption(c.img, c.caption); });
+      });
+    });
+  }
+
   // The trail under the last photo: its last row of pixels, copied twice into
   // canvases one pixel tall that the CSS stretches over the trail's height
   // (css/style.css .product-feed__trail) — the stretched row is the same
@@ -598,7 +680,10 @@
   // goes, on a smooth curve, so that the row goes from the picture's colours
   // through grey to --bg exactly at the bottom, and a change to --bg is
   // followed with no script. A picture the page can't read back (a failed
-  // load) leaves no trail.
+  // load) leaves no trail. In the middle of the trail, a line saying where the
+  // scrolling leads (TRAIL_HINT): there the trail is at least half the page's
+  // colour, which black always reads on.
+  var TRAIL_HINT = "scroll down to explore design options";
   function buildTrail(trail, img) {
     if (!trail || trail.firstChild || !img.naturalWidth) return;
     try {
@@ -614,6 +699,7 @@
       grey.className = "product-feed__trail-grey";
       trail.appendChild(row);
       trail.appendChild(grey);
+      trail.appendChild(el("p", "product-feed__trail-label", TRAIL_HINT));
       trail.classList.add("is-built");
     } catch (err) {
       trail.innerHTML = "";
@@ -687,10 +773,9 @@
         onError: replaceModelWithIcon,
         onReady: function () {
           settleViewer();
-          syncBracketsFlag();
         },
-        // The specs stage's metal -> grey sweep and dimensioned box (see
-        // onStageChange). lineColor is the box's edges' base colour.
+        // The specs stage's metal -> grey sweep and wireframe (see
+        // onStageChange). lineColor is the wireframe's colour.
         blueprint: { lineColor: pageColor("--category-col", "#727272") }
       });
     }
@@ -778,7 +863,6 @@
         state.modelHandle = null;
       }
       settleViewer();
-      syncBracketsFlag();
       showIcon();
     }
 
@@ -1061,7 +1145,6 @@
       state.modelHandle.setProduct(state.view, {
         onReady: function () {
           release();
-          syncBracketsFlag();
           refreshStage();
         },
         onError: release
@@ -1138,51 +1221,56 @@
     if (state.posterImg) state.posterImg.src = posterSrcFor(view, metal);
     renderSpecs();
     renderPrinting();
+    renderComposition();
     tintAfterPaint();
   }
 
   /* ---- specs: characteristics (metal-dependent) -------------------------- */
 
-  // The weight and the cost breakdown for one metal, from the model's measured
-  // volume (product.geometry, written by scripts/measure-models.js) and that
+  // The weight and the cost breakdown for one metal, from the piece's
+  // measured volume (the chosen design's geometry, written by
+  // scripts/measure-models.js: the print model's, see renderSpecs) and that
   // metal's constants in data/series.json's "metal-costs". Raw materials are
   // the metal bought, which is more than the finished piece weighs: the
   // process loses a share of it (lost-wax casting, binder jetting), so it is
   // weight x (1 + loss margin) x price per gram. Manufacturing is whatever
   // is left of the production cost (volume x production cost per cm3).
-  // The weight is the finished piece's; it isn't shown, only what it costs.
-  // Returns null if either input is missing.
+  // The weight is the finished piece's, in grams. Returns null if either
+  // input is missing.
   function computeCosts(volumeCm3, costs) {
     if (!(volumeCm3 > 0) || !costs) return null;
     var weight = volumeCm3 * costs["density-g-cm3"];
     var production = volumeCm3 * costs["production-per-cm3"];
     var raw = weight * (1 + costs["loss-margin"]) * costs["price-per-g"];
-    return { raw: raw, manufacturing: production - raw, production: production };
+    return { weight: weight, raw: raw, manufacturing: production - raw, production: production };
   }
 
   function formatEuros(amount) {
     return "€ " + amount.toFixed(2);
   }
 
-  // The figures that follow the chosen size: the dimensions, in
-  // centimetres (drawn on the model itself as brackets when the viewer can,
-  // .has-brackets — their row stays here, visually hidden, for screen
-  // readers) and the cost diagram. A piece scaled
-  // by a factor weighs and costs that factor cubed (the model is scaled the
-  // same on every axis); the diagram's bars are shares of that cost — the raw
-  // materials', the manufacturing's — so they always fill their column, and
-  // move with the metal only. The geometry is the chosen design's.
+  // The figures that follow the chosen size: the dimensions, in centimetres,
+  // and the weight, in grams (the two rows of the specs cluster), and the cost
+  // diagram. A piece scaled by a factor weighs and costs that factor cubed
+  // (the model is scaled the same on every axis); the diagram's bars are shares
+  // of that cost — the raw materials', the manufacturing's — so they always fill
+  // their column, and move with the metal only. The geometry is the chosen
+  // design's, and as it is printed where the design has that measured
+  // (geometry.print, from its STL): that is the piece that is made and
+  // priced, whatever the 3D model on the page shows.
   function renderSpecs() {
     var geometry = (state.view && state.view.geometry) || {};
-    var dims = geometry["dimensions-mm"];
+    var printed = geometry.print || geometry;
+    var dims = printed["dimensions-mm"];
     var f = state.sizeFactor;
-    var volume = geometry["volume-cm3"] * f * f * f;
+    var volume = printed["volume-cm3"] * f * f * f;
     var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
     var haveDims = Array.isArray(dims) && dims.length === 3 && dims.every(function (d) { return typeof d === "number" && isFinite(d); });
     appendSpec(dl, "dimensions", "Dimensions", haveDims ?
-      dims.map(function (d) { return (Math.round(d * f * 10 + 1e-6) / 100).toFixed(2); }).join(" × ") + " cm" : "n/a");
+      dims.map(function (d) { return (Math.round(d * f * 10 + 1e-6) / 100).toFixed(2); }).join(" × ") + " cm" : "TBD");
+    appendSpec(dl, "weight", "Weight", costs ? costs.weight.toFixed(1) + " g" : "TBD");
 
     var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
     Object.keys(figures).forEach(function (key) {
@@ -1213,6 +1301,20 @@
     // A different text can be a different height, and the rows under it follow:
     // glide from the old height to the new one instead of snapping.
     if (wasShown && from > 0) tweenHeight(section, from);
+  }
+
+  // The specs stage's composition of the chosen metal, in the picker's second
+  // column under the squares (data/series.json's "metal-composition"). Shown
+  // in specs only (css/style.css); the same glide as the printing technology's
+  // when the text is a different height.
+  function renderComposition() {
+    var node = document.getElementById("productComposition");
+    if (!node) return;
+    var text = state.compositions[state.selectedMetal] || "";
+    var from = node.hidden ? 0 : node.offsetHeight;
+    node.hidden = !text;
+    node.textContent = text;
+    if (text && from > 0) tweenHeight(node, from);
   }
 
   // Animates `node`'s height from `from` px to `to` (default: what it is now;
@@ -1273,7 +1375,7 @@
   // model's foot and ends when it leaves its head, the cut under the band
   // all the way. So the first fade ends (--t0) as the band reaches the
   // model, the second begins (--t1) as it leaves it, and the model's fit
-  // (the shrink that makes room for its dimensions, and the size scale)
+  // (the shrink that makes room for the size circle, and the size scale)
   // follows from there on. The three are worked out from where the model is
   // on screen, so they hold on any screen.
   function wireStages() {
@@ -1357,29 +1459,35 @@
   // arrives (it was a square until then) and on every resize.
   var FEED_CLEAR_REM = 4;
   var feedRoom = 0;
-  var barsHeightProbe = null;
   function fitFeed() {
     var feed = document.getElementById("productFeedColumn");
     var show = document.querySelector(".product-stage__show");
     if (!stageEl || !feed || !show) return;
     var room = 0;
     if (!state.flow) {
-      if (!barsHeightProbe) {
-        barsHeightProbe = el("div", null);
-        barsHeightProbe.setAttribute("aria-hidden", "true");
-        barsHeightProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--bars-h)";
-        stageEl.appendChild(barsHeightProbe);
-      }
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var showTop = show.getBoundingClientRect().top + browsePx();
       var bottom = showTop + feed.offsetTop + feed.offsetHeight;
-      var barsTop = screenHeight() - barsHeightProbe.offsetHeight;
-      room = Math.max(0, bottom - (barsTop - FEED_CLEAR_REM * rem));
+      room = Math.max(0, bottom - (barsTopPx() - FEED_CLEAR_REM * rem));
     }
     if (Math.abs(room - feedRoom) < 0.5) return;
     feedRoom = room;
     stageEl.style.setProperty("--feed-room", room.toFixed(1) + "px");
     if (stages) stages.update();
+  }
+
+  // Where the two bars at the bottom begin, in pixels from the top of the
+  // screen: the small viewport's bottom less the bars as tall as they ever are
+  // (--bars-h, read off a probe), so it holds still once the page has moved.
+  var barsHeightProbe = null;
+  function barsTopPx() {
+    if (!barsHeightProbe) {
+      barsHeightProbe = el("div", null);
+      barsHeightProbe.setAttribute("aria-hidden", "true");
+      barsHeightProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--bars-h)";
+      stageEl.appendChild(barsHeightProbe);
+    }
+    return screenHeight() - barsHeightProbe.offsetHeight;
   }
 
   // How far the show stands scrolled up by browsing a stage, in pixels (its
@@ -1393,18 +1501,50 @@
     return -new DOMMatrix(t).m42;
   }
 
-  // The height of the two bars at the bottom, in pixels: what a stage's
-  // stretch of browsing takes the show up by (css/style.css --bars-h), read off
-  // a probe that is as tall.
-  var barsProbe = null;
-  function barsPx() {
-    if (!barsProbe) {
-      barsProbe = el("div", null);
-      barsProbe.setAttribute("aria-hidden", "true");
-      barsProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--room-0)";
-      document.getElementById("productStage").appendChild(barsProbe);
+  // What the design stage's stretch of browsing takes the show up by, in
+  // pixels (css/style.css --room-1: the two bars and a blank, or the room
+  // fitDesignRoom has found it takes), read off a probe that is as tall.
+  var designRoomProbe = null;
+  function designRoomPx() {
+    if (!designRoomProbe) {
+      designRoomProbe = el("div", null);
+      designRoomProbe.setAttribute("aria-hidden", "true");
+      designRoomProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--room-1)";
+      document.getElementById("productStage").appendChild(designRoomProbe);
     }
-    return barsProbe.offsetHeight;
+    return designRoomProbe.offsetHeight;
+  }
+
+  // The design stage's things — the picker and, under it, the options of a
+  // product with several designs — are tall too, and the last of them can stand
+  // under the bars at the bottom of the screen: the stage's stretch of
+  // scrolling takes the show up by what it takes for it to clear them by
+  // DESIGN_CLEAR_REM (css/style.css --design-room; it is never less than the two
+  // bars and a blank, --room-0). Measured as it would stand unshifted — less
+  // the show's browsing and the model's lift, which it goes up with — so it
+  // holds still once it has moved. Once the picker has gone to its place in
+  // the specs column (.is-specs-layout) nothing of design stands where it did:
+  // the last figure is kept.
+  var DESIGN_CLEAR_REM = 8;
+  var designRoom = 0;
+  function fitDesignRoom() {
+    if (!stageEl) return;
+    var room = designRoom;
+    if (state.flow) {
+      room = 0;
+    } else if (!stageEl.classList.contains("is-specs-layout")) {
+      var options = document.getElementById("productOptions");
+      var last = options && !options.hidden && options.children.length ? options : document.querySelector(".product-material");
+      room = 0;
+      if (last) {
+        var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        var bottom = last.getBoundingClientRect().bottom + browsePx() + state.lift;
+        room = Math.max(0, bottom - (barsTopPx() - DESIGN_CLEAR_REM * rem));
+      }
+    }
+    if (Math.abs(room - designRoom) < 0.5) return;
+    designRoom = room;
+    stageEl.style.setProperty("--design-room", room.toFixed(1) + "px");
   }
 
   function clamp(x, lo, hi) {
@@ -1540,7 +1680,8 @@
     var browsed = browsePx();
     var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
     if (!(ratio >= 0)) ratio = 0.5;
-    var room = barsPx();
+    fitDesignRoom();
+    var room = designRoomPx();
     // The model's place in specs: its middle on the first quarter of the
     // screen's height — or just under the title bar, if the model is so tall
     // that its head would run under it — and then SPECS_GAP_REM lower, the
@@ -1551,8 +1692,8 @@
     if (designFrameEl && !state.flow) {
       var box = designFrameEl.getBoundingClientRect();
       var titleBar = document.querySelector(".product-detail__label-bar");
-      // (The model, with its dimensions, stands about this tall: the share
-      // of the tile it fills at the size it is fitted to.)
+      // (The model stands about this tall: the share of the tile it fills at
+      // the size it is fitted to.)
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
@@ -1587,7 +1728,7 @@
       if (band && barOn) band.style.top = barY.toFixed(1) + "px";
     }
     state.sweep = sweep;
-    // The picker changes place (beside the model / under it) in the middle
+    // The picker changes place (under the model / in the specs column) in the middle
     // of the blank, where nothing of it shows.
     stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
@@ -1649,7 +1790,7 @@
   var SPECS_GAP_REM = 9.5;
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
-  var SIZE_MAX_MM = 70;
+  var SIZE_MAX_MM = 80;
   function setModelSize(raw) {
     var mm = parseFloat(raw);
     var given = window.EmjiveSelection.isValidSize(raw) && isFinite(mm);
@@ -1673,6 +1814,14 @@
   var RING_KEY_STEP = 0.5;
   var RING_KEY_FINE = 0.1;
   var RING_KEY_PAGE = 5;
+  // A drag on the circle moves the size by half of what the finger moves the
+  // circle's edge (the gain, as the size finder's sliders have), and by less
+  // as the size nears an end in the direction of the drag: within
+  // RING_RESIST_MM of it the gain falls, by a smooth curve, to
+  // RING_RESIST_END of itself at the end — so the extremes take a long drag.
+  var RING_DRAG_GAIN = 0.5;
+  var RING_RESIST_MM = 10;
+  var RING_RESIST_END = 0.2;
 
   // The circle's sizes in pixels, from the viewer's: now (at the fit and the
   // size the page is at), at the largest size (what the layout under it makes
@@ -1734,10 +1883,22 @@
     ring.hit.setAttribute("aria-valuetext", (given ? state.sizeText : String(SIZE_BASE_MM)) + " mm");
   }
 
-  // The circle's touches and keys: a drag on its band takes the circle to the
-  // finger (the size is the circle's radius over the pixels a millimetre is),
-  // from where it was grabbed — the grip on the line follows the finger
-  // round — to the nearest tenth, between the ends. The field follows.
+  // The gain of a drag that moves the size `from` by `delta` millimetres (its
+  // sign the direction): RING_DRAG_GAIN, less within RING_RESIST_MM of the end
+  // it is heading for.
+  function dragGain(from, delta) {
+    var toEnd = delta > 0 ? SIZE_MAX_MM - from : from - SIZE_MIN_MM;
+    var u = clamp(toEnd / RING_RESIST_MM, 0, 1);
+    var smooth = u * u * (3 - 2 * u);
+    return RING_DRAG_GAIN * (RING_RESIST_END + (1 - RING_RESIST_END) * smooth);
+  }
+
+  // The circle's touches and keys: a drag on its band moves the size by the
+  // finger's movement across the circle's edge, over the pixels a millimetre
+  // is, times the gain (dragGain) — the circle follows the size, not the
+  // finger, and the grip on the line follows the finger round — to the nearest
+  // tenth, between the ends (the size is kept as it is moved, so a slow drag
+  // adds up instead of rounding away). The field follows.
   function wireSizeRing(field) {
     var el = document.getElementById("productSizeRing");
     var hit = document.getElementById("productSizeRingHit");
@@ -1756,26 +1917,33 @@
       return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
     }
 
-    function follow(e) {
-      var g = state.ringGeo;
-      if (!g || !grabbed) return;
+    // The finger's distance from the circle's middle, and the grip's angle.
+    function fingerAt(e) {
       var r = el.getBoundingClientRect();
       var dx = e.clientX - (r.left + r.width / 2);
       var dy = e.clientY - (r.top + r.height / 2);
       el.style.setProperty("--ring-angle", (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + "deg");
-      setSize((Math.sqrt(dx * dx + dy * dy) - grabbed.offset) / g.perMm);
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function follow(e) {
+      var g = state.ringGeo;
+      if (!g || !grabbed) return;
+      var distance = fingerAt(e);
+      var delta = (distance - grabbed.distance) / g.perMm;
+      grabbed.distance = distance;
+      if (delta === 0) return;
+      grabbed.mm = clamp(grabbed.mm + delta * dragGain(grabbed.mm, delta), SIZE_MIN_MM, SIZE_MAX_MM);
+      setSize(grabbed.mm);
     }
 
     hit.addEventListener("pointerdown", function (e) {
       if ((e.pointerType === "mouse" && e.button !== 0) || !state.ringGeo) return;
       e.preventDefault();
-      var r = el.getBoundingClientRect();
-      var dx = e.clientX - (r.left + r.width / 2);
-      var dy = e.clientY - (r.top + r.height / 2);
-      // Where on the band it was taken, so the circle doesn't jump to it.
-      grabbed = { id: e.pointerId, offset: Math.sqrt(dx * dx + dy * dy) - state.ringGeo.now };
+      // Where it was taken: the size moves from here, the circle doesn't jump
+      // to the finger.
+      grabbed = { id: e.pointerId, distance: fingerAt(e), mm: currentSize() };
       try { hit.setPointerCapture(e.pointerId); } catch (err) { /* a pointer that is already gone */ }
-      follow(e);
     });
     hit.addEventListener("pointermove", function (e) {
       if (grabbed && e.pointerId === grabbed.id) follow(e);
@@ -1799,14 +1967,6 @@
       e.preventDefault();
       setSize(next);
     });
-  }
-
-  // .has-brackets: the model shows its own dimensions, so the text row
-  // among the specs is left to screen readers (css/style.css).
-  function syncBracketsFlag() {
-    var stageEl = document.getElementById("productStage");
-    var live = !!(state.modelHandle && state.modelHandle.hasBrackets && state.modelHandle.hasBrackets());
-    if (stageEl) stageEl.classList.toggle("has-brackets", live);
   }
 
   function pageColor(token, fallback) {

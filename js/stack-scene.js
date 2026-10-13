@@ -390,12 +390,15 @@ export function createStackScene(options) {
   // body is one box, from the left wall and the top of the domain to the
   // figure's right side and bottom.
   var lastSlot = null;
+  // Its bounds (world units), while there is one.
+  var slotBounds = null;
   function setSlotBody(slot) {
     if (slotBody) {
       world.removeBody(slotBody);
       slotBody = null;
     }
     lastSlot = slot || null;
+    slotBounds = null;
     if (!slot) return;
     var d = options.domain();
     var half = slot.size * 0.4 / PX;
@@ -407,6 +410,47 @@ export function createStackScene(options) {
     slotBody.addShape(new CANNON.Box(new CANNON.Vec3((right - left) / 2, (top - bottom) / 2, depth)));
     slotBody.position.set((left + right) / 2, (top + bottom) / 2, 0);
     world.addBody(slotBody);
+    slotBounds = { left: left, right: right, top: top, bottom: bottom };
+    clearSlotBody();
+  }
+
+  // Whatever is in the box when it comes (or when gravity starts to push on
+  // it: a model floating there touches nothing until then) is moved out of it,
+  // the shorter way, down or to the right — up and left are the domain's own
+  // walls. The solver can't do it: a model that is within the box, in the
+  // corner against the walls, is pushed out along whichever way it is least
+  // inside, which can be into a wall, and stays wedged there, between the
+  // figure and the edge. Only bodies that are in the world, and not on their
+  // way to the figure, are moved.
+  function clearSlotBody() {
+    if (!slotBounds) return;
+    var d = options.domain();
+    var floor = -d.bottom / PX;
+    var wall = d.right / PX;
+    var b = slotBounds;
+    entries.forEach(function (entry) {
+      if (!entry.inWorld || entry.out || entry.anim) return;
+      var body = entry.body;
+      body.updateAABB();
+      var lo = body.aabb.lowerBound;
+      var hi = body.aabb.upperBound;
+      if (hi.x <= b.left || lo.x >= b.right || hi.y <= b.bottom || lo.y >= b.top) return;
+      // How far down, and how far right, it takes to be out of it.
+      var down = b.bottom - hi.y;
+      var across = b.right - lo.x;
+      var canDown = lo.y + down >= floor;
+      var canAcross = hi.x + across <= wall;
+      var dx = 0;
+      var dy = 0;
+      if (canDown && (!canAcross || -down <= across)) dy = down;
+      else if (canAcross) dx = across;
+      else dy = down;
+      body.position.x += dx;
+      body.position.y += dy;
+      body.velocity.set(0, 0, 0);
+      entry.group.position.set(body.position.x, body.position.y, 0);
+      dirty = true;
+    });
   }
 
   /* ---- the camera and the canvas ------------------------------------------------- */
@@ -833,6 +877,8 @@ export function createStackScene(options) {
         tuneBody(entry);
         entry.body.wakeUp();
       });
+      // The focus box may have come while they floated through it.
+      clearSlotBody();
     },
 
     // In g, in the screen's axes (x right, y up, z towards the visitor).

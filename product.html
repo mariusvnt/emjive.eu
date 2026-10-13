@@ -157,8 +157,8 @@
           <!-- Design, then specs: the model (its poster until the 3D viewer is
                built, js/product.js), over its x-ray. Everything else of the
                show that is placed against the model lives in this frame too (it
-               shares the frame's --tile): the metal picker beside it, the
-               design options under it, and the specs stage's column. -->
+               shares the frame's --tile): the metal picker and the design
+               options under it, and the specs stage's column. -->
           <div class="product-design-frame" id="productDesignFrame">
             <img class="product-design__xray" id="productDesignXray" alt="" decoding="async" hidden />
             <div class="product-model" id="productModel"></div>
@@ -170,15 +170,15 @@
             <div class="product-size-ring" id="productSizeRing" data-stage-owner="specs" hidden>
               <span class="product-size-ring__line" aria-hidden="true"></span>
               <span class="product-size-ring__dot" aria-hidden="true"></span>
-              <span class="product-size-ring__hit" id="productSizeRingHit" role="slider" tabindex="0" aria-label="Size" aria-valuemin="40" aria-valuemax="70" aria-valuenow="62"></span>
+              <span class="product-size-ring__hit" id="productSizeRingHit" role="slider" tabindex="0" aria-label="Size" aria-valuemin="40" aria-valuemax="80" aria-valuenow="62"></span>
             </div>
 
             <!-- Under the model, everything that goes with it, in one column
-                 (css/style.css .product-below): in design, the options of a
-                 product with several designs; in specs, the size, the metal
-                 picker and the printing technology, each a table of two columns
-                 — a label and its value. In design the picker stands beside the
-                 model. -->
+                 (css/style.css .product-below), each a table of two columns —
+                 a label and its value: in design, the metal picker and then
+                 the options of a product with several designs; in specs, the
+                 size, the dimensions and weight, the metal picker and the
+                 printing technology, and so on down. -->
             <div class="product-below">
 
               <!-- Design: one row per option of the product's designs (its
@@ -205,28 +205,32 @@
                 <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
               </div>
 
-              <!-- Metal selection: a stack of squares, built by
-                   js/metal-picker.js. Beside the model in design; in specs it
-                   is under it, with its label (it fades out and in between,
-                   js/product.js). -->
+              <!-- Specs: the dimensions of the piece at the chosen size, in
+                   centimetres, and its weight, in grams (js/product.js
+                   renderSpecs) — a cluster of two rows, as measured on the
+                   piece as it is printed, first under the size. -->
+              <section class="product-specs" aria-labelledby="productSpecsHeading">
+                <h2 class="visually-hidden" id="productSpecsHeading">Characteristics</h2>
+                <dl class="product-specs__list" id="productSpecs"></dl>
+              </section>
+
+              <!-- Metal selection: a row of squares, built by
+                   js/metal-picker.js, in the second column of a table like the
+                   design options' — its label ("Material") in the first. Under
+                   the model in design; in specs it is in the column, with what
+                   the chosen metal is made of under it (it fades out and in
+                   between, js/product.js). -->
               <div class="product-material" data-stage-owner="design specs">
                 <span class="product-material__label" aria-hidden="true">Material</span>
                 <div class="product-metals" id="productMetals"></div>
+                <!-- Specs only: the composition of the chosen metal
+                     (data/series.json's "metal-composition", one per metal). -->
+                <p class="product-material__composition" id="productComposition" hidden></p>
               </div>
 
-              <!-- What stands under the picker and the size, in order: specs'
-                   figures, the printing technology, then the cost, shipping
-                   and returns. -->
+              <!-- What stands under the picker, in order: the printing
+                   technology, then the cost, shipping and returns. -->
               <div class="product-below__stage">
-                <!-- Specs: the dimensions of the piece at the chosen size, in
-                     centimetres (js/product.js renderSpecs). They are drawn on
-                     the model itself; their row is here for screen readers (and
-                     for a viewer that can't draw them). -->
-                <section class="product-specs" aria-labelledby="productSpecsHeading">
-                  <h2 class="visually-hidden" id="productSpecsHeading">Characteristics</h2>
-                  <dl class="product-specs__list" id="productSpecs"></dl>
-                </section>
-
                 <!-- Specs: how the chosen metal is made, under the model — its
                      printing technology and what that is (data/series.json's
                      "printing-technologies", one per metal). -->
@@ -268,11 +272,11 @@
                   </div>
                   <div class="product-logistics__block">
                     <h3 class="product-logistics__title">Shipping</h3>
-                    <p>Each piece is cast and finished to order — please allow 2–3 weeks before dispatch.</p>
+                    <p>Each item's production only begins once an order is placed. Please allow 3 to 4 weeks before dispatch.</p>
                   </div>
                   <div class="product-logistics__block">
                     <h3 class="product-logistics__title">Returns</h3>
-                    <p>Unworn items can be returned within 14 days of delivery for a full refund.</p>
+                    <p>Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
                   </div>
                 </section>
 

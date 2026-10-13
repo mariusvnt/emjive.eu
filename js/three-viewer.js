@@ -30,9 +30,6 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { HDRLoader } from "three/addons/loaders/HDRLoader.js";
 import { TrackballControls } from "three/addons/controls/TrackballControls.js";
-import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
-import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 // What js/stack-scene.js (the homepage gallery's shared 3D stack, a lazy chunk
 // of its own that imports this module) builds on, so the two draw a model the
@@ -239,43 +236,9 @@ export { toolkit };
     "  gl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.0 ), bpCut * uScanOn );",
     "}"
   ].join("\n");
-  // The dimensions are read off three edges of the minimum-volume box: the
-  // run of three consecutive edges of its outline lowest on screen, leaning
-  // right. They are drawn like the box's other nine; each label sits
-  // BRACKET_LABEL_PX (screen pixels, clear of its own box) from its edge.
-  var BRACKET_LABEL_PX = 7;
-  // An edge shorter than this on screen (its axis pointing at the camera) has
-  // no room for its label, and gets none.
-  var BRACKET_MIN_PX = 28;
-  // How thick the box's edges are, in device pixels (LineMaterial:
-  // screen-space lines).
-  var BOX_EDGE_DEVICE_PX = 1;
-  // The edges and the faces are the colour the page gives the lines
-  // (--category-col); the edges this opaque at full (they fade in with the
-  // box). The dimension labels are the same colour and the same opacity.
-  var BOX_EDGE_OPACITY = 0.16;
-  // How much better (in NDC) another run of edges has to be before the
-  // measured edges move to it — otherwise two near-equal candidates flicker while rotating.
-  var BRACKET_HYSTERESIS = 0.06;
-  // The box fades in over the later part of the fit.
-  var BRACKET_FADE_FROM = 0.35;
-  // The box as a pane of tinted glass: its opacity at full (it fades in with
-  // the edges). Lit by the environment, so its faces read apart.
-  var BOX_OPACITY = 0.08;
-  // Test: false draws the box as its edges only, without the faces.
-  var BOX_FACES = false;
-  // The largest size the page scales the model to (70 over its base size,
-  // 62): the fit leaves room for it, so brackets never leave the canvas.
-  var BLUEPRINT_SIZE_MAX = 70 / 62;
-  // A length in millimetres, as the page shows it: centimetres, two places.
-  function formatCm(mm) {
-    return (Math.round(mm * 10 + 1e-6) / 100).toFixed(2) + " cm";
-  }
-
-  function smoothstep01(edge0, edge1, x) {
-    var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-    return t * t * (3 - 2 * t);
-  }
+  // The largest size the page scales the model to (80 over its base size,
+  // 62): the fit leaves room for it, so the model never leaves the canvas.
+  var BLUEPRINT_SIZE_MAX = 80 / 62;
 
   // { rotation, tilt, zoom, roll } -> radians + a percent (100% = the
   // distance that exactly frames the model's bounding sphere for the
@@ -853,9 +816,9 @@ export { toolkit };
     // external screenshot readback of the canvas; the interactive site
     // never reads its own canvas back.
     var preserveBuffer = !!options.transparentBackground;
-    // js/product.js only: { fill: "<the page's background colour>" }. Turns
-    // on the metal -> grey sweep, the dimension brackets and the fit
-    // scale behind them, all driven by handle.setBlueprint(sweep, fit);
+    // js/product.js only: { lineColor: "<the wireframe's colour>" }. Turns
+    // on the metal -> grey sweep, the wireframe and the fit scale behind
+    // them, all driven by handle.setBlueprint(sweep, fit);
     // 0, 0 (where it starts) draws exactly what a viewer without it does.
     var blueprint = options.blueprint && !options.swatch ? options.blueprint : null;
 
@@ -1174,7 +1137,6 @@ export { toolkit };
       currentWidth = w;
       currentHeight = h;
       renderer.setSize(w, h, false); // false: don't fight the existing CSS sizing
-      if (boxEdges) boxEdges.material.resolution.set(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       // A resize repaints nothing by itself, and the render-on-demand loop
@@ -1400,14 +1362,13 @@ export { toolkit };
          uScanY (view space) going from under the model (0: all metal) to
          over it (1: all fill); handle.scanSpan() says where on screen that
          is, so the page can ride a band on it;
-       - the fit: the model and box shrink together about the orbit target
-         so the box and its labels fit the canvas — and scale with the size
-         factor (the chosen ring size over the model's base size), so a
-         bigger size draws a bigger model;
-       - the box: the minimum-volume box (product.geometry["min-box"],
-         scripts/measure-models.js) as a translucent pane with
-         faint edges, fading in over the end of the fit; three of its edges,
-         the ones measured, each labelled in HTML.
+       - the fit: the model and its wireframe shrink together about the orbit
+         target so the size circle round them fits the canvas (the circle's
+         reach is the model's minimum-volume box,
+         product.geometry["min-box"], scripts/measure-models.js; the box
+         itself is not drawn) — and scale with the size factor (the chosen
+         ring size over the model's base size), so a bigger size draws a
+         bigger model.
        None of it exists without options.blueprint. --------------------- */
     var blueprintSweep = 0;
     var blueprintFit = 0;
@@ -1420,11 +1381,12 @@ export { toolkit };
         uScanOn: { value: 0 }
       };
     }
-    // The model, its edges and the brackets, in the group the fit scales.
+    // The model and its wireframe, in the group the fit scales.
     var fitGroup = null;
     var fitScale = 1;
-    // The farthest a corner of the box (or, with no box, the bounding sphere)
-    // reaches from the orbit target, in world units (computeFit).
+    // The farthest a corner of the minimum-volume box (or, with no box, the
+    // bounding sphere) reaches from the orbit target, in world units
+    // (computeFit).
     var fitReach = 0;
     // What frameCamera() framed: the sphere (the cut travels across it) and
     // the radius the view actually fits (the sphere, times the orbit's zoom).
@@ -1443,11 +1405,8 @@ export { toolkit };
     var wireGeneration = 0;
     // The wireframe's arrays, as JavaScript typed arrays, until uploaded.
     var wireCpuBytes = 0;
+    // The model's minimum-volume box (readMinBox): only its reach is used.
     var minBox = null;
-    // The box's twelve edges and its translucent faces.
-    var boxEdges = null;
-    var boxMesh = null;
-    var bracketLabels = [];
     function blueprintMaterial(material) {
       material.onBeforeCompile = function (shader) {
         shader.uniforms.uScanY = bpUniforms.uScanY;
@@ -1521,117 +1480,27 @@ export { toolkit };
       });
     }
 
-    // The minimum-volume box, in two parts: its twelve edges (faint, in one
-    // LineSegments2) and its faces as a pane of translucent glass. The edges are depth-tested (the model hides the
-    // ones behind it) and drawn after the faces. No box (an old products
-    // file, a missing field) means no box;
-    // the page then shows the dimensions as text instead (handle.hasBrackets).
-    function buildBrackets() {
+    // The minimum-volume box of the model, from its measured pose
+    // (product.geometry["min-box"] and "dimensions-mm"): not drawn, only
+    // its corners' reach from the orbit target is used (computeFit). No box (an
+    // old products file, a missing field) means the bounding sphere's reach.
+    function readMinBox() {
       var geometry = product.geometry || {};
       var pose = geometry["min-box"];
       var dims = geometry["dimensions-mm"];
+      minBox = null;
       if (!pose || !Array.isArray(pose.axes) || pose.axes.length !== 3 || !Array.isArray(dims) || dims.length !== 3) return;
       minBox = {
         center: new THREE.Vector3().fromArray(pose.center),
         axes: pose.axes.map(function (a) { return new THREE.Vector3().fromArray(a).normalize(); }),
-        half: dims.map(function (d) { return d / 2; }),
-        dims: dims.slice(),
-        // The run of edges the measured ones are on now (see updateBrackets).
-        chain: ""
+        half: dims.map(function (d) { return d / 2; })
       };
-      var lineColor = new THREE.Color().setStyle(blueprint.lineColor || "#727272");
-      function edgeMaterial(color, devicePx) {
-        var material = new LineMaterial({
-          color: color,
-          // In CSS pixels, against the viewer's size (see applySize).
-          linewidth: devicePx / renderer.getPixelRatio(),
-          // Transparent for the fade-in (the plain edges stay faint), and
-          // so they draw after the glass.
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          toneMapped: false
-        });
-        material.resolution.set(currentWidth, currentHeight);
-        return material;
-      }
-
-      // All twelve edges: along each axis, from each of the four corners on
-      // its low side.
-      var cornerAt = function (m, out) {
-        out.copy(minBox.center);
-        for (var k = 0; k < 3; k++) out.addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k]);
-        return out;
-      };
-      var all = [];
-      var p = new THREE.Vector3();
-      for (var axis = 0; axis < 3; axis++) {
-        for (var low = 0; low < 8; low++) {
-          if (low & (1 << axis)) continue;
-          cornerAt(low, p).toArray(all, all.length);
-          cornerAt(low | (1 << axis), p).toArray(all, all.length);
-        }
-      }
-      var edgeGeometry = new LineSegmentsGeometry();
-      edgeGeometry.setPositions(new Float32Array(all));
-      var plainMaterial = edgeMaterial(lineColor, BOX_EDGE_DEVICE_PX);
-      boxEdges = new LineSegments2(edgeGeometry, plainMaterial);
-      boxEdges.frustumCulled = false;
-      boxEdges.renderOrder = 6;
-      boxEdges.visible = false;
-      fitGroup.add(boxEdges);
-
-      // The faces: a unit cube stretched onto the box, a glass-like standard
-      // material lit by the environment so each face takes a different tone
-      // (an unlit tint is one flat grey patch whatever the angle). Depth-
-      // tested (the model stands in front of its far faces) but writing no
-      // depth, so it never hides the model or the edges. Double-sided, which
-      // three draws back faces first.
-      boxMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({
-        color: lineColor,
-        metalness: 0,
-        roughness: 0.25,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        depthWrite: false
-      }));
-      boxMesh.matrixAutoUpdate = false;
-      boxMesh.matrix.makeBasis(
-        minBox.axes[0].clone().multiplyScalar(dims[0]),
-        minBox.axes[1].clone().multiplyScalar(dims[1]),
-        minBox.axes[2].clone().multiplyScalar(dims[2])
-      ).setPosition(minBox.center);
-      boxMesh.frustumCulled = false;
-      boxMesh.renderOrder = 5;
-      boxMesh.visible = false;
-      fitGroup.add(boxMesh);
-      dims.forEach(function () {
-        var label = document.createElement("span");
-        label.className = "emjive-3d-viewer__dim";
-        label.setAttribute("aria-hidden", "true");
-        // The box's own colour, at the box's own opacity (placeLabel).
-        label.style.color = lineColor.getStyle();
-        wrapper.appendChild(label);
-        bracketLabels.push(label);
-      });
-      paintLabels();
     }
 
-    // The labels read what is drawn: the box's own dimensions times the size
-    // factor.
-    function paintLabels() {
-      if (!minBox) return;
-      bracketLabels.forEach(function (label, k) {
-        label.textContent = formatCm(minBox.dims[k] * sizeFactor);
-      });
-    }
-
-    // The shrink that makes room for the brackets: the farthest a bracket
-    // line reaches from the orbit target, against the radius the view fits —
-    // at the largest size the page scales to. The labels aren't counted:
-    // they're HTML, free to sit past the canvas' edge. Measured once the
-    // camera is framed.
+    // The shrink that makes room for the size circle: the farthest a corner of
+    // the box reaches from the orbit target, against the radius the view fits
+    // — at the largest size the page scales to. Measured once the camera is
+    // framed.
     function computeFit() {
       fitScale = 1;
       fitReach = 0;
@@ -1654,18 +1523,15 @@ export { toolkit };
     var bpCenter = new THREE.Vector3();
     var bpScratch = new THREE.Vector3();
     var bpUp = new THREE.Vector3();
-    var bpNdc = new THREE.Vector3();
-    var bpA = new THREE.Vector3();
-    var bpCamLocal = new THREE.Vector3();
 
     // Called right before every draw of a blueprint viewer (and before its
-    // very first): the view decides the cut's height on screen and which
-    // edges of the box carry the dimensions, so both follow every orbit frame.
+    // very first): the view decides the cut's height on screen, so it follows
+    // every orbit frame.
     function updateBlueprint() {
       if (!fitGroup || !frameSphere) return;
       var sweep = blueprintSweep;
       // The scale the fit goes to: the page's (px to a mm, brought to world
-      // units), or the one that makes the box fit.
+      // units), or the one that makes the size circle fit.
       var target = fitScale * sizeFactor;
       var scale = 1 + (target - 1) * blueprintFit;
       fitGroup.scale.setScalar(scale);
@@ -1686,172 +1552,6 @@ export { toolkit };
       bpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
       bpScratch.copy(camera.position).addScaledVector(bpUp, cutY);
       wirePlane.setFromNormalAndCoplanarPoint(bpUp.negate(), bpScratch);
-
-      var fade = smoothstep01(BRACKET_FADE_FROM, 1, blueprintFit);
-      if (minBox) updateBrackets(fade);
-    }
-
-    // A dimension label beside its line, on screen: from the line's middle,
-    // perpendicular to it, away from the point (cx, cy) the line measures —
-    // far enough that the label's own box clears the line.
-    function placeLabel(label, ax, ay, bx, by, cx, cy, opacity) {
-      var lx = bx - ax, ly = by - ay;
-      var len = Math.sqrt(lx * lx + ly * ly) || 1;
-      var px = -ly / len, py = lx / len;
-      var mx = (ax + bx) / 2, my = (ay + by) / 2;
-      if ((mx - cx) * px + (my - cy) * py < 0) { px = -px; py = -py; }
-      var reach = BRACKET_LABEL_PX + Math.abs(px) * label.offsetWidth / 2 + Math.abs(py) * label.offsetHeight / 2;
-      label.style.transform = "translate(" + (mx + px * reach).toFixed(1) + "px, " + (my + py * reach).toFixed(1) +
-        "px) translate(-50%, -50%)";
-      label.style.opacity = String(opacity * BOX_EDGE_OPACITY);
-    }
-
-    // Model-space point -> pixels from the viewer's top-left, into `out`.
-    var bpPxA = { x: 0, y: 0 };
-    var bpPxB = { x: 0, y: 0 };
-    var bpPxC = { x: 0, y: 0 };
-    function toPx(point, out) {
-      toNdc(point);
-      out.x = (bpNdc.x + 1) / 2 * currentWidth;
-      out.y = (1 - bpNdc.y) / 2 * currentHeight;
-      return out;
-    }
-
-    // Model-space point -> NDC, into bpNdc.
-    function toNdc(point) {
-      return bpNdc.copy(point).applyMatrix4(fitGroup.matrixWorld).project(camera);
-    }
-
-    // The edges that carry the dimensions are three consecutive edges of the outline of the
-    // box as seen, so they join end to end and the labels beside them (away
-    // from the box) are never over the model. Which three: the run lowest on
-    // screen, leaning right (the left of the model is where the page's own
-    // figures stand), and it stays put until another is clearly better, so
-    // the labels don't jump between two while the model turns. An edge that
-    // points at the camera is too short for a label, and gets none.
-    //
-    // A corner is a number 0-7, a bit per axis for which side of the centre
-    // it is on; an edge runs along one axis between two corners that differ
-    // in that bit only.
-    var bpEdges = [];
-    var bpCornerPos = [];
-    for (var cm = 0; cm < 8; cm++) bpCornerPos.push(new THREE.Vector3());
-
-    function cornerSign(m, axis) {
-      return m & (1 << axis) ? 1 : -1;
-    }
-
-    // Whether the face of the box on one side of an axis turns to the camera
-    // (bpScratch is free for it).
-    function faceToCamera(axis, sign, camLocal) {
-      bpScratch.copy(camLocal).sub(minBox.center).addScaledVector(minBox.axes[axis], -sign * minBox.half[axis]);
-      return bpScratch.dot(minBox.axes[axis]) * sign > 0;
-    }
-
-    function updateBrackets(opacity) {
-      boxMesh.material.opacity = opacity * BOX_OPACITY;
-      boxMesh.visible = BOX_FACES && opacity > 0;
-      boxEdges.material.opacity = opacity * BOX_EDGE_OPACITY;
-      boxEdges.visible = opacity > 0;
-      if (opacity <= 0) {
-        bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
-        return;
-      }
-      var c = minBox.center;
-      for (var m = 0; m < 8; m++) {
-        bpCornerPos[m].copy(c);
-        for (var k = 0; k < 3; k++) bpCornerPos[m].addScaledVector(minBox.axes[k], cornerSign(m, k) * minBox.half[k]);
-      }
-      fitGroup.worldToLocal(bpCamLocal.copy(camera.position));
-
-      // The edges on the outline: one of the two faces beside it turns to
-      // the camera, the other away.
-      bpEdges.length = 0;
-      for (var axis = 0; axis < 3; axis++) {
-        var i = (axis + 1) % 3;
-        var j = (axis + 2) % 3;
-        for (var low = 0; low < 8; low++) {
-          if (low & (1 << axis)) continue;
-          var faceI = faceToCamera(i, cornerSign(low, i), bpCamLocal);
-          var faceJ = faceToCamera(j, cornerSign(low, j), bpCamLocal);
-          if (faceI !== faceJ) bpEdges.push({ axis: axis, a: low, b: low | (1 << axis) });
-        }
-      }
-
-      // Walk the outline round: corner to corner along its edges.
-      var loop = [];
-      if (bpEdges.length >= 4) {
-        var used = [];
-        var first = bpEdges[0];
-        loop.push({ corner: first.a, edge: first });
-        var at = first.b;
-        used[0] = true;
-        for (var guard = 0; guard < bpEdges.length; guard++) {
-          var next = -1;
-          for (var e = 0; e < bpEdges.length; e++) {
-            if (!used[e] && (bpEdges[e].a === at || bpEdges[e].b === at)) { next = e; break; }
-          }
-          if (next < 0) break;
-          used[next] = true;
-          loop.push({ corner: at, edge: bpEdges[next] });
-          at = bpEdges[next].a === at ? bpEdges[next].b : bpEdges[next].a;
-        }
-      }
-
-      // Each run of three edges, scored by how low and right its edges sit.
-      var best = null;
-      var bestScore = Infinity;
-      var keptScore = Infinity;
-      var n = loop.length;
-      for (var start = 0; start < n && n >= 4; start++) {
-        var run = [loop[start].edge, loop[(start + 1) % n].edge, loop[(start + 2) % n].edge];
-        var total = 0;
-        var key = "";
-        for (var r = 0; r < 3; r++) {
-          toNdc(bpA.copy(bpCornerPos[run[r].a]).add(bpCornerPos[run[r].b]).multiplyScalar(0.5));
-          total += bpNdc.y - 0.35 * bpNdc.x;
-          key += run[r].axis + ":" + run[r].a + ",";
-        }
-        if (key === minBox.chain) keptScore = total;
-        if (total < bestScore) {
-          bestScore = total;
-          best = { run: run, key: key };
-        }
-      }
-      bracketLabels.forEach(function (label) { label.style.opacity = "0"; });
-      if (!best) {
-        minBox.chain = "";
-        return;
-      }
-      if (keptScore < bestScore + BRACKET_HYSTERESIS * 3) {
-        // Rebuild the kept run from its key.
-        for (var s0 = 0; s0 < n; s0++) {
-          var cand = [loop[s0].edge, loop[(s0 + 1) % n].edge, loop[(s0 + 2) % n].edge];
-          var ckey = "";
-          for (var q = 0; q < 3; q++) ckey += cand[q].axis + ":" + cand[q].a + ",";
-          if (ckey === minBox.chain) { best = { run: cand, key: ckey }; break; }
-        }
-      }
-      minBox.chain = best.key;
-
-      var middle = toPx(bpScratch.copy(c), bpPxC);
-      var drawn = [false, false, false];
-      for (var d = 0; d < 3; d++) {
-        var edge = best.run[d];
-        // A run that comes round on itself (an outline of four) repeats an
-        // axis; each axis is drawn once.
-        if (drawn[edge.axis]) continue;
-        var label = bracketLabels[edge.axis];
-        var startPx = toPx(bpCornerPos[edge.a], bpPxA);
-        var sx = startPx.x, sy = startPx.y;
-        var endPx = toPx(bpCornerPos[edge.b], bpPxB);
-        var lx = endPx.x - sx, ly = endPx.y - sy;
-        var llen = Math.sqrt(lx * lx + ly * ly);
-        if (llen < BRACKET_MIN_PX) continue;
-        drawn[edge.axis] = true;
-        // The label goes beside its edge, away from the box.
-        placeLabel(label, sx, sy, endPx.x, endPx.y, middle.x, middle.y, opacity);
-      }
     }
 
     // Everything the blueprint drew for the model it was built for: on
@@ -1868,21 +1568,7 @@ export { toolkit };
       }
       window.EmjiveMem.cpuGeometryBytes -= wireCpuBytes;
       wireCpuBytes = 0;
-      if (boxEdges) {
-        if (boxEdges.parent) boxEdges.parent.remove(boxEdges);
-        boxEdges.geometry.dispose();
-        boxEdges.material.dispose();
-        boxEdges = null;
-      }
-      if (boxMesh) {
-        if (boxMesh.parent) boxMesh.parent.remove(boxMesh);
-        boxMesh.geometry.dispose();
-        boxMesh.material.dispose();
-        boxMesh = null;
-      }
       minBox = null;
-      bracketLabels.forEach(function (label) { if (label.parentNode) label.parentNode.removeChild(label); });
-      bracketLabels.length = 0;
     }
 
     // options.swatch (scene-tool.html's swatch mode, and
@@ -1932,7 +1618,7 @@ export { toolkit };
             if (blueprint) {
               fitGroup = new THREE.Group();
               fitGroup.add(modelRoot);
-              buildBrackets();
+              readMinBox();
               scene.add(fitGroup);
             } else {
               scene.add(modelRoot);
@@ -2200,7 +1886,7 @@ export { toolkit };
         applyMaterial();
         if (blueprint && fitGroup) {
           fitGroup.add(modelRoot);
-          buildBrackets();
+          readMinBox();
         } else {
           scene.add(modelRoot);
         }
@@ -2258,8 +1944,8 @@ export { toolkit };
       setProduct: swapModel,
       // Blueprint viewers only (options.blueprint; a no-op otherwise): how
       // far the metal -> grey sweep has gone (`sweep`) and how far the
-      // fit has (`fit`: the shrink that makes room for the brackets, which
-      // fade in over its end), 0 to 1 each. Can be set before the model has
+      // fit has (`fit`: the shrink that makes room for the size circle),
+      // 0 to 1 each. Can be set before the model has
       // arrived — its first frame is then drawn at those amounts.
       setBlueprint: function (sweep, fit) {
         if (!blueprint) return;
@@ -2274,13 +1960,12 @@ export { toolkit };
         needsRender = true;
       },
       // The chosen ring size over the model's base size: the model (once the
-      // fit has been made) and its dimension labels scale with it.
+      // fit has been made) scales with it.
       setSize: function (factor) {
         if (!blueprint) return;
         factor = Math.max(0.3, Math.min(1.5, Number(factor) || 1));
         if (factor === sizeFactor) return;
         sizeFactor = factor;
-        paintLabels();
         needsRender = true;
       },
       // Where the sweep's cut is on screen — pixels from the top of this
@@ -2334,11 +2019,6 @@ export { toolkit };
           needsRender = true;
           if (modelLoaded) scheduleIdleNudge();
         }
-      },
-      // Whether the dimension brackets exist (a blueprint viewer whose
-      // product has its min-box, once the model is in).
-      hasBrackets: function () {
-        return !!minBox;
       },
       // Internal handles, unused by the interactive site — exist so
       // scripts/auto-render.js's render harness can add its own top-shot-

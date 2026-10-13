@@ -93,6 +93,11 @@ const NEVER_COPY = [
   resolve(__dirname, "js", "stack-scene.js")
 ];
 
+// The print models (STLs, assets.stl in products.json) are for the printer,
+// not for visitors: ~300MB of them, requested by no page, so assets/ is copied
+// without them (scripts/check-dist.js fails the build if one gets through).
+const PRINT_MODEL = /\.stl$/i;
+
 // Every classic script and hero bundle file that reaches dist/ by verbatim
 // copy rather than through Vite's pipeline: js/*.js, series/<slug>/hero.js
 // and hero.css. Walks dist/, not the sources, so it only ever touches what
@@ -143,7 +148,7 @@ function copyFilesVitesBuildCantTrace() {
         if (existsSync(src)) {
           cpSync(src, resolve(__dirname, "dist", dir), {
             recursive: true,
-            filter: (from) => !NEVER_COPY.includes(from)
+            filter: (from) => !NEVER_COPY.includes(from) && !PRINT_MODEL.test(from)
           });
         }
       }

@@ -11,6 +11,12 @@
 
   "metal-technology": { "steel": "binder-jetting", "silver": "lost-wax", "bronze": "lost-wax" },
 
+  "metal-composition": {
+    "steel": "316L stainless steel",
+    "silver": "925 silver",
+    "bronze": "CuSn10 bronze (90% copper, 10% tin)"
+  },
+
   "printing-technologies": {
     "binder-jetting": {
       "name": "HP Metal Binder Jetting",

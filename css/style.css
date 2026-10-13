@@ -43,6 +43,13 @@
   --button-font-size: calc(0.75rem * var(--text-scale));
   --button-letter-spacing: 0.05rem;
   --button-text-transform: uppercase;
+  /* The secondary button: the same recipe, 30% smaller — its size, its
+     letter-spacing and the padding around its text are the main button's
+     times --button-secondary-scale. The "Find my size", "See photos" and
+     "Back to photos" buttons. */
+  --button-secondary-scale: 0.7;
+  --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
+  --button-secondary-letter-spacing: calc(var(--button-letter-spacing) * var(--button-secondary-scale));
 
   --max: 1440px;
   /* The one horizontal edge-inset value for the whole site — how far any
@@ -1196,10 +1203,16 @@ html[data-gallery-view="grid"] .gallery-stage {
   scrollbar-width: none;
 }
 .grid-tile__slides::-webkit-scrollbar { display: none; }
+/* The first CSS pixel of a slide is left transparent (padding-left): where the
+   strip's edge falls between two device pixels (a 150% screen, a tile that is
+   not a whole number of pixels wide) its clip rounds outwards, and one device
+   pixel of the next slide would show as a rim on the right edge of this one.
+   The next slide's own first pixels are empty there. */
 .grid-tile__slide {
   flex: 0 0 100%;
   width: 100%;
   height: 100%;
+  padding-left: 1px;
   scroll-snap-align: center;
   scroll-snap-stop: always;
   object-fit: contain;
@@ -2297,20 +2310,26 @@ body:has(.order-checkout-bar:not([hidden])) {
      inspiration the feed goes up by its own room (--feed-room, js/product.js
      fitFeed: what it takes for its end to clear the bars). Then the show goes
      up by that much of the stage's room: the two bottom bars' height and a
-     blank (--room-0) in design, which it holds through the fade to specs
+     blank (--room-1) in design, which it holds through the fade to specs
      until the model's fit begins (--s-in) — the model's own rise — and then
      comes back down; in specs, whatever it takes for the end of the column to
      clear the bars, and no less than they are tall (--browse-room,
      js/product.js fitBrowse). */
   --bars-h: calc(var(--selection-bar-height) + var(--select-bar-height));
-  /* The design stage's room: the bars' height and a blank, 4rem, more. */
+  /* The least the show goes up by in a stage: the bars' height and a blank,
+     4rem, more. */
   --room-0: calc(var(--bars-h) + 4rem);
+  /* The design stage's room: that, or what it takes for the last of design's
+     things to clear the bars by 8rem (--design-room, js/product.js
+     fitDesignRoom), whichever is more. */
+  --design-room: 0px;
+  --room-1: max(var(--room-0), var(--design-room));
   --browse-0: 0;
   --browse-1: 0;
   --browse-2: 0;
   --feed-room: 0px;
   --browse-room: 0px;
-  --browse-px: calc(var(--room-0) * var(--browse-1) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-2));
+  --browse-px: calc(var(--room-1) * var(--browse-1) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-2));
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
   /* The inspiration stretch (--feed-hold, js/product-stages.js: the time it
      takes to browse the feed), the transition to design, the design stretch
@@ -2458,12 +2477,15 @@ body:has(.order-checkout-bar:not([hidden])) {
   user-select: none;
   -webkit-user-select: none;
 }
-/* The caption, in the photo's bottom right corner: white, blended by
-   difference — an inversion of whatever is under the letters, the site's
-   own way of writing over a picture (.gallery-control) — and set as an
-   item's name is (js/product.js captionFor): the name in the main face,
+/* The caption, in the photo's bottom right corner, set as an item's name is
+   (js/product.js captionFor): the name in the main face,
    ".category.metal.size" after it in the mono one, smaller. Only once the
-   photo is in. */
+   photo is in. Its colour follows the corner it stands on: js/product.js
+   inkCaption reads the picture under it and sets data-ink — white over a dark
+   corner, black over a light one. Until it has (and for a picture the page
+   can't read back) it is white blended by difference, an inversion of whatever
+   is under the letters (the site's other way of writing over a picture,
+   .gallery-control). */
 .product-feed__caption {
   position: absolute;
   right: var(--edge-px);
@@ -2477,7 +2499,16 @@ body:has(.order-checkout-bar:not([hidden])) {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--fade-standard) ease;
+  transition: opacity var(--fade-standard) ease, color var(--fade-quick) ease;
+}
+.product-feed__caption[data-ink] {
+  mix-blend-mode: normal;
+}
+.product-feed__caption[data-ink="white"] {
+  color: var(--white);
+}
+.product-feed__caption[data-ink="black"] {
+  color: var(--black);
 }
 .product-feed__photo.is-loaded .product-feed__caption {
   opacity: 1;
@@ -2521,6 +2552,22 @@ body:has(.order-checkout-bar:not([hidden])) {
   filter: grayscale(1);
   -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
+}
+/* The line in the middle of the trail (js/product.js TRAIL_HINT): centred on
+   it both ways, over the layers (the one in --bg is the trail's ::after). */
+.product-feed__trail-label {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: calc(100% - 2 * var(--edge-px));
+  margin: 0;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-secondary);
+  font-size: calc(0.65rem * var(--text-scale));
+  line-height: 1.5;
+  text-align: center;
+  color: var(--black);
 }
 .product-feed__trail.is-built::after {
   content: "";
@@ -2893,11 +2940,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
      (the lift). What stands under the model in design — the picker, the
      options — hangs from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
+  /* The gap under the model's box before the picker. */
+  --model-gap: 1.5rem;
   /* Where the column under the model starts in specs: just under the circle
      that is the size (js/product.js syncSizeRing publishes its radius at the
-     largest size, --ring-r-max — and its labels' room) or, with none, under
-     the box's brackets, which reach about a quarter of the tile below the
-     model's middle; the model's middle is --lift above the tile's. */
+     largest size, --ring-r-max) or, with none, under the model, which
+     reaches about a quarter of the tile below its middle; the model's middle
+     is --lift above the tile's. */
   --below-top: calc(var(--tile) / 2 - var(--lift) + max(var(--ring-r-max, 0px) + 0.75rem, var(--tile) * 0.26) + var(--gap-row));
 }
 @media (max-width: 640px) {
@@ -3082,7 +3131,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    two columns, a label and its value (--label-col, --label-gap; the first
    column is the same in all of them). It starts just under the model, which
    stands on the first quarter of the screen in specs: the model's middle is
-   --lift above the tile's middle, and its brackets reach about a quarter of
+   --lift above the tile's middle, and the model reaches about a quarter of
    the tile below that. Transparent: the x-ray shows under it. Only what takes
    taps takes them (the picker, the size's field). */
 .product-below {
@@ -3090,7 +3139,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   z-index: 2;
   left: calc(var(--edge-left) + var(--edge-px));
   /* The column starts at the frame's top, and its padding is what puts it
-     under the model: the picker (absolute, beside the model in design)
+     under the model: the picker (absolute, under the model in design)
      measures from the frame itself, with nothing that moves with the scroll
      in its place. */
   top: 0;
@@ -3104,45 +3153,64 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   gap: var(--gap-row);
   pointer-events: none;
 }
-/* The picker: in design, a row of squares under the model, centred on the
-   screen (the name of the chosen metal after the last square,
-   .product-metals__tag below), a gap under the model's box and up with it by
-   the lift. It comes in with design's things, and as specs comes in it fades
-   out with them and back in with specs' (--d-on, --specs-on: never both) —
-   and it changes place in the blank between (js/product.js puts
-   .is-specs-layout on the stage mid-blank): in the column of the others, at
-   the left, with its label. It goes with logistics. */
+/* The picker: a row in the same table of two columns as the design options'
+   (.product-option) — its label, "Material", in the first, a row of squares in
+   the second (the name of the chosen metal after the last square,
+   .product-metals__tag below). In design it stands under the model, --model-gap
+   under the model's box, and goes up with it by the lift. It comes in with
+   design's things, and as specs comes in it fades out with them and back in
+   with specs' (--d-on, --specs-on: never both) — and it changes place in the
+   blank between (js/product.js puts .is-specs-layout on the stage mid-blank):
+   into the column of the others, under the dimensions and weight, with the
+   composition of the metal under it. It goes with logistics. */
 .product-material {
   position: absolute;
-  /* The screen's middle, measured from the column's own left (the column
-     starts --inset-x in; it is never wider than the screen less two of
-     those), the picker's squares centred on it. */
-  left: calc(50vw - var(--inset-x));
-  top: calc(var(--model-bottom) + var(--gap-row));
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  top: calc(var(--model-bottom) + var(--model-gap));
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+  align-items: start;
   /* In and out with design, in with specs: never two of those at once (each
      phase waits for the one before). */
   opacity: calc(var(--d-on) + var(--specs-on));
 }
 .product-material__label {
-  display: none;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
   /* The height of a square, so the label stands on the first one's line. */
   line-height: var(--metal-square);
   color: var(--black);
 }
+/* What the chosen metal is made of: specs only, in the second column under the
+   squares, the printing technology's text again (12px DINish, --category-col).
+   A different metal can be a different height, and the rows under it follow:
+   js/product.js renderComposition tweens the height from the old one to the
+   new one, as renderPrinting does. */
+.product-material__composition {
+  display: none;
+  grid-column: 2;
+  margin: 0.6rem 0 0;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--category-col);
+}
+.product-material__composition[hidden] {
+  display: none;
+}
+.product-material__composition.is-resizing {
+  overflow: hidden;
+  transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
+}
 .product-stage.is-specs-layout .product-material {
   position: static;
-  transform: none;
-  /* The picker starts a cluster: the separation gap under the size. */
+  /* The picker starts a cluster: the separation gap under the figures. */
   margin-top: var(--gap-extra);
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-  align-items: start;
 }
-.product-stage.is-specs-layout .product-material__label {
+.product-stage.is-specs-layout .product-material__composition:not([hidden]) {
   display: block;
 }
 .product-stage .product-metals {
@@ -3163,7 +3231,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(var(--model-bottom) + var(--gap-row) * 2 + var(--metal-square));
+  top: calc(var(--model-bottom) + var(--model-gap) + var(--metal-square) + var(--gap-row));
   display: flex;
   flex-direction: column;
   gap: calc(var(--gap-row) / 2);
@@ -3368,7 +3436,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-metals__option[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
 .product-metals__option[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
 .product-metals__option[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
-/* The selection dot (--dot, the size slider's too): solid --category-col. */
+/* The selection dot (--dot, the size circle's too): solid --black, on every
+   picker — the page's, the Select sheet's, the Modify sheet's. */
 .product-metals__option[aria-pressed="true"]::after {
   content: "";
   position: absolute;
@@ -3378,7 +3447,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: var(--dot);
   margin: calc(var(--dot) / -2) 0 0 calc(var(--dot) / -2);
   border-radius: 50%;
-  background: var(--category-col);
+  background: var(--black);
 }
 .product-metals__tag {
   position: absolute;
@@ -3480,50 +3549,41 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the figures ----
-   The dimensions, in centimetres, at the chosen size, are the model's own
-   brackets (js/three-viewer.js); their row here is for screen readers while
-   those are drawn (.has-brackets), and stands in the column under the size
-   when they aren't (no model, or no WebGL): 12px DINish, no capitals.
-   Arrives with specs (--specs-on). */
-.has-brackets .product-specs {
-  /* Its one row is hidden (below), for screen readers: no part of the column,
-     so no gap is made for it. */
-  position: absolute;
-}
+   The dimensions of the piece, in centimetres, and its weight, in grams, at
+   the chosen size: a cluster of two rows, first in the column under the size
+   (the separation gap before it), each a label and its value in the two
+   columns the rest of the column shares — both black, 12px DINish. Arrives
+   with specs (--specs-on). */
 .product-specs {
-  width: max-content;
-  max-width: 100%;
+  margin-top: var(--gap-extra);
   opacity: var(--specs-on);
 }
 .product-specs__list {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--gap-row);
   text-align: left;
 }
-.product-specs__item { margin: 0; }
-.has-brackets .product-specs__item--dimensions {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+.product-specs__item {
+  margin: 0;
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+  align-items: baseline;
 }
 .product-specs__item dt,
 .product-specs__item dd {
   margin: 0;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
-  line-height: 1.4;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--black);
 }
-.product-specs__item dt { color: var(--category-col); }
-.product-specs__item dd { color: var(--black); }
 
 /* ---- specs: the printing technology ----
-   Last of the column, under the figures: the label, then on
+   Under the picker and the composition of its metal: the label, then on
    the same line a little to its right the name of the chosen metal's
    technology, then under that name what the technology is. 12px DINish: the
    label and the name black, the explanation --category-col. Arrives with
@@ -3699,9 +3759,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition-delay: 0s;
 }
 /* The button at the very end, back to the first stage (js/product-stages.js
-   restart()), in the Select button's format, in the value column of the
-   tables above it. In with specs (the logistics' own opacity), a tap only in
-   specs. */
+   restart()), a secondary button (the Select button's format, 30% smaller),
+   centred on the screen under the tables above it. In with specs (the
+   logistics' own opacity), a tap only in specs. */
 .product-restart {
   position: relative;
   align-self: flex-start;
@@ -3715,8 +3775,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   background: none;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
   text-transform: var(--button-text-transform);
   line-height: 1.4;
   color: var(--black);
@@ -3819,13 +3879,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   }
   .product-material {
     position: static;
-    display: grid;
-    grid-template-columns: var(--label-col) minmax(0, 1fr);
-    column-gap: var(--label-gap);
     opacity: 1;
-    transform: none;
   }
-  .product-material__label {
+  .product-material__composition:not([hidden]) {
     display: block;
   }
   .product-size,
@@ -3855,25 +3911,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   height: var(--tile);
   z-index: 5;
   transform: translateY(calc(var(--lift) * -1));
-}
-
-/* ---- the model's dimension labels ----
-   One per bracket the specs stage draws on the model (js/three-viewer.js
-   positions them over the canvas every time the view moves), in the brackets'
-   own colour. No background: the x-ray shows under them. */
-.emjive-3d-viewer__dim {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  font-family: var(--font-secondary);
-  font-size: calc(0.5rem * var(--text-scale));
-  line-height: 1;
-  color: var(--category-col);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  will-change: transform, opacity;
 }
 
 /* ---- size-selection modal ---- */
@@ -4163,8 +4200,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 
 /* ---- find my size ----
-   The button that opens the size finder (js/size-finder.js) — a few words in
-   the Select button's format (.product-select-bar__button). In the sheets it stands to the right of the size field, in the
+   The button that opens the size finder (js/size-finder.js) — a few words as
+   a secondary button (the Select button's format, .product-select-bar__button,
+   30% smaller). In the sheets it stands to the right of the size field, in the
    same flex row (.size-modal__custom-field); in the specs stage it is the
    second row of the size grid, under the slider and the field. The finder
    builds its chart with js/selection.js's fillSizeGuide from the category's
@@ -4174,13 +4212,17 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-size__finder-toggle {
   align-self: flex-end;
   flex: none;
-  padding: 0 0 0.3rem;
+  /* Its text stays on the line of the size typed beside it (in the sheets): the
+     text's baseline stands 0.4 of its size over the box's bottom edge plus
+     this, so the smaller the text the more of this it takes to keep it there
+     (0.67rem less 0.4 of the size, what the full-size button's 0.3rem came to). */
+  padding: 0 0 calc(0.67rem - 0.4 * var(--button-secondary-font-size));
   border: none;
   background: none;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
   text-transform: var(--button-text-transform);
   line-height: 1.4;
   color: var(--black);
@@ -4709,20 +4751,21 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 /* "See photos", next to the model (js/modify-modal.js): to its right, just under
    the line where the sheet's own surface begins (the frame's lower half is
-   painted, its upper half is not), in the site's button format. The frame
-   takes no taps, so the button asks for them. */
+   painted, its upper half is not), a secondary button (the site's button
+   format, 30% smaller). The frame takes no taps, so the button asks for
+   them. */
 .size-modal__photos-toggle {
   position: absolute;
   z-index: 2;
   top: calc(50% + 0.5rem);
   left: calc(50% + var(--mini-tile) * 0.375 + 0.75rem);
-  padding: 0.3rem 0;
+  padding: calc(0.3rem * var(--button-secondary-scale)) 0;
   border: none;
   background: none;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
   text-transform: var(--button-text-transform);
   line-height: 1.4;
   color: var(--black);

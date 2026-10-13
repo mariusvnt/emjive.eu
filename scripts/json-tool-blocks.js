@@ -58,17 +58,24 @@ function bool(b) {
 // to spell the fields out itself, and would have dropped any field the
 // measuring script added. "min-box" is the minimum-volume box's pose
 // (centre + axes, the axes in the same order as dimensions-mm) — the
-// product page draws its dimension brackets on it; omitted when absent.
-// `indent` is the line's own: a product's (6 spaces) by default, a design
+// homepage stack's colliders are made of it; omitted when absent. "print" is
+// the same piece as it is printed (measured on its STL): its volume and
+// dimensions, which the product page shows and prices, and the STL's hash;
+// omitted when absent. `indent` is the line's own: a product's (6 spaces) by default, a design
 // entry's inside its product's "designs" list (12) otherwise.
 function geometryLine(g, indent) {
   const triple = (v) => "[" + (v || []).map(num).join(", ") + "]";
   const box = g["min-box"];
+  const print = g.print;
   return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
     ', "dimensions-mm": ' + triple(g["dimensions-mm"]) +
     (box
       ? ', "min-box": { "center": ' + triple(box.center) +
         ', "axes": [' + (box.axes || []).map(triple).join(", ") + "] }"
+      : "") +
+    (print
+      ? ', "print": { "volume-cm3": ' + num(print["volume-cm3"]) + ', "dimensions-mm": ' + triple(print["dimensions-mm"]) +
+        ', "stl-sha1": "' + esc(print["stl-sha1"]) + '" }'
       : "") +
     ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
 }
@@ -396,6 +403,7 @@ function renderDesignsBlock(designs, metals) {
       ...(d.geometry ? [geometryLine(d.geometry, pad)] : []),
       pad + '"model": "' + esc(d.model) + '",',
       ...(d.wireframe ? [pad + '"wireframe": "' + esc(d.wireframe) + '",'] : []),
+      ...(d.stl ? [pad + '"stl": "' + esc(d.stl) + '",'] : []),
       pad + '"icons": ' + metalLine(d.icons) + ",",
       pad + '"fallback-img": ' + metalLine(d["fallback-img"]),
       "          }"
@@ -463,6 +471,8 @@ function renderProductBlock(p, metals) {
     '        "model": "' + esc(assets.model) + '",',
     // Optional and hand-added: carried through so a rewrite never drops it.
     ...(assets.wireframe ? ['        "wireframe": "' + esc(assets.wireframe) + '",'] : []),
+    // The print model (STL), likewise.
+    ...(assets.stl ? ['        "stl": "' + esc(assets.stl) + '",'] : []),
     '        "icons": {',
     renderMetalPathMap(assets.icons, metals, "          "),
     "        },",

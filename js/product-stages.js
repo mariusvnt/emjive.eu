@@ -165,8 +165,8 @@
     var stops = [0, 0, 0];
 
     // Lengths the CSS holds, in pixels, read off probes as tall as they are:
-    // --room-0, the design stage's room (the two bars and 4rem), and
-    // --stage-step-in, the transition to design.
+    // --room-0, the least a stage's browsing takes the show up by (the two
+    // bars and 4rem), and --stage-step-in, the transition to design.
     function probe(height) {
       var el = document.createElement("div");
       el.setAttribute("aria-hidden", "true");
@@ -201,7 +201,7 @@
     // stretch) — after the transition, not counting the ramp's length it has
     // started before it (BROWSE_PACE's note, above).
     // The room it has to cover is what js/product.js fits (--browse-room), and
-    // never less than the design stage's; at BROWSE_PACE after the ramp (which
+    // never less than --room-0; at BROWSE_PACE after the ramp (which
     // covers what a ramp of that length does: half its length at full pace).
     var endHold = 0;
     function syncEndHold() {

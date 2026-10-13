@@ -1,17 +1,23 @@
 #!/usr/bin/env node
 /* ==========================================================================
-   measure-models — measures every product's .glb and writes the result into
-   that product's "geometry" key in its series' products.json:
+   measure-models — measures every product's .glb (and its print model, the
+   .stl) and writes the result into that product's "geometry" key in its
+   series' products.json:
 
      "geometry": { "volume-cm3": 1.683, "dimensions-mm": [28.1, 25.3, 20.2],
-                   "min-box": { "center": [x, y, z], "axes": [[…], […], […]] }, "model-sha1": "…" }
+                   "min-box": { "center": [x, y, z], "axes": [[…], […], […]] },
+                   "print": { "volume-cm3": 1.681, "dimensions-mm": [28.1, 25.3, 20.2], "stl-sha1": "…" },
+                   "model-sha1": "…" }
 
-   What the product page does with it (js/product.js's renderSpecs): weight,
-   raw-material cost and manufacturing cost are all derived from the volume
-   and the per-metal constants in data/series.json's "metal-costs", so only
-   the metal-independent geometry is stored here. Its specs stage also draws
-   dimension brackets on the box itself (js/three-viewer.js, options.blueprint),
-   which is what "min-box" is for.
+   What the product page does with it (js/product.js's renderSpecs): the
+   dimensions and the weight it shows, and the raw-material and manufacturing
+   cost, are all derived from the volume (and the dimensions) and the
+   per-metal constants in data/series.json's "metal-costs", so only the
+   metal-independent geometry is stored here — the PRINT model's ("print", the
+   .stl a product names in assets.stl) where it has one, since that is the
+   piece that is made and priced, else the .glb's own. "min-box" is the .glb's
+   box in its own frame: the homepage stack's colliders (js/stack-scene.js) are
+   made of it.
 
    - volume-cm3: the enclosed volume of the mesh. Models are authored in
      millimetres (1 unit = 1 mm — the GLBs carry no scale, and a ring is
@@ -33,6 +39,9 @@
      it with the file on disk, so a model that changed (or was re-optimized)
      without being re-measured fails `npm run verify` instead of silently
      shipping stale numbers.
+   - print: the same volume and dimensions, measured on the .stl the same way
+     (an STL carries no units: like the models, one unit is one millimetre),
+     and stl-sha1, the hash of its bytes, checked likewise.
 
    Meshes that aren't watertight (open or non-manifold edges) still get a
    volume — it's just approximate — and are flagged in the summary table.
@@ -56,6 +65,7 @@ const { readFileSync, writeFileSync, existsSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { createHash } = require("node:crypto");
 const blocks = require("./json-tool-blocks");
+const stlFile = require("./stl");
 
 const REPO_ROOT = resolve(__dirname, "..");
 const SERIES_JSON_PATH = join(REPO_ROOT, "data", "series.json");
@@ -389,22 +399,32 @@ function withDesignGeometry(entryText, g, eol) {
   return cleaned.replace(anchor, (m) => m + eol + geometryLine(g, DESIGN_INDENT));
 }
 
-// One model file measured: what goes in a "geometry" line, plus the figures
-// the summary table shows. null (and a message) when it can't be.
-async function measureFile(io, label, modelRel) {
+// A triangle soup (9 numbers a triangle, mm) measured: the volume and the
+// minimum box. The one measuring path behind a model file and a print model.
+async function measureTriangles(tris) {
+  const welded = weldTriangles(tris);
+  if (!welded.corners.length) return null;
+  const volume = measureVolume(welded);
+  const box = await minimumBox(welded.positions);
+  return { volume, box };
+}
+
+// One model file measured (and its print model, if it names one): what goes
+// in a "geometry" line, plus the figures the summary table shows. null (and a
+// message) when it can't be.
+async function measureFile(io, label, modelRel, stlRel) {
   const modelPath = modelRel && join(REPO_ROOT, modelRel);
   if (!modelPath || !existsSync(modelPath)) {
     console.error("  " + label + ": model file missing (" + modelRel + ")");
     return null;
   }
   const document = await io.read(modelPath);
-  const welded = weldTriangles(collectTriangles(document));
-  if (!welded.corners.length) {
+  const measured = await measureTriangles(collectTriangles(document));
+  if (!measured) {
     console.error("  " + label + ": model has no triangles");
     return null;
   }
-  const volume = measureVolume(welded);
-  const box = await minimumBox(welded.positions);
+  const { volume, box } = measured;
   const geometry = {
     "volume-cm3": Number((volume.mm3 / 1000).toFixed(3)),
     "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
@@ -414,17 +434,37 @@ async function measureFile(io, label, modelRel) {
     },
     "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
   };
-  return {
-    geometry,
-    row: {
-      product: label,
-      "volume cm3": geometry["volume-cm3"],
-      "box mm": geometry["dimensions-mm"].join(" x "),
-      "box/aabb": (box.volume / box.axisAlignedVolume).toFixed(2),
-      shells: volume.shells,
-      "open edges": volume.openEdges
-    }
+  const row = {
+    product: label,
+    "volume cm3": geometry["volume-cm3"],
+    "box mm": geometry["dimensions-mm"].join(" x "),
+    "box/aabb": (box.volume / box.axisAlignedVolume).toFixed(2),
+    shells: volume.shells,
+    "open edges": volume.openEdges
   };
+
+  if (stlRel) {
+    const stlPath = join(REPO_ROOT, stlRel);
+    if (!existsSync(stlPath)) {
+      console.error("  " + label + ": print model missing (" + stlRel + ") — the print models are not in git: put the file back, or cut it from the export again with `npm run split-models`");
+      return null;
+    }
+    const stl = stlFile.readStl(stlPath);
+    const printed = await measureTriangles(stlFile.trianglesOf(stl, 0, stl.count));
+    if (!printed) {
+      console.error("  " + label + ": print model has no triangles");
+      return null;
+    }
+    geometry.print = {
+      "volume-cm3": Number((printed.volume.mm3 / 1000).toFixed(3)),
+      "dimensions-mm": printed.box.dimensions.map((d) => Number(d.toFixed(1))),
+      "stl-sha1": createHash("sha1").update(stl.buffer).digest("hex")
+    };
+    row["print cm3"] = geometry.print["volume-cm3"];
+    row["print box mm"] = geometry.print["dimensions-mm"].join(" x ");
+    row["print open edges"] = printed.volume.openEdges;
+  }
+  return { geometry, row };
 }
 
 // ---- main -----------------------------------------------------------------------
@@ -451,7 +491,7 @@ async function main() {
     const eol = text.includes("\r\n") ? "\r\n" : "\n";
     for (const product of data.products || []) {
       const label = series.slug + "/" + product.name;
-      const measured = await measureFile(io, label, product.assets && product.assets.model);
+      const measured = await measureFile(io, label, product.assets && product.assets.model, product.assets && product.assets.stl);
       if (!measured) {
         failed = true;
         continue;
@@ -473,7 +513,7 @@ async function main() {
       for (const design of (designs && designs.list) || []) {
         if (design.key === designs.default) continue;
         const designLabel = label + " [" + design.key + "]";
-        const designMeasured = await measureFile(io, designLabel, design.model);
+        const designMeasured = await measureFile(io, designLabel, design.model, design.stl);
         if (!designMeasured) {
           failed = true;
           continue;
@@ -501,11 +541,19 @@ async function main() {
   if (open.length) {
     console.warn("Not watertight (volume is approximate): " + open.join(", "));
   }
+  const openPrint = rows.filter((r) => r["print open edges"] > 0).map((r) => r.product);
+  if (openPrint.length) {
+    console.warn("Print model not watertight (volume is approximate): " + openPrint.join(", "));
+  }
   console.log(dryRun ? "Dry run: nothing written." : "Wrote geometry into products.json.");
   if (failed) process.exitCode = 1;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+module.exports = { measureTriangles, collectTriangles };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

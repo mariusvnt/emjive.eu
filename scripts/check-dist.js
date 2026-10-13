@@ -62,6 +62,7 @@ const forbidden = [
   [/^(json-tool|scene-tool|loader-test)\.html$/, "dev-only tool page"],
   [/^js\/(three-viewer|viewer-entry|hdr-worker|stack-scene)\.js$/, "unbundled module source (the built pages load the hashed chunk)"],
   [/\.(exr|map)$/i, "source art / sourcemap"],
+  [/\.stl$/i, "print model (for the printer, not for visitors; vite.config.js leaves them out)"],
   [/^(node_modules|scripts|dev-guidelines|\.git|\.github)\//, "repo-internal folder"],
   [/^(README|CLAUDE)\.md$/, "repo doc"],
   [/^assets\/fonts\//, "font source folder (Vite ships its own hashed copies)"],

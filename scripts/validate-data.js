@@ -105,7 +105,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "metal-technology", "printing-technologies", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "printing-technologies", "categories", "hdris", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -123,6 +123,7 @@ const indexSchema = {
       }
     },
     "metal-technology": strMap,
+    "metal-composition": strMap,
     "printing-technologies": {
       type: "object",
       additionalProperties: {
@@ -203,8 +204,8 @@ const geometrySchema = {
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
-    // The minimum-volume box's pose: the product page's dimension
-    // brackets are drawn on it (js/three-viewer.js, options.blueprint).
+    // The minimum-volume box's pose, in the model's frame: the homepage
+    // stack's colliders are made of it (js/stack-scene.js).
     "min-box": {
       type: "object",
       required: ["center", "axes"],
@@ -216,6 +217,17 @@ const geometrySchema = {
           maxItems: 3,
           items: { type: "array", items: num, minItems: 3, maxItems: 3 }
         }
+      }
+    },
+    // The same piece as it is printed (measured on its STL): what the product
+    // page shows as its dimensions and weight and prices.
+    print: {
+      type: "object",
+      required: ["volume-cm3", "dimensions-mm", "stl-sha1"],
+      properties: {
+        "volume-cm3": { type: "number", exclusiveMinimum: 0 },
+        "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+        "stl-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
       }
     },
     "model-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
@@ -262,6 +274,7 @@ const designsSchema = {
           geometry: geometrySchema,
           model: str,
           wireframe: str,
+          stl: str,
           icons: metalMap,
           "fallback-img": metalMap
         }
@@ -306,6 +319,10 @@ const productSchema = {
         // Optional: the specs stage draws it over the model (hand-added; no
         // upload slot in json-tool).
         wireframe: str,
+        // Optional: the print model (an STL, see scripts/split-models.js);
+        // its measurements are geometry.print. Never served: it is kept out
+        // of the build (vite.config.js).
+        stl: str,
         icons: metalMap,
         "fallback-img": metalMap,
         xray: str,
@@ -353,13 +370,31 @@ function validate(where, schema, data) {
 
 // A measured model's "geometry" against its file: model-sha1 pins the
 // measurements to the exact model they were taken from
-// (scripts/measure-models.js), and the brackets are built on min-box as a
-// box — three unit axes at right angles. Anything else (a hand edit, a bad
-// merge) draws a skewed box labelled with numbers it doesn't measure.
-function checkGeometry(label, modelRel, geometry) {
+// (scripts/measure-models.js), and the stack's colliders are built on min-box
+// as a box — three unit axes at right angles. Anything else (a hand edit, a bad
+// merge) makes a skewed box out of numbers it doesn't measure. A model with a
+// print model (stlRel) has its measurements, too, pinned to that file the
+// same way, and one without has none. The print models are not in git (about
+// 300MB, for the printer and not the site: .gitignore), so a checkout that
+// lacks them can't check their hashes: that is counted and said, not failed.
+let missingPrintModels = 0;
+function checkGeometry(label, modelRel, geometry, stlRel) {
   if (modelRel && existsExactCase(modelRel)) {
     const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, modelRel))).digest("hex");
     if (sha1 !== geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
+  }
+  if (stlRel) {
+    if (stlRel.startsWith("/") || /^[a-z]+:/i.test(stlRel)) checkPath(label + " stl", stlRel);
+    if (!geometry.print) {
+      fail(label, "names a print model (stl) but geometry has no print measurements (run `npm run measure-models`)");
+    } else if (existsExactCase(stlRel)) {
+      const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, stlRel))).digest("hex");
+      if (sha1 !== geometry.print["stl-sha1"]) fail(label, "geometry.print is stale: the print model changed since it was measured (run `npm run measure-models`)");
+    } else {
+      missingPrintModels++;
+    }
+  } else if (geometry.print) {
+    fail(label, "geometry has print measurements but no print model (stl) is named");
   }
   const boxAxes = geometry["min-box"].axes;
   const dot3 = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
@@ -414,7 +449,7 @@ function checkDesigns(label, product, metals) {
     if (picked.has(signature.join("|"))) fail(at, "another design has the same picks");
     picked.add(signature.join("|"));
 
-    const own = ["model", "wireframe", "icons", "fallback-img", "geometry"].filter((f) => design[f] !== undefined);
+    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "geometry"].filter((f) => design[f] !== undefined);
     if (design.key === designs.default) {
       if (own.length) fail(at, "is the default design, which is the product's own: it can't have " + own.join(", ") + " of its own");
       continue;
@@ -435,7 +470,7 @@ function checkDesigns(label, product, metals) {
         if (field === "icons") checkVariants(at + " icons." + metal, rel, ["128"]);
       }
     }
-    checkGeometry(at, design.model, design.geometry);
+    checkGeometry(at, design.model, design.geometry, design.stl);
   }
   if (!keys.has(designs.default)) fail(label, 'designs.default "' + designs.default + '" is not one of its designs');
 }
@@ -482,6 +517,15 @@ if (index && validate("data/series.json", indexSchema, index)) {
   }
   for (const metal of Object.keys(index["metal-technology"])) {
     if (!metals.has(metal)) fail("data/series.json", 'metal-technology has unknown metal "' + metal + '"');
+  }
+
+  // What each metal is made of (the line under the picker in the specs stage):
+  // every metal has one, and nothing else does.
+  for (const metal of metals) {
+    if (!index["metal-composition"][metal]) fail("data/series.json", 'metal-composition has no "' + metal + '"');
+  }
+  for (const metal of Object.keys(index["metal-composition"])) {
+    if (!metals.has(metal)) fail("data/series.json", 'metal-composition has unknown metal "' + metal + '"');
   }
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
@@ -572,7 +616,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         }
         checkPath(label + " assets.model", product.assets.model);
         checkPath(label + " assets.wireframe", product.assets.wireframe);
-        checkGeometry(label, product.assets.model, product.geometry);
+        checkGeometry(label, product.assets.model, product.geometry, product.assets.stl);
         if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
@@ -618,5 +662,8 @@ if (problems.length) {
   console.error("validate-data: " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + "\n");
   for (const p of problems) console.error("  - " + p);
   process.exit(1);
+}
+if (missingPrintModels) {
+  console.log("validate-data: " + missingPrintModels + " print model(s) (assets.stl) are not on disk — they are not in git, so their measurements (geometry.print) were not checked against them");
 }
 console.log("validate-data: ok");

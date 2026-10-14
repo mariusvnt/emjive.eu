@@ -1,7 +1,8 @@
-import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
+import sharp from "sharp";
 import { slugify } from "./scripts/slugs.js";
 
 // The public origin, for the generated sitemap.xml. Same host as every page's
@@ -333,6 +334,31 @@ function emitSitemap() {
   };
 }
 
+// The link-preview pictures (og:image / twitter:image): 1200x630, the size
+// social cards want, drawn at build time on the page background (--bg, read
+// from css/style.css so the two cannot drift). The default is the full logo,
+// dist/preview.jpg, which every page without a picture of its own names; an
+// item's is its default-metal poster (assets.fallback-img, the model's own
+// framing) at dist/assets/previews/<slug>.jpg. JPEG rather than the site's
+// WebP: not every crawler reads WebP.
+const PREVIEW_SIZE = { width: 1200, height: 630 };
+const PREVIEW_LOGO_WIDTH = 600;
+
+function pageBackground() {
+  const css = readFileSync(resolve(__dirname, "css/style.css"), "utf8");
+  const match = css.match(/--bg:\s*(#[0-9a-fA-F]{6})\b/);
+  if (!match) throw new Error("previews: no --bg colour in css/style.css");
+  return match[1];
+}
+
+// `layer` is the picture (a Buffer) that goes in the middle of the card.
+function previewCard(background, layer) {
+  return sharp({ create: { ...PREVIEW_SIZE, channels: 3, background } })
+    .composite([{ input: layer, gravity: "centre" }])
+    .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: true })
+    .toBuffer();
+}
+
 const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 // One real page per item: dist/<slug>.html, a copy of the built product.html
@@ -355,7 +381,7 @@ function emitItemPages() {
     name: "emit-item-pages",
     apply: "build",
     configResolved(config) { isBuild = config.command === "build"; },
-    closeBundle() {
+    async closeBundle() {
       if (!isBuild) return;
       const distDir = resolve(__dirname, "dist");
       const templatePath = join(distDir, "product.html");
@@ -369,13 +395,19 @@ function emitItemPages() {
         return html.replace(pattern, () => replacement);
       };
 
+      // The default card, and the folder of the items'.
+      const background = pageBackground();
+      const logo = await sharp(resolve(__dirname, "assets/logo.svg"), { density: 400 }).resize({ width: PREVIEW_LOGO_WIDTH }).png().toBuffer();
+      writeFileSync(join(distDir, "preview.jpg"), await previewCard(background, logo));
+      mkdirSync(join(distDir, "assets/previews"), { recursive: true });
+
       for (const { product, series, slug } of list) {
         const name = product.name || "Product";
         const title = name + " \u2014 em\u00b7ji\u00b7ve";
         const description = product.description || "Item detail";
         const url = SITE_ORIGIN + "/" + slug;
         const metal = product["default-metal"];
-        const icon = product.assets && product.assets.icons && (product.assets.icons[metal] || Object.values(product.assets.icons)[0]);
+        const poster = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metal];
 
         let html = template;
         html = swap(html, /<title>[^<]*<\/title>/, "<title>" + escapeAttr(title) + "</title>", "<title>");
@@ -385,9 +417,15 @@ function emitItemPages() {
         html = swap(html, /<meta property="og:url" content="[^"]*" \/>/, '<meta property="og:url" content="' + url + '" />', "og:url");
         html = swap(html, /<meta name="twitter:title" content="[^"]*" \/>/, '<meta name="twitter:title" content="' + escapeAttr(title) + '" />', "twitter:title");
         html = swap(html, /<meta name="twitter:description" content="[^"]*" \/>/, '<meta name="twitter:description" content="' + escapeAttr(description) + '" />', "twitter:description");
-        if (icon) {
-          const image = SITE_ORIGIN + "/" + icon;
+        if (poster) {
+          // The poster fills the card's height: it is the model's raw
+          // framing, with its own margin round it.
+          const picture = await sharp(resolve(__dirname, poster)).resize({ height: PREVIEW_SIZE.height }).png().toBuffer();
+          writeFileSync(join(distDir, "assets/previews", slug + ".jpg"), await previewCard(background, picture));
+          const image = SITE_ORIGIN + "/assets/previews/" + slug + ".jpg";
           html = swap(html, /<meta property="og:image" content="[^"]*" \/>/, '<meta property="og:image" content="' + image + '" />', "og:image");
+          html = swap(html, /<meta property="og:image:width" content="[^"]*" \/>/, '<meta property="og:image:width" content="' + PREVIEW_SIZE.width + '" />', "og:image:width");
+          html = swap(html, /<meta property="og:image:height" content="[^"]*" \/>/, '<meta property="og:image:height" content="' + PREVIEW_SIZE.height + '" />', "og:image:height");
           html = swap(html, /<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="' + escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" />', "og:image:alt");
           html = swap(html, /<meta name="twitter:image" content="[^"]*" \/>/, '<meta name="twitter:image" content="' + image + '" />', "twitter:image");
         }

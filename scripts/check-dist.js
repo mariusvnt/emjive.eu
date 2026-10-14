@@ -18,6 +18,9 @@
        by Vite unless vite.config.js's post plugin restores them)
      - indexing: the empty shell pages and the order page are noindex, the
        pages that should be found are not
+     - link previews: every page's og:image / twitter:image is an address on
+       this site that names a file in dist/ (preview.jpg, or an item's own
+       assets/previews/<slug>.jpg, both drawn by vite.config.js)
      - clean URLs: every item has its own page (dist/<slug>.html) carrying its
        own canonical/title, the links use extension-less addresses that map
        onto real files, the sitemap lists those addresses, and .htaccess has
@@ -52,7 +55,7 @@ const fileSet = new Set(files);
 
 /* ---- required ---------------------------------------------------------- */
 
-for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "favicon.ico", "apple-touch-icon.png"]) {
+for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "favicon.ico", "apple-touch-icon.png", "preview.jpg"]) {
   if (!fileSet.has(required)) fail("missing from dist/: " + required);
 }
 
@@ -129,6 +132,18 @@ for (const page of pages) {
   const noindex = /<meta\b[^>]*\bname="robots"[^>]*\bcontent="[^"]*noindex/.test(head);
   if (NOINDEX.has(page) && !noindex) fail(page + ": should be noindex");
   if (!NOINDEX.has(page) && noindex) fail(page + ": should not be noindex");
+
+  // The link-preview pictures: absolute (crawlers do not resolve relative
+  // ones), on this site, and really in dist/.
+  // (404.html is the server's error page and has no social tags.)
+  if (page !== "404.html") {
+    for (const attr of ['property="og:image"', 'name="twitter:image"']) {
+      const tag = head.match(new RegExp("<meta " + attr + ' content="([^"]*)"'));
+      if (!tag) { fail(page + ": no " + attr + " tag"); continue; }
+      const src = tag[1];
+      if (!src.startsWith(SITE_ORIGIN + "/") || !fileSet.has(src.slice(SITE_ORIGIN.length + 1))) fail(page + ": preview picture (" + attr + ") is not a file of this site in dist/: " + src);
+    }
+  }
 
   for (const match of html.matchAll(/\b(?:href|src)="([^"]*)"/g)) {
     const ref = match[1];

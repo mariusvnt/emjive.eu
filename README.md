@@ -154,8 +154,9 @@ block, silently):
 - `curl -I https://emjive.eu/js/main.js` shows `Cache-Control: no-cache` and
   `Content-Encoding: gzip`; a hashed `/assets/style-*.css` shows
   `max-age=31536000, immutable`; an image or model (e.g.
-  `/assets/series/bones/hero/hand_xray.webp`) shows `max-age=604800,
-  stale-while-revalidate=86400`.
+  `/assets/series/bones/hero/hand_xray.webp`) shows `max-age=18000`
+  (5 hours — temporary while the site is in development; the intended value is
+  `max-age=604800, stale-while-revalidate=86400`, see `public/.htaccess`).
 - `curl -I https://emjive.eu/assets/hdri/studio_kontrast_04_1k.hdr` and a
   `.glb` / `.wasm` return a sensible `Content-Type` and are compressed.
 - `https://emjive.eu/some/missing/path` shows the branded 404 page.

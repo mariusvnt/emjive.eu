@@ -474,7 +474,7 @@
       "id": "10",
       "name": "jaw",
       "category": "ring",
-      "description": "The jaw, or mandible, is the largest and strongest bone of the face and the only movable bone of the skull. It holds the lower teeth and hinges on the temporal bones to chew and to speak.",
+      "description": "The jawbone, also known as the mandible, is the largest and strongest bone in the human face.",
       "default-metal": "steel",
       "per-metal-specs": {
         "steel": { "price": 0 },

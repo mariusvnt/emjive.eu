@@ -1786,8 +1786,8 @@
   // bar, and to the dimensions and the cost diagram.
   var SPECS_ANCHOR = 0.25;
   var SPECS_HALF_HEIGHT = 0.13;
-  // The gap before the model in specs, on top of where it would stand: 9.5rem.
-  var SPECS_GAP_REM = 9.5;
+  // The gap before the model in specs, on top of where it would stand: 7.5rem.
+  var SPECS_GAP_REM = 7.5;
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 80;

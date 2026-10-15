@@ -1465,8 +1465,8 @@
   // inspiration stage's stretch of scrolling takes it up (css/style.css
   // .product-feed) by what it takes for its end — the trail under the last
   // photo, already the page's colour there — to stand FEED_CLEAR_REM above the
-  // two bars at the bottom: in the band over them (.product-bottom-veil, 5rem
-  // tall) but above its strong blurs, which would otherwise draw the picture's
+  // two bars at the bottom: just above the band over them (.product-bottom-veil,
+  // 3.5rem tall), clear of its strong blurs, which would otherwise draw the picture's
   // colours down into the end of the trail. Published as --feed-room, which
   // js/product-stages.js turns into the stretch's length. Measured as the feed would stand unshifted,
   // against the bars as high as they ever are (the smallest viewport's

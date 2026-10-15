@@ -2025,7 +2025,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
    own height, the strongest the shortest — here as shares of the bar, half
    of it for the longest — so near the edge all three compound, further in two
    do, then one, and the last of it fades to nothing at the middle — all over
-   a uniform 2px frost across the whole bar, under them.
+   a uniform 4px frost across the whole bar, under them.
    The bar itself has no backdrop-filter, opacity or filter: any of them would
    make it the backdrop its layers see, which is nothing. isolation: isolate
    makes .glass its own stacking context, which is what lets .glass__blur sit
@@ -2045,15 +2045,15 @@ body:has(.site-header__menu.is-open) .gallery-control {
      and untouched at its middle. */
   --glass-shade: 0.96;
 }
-/* Under all the rest, over the whole bar alike: a 2px frost, which the sets'
+/* Under all the rest, over the whole bar alike: a 4px frost, which the sets'
    blurs then work on. (A pseudo-element comes before the sets in paint
    order.) */
 .glass__blur::before {
   content: "";
   position: absolute;
   inset: 0;
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 .glass__blur-set > span {
   position: absolute;
@@ -2761,7 +2761,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    outright while a sheet rests where it stands (the page lock,
    html.is-modal-open) or an Add's peek has the bars on the move. */
 .product-bottom-veil {
-  --S: 5rem;
+  --S: 3.5rem;
   position: fixed;
   z-index: 89;
   left: 0;

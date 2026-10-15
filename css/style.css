@@ -46,7 +46,7 @@
   /* The secondary button: the same recipe, 30% smaller — its size, its
      letter-spacing and the padding around its text are the main button's
      times --button-secondary-scale. The "Find my size", "Go to page" and
-     "Back to photos" buttons. */
+     "Back to photos" buttons, and the gallery's list/wheel button. */
   --button-secondary-scale: 0.7;
   --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
   --button-secondary-letter-spacing: calc(var(--button-letter-spacing) * var(--button-secondary-scale));
@@ -945,13 +945,14 @@ body:has(.product-stage) .site-header__veil {
 
 /* The homepage gallery has two views (data-gallery-view on <html>, decided in
    the <head> by js/scroll-memory.js and switched by js/gallery.js):
-     stack  the products come up out of the hero onto the x-ray hand and stay
-            there, on .gallery-stage, fixed over the hero's pin — the page
-            ends with the reveal, so .products takes no room of its own;
+     stack  the camera pulls back from the x-ray hand to the circle of
+            products round its wrist, on .gallery-stage, fixed over the
+            hero's pin — the page ends with the reveal, so .products takes
+            no room of its own;
      grid   tiles in columns (.product-grid), under the hero when it plays,
             at the top of the page when it doesn't.
    data-hero="skip" is a hero not played this time (already seen on this
-   device): the stack rests on the x-ray, the grid starts the page. */
+   device): the stack lands on the circle, the grid starts the page. */
 .products {
   position: relative;
   padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
@@ -983,9 +984,9 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 
 /* ---- the control under the header ----------------------------------------
-   "grid view" (with a grid icon on its left) / "stack view" (with an eye) at
-   the top right (js/gallery.js) — the view it goes to. Plain text in the
-   site's button format (the --button-* tokens, as the Select bar's);
+   "list" (with three lines on its left) / "wheel" (with a circle) at the
+   top right (js/gallery.js) — the view it goes to. Plain text in the
+   site's secondary button format (the --button-secondary-* tokens);
    mix-blend-mode keeps it legible over the photo, the x-ray and the page
    alike. Above the header's effect (.site-header__veil), so over the header
    itself too — which is why it steps aside while the menu is open, as the
@@ -1010,8 +1011,8 @@ html[data-gallery-view="grid"] .gallery-stage {
   mix-blend-mode: difference;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-font-size);
-  letter-spacing: var(--button-letter-spacing);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
   text-transform: var(--button-text-transform);
   cursor: pointer;
   transition: opacity var(--fade-standard) ease, visibility 0s;
@@ -1023,10 +1024,11 @@ html[data-gallery-view="grid"] .gallery-stage {
   height: 1.25em;
   flex: 0 0 auto;
 }
-/* The view it goes to: from the stack, the grid; from the grid, the stack. */
-html[data-gallery-view="stack"] .gallery-control__icon--eye,
+/* The view it goes to: from the stack (the wheel), the grid (the list); from
+   the grid, the stack. */
+html[data-gallery-view="stack"] .gallery-control__icon--wheel,
 html[data-gallery-view="stack"] .gallery-control__label--stack,
-html[data-gallery-view="grid"] .gallery-control__icon--grid,
+html[data-gallery-view="grid"] .gallery-control__icon--list,
 html[data-gallery-view="grid"] .gallery-control__label--grid {
   display: none;
 }
@@ -1066,11 +1068,13 @@ body:has(.site-header__menu.is-open) .gallery-control {
 /* ---- the stack --------------------------------------------------------------
    One fixed layer over the whole screen (js/gallery-stack.js): the shared 3D
    canvas at the bottom, the image stack over it (the first paint, and the
-   whole of the stack where the 3D one can't run).
+   whole of the stack where the 3D one can't run), and once the camera has
+   pulled back to the circle of products, the focused one's name in the
+   middle of it, a button to its page.
    Nothing on it takes a tap until the products have landed (.is-landed):
    before that the visitor is scrolling through the reveal, and every touch
-   is theirs. The domain the products move in — under the controls, over
-   the selection bar — is the script's; the layer itself is the screen. */
+   is theirs. The domain the circle lives in — under the controls, over the
+   selection bar — is the script's; the layer itself is the screen. */
 .gallery-stage {
   position: fixed;
   inset: 0;
@@ -1097,10 +1101,10 @@ body:has(.site-header__menu.is-open) .gallery-control {
   inset: 0;
 }
 /* Each one sized and placed by the script (width/height, then one transform:
-   where it is, how it's turned, how big). Its picture is the model's own
-   default view (fallback-img), the one the 3D model hands over to without a
-   pixel moving; a ring taken off the hand carries its top shot too, faded
-   out as it flies. */
+   where it is, how it's turned, how big — and its opacity, as it comes into
+   sight). Its picture is the model's own default view (fallback-img), the one
+   the 3D model hands over to without a pixel moving; a ring taken off the
+   hand carries its top shot too, faded out as it slides to its place. */
 .stack-item {
   position: absolute;
   left: 0;
@@ -1127,19 +1131,103 @@ body:has(.site-header__menu.is-open) .gallery-control {
   user-select: none;
 }
 .stack-item__ring { opacity: 0; }
-/* Gliding to a new place once the layout changes (the image stack only — the 3D one moves its own models). */
-.stack-item.is-moving {
-  transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1);
-}
 /* The 3D stack has taken over: the pictures go (a ring still on its way off
-   the hand keeps its top shot until it has crossed into the model), and the
-   canvas answers the taps. */
+   the hand keeps its top shot until it has crossed into the model). */
 .gallery-stage.is-3d .stack-item {
   visibility: hidden;
   pointer-events: none;
 }
 .gallery-stage.is-3d .stack-item__ring {
   visibility: visible;
+}
+
+/* Over the focused product (placed by the script): a drag that starts on it
+   turns its model, the viewers' way — so it is the model's, not the page's,
+   on a touch screen too. Only there while the plate is still and the 3D
+   stack is up (.is-on). */
+.stack-spin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  touch-action: none;
+  pointer-events: none;
+  cursor: grab;
+}
+.gallery-stage.is-landed .stack-spin.is-on {
+  pointer-events: auto;
+}
+.stack-spin:active {
+  cursor: grabbing;
+}
+
+/* In the middle of the circle (left/top: the circle's middle, set by the
+   script), one button: the focused product's name, in the site's secondary
+   button format (30% smaller, as "Go to page" by the Modify sheet's model),
+   going to its page: an arrow pointing on, then the name. Every product's
+   name shares one cell, set to its right edge, and only the focused one
+   shows: they crossfade as the plate brings another product to the top. The
+   cell is as wide as the longest name, so the arrow's left edge and the
+   names' right edge never move, and what is centred on the circle's middle is
+   the span between the two. Only once the camera has pulled back
+   (.is-landed). */
+.stack-orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+.gallery-stage.is-landed .stack-orbit {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+}
+.stack-orbit__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  /* The space the letter-spacing leaves after the last letter, matched
+     before the arrow, so the span from the arrow's left edge to the last
+     letter's right edge is what is centred. */
+  padding: calc(0.3rem * var(--button-secondary-scale)) 0 calc(0.3rem * var(--button-secondary-scale)) var(--button-secondary-letter-spacing);
+  border: none;
+  background: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
+  text-transform: var(--button-text-transform);
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity var(--fade-quick) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.stack-orbit__names {
+  display: grid;
+  justify-items: end;
+}
+.stack-orbit__name {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
+}
+.stack-orbit__name.is-shown {
+  opacity: 1;
+}
+.stack-orbit__go svg {
+  flex: 0 0 auto;
+  width: 1.2em;
+  height: 1.2em;
+}
+@media (hover: hover) {
+  .stack-orbit__go:hover { opacity: 0.6; }
 }
 
 /* An empty filter, in the stack: the message where the products would be. */
@@ -1152,29 +1240,45 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 
 /* ---- the grid -----------------------------------------------------------------
-   Tiles in columns — two on a phone, more as the screen widens — and no 3D
-   at all: the visitor in a hurry. Each tile's picture is a strip of slides
-   (the model's own view, then the product's photos) swiped natively, sideways,
-   with scroll snapping; a tap anywhere on the tile opens the Modify sheet in
-   its Select mode (js/gallery.js -> js/selection-bar.js). */
+   One product a row, at every width, and no 3D at all: the visitor in a hurry.
+   A table of two parts. The index, a column as wide as its widest number
+   (every row takes the grid's two columns whole — subgrid — so it is the
+   same column all the way down), 0.5rem from the rest; then the row's body
+   (.grid-tile__body): equal columns filling the width — on a phone two, the
+   picture (a square) and the facts stacked; wider, the picture and a column
+   per fact — 1.5rem from the picture to the facts, the page's own edge
+   (--edge-px) from fact to fact. A header row
+   (.grid-tile--head) names them in the same places — on a phone its labels
+   stack as the facts do. Category is a column only when the series has more
+   than one (.has-category, js/gallery.js). No rules: 3rem between products
+   on a phone, up to 9rem on a desktop, and 3rem under the header. The picture is a strip of slides (the model's own
+   view, then the product's photos) swiped natively, sideways, with scroll
+   snapping; a tap anywhere on a row opens the product's page. */
 .product-grid {
+  --grid-cols: 2;
+  --grid-picture-gap: 1.5rem;
+  --grid-head-gap: 3rem;
+  /* 3rem on a phone (375px), growing with the width to 9rem at --max
+     (1440px), and no further. */
+  --grid-row-gap: clamp(3rem, 9.01vw + 0.89rem, 9rem);
   position: relative;
   z-index: 1;
   max-width: var(--max);
-  margin: 0 auto;
+  /* The bottom: the last product's margin (below) taken back. */
+  margin: 0 auto calc(var(--grid-head-gap) - var(--grid-row-gap));
   padding: 0 var(--edge-px);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2rem 1rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  /* A gap is the same between every two rows, so it is the header's; a
+     product adds the rest under itself (a margin, not a padding, so the room
+     between products takes no tap). Hidden products take no room, so the
+     first one shown is always the header's gap under it. */
+  gap: var(--grid-head-gap) 0.5rem;
 }
+/* The picture, then Id, Size, Price — and Category, when there is one. */
 @media (min-width: 641px) {
-  .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem 1.5rem; }
-}
-@media (min-width: 1024px) {
-  .product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (min-width: 1440px) {
-  .product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .product-grid { --grid-cols: 4; --grid-fact-cols: 3; }
+  .product-grid.has-category { --grid-cols: 5; --grid-fact-cols: 4; }
 }
 
 .product-grid__loading {
@@ -1184,19 +1288,42 @@ body:has(.site-header__menu.is-open) .gallery-control {
   color: var(--category-col);
 }
 
-/* Same trap as everywhere else on the site: display: flex beats the UA
-   stylesheet's [hidden] { display: none }, and the filter hides tiles with
-   it rather than rebuilding them. */
+/* A row: the grid's two columns, whole. The index and the facts share a
+   baseline; the picture hangs from the row's top. Same trap as everywhere
+   else on the site: display: grid beats the UA stylesheet's
+   [hidden] { display: none }, and the filter hides rows with it rather than
+   rebuilding them. */
 .grid-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: baseline;
   min-width: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .grid-tile[hidden] { display: none; }
+.grid-tile:not(.grid-tile--head) {
+  margin-bottom: calc(var(--grid-row-gap) - var(--grid-head-gap));
+}
+.grid-tile--head { cursor: default; }
+.grid-tile__index { grid-column: 1; }
+/* The body: the picture, --grid-picture-gap, then the facts — the picture as
+   wide as a fact's column (what the gaps leave of the width, shared by the
+   --grid-cols columns). */
+.grid-tile__body {
+  grid-column: 2;
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    calc((100% - var(--grid-picture-gap) - (var(--grid-cols) - 2) * var(--edge-px)) / var(--grid-cols))
+    minmax(0, 1fr);
+  column-gap: var(--grid-picture-gap);
+  align-items: baseline;
+}
 .grid-tile__frame {
+  grid-column: 1;
+  align-self: start;
   position: relative;
   aspect-ratio: 1 / 1;
 }
@@ -1262,30 +1389,57 @@ body:has(.site-header__menu.is-open) .gallery-control {
 .grid-tile__dot.is-current::before {
   opacity: 1;
 }
-.grid-tile__label {
-  display: block;
-  width: 100%;
+/* The facts (a <dl>, its labels visually hidden — the header row is only
+   seen), in the body's second column, flush right: stacked on a phone;
+   wider, equal columns at the page's edge (--edge-px) apart, a fact in each,
+   in order. */
+.grid-tile__facts {
+  grid-column: 2;
   margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Each fact's text against the right edge — its column's, wider — so the
+     last ends on the page's margin. */
+  text-align: right;
+}
+@media (min-width: 641px) {
+  .grid-tile__facts {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-fact-cols), minmax(0, 1fr));
+    column-gap: var(--edge-px);
+    align-items: baseline;
+  }
+}
+.grid-tile__fact { min-width: 0; }
+.grid-tile__fact dd { margin: 0; }
+/* One size throughout, 12px DINish, flush left; the site's label | value
+   colours (the product page's specs): the header's labels --black, a row's
+   index and facts --category-col. */
+.grid-tile__index,
+.grid-tile__fact {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color: var(--category-col);
+}
+.grid-tile--head .grid-tile__index,
+.grid-tile--head .grid-tile__fact {
+  color: var(--black);
+}
+/* The name is the row's button for a keyboard; it reads as the plain text. */
+.grid-tile__name {
   padding: 0;
   border: none;
   background: none;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  font-size: calc(0.875rem * var(--text-scale));
-  letter-spacing: 0.05em;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  letter-spacing: inherit;
   cursor: pointer;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
-}
-.grid-tile__label-name {
-  font-family: var(--font-main);
-  color: var(--black);
-}
-.grid-tile__label-type {
-  font-family: var(--font-secondary);
-  font-size: 0.75em;
-  color: var(--category-col);
 }
 
 /* ==========================================================================

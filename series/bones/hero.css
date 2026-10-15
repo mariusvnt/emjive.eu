@@ -25,10 +25,11 @@
      effect reads as one continuous image at one consistent opacity rather
      than three separately-tuned values drifting apart. */
   --reveal-xray-opacity: 1;
-  /* How far the x-ray hand fades back once the gallery's stack has come up
-     over it (hero.js eases the x-ray group's opacity from 1 to this over the
-     entrance, and the skipped hero starts here). */
-  --reveal-xray-rest-opacity: 0.3;
+  /* How far the x-ray hand (and the arm below it) fades once the camera has
+     pulled back from it to the gallery's circle of rings (hero.js eases the
+     x-ray group's opacity from 1 to this over the entrance, and the skipped
+     hero starts here): a trace of it stays behind the circle. */
+  --reveal-xray-rest-opacity: 0.2;
 
   /* The shape of every hero picture. They are all 16:9 at whatever resolution
      each ships at (the desktop versions); a smartphone gets versions cropped
@@ -70,8 +71,9 @@
   --reveal-scroll-vh: 200vh; /* the reveal's own height: the wipe plays over all of it but the pin's own */
   /* The gallery's entrance (js/gallery-stack.js): a further stretch of
      scrolling at the end of the reveal, the pin still held, during which the
-     products rise onto the hand and the hand fades back. Only in the stack
-     view — the grid simply follows the reveal. */
+     camera pulls back from the hand to the circle of rings round the wrist
+     and the hand fades back. Only in the stack view — the grid simply follows
+     the reveal. */
   --reveal-entrance-vh: 0px;
   --reveal-frontier-height: 0.8rem; /* height of the scanning band (narrow-screen override below); width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
@@ -252,6 +254,27 @@ html[data-hero="skip"] .reveal__ring {
   height: 100%;
   display: block;
   opacity: var(--reveal-xray-opacity);
+}
+
+/* The arm below the hand (hero.html): the two extension panels share the
+   picture's shape, so each is exactly the group's box, stacked under it. They
+   lie below the pin — out of sight — until the gallery's stack pulls the
+   camera back and the group shrinks; hero.js then lifts the group's clip so
+   it doesn't cut them off. The grid view has no pull-back. */
+.reveal__xray-extension {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: block;
+  opacity: var(--reveal-xray-opacity);
+  pointer-events: none;
+}
+.reveal__xray-extension--1 { top: 100%; }
+.reveal__xray-extension--2 { top: 200%; }
+html[data-gallery-view="grid"] .reveal__xray-extension {
+  display: none;
 }
 
 .reveal__ring {

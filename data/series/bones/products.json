@@ -12,6 +12,7 @@
         "silver": { "price": 350 },
         "bronze": { "price": 240 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "print": { "volume-cm3": 1.677, "dimensions-mm": [28.8, 25.7, 17.1], "stl-sha1": "018fa2ecc74cfc6b5ed7e1b958ed0aa203d6a13b" }, "model-sha1": "85ab6b8a7b0fbe73d6ba858c527fddb66fc12f21" },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
@@ -52,6 +53,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.213, "dimensions-mm": [30.2, 24.7, 20.8], "min-box": { "center": [-2.321, 0.782, -1.769], "axes": [[0.52294, -0.31149, 0.79342], [0.64819, 0.7498, -0.13285], [-0.55353, 0.58375, 0.59401]] }, "print": { "volume-cm3": 1.214, "dimensions-mm": [30.2, 24.7, 20.8], "stl-sha1": "7ac8e23efcded13c2264f7c0e5732c9200e73466" }, "model-sha1": "28867d2703c7871fa10132746f9f76f0a36045b7" },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
@@ -117,6 +119,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "min-box": { "center": [0, 0.001, 0.895], "axes": [[-0.00333, 0.96624, 0.25762], [0.99999, 0.00345, 0], [0.00089, -0.25761, 0.96625]] }, "print": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "stl-sha1": "7d69624207734a65c565d84ae41753abfa24bf3e" }, "model-sha1": "5f385fd448ca29b611fae81f64649ffb07115b19" },
       "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
@@ -154,6 +157,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "min-box": { "center": [1.141, 1.112, -5.501], "axes": [[0.81582, 0.5783, 0], [-0.5783, 0.81582, 0.00011], [0.00006, -0.00009, 1]] }, "print": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 25.9, 15.1], "stl-sha1": "04f8ca91957d572f5ae0d5a2fe652ee0dc79c2bc" }, "model-sha1": "717fdeb31f186bbb0c508f88e2fbdb71759cf039" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
@@ -187,6 +191,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "min-box": { "center": [0.041, 2.092, -0.715], "axes": [[0.03219, 0.8754, -0.48232], [0.99948, -0.02725, 0.01726], [-0.00197, 0.48262, 0.87583]] }, "print": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "stl-sha1": "8c1d30d04d25bd62a441bc682c6bdbeddeb3fdf6" }, "model-sha1": "f5c950538ce303462bb874893d5b00ad105aa4af" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
@@ -224,6 +229,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "min-box": { "center": [0.009, 4.557, -5.734], "axes": [[0.00262, 1, 0.00029], [1, -0.00262, 0], [0, -0.00029, 1]] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "stl-sha1": "e0d3c0d414a79cb7448fef58b3dad9a227d82bad" }, "model-sha1": "6953b35249ffe993607847e07d79c84d96a510b1" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
@@ -261,6 +267,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.438, 0.796, -3.63], "axes": [[-0.45555, 0.89019, -0.0067], [0.77544, 0.39311, -0.49413], [0.43723, 0.23029, 0.86936]] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [25.1, 23.7, 18.9], "stl-sha1": "f9935e7e63947410a3e44072f8b39689f73919b0" }, "model-sha1": "3e0e18ae1d006d3fd6b857d1e84c47171133e3a9" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
@@ -407,6 +414,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "print": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "stl-sha1": "cb46095f71fbb626ffb2122957838a08891f5a57" }, "model-sha1": "f60960e08e9f5966017ab32e2f928aaa6e8a19b5" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
@@ -436,6 +444,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "min-box": { "center": [0, 1.856, 2.161], "axes": [[0, 0.18371, 0.98298], [1, 0, 0], [0, 0.98298, -0.18371]] }, "print": { "volume-cm3": 2.921, "dimensions-mm": [32.2, 28.1, 27.1], "stl-sha1": "b63ce05c29e65bfc2742c4677998b13b21cf6fdb" }, "model-sha1": "a82c253a84d0b8c7262cf476c39b9ccacbd54ea7" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
@@ -481,6 +490,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
+      "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.987, "dimensions-mm": [38.6, 23.7, 23.5], "min-box": { "center": [0.03, 1.904, -2.038], "axes": [[-0.00477, 0.01823, 0.99982], [0, 0.99983, -0.01824], [0.99999, 0.00009, 0.00477]] }, "print": { "volume-cm3": 0.99, "dimensions-mm": [38.6, 23.7, 23.6], "stl-sha1": "ad5ca9a3ec51e7a321a4604474e0fd863f809a2a" }, "model-sha1": "40f0d126f449c7e09884934fff749a18a21b088f" },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 62, "tilt": 88, "zoom": 90, "roll": -6 },

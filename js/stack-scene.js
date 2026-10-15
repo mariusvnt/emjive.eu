@@ -2,16 +2,18 @@
    em·ji·ve — the homepage gallery's 3D stack
 
    Every product's model in ONE canvas over the whole screen. js/gallery-stack.js
-   owns everything about the stack that isn't drawing — the layout, the wave,
-   the rings, the taps — and drives this through the handle returned by
-   createStackScene(). One WebGL context and one environment map for all of
-   it, where the old grid had one of each per card.
+   owns everything about the stack that isn't drawing — the circle, the
+   camera's pull-back, the rings, the plate's turning, the taps — and drives
+   this through the handle returned by createStackScene(): it hands over a
+   pose for each model whenever anything moved (setPoses). One WebGL context
+   and one environment map for all of it.
 
    An ES module and a lazy chunk of its own (window.EmjiveLoadStack(), in
    js/viewer-entry.js): three-viewer.js's toolkit gives it everything a model
    needs to look the way it does in a viewer — the page's one Draco decoder
-   and HDR cache, the metals, the renderer's settings, and the default
-   camera's orientation.
+   and HDR cache, the metals, the renderer's settings, the default camera's
+   orientation, and the viewers' own spin (toolkit.spinFor) for the focused
+   model.
 
    Coordinates: one world unit is PX CSS pixels; x to the right from the
    screen's left edge, y up from its top edge (so a point on screen is at
@@ -21,12 +23,10 @@
    does, at the size the image shows it when its box is `size` px: the
    handover from the pictures moves nothing.
 
-   Phases, as gallery-stack.js publishes them:
-     the entrance (setEntrance(p < 1))  each model is placed where the shared
-                                        wave puts it (options.poseAt)
-     floating (p = 1)                   each model stays in its place and
-                                        rocks, very slowly, about the axis
-                                        pointing at the visitor
+   The focused model (setFocus) turns slowly on its own, like a turntable;
+   under a drag on the element the page lays over it, it turns exactly as a
+   viewer's model does — coasting, then easing back to its default view once
+   let go, and turning on its own again after a pause.
    ========================================================================== */
 
 import * as T from "three";
@@ -35,29 +35,10 @@ import { toolkit } from "./three-viewer.js";
 // CSS pixels per world unit.
 var PX = 100;
 var MAX_PIXEL_RATIO = 1.5;
-
-// Floating: each model rocks about the axis pointing at the visitor, this far
-// either side of its resting turn (degrees), once every ROCK_PERIOD seconds,
-// about (each has its own period and its own place in the cycle). It eases in
-// over ROCK_RAMP seconds from landing, so the handover from the pictures
-// moves nothing.
-var ROCK_DEG = 5;
-var ROCK_PERIOD = 26;
-var ROCK_RAMP = 4;
+// A frame's dt is never taken as more than this (a tab coming back).
+var MAX_DT = 1 / 15;
 
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
-function smoothstep(a, b, x) {
-  var t = clamp01((x - a) / (b - a));
-  return t * t * (3 - 2 * t);
-}
-function hash(str) {
-  var h = 2166136261;
-  for (var i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
 
 export function createStackScene(options) {
   if (!toolkit) return null;
@@ -85,16 +66,16 @@ export function createStackScene(options) {
   var contextLost = false;
   var paused = false;
   var dirty = true;
-  // The entrance: true while it's under way, false once landed (floating).
-  var kinematic = true;
-  var floatStart = 0;
-  var targets = options.targets ? options.targets() : {};
+  var baseSize = 100;
   var entries = [];
   var byId = {};
   var environmentTarget = null;
   var heldCpuBytes = 0;
+  // The focused model, and the element a drag on it starts on.
+  var focusId = null;
+  var focusEl = null;
 
-  // What the default view and a top shot are, as rotations of the model.
+  // What a top shot is, as a rotation of the model.
   var qTop = toolkit.orbitOrientation({ "3d-viewer-camera-default": { rotation: 0, tilt: 0, zoom: 100 } }).invert();
   var zAxis = new T.Vector3(0, 0, 1);
   var tmpQ = new T.Quaternion();
@@ -102,10 +83,6 @@ export function createStackScene(options) {
   function rotZ(deg, out) {
     // Clockwise on screen is about -Z in a y-up world.
     return (out || new T.Quaternion()).setFromAxisAngle(zAxis, -deg * Math.PI / 180);
-  }
-
-  function restFor(entry, target) {
-    return rotZ(target ? target.rot : 0).multiply(entry.viewQ);
   }
 
   /* ---- loading ---------------------------------------------------------------- */
@@ -126,10 +103,10 @@ export function createStackScene(options) {
 
   // As js/three-viewer.js does once a model has drawn: the GPU has its own
   // copy, and nothing here reads the arrays again — the bounds are computed
-  // first, and taps are tested against the boxes, not the meshes. Mesh
-  // by mesh, and only once that mesh has really been drawn (onAfterRender):
-  // a model hidden by the filter, or focused, has never been uploaded, and
-  // drawing it later from arrays that are gone would fail.
+  // first, and taps are tested by the page against the poses, not the
+  // meshes. Mesh by mesh, and only once that mesh has really been drawn
+  // (onAfterRender): a model hidden by the filter has never been uploaded,
+  // and drawing it later from arrays that are gone would fail.
   var drawnMeshes = [];
   function markDrawn() {
     if (!this.userData.released) drawnMeshes.push(this);
@@ -168,8 +145,7 @@ export function createStackScene(options) {
   }
 
   // A model: its bounding sphere (what a viewer frames, so what the
-  // fallback-img shows) and its minimum box (data/: what a tap is tested
-  // against), both in its own frame.
+  // fallback-img shows), in its own frame.
   function setModel(entry, root) {
     if (disposed) {
       disposeObject(root);
@@ -180,14 +156,13 @@ export function createStackScene(options) {
     entry.model = root;
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
-    entry.box = box;
     entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
     root.traverse(function (node) {
       if (!node.isMesh) return;
       disposeMaterial(node.material);
       node.material = entry.material;
       // A dozen models on one screen: culling saves nothing, and a model
-      // still below the screen during the entrance has to be uploaded too.
+      // still off the screen as the camera pulls back has to be uploaded too.
       node.frustumCulled = false;
       node.onAfterRender = markDrawn;
       if (node.geometry) countBytes(meshBytes(node.geometry));
@@ -218,20 +193,21 @@ export function createStackScene(options) {
     var holder = new T.Group();
     group.add(holder);
     scene.add(group);
+    var viewQ = toolkit.orbitOrientation(item.product).invert();
     var entry = {
       id: String(item.id),
       product: item.product,
       group: group,
       holder: holder,
-      viewQ: toolkit.orbitOrientation(item.product).invert(),
-      restQ: new T.Quaternion(),
+      viewQ: viewQ,
+      // Its resting turn: its default view, or wherever a drag has it.
+      restQ: viewQ.clone(),
       size: 0,
-      hit: null,
       visible: true,
-      // Where it is in its rocking, and how fast it goes round.
-      phase: hash(String(item.id)) * Math.PI * 2,
-      period: ROCK_PERIOD * (0.75 + 0.5 * hash(String(item.id) + "|rock")),
-      opacity: 1
+      opacity: 1,
+      pose: null,
+      // The viewers' spin, built the first time it is focused.
+      spin: null
     };
     var model = item.product.assets && item.product.assets.model;
     var picture = pictureOf(item.product);
@@ -248,58 +224,27 @@ export function createStackScene(options) {
     });
   }
 
-  /* ---- sizes and hit boxes ----------------------------------------------------
-     An item `size` px across in the stack: its model scaled the way its
-     fallback-img shows it in a box that size (the default camera's fov and
-     zoom fit its bounding sphere), its sphere's centre on the group's origin,
-     and a box on its minimum box, which is what a tap is tested against. */
+  /* ---- sizes ---------------------------------------------------------------------
+     An item `size` px across: its model scaled the way its fallback-img shows
+     it in a box that size (the default camera's fov and zoom fit its bounding
+     sphere), its sphere's centre on the group's origin. A pose's own size is
+     the group's scale on top of that. */
   function framingScale(entry, sizePx) {
     var framing = toolkit.defaultFraming(entry.product);
     var halfFov = framing.fovDeg * Math.PI / 360;
     return (sizePx * Math.cos(halfFov)) / (2 * entry.radius * framing.zoom) / PX;
   }
 
-  var basis = new T.Matrix4();
-  function minBox(entry, k) {
-    var geometry = entry.product.geometry || {};
-    var box = geometry["min-box"];
-    var dims = geometry["dimensions-mm"];
-    var half;
-    var offset;
-    var orient = new T.Quaternion();
-    if (box && dims && box.axes && box.axes.length === 3) {
-      var a = box.axes.map(function (v) { return new T.Vector3(v[0], v[1], v[2]); });
-      // A box is the same either way round: a left-handed set of axes just
-      // has its third one turned over, so it reads as a rotation.
-      if (a[0].clone().cross(a[1]).dot(a[2]) < 0) a[2].negate();
-      basis.makeBasis(a[0], a[1], a[2]);
-      orient.setFromRotationMatrix(basis);
-      half = new T.Vector3(dims[0], dims[1], dims[2]).multiplyScalar(k / 2);
-      offset = new T.Vector3(box.center[0], box.center[1], box.center[2]).sub(entry.center).multiplyScalar(k);
-    } else {
-      var size = entry.box.getSize(new T.Vector3());
-      half = size.multiplyScalar(k / 2);
-      offset = entry.box.getCenter(new T.Vector3()).sub(entry.center).multiplyScalar(k);
-    }
-    // Never thinner than a sliver, or a flat one is missed by a tap.
-    half.x = Math.max(half.x, 0.02);
-    half.y = Math.max(half.y, 0.02);
-    half.z = Math.max(half.z, 0.02);
-    return { half: half, offset: offset, orient: orient };
-  }
-
   function setSize(entry, sizePx) {
-    if (Math.abs(sizePx - entry.size) < 0.5 && entry.hit) return;
+    if (Math.abs(sizePx - entry.size) < 0.5) return;
     entry.size = sizePx;
     if (entry.model) {
       var k = framingScale(entry, sizePx);
       entry.holder.scale.setScalar(k);
       entry.holder.position.copy(entry.center).multiplyScalar(-k);
-      entry.hit = minBox(entry, k);
-    } else {
+    } else if (entry.sprite) {
       var s = sizePx / PX;
-      if (entry.sprite) entry.sprite.scale.set(s, s, 1);
-      entry.hit = { half: new T.Vector3(s * 0.35, s * 0.35, s * 0.2), offset: new T.Vector3(), orient: new T.Quaternion() };
+      entry.sprite.scale.set(s, s, 1);
     }
   }
 
@@ -328,45 +273,25 @@ export function createStackScene(options) {
     }
   }
 
+  // A pose (js/gallery-stack.js): its middle (x, y) and size in px of the
+  // screen, its turn on the screen (rot, degrees clockwise), how far through
+  // a ring's flight off the hand it is (fromRing, ringRot: the turn it lay at
+  // on the hand, u: 0 to 1 — the model swings from its top view to its rest
+  // as it flies), what's left of its top shot (ring) and how much of it shows
+  // at all (alpha).
   function placeFromPose(entry, pose) {
+    entry.pose = pose;
     entry.group.position.set(pose.x / PX, -pose.y / PX, 0);
-    if (pose.fromRing) {
+    if (pose.fromRing && pose.u < 1) {
       rotZ(pose.ringRot, tmpQ).multiply(qTop);
       entry.group.quaternion.slerpQuaternions(tmpQ, entry.restQ, clamp01(pose.u));
     } else {
-      rotZ(pose.spin, entry.group.quaternion).multiply(entry.restQ);
+      rotZ(pose.rot || 0, entry.group.quaternion).multiply(entry.restQ);
     }
     entry.group.scale.setScalar(entry.size ? pose.size / entry.size : 1);
     twistSprite(entry);
-    setOpacity(entry, 1 - (pose.ring || 0));
-  }
-
-  // The entrance has landed: the models float from where they are.
-  function land() {
-    kinematic = false;
-    floatStart = performance.now();
-    dirty = true;
-  }
-
-  /* ---- the loop ---------------------------------------------------------------------
-     Draws only when something moved: the entrance (on each new progress), a
-     floating stack (always). */
-  var raf = 0;
-
-  // Floating, a model's idle: it rocks about the axis pointing at the
-  // visitor, around its resting turn, and doesn't drift from its place.
-  function rock(now) {
-    var seconds = (now - floatStart) / 1000;
-    var ramp = smoothstep(0, ROCK_RAMP, seconds);
-    var moved = false;
-    entries.forEach(function (entry) {
-      if (!entry.visible) return;
-      var angle = ROCK_DEG * ramp * Math.sin(seconds * 2 * Math.PI / entry.period + entry.phase);
-      rotZ(angle, entry.group.quaternion).multiply(entry.restQ);
-      twistSprite(entry);
-      moved = true;
-    });
-    return moved;
+    var alpha = pose.alpha === undefined ? 1 : pose.alpha;
+    setOpacity(entry, alpha * (1 - (pose.ring || 0)));
   }
 
   // A picture standing in for a model always faces the camera; it turns with
@@ -377,6 +302,31 @@ export function createStackScene(options) {
     entry.material.rotation = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
   }
 
+  /* ---- the focused model's spin ---------------------------------------------------
+     Each model with a spin of its own steps it while it is focused (turning
+     on its own, or by hand) or still on its way home; its resting turn is then the inverse of the spin's
+     stand-in camera (at home: its default view). */
+  var spunQ = new T.Quaternion();
+  function stepSpins(dt) {
+    var moved = false;
+    entries.forEach(function (entry) {
+      if (!entry.spin || !entry.visible) return;
+      if (entry.id !== focusId && !entry.spin.isBusy()) return;
+      entry.spin.step(dt);
+      spunQ.copy(entry.spin.quaternion).invert();
+      if (spunQ.angleTo(entry.restQ) < 1e-5) return;
+      entry.restQ.copy(spunQ);
+      if (entry.pose) placeFromPose(entry, entry.pose);
+      moved = true;
+    });
+    return moved;
+  }
+
+  /* ---- the loop ---------------------------------------------------------------------
+     Draws only when something moved: a new set of poses, a spin. */
+  var raf = 0;
+  var lastFrame = null;
+
   function draw() {
     if (contextLost) return;
     renderer.render(scene, camera);
@@ -385,65 +335,13 @@ export function createStackScene(options) {
 
   function frame(now) {
     raf = requestAnimationFrame(frame);
+    var dt = lastFrame === null ? 1 / 60 : Math.min((now - lastFrame) / 1000, MAX_DT);
+    lastFrame = now;
     if (paused || disposed) return;
     var changed = dirty;
     dirty = false;
-    if (!kinematic && rock(now)) changed = true;
+    if (stepSpins(Math.max(dt, 1e-3))) changed = true;
     if (changed) draw();
-  }
-
-  /* ---- taps ------------------------------------------------------------------------
-     A ray straight into the screen, through each model's box in the box's own
-     frame; the nearest hit wins. */
-  var rayOrigin = new T.Vector3();
-  var rayDir = new T.Vector3();
-  var boxCenter = new T.Vector3();
-  var inv = new T.Quaternion();
-
-  function hitBox(entry) {
-    var g = entry.group;
-    var hit = entry.hit;
-    var scale = g.scale.x;
-    tmpQ.copy(g.quaternion);
-    var boxQ = tmpQ.clone().multiply(hit.orient);
-    boxCenter.copy(hit.offset).multiplyScalar(scale).applyQuaternion(tmpQ).add(g.position);
-    inv.copy(boxQ).invert();
-    var o = rayOrigin.clone().sub(boxCenter).applyQuaternion(inv);
-    var d = rayDir.clone().applyQuaternion(inv);
-    var h = hit.half;
-    var tMin = -Infinity;
-    var tMax = Infinity;
-    var axes = ["x", "y", "z"];
-    for (var i = 0; i < 3; i++) {
-      var axis = axes[i];
-      var extent = h[axis] * scale;
-      if (Math.abs(d[axis]) < 1e-9) {
-        if (Math.abs(o[axis]) > extent) return null;
-        continue;
-      }
-      var t1 = (-extent - o[axis]) / d[axis];
-      var t2 = (extent - o[axis]) / d[axis];
-      tMin = Math.max(tMin, Math.min(t1, t2));
-      tMax = Math.min(tMax, Math.max(t1, t2));
-      if (tMin > tMax) return null;
-    }
-    return tMax >= 0 ? Math.max(0, tMin) : null;
-  }
-
-  function pick(x, y) {
-    rayOrigin.set(x / PX, -y / PX, 200);
-    rayDir.set(0, 0, -1);
-    var best = null;
-    var bestT = Infinity;
-    entries.forEach(function (entry) {
-      if (!entry.visible || !entry.hit) return;
-      var t = hitBox(entry);
-      if (t !== null && t < bestT) {
-        bestT = t;
-        best = entry.id;
-      }
-    });
-    return best;
   }
 
   /* ---- teardown --------------------------------------------------------------------- */
@@ -474,8 +372,7 @@ export function createStackScene(options) {
   canvas.addEventListener("webglcontextlost", onContextLost, false);
 
   // The browser may throw a canvas's drawing away (a tab coming back, a page
-  // restored), and a stack that isn't floating draws nothing on its own: draw
-  // again.
+  // restored), and a still stack draws nothing on its own: draw again.
   function repaint() { dirty = true; }
   document.addEventListener("visibilitychange", repaint);
   window.addEventListener("pageshow", repaint);
@@ -487,7 +384,10 @@ export function createStackScene(options) {
     canvas.removeEventListener("webglcontextlost", onContextLost, false);
     document.removeEventListener("visibilitychange", repaint);
     window.removeEventListener("pageshow", repaint);
-    entries.forEach(function (entry) { disposeObject(entry.group); });
+    entries.forEach(function (entry) {
+      if (entry.spin) entry.spin.dispose();
+      disposeObject(entry.group);
+    });
     if (environmentTarget) environmentTarget.dispose();
     if (window.EmjiveMem) window.EmjiveMem.cpuGeometryBytes -= heldCpuBytes;
     heldCpuBytes = 0;
@@ -501,7 +401,9 @@ export function createStackScene(options) {
   }
 
   /* ---- build -------------------------------------------------------------------- */
-  var loads = (options.items || []).map(buildEntry);
+  var items = options.items || [];
+  if (items.length) baseSize = items[0].size || baseSize;
+  var loads = items.map(buildEntry);
   var environment = toolkit.loadEnvironment(renderer, options.hdri, function () { return disposed; }).then(function (target) {
     if (!target) return;
     if (disposed) {
@@ -514,16 +416,19 @@ export function createStackScene(options) {
 
   var ready = Promise.all([Promise.all(loads), environment]).then(function () {
     if (disposed) throw new Error("disposed");
-    targets = options.targets ? options.targets() : targets;
-    entries.forEach(function (entry) {
-      var target = targets[entry.id];
-      setSize(entry, target ? target.size : 100);
-      entry.restQ.copy(restFor(entry, target));
-    });
+    entries.forEach(function (entry) { setSize(entry, baseSize); });
     resize();
     // Shaders compiled now, before the handover's first frame needs them.
     renderer.compile(scene, camera);
   });
+
+  function applyPoses(poses) {
+    entries.forEach(function (entry) {
+      var pose = poses[entry.id];
+      if (pose && entry.visible) placeFromPose(entry, pose);
+    });
+    dirty = true;
+  }
 
   return {
     ready: ready,
@@ -531,82 +436,64 @@ export function createStackScene(options) {
     // The pictures hand over: every model where its picture is (poses, by
     // id — those missing are hidden by the filter), drawn at once, in the same
     // frame the page hides the pictures.
-    handOver: function (poses, state) {
-      targets = options.targets ? options.targets() : targets;
+    handOver: function (poses) {
       entries.forEach(function (entry) {
-        var target = targets[entry.id];
-        if (target) setSize(entry, target.size);
-        entry.restQ.copy(restFor(entry, target));
+        setSize(entry, baseSize);
         var pose = poses[entry.id];
         entry.visible = !!pose;
         entry.group.visible = !!pose;
         if (pose) placeFromPose(entry, pose);
       });
-      if (state.entrance >= 1) land();
-      else kinematic = true;
       draw();
+      dirty = false;
       raf = requestAnimationFrame(frame);
     },
 
-    setEntrance: function (p) {
-      if (p >= 1) {
-        if (kinematic) {
-          entries.forEach(function (entry) {
-            if (!entry.visible) return;
-            var pose = options.poseAt(entry.id, 1);
-            if (pose) placeFromPose(entry, pose);
-          });
-          land();
-        }
-        return;
-      }
-      // Back into the entrance, from the models' resting turns.
-      kinematic = true;
+    // Every model's pose, by id: whenever anything moved.
+    setPoses: applyPoses,
+
+    // The layout changed (the filter, the screen): the size a pose's size is
+    // measured against.
+    setBaseSize: function (px) {
+      baseSize = px;
       entries.forEach(function (entry) {
-        if (!entry.visible) return;
-        var pose = options.poseAt(entry.id, p);
-        if (pose) placeFromPose(entry, pose);
+        setSize(entry, px);
+        if (entry.pose) placeFromPose(entry, entry.pose);
       });
       dirty = true;
-    },
-
-    // The layout changed (the filter, the screen): every model's new place,
-    // size and resting turn. Once landed they are there at once.
-    setTargets: function (map) {
-      targets = map || targets;
-      entries.forEach(function (entry) {
-        var target = targets[entry.id];
-        if (!target) return;
-        setSize(entry, target.size);
-        entry.restQ.copy(restFor(entry, target));
-        if (kinematic || !entry.visible) return;
-        entry.group.position.set(target.x / PX, -target.y / PX, 0);
-        entry.group.scale.setScalar(1);
-      });
-      dirty = true;
-    },
-
-    // The id of the model at (x, y) on the screen, or null.
-    pick: function (x, y) {
-      return kinematic ? null : pick(x, y);
     },
 
     // The filter: those not listed leave the stack; those listed again come
-    // back, in their places.
+    // back (the next poses place them).
     setVisible: function (ids) {
       var keep = {};
       ids.forEach(function (id) { keep[String(id)] = true; });
       entries.forEach(function (entry) {
         var show = !!keep[entry.id];
-        if (show === entry.visible) return;
         entry.visible = show;
         entry.group.visible = show;
-        if (!show || kinematic) return;
-        var target = targets[entry.id];
-        if (target) entry.group.position.set(target.x / PX, -target.y / PX, 0);
-        entry.group.scale.setScalar(1);
       });
       dirty = true;
+    },
+
+    // The model that turns on its own and that a drag on el turns (null:
+    // none). The one focused before goes home on its own.
+    setFocus: function (id, el) {
+      focusId = id === null || id === undefined ? null : String(id);
+      focusEl = el || focusEl;
+      entries.forEach(function (entry) {
+        var focused = entry.id === focusId;
+        if (focused && !entry.spin && entry.model && focusEl) entry.spin = toolkit.spinFor(entry.product, focusEl);
+        if (!entry.spin) return;
+        entry.spin.setEnabled(focused);
+        entry.spin.setIdle(focused);
+      });
+    },
+
+    // The element a drag starts on moved or changed size.
+    focusMoved: function () {
+      var entry = focusId !== null ? byId[focusId] : null;
+      if (entry && entry.spin) entry.spin.handleResize();
     },
 
     setPaused: function (on) {

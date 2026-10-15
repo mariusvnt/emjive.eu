@@ -42,6 +42,20 @@
                line up. When the hero is skipped (data-hero="skip") it is
                the first paint instead: the gallery's stack rests on it. -->
           <img class="reveal__img--xray" data-full="assets/series/bones/hero/hand_xray.webp" data-first-paint="skip" width="1920" height="1080" fetchpriority="low" decoding="async" alt="" />
+          <!-- The arm going on below the hand, two screens of it, hung under
+               the picture inside the group: when the gallery's stack pulls the
+               camera back (the group shrinks), the arm carries on down the
+               screen instead of stopping at the picture's bottom edge. Below
+               the pin until then, so not lazy — a lazy picture clipped by the
+               pin's overflow would only start loading once the pull-back had
+               brought it into view — but low priority, and preloaded like the
+               x-ray (data/series.json, hero.preload). A skipped hero lands
+               pulled back, the arm in sight, so it is part of that first paint
+               along with the x-ray (data-first-paint="skip": the page waits
+               for all of them, js/series.js) — or it would pop in after it.
+               Not shown in the grid view, which has no pull-back. -->
+          <img class="reveal__xray-extension reveal__xray-extension--1" data-full="assets/series/bones/hero/hand_xray_extension_1.webp" data-first-paint="skip" width="3840" height="2160" fetchpriority="low" decoding="async" alt="" />
+          <img class="reveal__xray-extension reveal__xray-extension--2" data-full="assets/series/bones/hero/hand_xray_extension_2.webp" data-first-paint="skip" width="3840" height="2160" fetchpriority="low" decoding="async" alt="" />
           <!-- .reveal__ring <img>s are inserted here by hero.js's
                updateHeroRings() — one per product whose
                hero-hand-visibility.visible is true in this series'

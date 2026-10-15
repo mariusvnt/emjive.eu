@@ -29,8 +29,10 @@
   // productId saved before it can name a different item now (joint's "09" is
   // omoplates'), so an older cart — version 1, or the bare array every
   // release before that wrote — is dropped rather than misread. Carts only
-  // ever lived on test devices then: there was no checkout yet.
-  var STORAGE_VERSION = 2;
+  // ever lived on test devices then: there was no checkout yet. Version 3
+  // came with prices that follow the size (priceAt below): an item saved
+  // before it carries the flat price, so those carts are dropped the same way.
+  var STORAGE_VERSION = 3;
 
   // localStorage is writable by anything on the origin and survives across
   // deploys, so what comes back can be stale, hand-edited or corrupt. One bad
@@ -214,6 +216,66 @@
     return price > 0 ? "€ " + price : "TBD";
   }
 
+  /* ---- prices by size --------------------------------------------------------
+     A product's per-metal-specs price is its price at REFERENCE_SIZE_MM (the
+     size the model is drawn at, 62 mm), and a price scales linearly with the
+     size: priceAt(size) = price x size / 62, whole euros. A product's
+     "size-range" ({ min, max }, in the category's unit) bounds the sizes it is
+     made in, so its price runs from priceAt(min) to priceAt(max) until a size
+     is chosen. A metal priced 0 is the "TBD" placeholder, at any size. */
+  var REFERENCE_SIZE_MM = 62;
+  var DEFAULT_SIZE_RANGE = { min: 40, max: 80 };
+
+  function sizeRange(product) {
+    var range = (product && product["size-range"]) || {};
+    var min = Number(range.min);
+    var max = Number(range.max);
+    return isFinite(min) && isFinite(max) && min > 0 && max >= min
+      ? { min: min, max: max }
+      : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
+  }
+
+  // The price of `metal` at a size (a number, or a size as typed). A size
+  // outside the range is held to it, as the product page's model is.
+  function priceAt(product, metal, size) {
+    var specs = product && product["per-metal-specs"] && product["per-metal-specs"][metal];
+    var base = specs && specs.price;
+    if (!(base > 0)) return 0;
+    var mm = parseFloat(size);
+    if (!isFinite(mm) || mm <= 0) return 0;
+    var range = sizeRange(product);
+    mm = Math.min(Math.max(mm, range.min), range.max);
+    return Math.round(base * mm / REFERENCE_SIZE_MM);
+  }
+
+  function priceRange(product, metal) {
+    var range = sizeRange(product);
+    return { min: priceAt(product, metal, range.min), max: priceAt(product, metal, range.max) };
+  }
+
+  // The lowest price the product is made at: over one metal (its price at the
+  // smallest size), or over all the metals priced so far (0, "TBD", takes no
+  // part). 0 if none is priced.
+  function priceFrom(product, metal) {
+    var specs = (product && product["per-metal-specs"]) || {};
+    var low = 0;
+    (metal ? [metal] : Object.keys(specs)).forEach(function (m) {
+      var price = priceRange(product, m).min;
+      if (price > 0 && (!low || price < low)) low = price;
+    });
+    return low;
+  }
+
+  function formatPriceFrom(price) {
+    return price > 0 ? "from " + formatPrice(price) : "TBD";
+  }
+
+  function formatPriceRange(range) {
+    if (!(range.max > 0)) return "TBD";
+    if (range.min === range.max) return formatPrice(range.min);
+    return "€ " + range.min + " – " + range.max;
+  }
+
   /* ---- sizes ---------------------------------------------------------------
      A size is whatever the visitor types into the one size field both sheets
      have (js/product.js's #sizeModal, js/modify-modal.js's #modifyModal) —
@@ -337,6 +399,13 @@
     updateItem: updateItem,
     clear: clear,
     formatPrice: formatPrice,
+    priceFrom: priceFrom,
+    formatPriceFrom: formatPriceFrom,
+    formatPriceRange: formatPriceRange,
+    REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
+    sizeRange: sizeRange,
+    priceAt: priceAt,
+    priceRange: priceRange,
     sanitizeSizeInput: sanitizeSizeInput,
     normalizeSize: normalizeSize,
     isValidSize: isValidSize,

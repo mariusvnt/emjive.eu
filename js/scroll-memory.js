@@ -152,7 +152,7 @@
     return;
   }
 
-  // The whole record for this entry: { y, h, hero, view }.
+  // The whole record for this entry: { y, h, hero, view, wheel }.
   function readEntry() {
     try {
       var raw = window.sessionStorage.getItem(STORAGE_PREFIX + key);
@@ -175,6 +175,13 @@
   // js/gallery.js reports as the visitor changes it (remember() below).
   var landing = decideLanding(readEntry());
 
+  // The product the visitor left at the top of the gallery's wheel
+  // (js/gallery-stack.js), so Back finds the wheel turned the same way.
+  var wheel = (function () {
+    var entry = readEntry();
+    return entry && entry.wheel ? String(entry.wheel) : null;
+  })();
+
   /* ---- saving ------------------------------------------------------------ */
 
   // The height is stored alongside the offset because that's what makes the
@@ -187,7 +194,8 @@
         y: Math.round(window.pageYOffset || window.scrollY || 0),
         h: Math.round(html.scrollHeight),
         hero: landing.hero,
-        view: landing.view
+        view: landing.view,
+        wheel: wheel
       }));
     } catch (e) { /* private mode / quota — nothing to do */ }
   }
@@ -430,6 +438,15 @@
       if (patch.view === "stack" || patch.view === "grid") landing.view = patch.view;
       save();
     },
+
+    // js/gallery-stack.js: the product at the top of the wheel, once the
+    // visitor has turned it (an id), and the one this entry left there (null:
+    // none — the wheel as it lands). Kept with the rest of the entry.
+    rememberWheel: function (id) {
+      wheel = id === null || id === undefined ? null : String(id);
+      save();
+    },
+    wheel: function () { return wheel; },
 
     // Called by js/gallery.js the moment the gallery has been rendered and
     // filtered — the last thing that changes the document's height.

@@ -3,12 +3,12 @@
 
    Two views of the active series' products, one at a time — data-gallery-view
    on <html>, decided in the <head> by js/scroll-memory.js:
-     stack  the products come up out of the hero onto the x-ray hand, and the
-            visitor picks one out of the stack to look at (js/gallery-stack.js,
-            mounted from here);
-     grid   tiles in columns, built here: no 3D, each tile a strip of slides
-            (the model's own view, then the photos) swiped sideways; a tap
-            goes to the product's page.
+     stack  the camera pulls back from the x-ray hand to the products on a
+            circle round its wrist, a plate the visitor turns to bring one to
+            the top (js/gallery-stack.js, mounted from here);
+     grid   a table, a product a row, built here: no 3D, each row's picture
+            a strip of slides (the model's own view, then the photos) swiped
+            sideways; a tap goes to the product's page.
    And the hero: data-hero="play" plays the reveal first, "skip" lands on the
    gallery at rest. It plays once per device — this file sets the seen flag
    once it has played out.
@@ -90,6 +90,8 @@
     cats: [],
     onShowAll: null,
     emptyMsg: null,
+    // Whether the grid has a Category column: the series has more than one.
+    withCategory: false,
     // The entrance's progress, as the hero last published it.
     stage: null
   };
@@ -133,11 +135,12 @@
     // What it shows (an icon and a word) is css/style.css's, keyed on the
     // same attribute; this is its name.
     if (!viewToggle) return;
-    viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to stack view" : "switch to grid view");
-    // In the stack view it comes only once the visitor has scrolled down all
-    // the way to the stack (the entrance done); the grid's button is always
+    viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to list");
+    // In the stack view it comes only once the visitor has scrolled down to
+    // the wheel (the entrance as good as done: from the point the wheel counts
+    // as landed, js/gallery-stack.js LAND_AT); the grid's button is always
     // there.
-    viewToggle.classList.toggle("is-ready", view() === "grid" || state.stage === 1);
+    viewToggle.classList.toggle("is-ready", view() === "grid" || (state.stage !== null && state.stage >= 0.9));
   }
 
   // Either view lands at rest: the hero has had its turn (a visitor leaving
@@ -179,12 +182,12 @@
   syncControls();
 
   /* ---- the grid ---------------------------------------------------------------
-     A tile: its pictures in a strip (the model's own default view — the
-     fallback-img the 3D viewer starts from elsewhere, or the icon for a
-     product with no model — then the photos), dots under them when there's
-     more than one, and the name. Swiped natively (overflow + scroll snap): a
-     swipe that scrolls never becomes a click, so a click anywhere on the
-     tile is a tap meant for it. */
+     A header row, then a row (a tile) a product: its index, its pictures in a
+     strip (the model's own default view — the fallback-img the 3D viewer
+     starts from elsewhere, or the icon for a product with no model — then the
+     photos), dots under them when there's more than one, and its facts.
+     Swiped natively (overflow + scroll snap): a swipe that scrolls never
+     becomes a click, so a click anywhere on the tile is a tap meant for it. */
   function slide(src, alt, modifier) {
     var img = el("img", "grid-tile__slide " + modifier);
     img.src = src;
@@ -224,8 +227,77 @@
     window.location.href = window.EmjiveSeries.productHref(product, state.slug);
   }
 
-  function buildTile(product) {
+  // The columns of a row's facts, in order: Id (the name — also the row's
+  // button for a keyboard), Category (only where the series has more than
+  // one), Size (the range it is made in) and Price (what it starts at, over
+  // all the metals: the price follows the size, js/selection.js priceAt).
+  var FACTS = [
+    { key: "name", label: "Id" },
+    { key: "category", label: "Category" },
+    { key: "size", label: "Size" },
+    { key: "price", label: "Price" }
+  ];
+
+  function factKeys() {
+    return FACTS.filter(function (fact) { return fact.key !== "category" || state.withCategory; });
+  }
+
+  // The header row: the same cells as a product's row, the labels in them,
+  // so it lines up with the rows at every width (css/style.css). Only seen —
+  // each row's facts carry their own labels for a screen reader.
+  function buildHead() {
+    var head = el("div", "grid-tile grid-tile--head");
+    head.setAttribute("aria-hidden", "true");
+    head.appendChild(el("span", "grid-tile__index", "No."));
+    var body = el("div", "grid-tile__body");
+    var facts = el("div", "grid-tile__facts");
+    factKeys().forEach(function (fact) {
+      facts.appendChild(el("span", "grid-tile__fact grid-tile__fact--" + fact.key, fact.label));
+    });
+    body.appendChild(facts);
+    head.appendChild(body);
+    return head;
+  }
+
+  function factValue(product, key) {
+    var sel = window.EmjiveSelection;
+    var name = product.name || "";
+    if (key === "name") {
+      var dd = el("dd");
+      var open = el("button", "grid-tile__name", name);
+      open.type = "button";
+      open.setAttribute("aria-label", "Open " + name + (product.category ? ", " + product.category : ""));
+      dd.appendChild(open);
+      return dd;
+    }
+    if (key === "category") return el("dd", "", (product.category || "").toLowerCase());
+    if (key === "size") {
+      var range = sel.sizeRange(product);
+      var unit = window.EmjiveSeries.categoryInfo(product.category).unit;
+      return el("dd", "", range.min + " – " + range.max + (unit ? " " + unit : ""));
+    }
+    return el("dd", "", sel.formatPriceFrom(sel.priceFrom(product)));
+  }
+
+  function buildFacts(product) {
+    var list = el("dl", "grid-tile__facts");
+    factKeys().forEach(function (fact) {
+      var row = el("div", "grid-tile__fact grid-tile__fact--" + fact.key);
+      row.appendChild(el("dt", "visually-hidden", fact.label));
+      row.appendChild(factValue(product, fact.key));
+      list.appendChild(row);
+    });
+    return list;
+  }
+
+  // The index is the product's place in the series (01, 02 …): a catalogue
+  // number, kept as the filter hides rows around it.
+  function buildTile(product, index) {
     var tile = el("article", "grid-tile");
+    var number = index + 1;
+    var indexCell = el("span", "grid-tile__index", (number < 10 ? "0" : "") + number);
+    indexCell.setAttribute("aria-hidden", "true");
+    tile.appendChild(indexCell);
     var frame = el("div", "grid-tile__frame");
     var slides = el("div", "grid-tile__slides");
     var assets = product.assets || {};
@@ -259,14 +331,12 @@
       frame.appendChild(dots);
       wireDots(slides, dots);
     }
-    tile.appendChild(frame);
-
-    var label = el("button", "grid-tile__label");
-    label.type = "button";
-    label.setAttribute("aria-label", "Open " + name + (product.category ? ", " + product.category : ""));
-    label.appendChild(el("span", "grid-tile__label-name", name));
-    if (product.category) label.appendChild(el("span", "grid-tile__label-type", "." + product.category.toLowerCase()));
-    tile.appendChild(label);
+    // The body: the picture, then beside it the item's facts, a column each
+    // (css/style.css).
+    var body = el("div", "grid-tile__body");
+    body.appendChild(frame);
+    body.appendChild(buildFacts(product));
+    tile.appendChild(body);
 
     tile.addEventListener("click", function () { openProduct(product); });
 
@@ -280,8 +350,11 @@
 
   function renderGrid(products) {
     grid.innerHTML = "";
-    state.tiles = products.map(function (product) {
-      var tile = buildTile(product);
+    state.withCategory = Object.keys(counts()).length > 1;
+    grid.classList.toggle("has-category", state.withCategory);
+    if (products.length) grid.appendChild(buildHead());
+    state.tiles = products.map(function (product, index) {
+      var tile = buildTile(product, index);
       grid.appendChild(tile.el);
       return tile;
     });

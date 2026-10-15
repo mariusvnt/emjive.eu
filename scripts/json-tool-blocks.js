@@ -459,6 +459,7 @@ function renderProductBlock(p, metals) {
     '      "per-metal-specs": {',
     perMetal,
     "      },",
+    ...(p["size-range"] ? ['      "size-range": { "min": ' + num(p["size-range"].min) + ', "max": ' + num(p["size-range"].max) + " },"] : []),
     ...(geometry ? [geometry] : []),
     '      "hero-hand-visibility": { "visible": ' + bool(hhv.visible) + ', "x": ' + num(hhv.x) + ', "y": ' + num(hhv.y) + ', "scale": ' + num(hhv.scale) + ', "rotation": ' + num(hhv.rotation) + " },",
     // roll is optional (three-viewer.js defaults it to 0), so it's only

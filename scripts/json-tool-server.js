@@ -729,6 +729,7 @@ async function handleProductAdd(req, res) {
     description: body.description || "",
     "default-metal": body.defaultMetal || metals[0] || "",
     "per-metal-specs": body.perMetalSpecs || {},
+    "size-range": body.sizeRange || { min: 40, max: 80 },
     "hero-hand-visibility": body.heroHandVisibility || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 },
     "3d-viewer-camera-default": body.cameraDefault || { rotation: 0, tilt: 75, zoom: 105 },
     assets

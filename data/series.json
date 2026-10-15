@@ -82,7 +82,9 @@
         "js":       "series/bones/hero.js",
         "preload": [
           "assets/series/bones/hero/hand-rings-under-flesh_3k.webp",
-          "assets/series/bones/hero/hand_xray.webp"
+          "assets/series/bones/hero/hand_xray.webp",
+          "assets/series/bones/hero/hand_xray_extension_1.webp",
+          "assets/series/bones/hero/hand_xray_extension_2.webp"
         ]
       }
     }

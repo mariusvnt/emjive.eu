@@ -89,6 +89,9 @@
     // none: the label bar then shows no size).
     sizeFactor: 1,
     sizeText: "",
+    // Whether a metal has been picked on the page yet (the default one is not
+    // a pick): the price reads from the lowest of all the metals until then.
+    metalPicked: false,
     // The size circle's elements (wireSizeRing) and its sizes as last worked
     // out (syncSizeRing).
     sizeRing: null,
@@ -269,6 +272,9 @@
     document.title = (product.name || "Product") + " — em·ji·ve";
     updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
+    var sizes = window.EmjiveSelection.sizeRange(product);
+    SIZE_MIN_MM = sizes.min;
+    SIZE_MAX_MM = sizes.max;
     // The product opens on its default design.
     state.view = window.EmjiveSeries.resolveDesign(product).view;
     state.designKey = state.view.designKey;
@@ -501,10 +507,14 @@
     }
   }
 
+  // "from" the lowest price over all the metals until one is picked, "from"
+  // the picked metal's lowest until a size is given for the first time, then
+  // the price at that size.
   function renderLabelPrice(product) {
-    var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
-    document.getElementById("productLabelPrice").textContent =
-      window.EmjiveSelection.formatPrice(details.price || 0);
+    var sel = window.EmjiveSelection;
+    document.getElementById("productLabelPrice").textContent = state.sizeText
+      ? sel.formatPrice(sel.priceAt(product, state.selectedMetal, state.sizeText))
+      : sel.formatPriceFrom(sel.priceFrom(product, state.metalPicked ? state.selectedMetal : ""));
   }
 
   /* ---- 2. the feed (inspiration) ------------------------------------------ */
@@ -1201,7 +1211,12 @@
   }
 
   function onMetalSelect(product, metal) {
-    if (metal === state.selectedMetal) return;
+    var firstPick = !state.metalPicked;
+    state.metalPicked = true;
+    if (metal === state.selectedMetal) {
+      if (firstPick) renderLabelPrice(product);
+      return;
+    }
     state.selectedMetal = metal;
     renderLabelType(product);
     renderLabelPrice(product);
@@ -1788,6 +1803,9 @@
   var SPECS_HALF_HEIGHT = 0.13;
   // The gap before the model in specs, on top of where it would stand: 7.5rem.
   var SPECS_GAP_REM = 7.5;
+  // The base is the size the model is drawn at, and the one its price is for
+  // (EmjiveSelection.priceAt). The ends are the product's own size-range,
+  // set when it renders.
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 80;
@@ -1800,6 +1818,7 @@
     if (state.product) {
       renderSpecs();
       renderLabelType(state.product);
+      renderLabelPrice(state.product);
     }
     syncSizeRing();
   }
@@ -2165,8 +2184,8 @@
     // guard below is belt and braces against a stale callback.
     function confirmAdd(quiet) {
       if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
-      var details = (product["per-metal-specs"] && product["per-metal-specs"][state.selectedMetal]) || {};
       var view = state.view;
+      var size = window.EmjiveSelection.normalizeSize(customInput.value);
       var item = {
         // Which series this came from — product ids are only unique within
         // one, so the id alone no longer identifies a piece.
@@ -2178,8 +2197,8 @@
         category: product.category,
         metal: state.selectedMetal,
         // Stored in its one canonical form ("62.5" -> "62.50", "62." -> "62").
-        size: window.EmjiveSelection.normalizeSize(customInput.value),
-        price: details.price || 0,
+        size: size,
+        price: window.EmjiveSelection.priceAt(product, state.selectedMetal, size),
         image: (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || ""
       };
       if (product.designs) item.design = state.designKey;

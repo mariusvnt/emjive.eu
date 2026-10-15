@@ -383,11 +383,11 @@
   // field mustn't blank the row's label under the sheet.
   function draftValues() {
     var sel = window.EmjiveSelection;
-    var details = (state.product["per-metal-specs"] && state.product["per-metal-specs"][state.selectedMetal]) || {};
+    var size = sel.isValidSize(sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size;
     return {
       metal: state.selectedMetal,
-      size: sel.isValidSize(sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size,
-      price: details.price || 0,
+      size: size,
+      price: sel.priceAt(state.product, state.selectedMetal, size),
       image: iconSrc(state.selectedMetal)
     };
   }
@@ -886,7 +886,6 @@
     // the gallery shows (picking another is the product page's job).
     product = window.EmjiveSeries.resolveDesign(product).view;
     var metal = product["default-metal"];
-    var specs = (product["per-metal-specs"] && product["per-metal-specs"][metal]) || {};
     var icons = (product.assets && product.assets.icons) || {};
     var lastSize = "";
     var selection = window.EmjiveSelection.getSelection();
@@ -903,7 +902,7 @@
       category: product.category,
       metal: metal,
       size: lastSize,
-      price: specs.price || 0,
+      price: window.EmjiveSelection.priceAt(product, metal, lastSize),
       image: icons[metal] || ""
     };
     if (product.designKey) item.design = product.designKey;

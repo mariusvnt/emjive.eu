@@ -1,24 +1,32 @@
 /* ==========================================================================
    em·ji·ve — the gallery's stack (index.html only)
 
-   The products come to the hand. Once the hero's x-ray wipe is over, the
-   page stays pinned on the hand and the scrolling carries on into the
+   The camera pulls back from the hand. Once the hero's x-ray wipe is over,
+   the page stays pinned on the hand and the scrolling carries on into the
    entrance (series/<slug>/hero.js publishes its progress, 0 to 1, through
-   window.EmjiveHero.onStage): the products rise from under the screen like a
-   wave, left to right, while the rings on the hand pop off it and turn in
-   place before flying to their own places, and the hand fades back. Then
-   they float, spread over the screen, each rocking very slowly about the
-   axis pointing at the visitor. A tap on one opens its page.
+   window.EmjiveHero.onStage): the hand and its rings shrink, as if the
+   camera were zooming out, and the x-ray fades back, showing that the other
+   products were there all along — on a big circle round the wrist, which the
+   rings on the hand were already almost on. Those slide along it to their
+   own places as the camera pulls back.
 
-   Two ways of drawing the stack, the same layout and the same wave:
+   Then the circle is a plate to turn. The product at its top (noon) is
+   focused: bigger, its model turning slowly on its own and turned by a drag
+   on it (the viewers' own spin, coasting and easing back home, then turning
+   on its own again after a pause), its name in the middle of the circle as
+   a button to its page. A tap on another product turns the plate to bring
+   it to the top; a drag round the circle turns the plate with the pointer,
+   coasts, and settles with a product at the top. Each product stays upright
+   wherever it is on the circle.
+
+   Two ways of drawing the stack, the same circle and the same pull-back:
      - the 3D stack (js/stack-scene.js, a lazy chunk with three.js): every
        model in one shared canvas. It takes over from the pictures once it
        has loaded;
      - the image stack: each product's default view (fallback-img), the very
        picture its 3D model is framed to match — the first paint, and all of
        the stack where the 3D one can't run (no WebGL, reduced motion, the
-       chunk failing). It doesn't float; it lays itself out again, with a
-       glide, when the filter changes.
+       chunk failing). The focused one can't be turned.
 
    window.EmjiveGalleryStack = { mount(stage, options) } -> {
      setFilter(ids), setActive(on)
@@ -29,70 +37,79 @@
   "use strict";
 
   // ---- the entrance ---------------------------------------------------------
-  // How much of the entrance the items' starts are spread over, left to
-  // right: the last one sets off at this point and still lands at the end.
-  var WAVE_SPREAD = 0.45;
-  // A ring's pop off the hand takes this much of the entrance, turning in
-  // place at its size on the hand; it then flies for the rest.
-  var POP_END = 0.25;
-  // How far an item is turned as it sets off (it untwists as it rises).
-  var TUMBLE_DEG = 25;
+  // The rings on the hand slide along the circle to their own places over
+  // this part of the entrance.
+  var SLIDE_START = 0.15;
+  var SLIDE_END = 0.85;
+  // The other products come into sight over this part of it, as the x-ray
+  // fades back (series/<slug>/hero.js).
+  var APPEAR_START = 0.1;
+  var APPEAR_END = 0.7;
+  // The wheel counts as landed — the button in its middle there, the plate
+  // and the focused model answering — from this point of the entrance, a bit
+  // before its very end: the camera is 99.6% of the way back by then (its
+  // ease is all but flat), and a page coming Back a little short of its old
+  // offset (a phone's toolbar back, the screen shorter) still lands on it.
+  var LAND_AT = 0.9;
 
-  // ---- the layout ---------------------------------------------------------
-  // Each item rests turned by up to this much.
-  var TILT_DEG = 8;
-  // An item's size as a share of its cell, and its bounds in px.
-  var SIZE_IN_CELL = 0.74;
-  var SIZE_MIN = 56;
-  var SIZE_MAX = 240;
-  // How far an item may wander from its cell's middle, as a share of the
-  // room it has there.
-  var JITTER = 0.6;
+  // ---- the circle -------------------------------------------------------------
+  // A product's size, as a share of the arc of the circle each one has.
+  var SPACING_FILL = 0.6;
+  // The focused one's size, as a multiple of the others'.
+  var FOCUS_SCALE = 2;
+  // Sizes' bounds, in px.
+  var SIZE_MIN = 40;
+  var SIZE_MAX = 200;
+  // The room kept between the circle (its focused product included) and the
+  // edges of the space it lives in, in px.
+  var MARGIN = 12;
+  // Once the camera has pulled back on a landscape screen, the hand's
+  // fingertips stay at least this far (px) under the header: there the circle
+  // is sized by the screen's height and the hand is big, so it is lowered
+  // under the circle by as much as that takes (handDrop). On a portrait
+  // screen the wrist always stays on the circle's middle.
+  var HAND_TOP_GAP = 24;
 
-  // ---- moving ---------------------------------------------------------------
-  // The image stack's glide to a new place (css/style.css .stack-item.is-moving
-  // has the same).
-  var FLY_MS = 550;
-  // A press that moves further than this is a scroll, not a tap.
+  // ---- turning ----------------------------------------------------------------
+  // A press that moves further than this is a drag, not a tap.
   var TAP_SLOP = 6;
+  // The share of the pointer's turn round the circle the plate follows: it
+  // turns half as far, which reads as a heavier plate.
+  var DRAG_GAIN = 0.5;
+  // A plate let go coasts, slowing by this rate (1/s), until it is slow
+  // enough (rad/s) to settle on the nearest place.
+  var COAST_DECAY = 3.5;
+  var SETTLE_SPEED = 0.8;
+  // How long settling, and a turn to a tapped product, take.
+  var SETTLE_MS = 450;
+  var TURN_MS = 700;
+  // The products finding their new places (the filter changed, the screen).
+  var FLY_MS = 550;
 
   var reducedMotion = window.matchMedia
     ? window.matchMedia("(prefers-reduced-motion: reduce)")
     : { matches: false };
 
+  var TAU = Math.PI * 2;
+
   function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
   function clamp01(x) { return clamp(x, 0, 1); }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-  // Overshoots its end a little and settles back: the wave's crest.
-  function easeOutBack(t) {
-    var c1 = 1.4;
-    var c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-  }
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
   function smoothstep(a, b, x) {
     var t = clamp01((x - a) / (b - a));
     return t * t * (3 - 2 * t);
   }
-
-  // A seeded random sequence: the layout is the same on every visit.
-  function hash(str) {
-    var h = 2166136261;
-    for (var i = 0; i < str.length; i++) {
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
+  // An angle brought into (-PI, PI].
+  function wrap(a) {
+    a = (a + Math.PI) % TAU;
+    if (a < 0) a += TAU;
+    return a - Math.PI;
   }
-  function seeded(seed) {
-    var a = seed >>> 0;
-    return function () {
-      a = (a + 0x6D2B79F5) >>> 0;
-      var t = a;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+  // The angle of (x, y) about (cx, cy), clockwise from noon.
+  function angleAbout(cx, cy, x, y) {
+    return Math.atan2(x - cx, cy - y);
   }
 
   function el(tag, className, text) {
@@ -100,52 +117,6 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
-  }
-
-  /* ---- the wave -------------------------------------------------------------
-     One item's progress at entrance p, shared by both stacks:
-       u     how far it has come from its start to its place (0 to 1, a
-             little past 1 on the crest)
-       spin  how much of its tumble it still has (1 to 0)
-       ring  how much of a ring's top shot still shows (1 to 0) */
-  function waveAt(item, p) {
-    if (p >= 1) return { u: 1, spin: 0, ring: 0 };
-    if (item.ringStart) {
-      if (p <= POP_END) {
-        return { u: 0, spin: 0, ring: 1 };
-      }
-      var f = clamp01((p - POP_END) / (1 - POP_END));
-      return { u: easeInOutCubic(f), spin: 0, ring: 1 - smoothstep(0, 0.5, f) };
-    }
-    var t = clamp01((p - item.delay) / (1 - WAVE_SPREAD));
-    return { u: easeOutBack(t), spin: 1 - t, ring: 0 };
-  }
-
-  // Where an item is at entrance p, in px of the screen: its middle (x, y),
-  // its turn (rot, degrees clockwise), its size, and what's left of its top
-  // shot. For the 3D stack, which turns a model in three dimensions rather
-  // than a picture in two: spin, the wave's tumble on top of the item's rest;
-  // and for a ring off the hand, fromRing, the turn it lay at (ringRot) and
-  // how far it has come (u) — the model swings from its top view to its
-  // place as it flies.
-  function poseAt(item, p) {
-    var w = waveAt(item, p);
-    var t = item.target;
-    var s = item.ringStart || { x: t.x, y: window.innerHeight + t.size, rot: t.rot, size: t.size };
-    var u = clamp01(w.u);
-    var spin = w.spin * item.tumble;
-    return {
-      x: lerp(s.x, t.x, u),
-      // The crest's overshoot, upward only.
-      y: lerp(s.y, t.y, w.u),
-      rot: lerp(s.rot, t.rot, u) + spin,
-      spin: spin,
-      size: lerp(s.size, t.size, u),
-      ring: w.ring,
-      fromRing: !!item.ringStart,
-      ringRot: s.rot,
-      u: u
-    };
   }
 
   function mount(stage, options) {
@@ -158,16 +129,27 @@
       active: options.active !== false,
       // The entrance's progress (null: nothing published yet).
       p: null,
+      // The plate's turn (radians, clockwise): slot k is at k * step + theta.
+      theta: 0,
       items: [],
       byId: {},
+      // The circle and the camera (orbitLayout()).
+      L: null,
+      // The focused item.
+      focus: null,
       // The 3D stack, once it has taken over; and its build in flight.
       scene: null,
       sceneToken: 0,
       sceneLoading: false,
       // The Modify sheet is up: the stack holds still behind it.
       suspended: false,
-      // Items gliding in the image stack (no handover to 3D meanwhile).
-      moving: 0
+      // The visitor has turned the plate (or tapped it).
+      touched: false,
+      // The product this history entry left at the top (Back to the page:
+      // js/scroll-memory.js), to turn the plate back to.
+      restoreId: window.EmjiveScrollMemory && window.EmjiveScrollMemory.wheel
+        ? window.EmjiveScrollMemory.wheel()
+        : null
     };
 
     /* ---- the DOM ------------------------------------------------------------ */
@@ -175,8 +157,28 @@
     var lightEl = el("div", "stack-light");
     stage.appendChild(lightEl);
 
-    // For the keyboard and screen readers: one link per product, to its page,
-    // as a tap on it goes (the stack itself is a picture).
+    // Over the focused product: where a drag that turns its model starts.
+    var spinEl = el("div", "stack-spin");
+    spinEl.setAttribute("aria-hidden", "true");
+    stage.appendChild(spinEl);
+
+    // In the middle of the circle, one button to the focused product's page:
+    // an arrow, then its name. Every product's name is in it, one on top of
+    // another (buildItem), the focused one showing: the names' cell is as wide
+    // as the longest, so neither the arrow nor the names' right edge ever
+    // moves, and a name fades out as the next fades in however fast the plate
+    // goes past them.
+    var orbitEl = el("div", "stack-orbit");
+    var goEl = el("button", "stack-orbit__go");
+    goEl.type = "button";
+    goEl.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12 H21 M14 5 L21 12 L14 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
+    var namesEl = el("span", "stack-orbit__names");
+    goEl.appendChild(namesEl);
+    orbitEl.appendChild(goEl);
+    stage.appendChild(orbitEl);
+
+    // For the keyboard and screen readers: one link per product, to its page
+    // (the stack itself is a picture).
     var listEl = el("ul", "visually-hidden");
     listEl.setAttribute("aria-label", "Products");
     stage.appendChild(listEl);
@@ -208,6 +210,10 @@
         itemEl.appendChild(ringImg);
       }
       itemEl.dataset.id = product.id;
+
+      var nameEl = el("span", "stack-orbit__name", product.name || "");
+      nameEl.setAttribute("aria-hidden", "true");
+      namesEl.appendChild(nameEl);
       lightEl.appendChild(itemEl);
 
       var href = window.EmjiveSeries.productHref(product, slug);
@@ -217,7 +223,7 @@
       li.appendChild(link);
       listEl.appendChild(li);
 
-      var item = {
+      return {
         id: String(product.id),
         product: product,
         href: href,
@@ -225,14 +231,16 @@
         img: img,
         ringImg: ringImg,
         listItem: li,
+        nameEl: nameEl,
         visible: true,
-        target: { x: 0, y: 0, rot: 0, size: SIZE_MIN },
-        tumble: TUMBLE_DEG,
-        delay: 0,
-        // Measured off the hand when the entrance begins: { x, y, rot, size }.
-        ringStart: null
+        // Its place on the circle (orbitLayout()).
+        slot: 0,
+        // Where it lies on the hand, if it does: { angle, dist, size, rot },
+        // about the wrist, at the hero's own scale.
+        hand: null,
+        // Its pose as last drawn.
+        pose: null
       };
-      return item;
     }
 
     products.forEach(function (product) {
@@ -241,8 +249,12 @@
       state.byId[item.id] = item;
     });
 
+    function visibleItems() {
+      return state.items.filter(function (item) { return item.visible; });
+    }
+
     /* ---- geometry -------------------------------------------------------------
-       The domain the stack lives in: under the header and the controls,
+       The domain the circle lives in: under the header and the controls,
        over the selection bar's summary row, the screen's full width. */
     function barHeight() {
       var summary = document.querySelector(".selection-bar__summary");
@@ -255,68 +267,232 @@
       return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, window.innerHeight - barHeight()) };
     }
 
-    // A grid of cells over the domain, the column count the one that gives
-    // the items the most room, the last row centred; each item somewhere in
-    // its cell (seeded), slightly turned.
-    function layout() {
-      var list = state.items.filter(function (item) { return item.visible; });
-      var n = list.length;
-      if (!n) return;
-      var d = domain();
-      var w = d.right - d.left;
-      var h = Math.max(1, d.bottom - d.top);
-      var best = { cols: 1, cell: 0 };
-      for (var c = 1; c <= n; c++) {
-        var r = Math.ceil(n / c);
-        var cell = Math.min(w / c, h / r);
-        if (cell > best.cell) best = { cols: c, cell: cell };
-      }
-      var cols = best.cols;
-      var rows = Math.ceil(n / cols);
-      var cellW = w / cols;
-      var cellH = h / rows;
-      var size = clamp(Math.min(cellW, cellH) * SIZE_IN_CELL, SIZE_MIN, SIZE_MAX);
-      var order = list.slice().sort(function (a, b) {
-        return hash(a.id + "|" + slug) - hash(b.id + "|" + slug);
-      });
-      order.forEach(function (item, i) {
-        var row = Math.floor(i / cols);
-        var col = i % cols;
-        var inRow = row === rows - 1 ? n - row * cols : cols;
-        var x0 = d.left + (w - inRow * cellW) / 2;
-        var rand = seeded(hash(item.id + "|" + slug + "|" + n));
-        item.target = {
-          x: x0 + (col + 0.5) * cellW + (rand() * 2 - 1) * JITTER * Math.max(0, cellW - size) / 2,
-          y: d.top + (row + 0.5) * cellH + (rand() * 2 - 1) * JITTER * Math.max(0, cellH - size) / 2,
-          rot: (rand() * 2 - 1) * TILT_DEG,
-          size: size
-        };
-        item.tumble = (rand() < 0.5 ? -1 : 1) * TUMBLE_DEG;
-        item.delay = clamp01((item.target.x - d.left) / w) * WAVE_SPREAD;
-        item.el.style.width = size + "px";
-        item.el.style.height = size + "px";
-      });
+    function hero() {
+      return window.EmjiveSeriesHero || null;
     }
 
-    /* ---- the rings on the hand --------------------------------------------- */
     function heroRings() {
-      var hero = window.EmjiveSeriesHero;
-      return hero && hero.rings ? hero.rings() : [];
+      var h = hero();
+      return h && h.rings ? h.rings() : [];
     }
 
-    // Where each ring lies on the hand, as the item that takes it over will
-    // start: its middle, its turn, its width (the ring's own, unturned).
-    function measureRings() {
-      state.items.forEach(function (item) { item.ringStart = null; });
-      heroRings().forEach(function (ring) {
-        var item = state.byId[String(ring.id)];
-        if (!item || !item.ringImg) return;
-        var r = ring.el.getBoundingClientRect();
-        var width = ring.el.offsetWidth;
-        if (!width) return;
-        item.ringStart = { x: r.left + r.width / 2, y: r.top + r.height / 2, rot: ring.rotation, size: width };
+    // The slots the rings on the hand take: the ones that make them slide
+    // the least along the circle, over every way of giving them out
+    // (hand: [{ item, angle }], n slots).
+    function assignHandSlots(hand, n, step) {
+      var best = null;
+      var bestCost = Infinity;
+      var taken = [];
+      var picks = [];
+      (function search(i, cost) {
+        if (cost >= bestCost) return;
+        if (i === hand.length) {
+          bestCost = cost;
+          best = picks.slice();
+          return;
+        }
+        for (var k = 0; k < n; k++) {
+          if (taken[k]) continue;
+          taken[k] = true;
+          picks.push(k);
+          search(i + 1, cost + Math.abs(wrap(k * step - hand[i].angle)));
+          picks.pop();
+          taken[k] = false;
+        }
+      })(0, 0);
+      return best || [];
+    }
+
+    /* The circle, where it ends up and where it starts:
+         c1, R1   its middle and radius once the camera has pulled back (the
+                  middle of the domain; as big as fits with its focused
+                  product);
+         c0, r0   the same at the hero's own scale — the wrist, and how far
+                  the rings on the hand are from it (hero.orbit());
+         z        how far the camera pulls back (R1 / r0);
+         s, S     a product's size, and the focused one's;
+         step     the angle between two places.
+       Then every visible product gets a place: the rings on the hand the
+       nearest ones they can, the rest the free ones in catalog order. */
+    function orbitLayout() {
+      var list = visibleItems();
+      var n = list.length;
+      if (!n) {
+        state.L = null;
+        return;
+      }
+      var d = domain();
+      var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
+      var half = Math.max(1, Math.min(d.right - d.left, d.bottom - d.top) / 2 - MARGIN);
+      var step = TAU / n;
+      var k = SPACING_FILL * step;
+      var R1 = half / (1 + FOCUS_SCALE * k / 2);
+      var s = k * R1;
+      if (s > SIZE_MAX || s < SIZE_MIN) {
+        s = clamp(s, SIZE_MIN, SIZE_MAX);
+        R1 = Math.max(1, half - FOCUS_SCALE * s / 2);
+      }
+      var h = hero();
+      var orbit = h && h.orbit ? h.orbit() : null;
+      var c0 = orbit ? { x: orbit.x, y: orbit.y } : c1;
+      var r0 = orbit && orbit.r > 0 ? orbit.r : R1;
+
+      // The rings on the hand, about the wrist.
+      var rings = {};
+      heroRings().forEach(function (ring) { rings[String(ring.id)] = ring; });
+      var hand = [];
+      list.forEach(function (item) {
+        item.hand = null;
+        var ring = rings[item.id];
+        if (!orbit || !ring || !item.ringImg || !ring.size) return;
+        item.hand = {
+          angle: angleAbout(c0.x, c0.y, ring.x, ring.y),
+          dist: Math.sqrt(Math.pow(ring.x - c0.x, 2) + Math.pow(ring.y - c0.y, 2)),
+          size: ring.size,
+          rot: ring.rotation
+        };
+        hand.push({ item: item, angle: item.hand.angle });
+      });
+      state.items.forEach(function (item) { if (!item.visible) item.hand = null; });
+
+      var taken = [];
+      assignHandSlots(hand, n, step).forEach(function (slot, i) {
+        hand[i].item.slot = slot;
+        taken[slot] = true;
+      });
+      var next = 0;
+      list.forEach(function (item) {
+        if (item.hand) return;
+        while (taken[next]) next++;
+        item.slot = next;
+        taken[next] = true;
+      });
+
+      // Where the fingertips land, pulled back, and how far the hand has to
+      // go down to clear the header with them.
+      var z = R1 / r0;
+      var handDrop = 0;
+      if (orbit && isFinite(orbit.top) && window.innerWidth > window.innerHeight) {
+        var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+        var tipY = c1.y + z * (orbit.top - c0.y);
+        handDrop = Math.max(0, headerBottom + HAND_TOP_GAP - tipY);
+      }
+
+      state.L = {
+        n: n, step: step, c0: c0, r0: r0, c1: c1, R1: R1, z: z, handDrop: handDrop,
+        s: s, S: s * FOCUS_SCALE, fromHero: !!orbit, ringsSeen: heroRings().length
+      };
+      list.forEach(function (item) {
+        item.el.style.width = s + "px";
+        item.el.style.height = s + "px";
       });
     }
+
+    // The plate's turn as it lands: the product this history entry left at
+    // the top brought back there, or the first place at the top.
+    function homeTheta() {
+      var item = state.restoreId ? state.byId[state.restoreId] : null;
+      return item && item.visible && state.L ? -item.slot * state.L.step : 0;
+    }
+
+    // The layout is redone once what it is made of has arrived: the hero (its
+    // circle, the rings on its hand) may land after the stack is mounted.
+    function layoutStale() {
+      var L = state.L;
+      if (!L) return visibleItems().length > 0;
+      var h = hero();
+      if (!L.fromHero && h && h.orbit && h.orbit()) return true;
+      return L.ringsSeen === 0 && heroRings().length > 0;
+    }
+
+    /* ---- the camera -------------------------------------------------------------
+       At entrance p, the hero's scale (s0 = 1, the wrist at c0) gives way to the
+       circle's (z, the wrist at c1): a point (wx, wy) of the hero as laid out
+       is on the screen at c(p) + scale(p) * (w - c0). The scale goes as z^e,
+       which reads as an even pull-back. */
+    function cameraAt(p) {
+      var L = state.L;
+      var e = easeInOutCubic(clamp01(p));
+      return {
+        scale: Math.pow(L.z, e),
+        x: lerp(L.c0.x, L.c1.x, e),
+        y: lerp(L.c0.y, L.c1.y, e),
+        // The hand alone, lowered under the circle as the camera pulls back.
+        handDrop: L.handDrop * e
+      };
+    }
+
+    // A product's size at angle a on the circle (at the circle's scale): it
+    // grows as it nears the top.
+    function sizeFor(a) {
+      var L = state.L;
+      var near = 1 - smoothstep(0, L.step, Math.abs(wrap(a)));
+      return lerp(L.s, L.S, near);
+    }
+
+    /* Where an item is at entrance p with the plate turned by theta, in px of
+       the screen: its middle (x, y), its turn (rot, degrees clockwise), its
+       size, what's left of its top shot (ring), how much of it shows
+       (alpha). For the 3D stack, a ring off the hand also carries fromRing,
+       the turn it lay at (ringRot) and how far it has come (u): the model
+       swings from its top view to its rest as it slides. */
+    function poseAt(item, p, theta) {
+      var L = state.L;
+      var cam = cameraAt(p);
+      var slotAngle = item.slot * L.step + theta;
+      var a;
+      var dist;
+      var worldSize;
+      var pose = { rot: 0, ring: 0, alpha: 1, fromRing: false, ringRot: 0, u: 1 };
+      if (item.hand) {
+        var u = easeInOutCubic(clamp01((p - SLIDE_START) / (SLIDE_END - SLIDE_START)));
+        // Along the circle the shortest way round, and out (or in) onto it.
+        a = item.hand.angle + wrap(slotAngle - item.hand.angle) * u;
+        dist = lerp(item.hand.dist, L.r0, u);
+        worldSize = lerp(item.hand.size, sizeFor(slotAngle) / L.z, u);
+        pose.rot = lerp(item.hand.rot, 0, u);
+        pose.ring = 1 - smoothstep(0, 0.5, u);
+        pose.fromRing = true;
+        pose.ringRot = item.hand.rot;
+        pose.u = u;
+      } else {
+        a = slotAngle;
+        dist = L.r0;
+        worldSize = sizeFor(slotAngle) / L.z;
+        pose.alpha = smoothstep(APPEAR_START, APPEAR_END, p);
+      }
+      var wx = L.c0.x + dist * Math.sin(a);
+      var wy = L.c0.y - dist * Math.cos(a);
+      pose.x = cam.x + cam.scale * (wx - L.c0.x);
+      pose.y = cam.y + cam.scale * (wy - L.c0.y);
+      pose.size = cam.scale * worldSize;
+      return pose;
+    }
+
+    /* ---- moving between layouts -----------------------------------------------
+       Once landed, a new layout (the filter, the screen) is reached over
+       FLY_MS from the poses as they were. */
+    var blend = null;
+
+    function lerpPose(from, to, t) {
+      var out = {};
+      Object.keys(to).forEach(function (key) { out[key] = to[key]; });
+      out.x = lerp(from.x, to.x, t);
+      out.y = lerp(from.y, to.y, t);
+      out.size = lerp(from.size, to.size, t);
+      out.alpha = lerp(from.alpha, to.alpha, t);
+      return out;
+    }
+
+    function currentPose(item, p) {
+      var pose = poseAt(item, p, state.theta);
+      if (!blend) return pose;
+      var from = blend.from[item.id];
+      if (!from) return pose;
+      return lerpPose(from, pose, easeInOutCubic(clamp01((performance.now() - blend.start) / FLY_MS)));
+    }
+
+    /* ---- the rings on the hand ------------------------------------------------ */
 
     // While the entrance is under way the rings are the stack's: the hero's
     // own are hidden (hero.css hides them for a skipped hero, so they are
@@ -327,157 +503,339 @@
       });
     }
 
-    /* ---- drawing the image stack ------------------------------------------- */
+    /* ---- drawing ------------------------------------------------------------- */
+
+    // The image stack: one transform per picture (where it is, how it's
+    // turned, how big against its box), its opacity, and its top shot's.
     function place(item, pose) {
-      var size = item.target.size;
-      var ring = pose.ring || 0;
+      var size = state.L.s;
       item.el.style.transform = "translate3d(" + (pose.x - size / 2).toFixed(2) + "px," + (pose.y - size / 2).toFixed(2) + "px,0) " +
         "rotate(" + pose.rot.toFixed(2) + "deg) scale(" + (pose.size / size).toFixed(4) + ")";
+      item.el.style.opacity = pose.alpha.toFixed(3);
       if (item.ringImg) {
-        item.ringImg.style.opacity = ring.toFixed(3);
-        item.img.style.opacity = (1 - ring).toFixed(3);
+        item.ringImg.style.opacity = pose.ring.toFixed(3);
+        item.img.style.opacity = (1 - pose.ring).toFixed(3);
       }
     }
 
-    function render() {
-      var p = state.p === null ? 0 : state.p;
-      var started = p > 0;
-      showHeroRings(!started);
-      state.items.forEach(function (item) {
-        if (!item.visible || item.gliding) return;
-        // Before the entrance starts a ring is the hero's, and the item
-        // taking it over isn't there yet (its top shot included, which the
-        // 3D stack keeps visible on its own).
-        var waiting = !started && item.ringStart;
-        item.el.style.visibility = waiting ? "hidden" : "";
-        if (item.ringImg) item.ringImg.style.visibility = waiting ? "hidden" : "";
-        place(item, poseAt(item, p));
-      });
-      if (state.scene) state.scene.setEntrance(p);
+    function focusedSlot() {
+      var L = state.L;
+      return ((Math.round(-state.theta / L.step) % L.n) + L.n) % L.n;
+    }
+
+    function setFocus(item) {
+      if (item === state.focus) return;
+      // The old name fades out as the new one fades in.
+      if (state.focus) state.focus.nameEl.classList.remove("is-shown");
+      state.focus = item;
+      if (item) item.nameEl.classList.add("is-shown");
+      // Turned by the visitor: kept for this history entry, so Back to the
+      // page finds the plate turned the same way.
+      if (item && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
+        window.EmjiveScrollMemory.rememberWheel(item.id);
+      }
+      var name = item ? (item.product.name || "") : "";
+      goEl.setAttribute("aria-label", item ? name + ": go to its page" : "Go to page");
+      syncSceneFocus();
+    }
+
+    // The 3D stack's focused model — turning on its own, turned by a drag —
+    // only once the camera has pulled back to the circle: during the entrance
+    // every model holds its default view.
+    function syncSceneFocus() {
+      if (!state.scene) return;
+      state.scene.setFocus(landed && state.focus ? state.focus.id : null, spinEl);
     }
 
     var landed = false;
+
+    function render() {
+      var L = state.L;
+      var h = hero();
+      var p = state.p === null ? 0 : state.p;
+      var started = p > 0;
+      showHeroRings(!started);
+      if (!L || !state.active) {
+        if (h && h.setZoom) h.setZoom(1, 0, 0);
+        return;
+      }
+      var cam = cameraAt(p);
+      if (h && h.setZoom) h.setZoom(cam.scale, cam.x - L.c0.x, cam.y - L.c0.y + cam.handDrop);
+
+      var poses = {};
+      var slot = focusedSlot();
+      var focus = null;
+      state.items.forEach(function (item) {
+        if (!item.visible) return;
+        var pose = currentPose(item, p);
+        item.pose = pose;
+        poses[item.id] = pose;
+        if (item.slot === slot) focus = item;
+        // Before the entrance starts a ring is the hero's, and the item
+        // taking it over isn't there yet (its top shot included, which the
+        // 3D stack keeps visible on its own).
+        var waiting = !started && item.hand;
+        item.el.style.visibility = waiting ? "hidden" : "";
+        if (item.ringImg) item.ringImg.style.visibility = waiting ? "hidden" : "";
+        // The pictures follow in the 3D stack too: a ring's top shot shows
+        // over its model until it has slid into it.
+        place(item, pose);
+      });
+      if (state.scene) state.scene.setPoses(poses);
+      setFocus(focus);
+
+      // The name and its button in the middle of the circle, where the camera
+      // has it.
+      orbitEl.style.left = cam.x.toFixed(1) + "px";
+      orbitEl.style.top = cam.y.toFixed(1) + "px";
+      placeSpin();
+    }
+
+    // The drag target over the focused product, while the plate is still and
+    // its model is there to turn.
+    function placeSpin() {
+      var pose = state.focus && state.focus.pose;
+      var on = !!(pose && landed && state.scene && motion.mode === "idle" && !blend);
+      spinEl.classList.toggle("is-on", on);
+      if (!pose) return;
+      var box = pose.size;
+      spinEl.style.width = box.toFixed(1) + "px";
+      spinEl.style.height = box.toFixed(1) + "px";
+      spinEl.style.transform = "translate3d(" + (pose.x - box / 2).toFixed(1) + "px," + (pose.y - box / 2).toFixed(1) + "px,0)";
+    }
+
     function setStage(p) {
       var was = state.p;
       state.p = p;
-      // The rings are measured as they're taken off the hand, while the pin
-      // holds the hand still.
-      if ((was === null || was === 0) && p > 0 && p < 1) measureRings();
-      var nowLanded = p === 1;
+      if (layoutStale() || ((was === null || was === 0) && p > 0 && p < 1)) orbitLayout();
+      var nowLanded = p >= LAND_AT;
       if (nowLanded !== landed) {
         landed = nowLanded;
         stage.classList.toggle("is-landed", landed);
+        if (!landed) stopMotion();
+        syncSceneFocus();
       }
       render();
     }
 
-    /* ---- moving items in the image stack -----------------------------------
-       A glide is the transform transition (.stack-item.is-moving). A newer
-       glide of the same item retargets the running one; only the newest ends
-       it (an earlier one's promise just resolves at its own end). */
-    function glide(item, pose) {
-      var token = item.glideToken = (item.glideToken || 0) + 1;
-      if (!item.gliding) {
-        item.gliding = true;
-        state.moving++;
-      }
-      item.el.style.visibility = "";
-      item.el.classList.add("is-moving");
-      void item.el.offsetWidth;
-      place(item, pose);
-      return new Promise(function (resolve) {
-        var done = false;
-        function finish() {
-          if (done) return;
-          done = true;
-          item.el.removeEventListener("transitionend", onEnd);
-          if (token === item.glideToken) {
-            item.gliding = false;
-            item.el.classList.remove("is-moving");
-            state.moving = Math.max(0, state.moving - 1);
-            maybeHandOver();
-          }
-          resolve();
-        }
-        function onEnd(e) {
-          if (e.target === item.el && e.propertyName === "transform") finish();
-        }
-        item.el.addEventListener("transitionend", onEnd);
-        setTimeout(finish, FLY_MS + 80);
-      });
+    /* ---- turning the plate ------------------------------------------------------
+       One loop, running only while something moves: a drag, a coast, a settle
+       or a turn (a tween of theta), a blend between layouts. */
+    var motion = { mode: "idle" };
+    var loopRaf = 0;
+    var lastTick = 0;
+
+    function kick() {
+      if (loopRaf) return;
+      lastTick = performance.now();
+      loopRaf = requestAnimationFrame(tick);
     }
 
-    // The image stack's items find their new places (the filter changed, the
-    // screen turned).
-    function relayout(animate) {
-      layout();
-      if (!landed) {
+    function stopMotion() {
+      motion = { mode: "idle" };
+    }
+
+    function tweenTo(theta, ms, ease) {
+      if (reducedMotion.matches || Math.abs(theta - state.theta) < 1e-4) {
+        state.theta = theta;
+        stopMotion();
         render();
         return;
       }
-      if (state.scene) {
-        state.scene.setTargets(targets());
-        return;
-      }
-      state.items.forEach(function (item) {
-        if (!item.visible) return;
-        if (animate && !reducedMotion.matches) glide(item, poseAt(item, 1));
-        else place(item, poseAt(item, 1));
-      });
+      motion = { mode: "tween", from: state.theta, to: theta, start: performance.now(), ms: ms, ease: ease || easeOutCubic };
+      kick();
     }
 
-    /* ---- taps on the stack ----------------------------------------------------- */
-    var downX = 0;
-    var downY = 0;
+    // To the nearest place, a product at the top.
+    function settle() {
+      var step = state.L.step;
+      tweenTo(Math.round(state.theta / step) * step, SETTLE_MS);
+    }
+
+    function tick(now) {
+      loopRaf = 0;
+      var dt = Math.min((now - lastTick) / 1000, 1 / 15);
+      lastTick = now;
+      var going = false;
+      if (motion.mode === "coast") {
+        state.theta += motion.speed * dt;
+        motion.speed *= Math.exp(-COAST_DECAY * dt);
+        if (Math.abs(motion.speed) < SETTLE_SPEED) settle();
+        going = true;
+      }
+      if (motion.mode === "tween") {
+        var t = clamp01((now - motion.start) / motion.ms);
+        state.theta = lerp(motion.from, motion.to, motion.ease(t));
+        if (t >= 1) stopMotion();
+        else going = true;
+      }
+      if (motion.mode === "drag") going = true;
+      if (blend) {
+        if (now - blend.start >= FLY_MS) blend = null;
+        else going = true;
+      }
+      render();
+      if (going) loopRaf = requestAnimationFrame(tick);
+    }
+
+    // The band the products move in: a press there turns the plate.
+    function inBand(x, y) {
+      var L = state.L;
+      if (!L) return false;
+      var r = Math.sqrt(Math.pow(x - L.c1.x, 2) + Math.pow(y - L.c1.y, 2));
+      return r > L.R1 - L.S / 2 - MARGIN && r < L.R1 + L.S / 2 + MARGIN;
+    }
+
+    // The product under (x, y), from the poses as drawn.
+    function pick(x, y) {
+      var best = null;
+      var bestD = Infinity;
+      state.items.forEach(function (item) {
+        if (!item.visible || !item.pose) return;
+        var d = Math.sqrt(Math.pow(x - item.pose.x, 2) + Math.pow(y - item.pose.y, 2));
+        if (d < item.pose.size * 0.45 && d < bestD) {
+          best = item;
+          bestD = d;
+        }
+      });
+      return best;
+    }
+
+    // A tap on a product not at the top turns the plate to bring it there.
+    function turnToItem(item) {
+      var L = state.L;
+      tweenTo(state.theta + wrap(-(item.slot * L.step + state.theta)), TURN_MS, easeInOutCubic);
+    }
+
+    function ignoreTarget(target) {
+      return target === spinEl || target.closest(".stack-orbit__go") || target.closest(".product-grid__loading");
+    }
+
+    // A drag on the focused product turns its model: the rectangle it is
+    // measured against is taken again first (capture: before the drag's own
+    // listener on the element reads it).
     stage.addEventListener("pointerdown", function (e) {
-      downX = e.clientX;
-      downY = e.clientY;
+      if (e.target === spinEl && state.scene) state.scene.focusMoved();
     }, true);
 
-    function pick(x, y, target) {
-      if (state.scene) return state.scene.pick(x, y);
-      var itemEl = target && target.closest ? target.closest(".stack-item") : null;
-      return itemEl ? itemEl.dataset.id : null;
-    }
-
-    stage.addEventListener("click", function (e) {
-      if (!landed) return;
-      // The empty filter's message has its own business.
-      if (e.target.closest(".product-grid__loading")) return;
-      if (Math.sqrt(Math.pow(e.clientX - downX, 2) + Math.pow(e.clientY - downY, 2)) > TAP_SLOP) return;
-      var id = pick(e.clientX, e.clientY, e.target);
-      var item = id !== null && id !== undefined ? state.byId[String(id)] : null;
-      if (item) window.location.href = item.href;
+    var drag = null;
+    stage.addEventListener("pointerdown", function (e) {
+      if (!landed || !state.L || ignoreTarget(e.target) || e.button > 0) return;
+      if (!inBand(e.clientX, e.clientY)) return;
+      var L = state.L;
+      var angle = angleAbout(L.c1.x, L.c1.y, e.clientX, e.clientY);
+      drag = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        angle: angle,
+        moved: false,
+        speed: 0,
+        time: performance.now()
+      };
+      motion = { mode: "drag" };
+      state.touched = true;
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* not capturable: the drag still runs */ }
+      kick();
     });
+
+    stage.addEventListener("pointermove", function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && Math.sqrt(Math.pow(e.clientX - drag.x, 2) + Math.pow(e.clientY - drag.y, 2)) <= TAP_SLOP) return;
+      drag.moved = true;
+      var L = state.L;
+      var angle = angleAbout(L.c1.x, L.c1.y, e.clientX, e.clientY);
+      var delta = wrap(angle - drag.angle) * DRAG_GAIN;
+      drag.angle = angle;
+      state.theta += delta;
+      var now = performance.now();
+      var dt = Math.max(1, now - drag.time) / 1000;
+      drag.time = now;
+      // How fast the plate turns, smoothed over the last few moves.
+      drag.speed = lerp(drag.speed, delta / dt, 0.5);
+    });
+
+    function endDrag(e, cancelled) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var d = drag;
+      drag = null;
+      if (!d.moved) {
+        stopMotion();
+        var item = cancelled ? null : pick(e.clientX, e.clientY);
+        if (item && item !== state.focus) turnToItem(item);
+        else render();
+        return;
+      }
+      // A pause before letting go is a plate held still.
+      var speed = performance.now() - d.time > 80 ? 0 : d.speed;
+      if (reducedMotion.matches || Math.abs(speed) < SETTLE_SPEED) {
+        settle();
+        return;
+      }
+      motion = { mode: "coast", speed: speed };
+      kick();
+    }
+    stage.addEventListener("pointerup", function (e) { endDrag(e, false); });
+    stage.addEventListener("pointercancel", function (e) { endDrag(e, true); });
+
+    // On a touch screen a press in the band is the plate's, not the page's;
+    // anywhere else (the middle, the corners) a swipe still scrolls the page
+    // back up into the hero.
+    stage.addEventListener("touchstart", function (e) {
+      if (!landed || e.touches.length !== 1 || ignoreTarget(e.target)) return;
+      var t = e.touches[0];
+      if (inBand(t.clientX, t.clientY)) e.preventDefault();
+    }, { passive: false });
+
+    goEl.addEventListener("click", function () {
+      if (state.focus) window.location.href = state.focus.href;
+    });
+
+    /* ---- new layouts ------------------------------------------------------------ */
+
+    // The filter changed, or the screen: every product's new place, reached
+    // with a glide once landed. The focused product stays at the top if it is
+    // still there.
+    function relayout(animate) {
+      var from = {};
+      state.items.forEach(function (item) {
+        if (item.visible && item.pose) from[item.id] = item.pose;
+      });
+      var keep = state.focus && state.focus.visible ? state.focus : null;
+      orbitLayout();
+      if (!state.L) {
+        render();
+        return;
+      }
+      state.theta = keep ? -keep.slot * state.L.step : 0;
+      stopMotion();
+      if (state.scene) state.scene.setBaseSize(state.L.s);
+      blend = animate && landed && !reducedMotion.matches ? { from: from, start: performance.now() } : null;
+      render();
+      if (blend) kick();
+    }
 
     /* ---- the 3D stack ------------------------------------------------------------
        Built once the page has revealed and the browser is idle (or at once,
        when the gallery is what the page opened on), from the same items. It
        takes over from the pictures in one frame — every model where its
-       picture is, turned the way its picture shows it — but only while
-       nothing in the image stack is gliding; otherwise as soon as it stops. */
-    function targets() {
-      var out = {};
-      state.items.forEach(function (item) {
-        if (item.visible) out[item.id] = item.target;
-      });
-      return out;
-    }
-
+       picture is, turned the way its picture shows it. */
     var readyScene = null;
 
     function maybeHandOver() {
-      if (!readyScene || state.moving > 0 || !state.active) return;
+      if (!readyScene || !state.active || !state.L) return;
       var scene = readyScene;
       readyScene = null;
       var poses = {};
       var p = state.p === null ? 0 : state.p;
       state.items.forEach(function (item) {
-        if (item.visible) poses[item.id] = poseAt(item, p);
+        if (item.visible) poses[item.id] = currentPose(item, p);
       });
-      scene.handOver(poses, { entrance: p });
+      scene.handOver(poses);
       state.scene = scene;
+      syncSceneFocus();
       stage.classList.add("is-3d");
+      render();
     }
 
     function wantScene() {
@@ -496,14 +854,9 @@
         var scene = create({
           host: stage,
           items: state.items.map(function (item) {
-            return { id: item.id, product: item.product, size: item.target.size, ring: !!item.ringImg };
+            return { id: item.id, product: item.product, size: state.L ? state.L.s : SIZE_MIN, ring: !!item.ringImg };
           }),
           hdri: window.EmjiveSeries.hdriPath(slug),
-          poseAt: function (id, p) {
-            var item = state.byId[id];
-            return item ? poseAt(item, p) : null;
-          },
-          targets: targets,
           // Its context reclaimed (iOS does, under memory pressure): the
           // pictures take the stack back.
           onLost: function () { setTimeout(stopScene, 0); }
@@ -540,7 +893,7 @@
       state.scene.dispose();
       state.scene = null;
       stage.classList.remove("is-3d");
-      relayout(false);
+      render();
     }
 
     function whenPageRevealed(fn) {
@@ -570,8 +923,8 @@
     });
 
     // A page kept in the back/forward cache is a live page: nothing 3D is
-    // worth keeping there (js/main.js's old grid did the same). Coming back,
-    // the pictures are the stack again until the 3D one has rebuilt.
+    // worth keeping there. Coming back, the pictures are the stack again
+    // until the 3D one has rebuilt.
     window.addEventListener("pagehide", stopScene);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
@@ -585,14 +938,14 @@
     window.addEventListener("resize", function () {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
-        if (state.p !== null && state.p > 0 && state.p < 1) measureRings();
-        relayout(false);
         if (state.scene) state.scene.resize();
+        relayout(false);
       }, 150);
     });
 
     /* ---- start ----------------------------------------------------------------- */
-    layout();
+    orbitLayout();
+    state.theta = homeTheta();
     if (window.EmjiveHero) {
       window.EmjiveHero.onStage(setStage);
       var published = window.EmjiveHero.stage();
@@ -601,11 +954,31 @@
       setStage(1);
     }
 
+    // The hero (its circle, the rings on its hand) may land after the stack is
+    // mounted, and a page landed at the end of it publishes nothing more until
+    // it is scrolled: the layout is redone as soon as the hero is there — the
+    // rings on the hand taking their places, the plate turned back to the
+    // first of them (or to the product this history entry left at the top) —
+    // unless the visitor has already turned the plate.
+    var heroWaitUntil = Date.now() + 8000;
+    (function waitForHero() {
+      if (state.touched || Date.now() > heroWaitUntil) return;
+      if (!layoutStale()) {
+        setTimeout(waitForHero, 250);
+        return;
+      }
+      orbitLayout();
+      state.theta = homeTheta();
+      if (state.scene && state.L) state.scene.setBaseSize(state.L.s);
+      render();
+      setTimeout(waitForHero, 250);
+    })();
+
     if (state.active) whenPageRevealed(startScene);
 
     return {
-      // ids: the products to show. The hidden leave the stack; the rest find
-      // new places.
+      // ids: the products to show. The hidden leave the circle; the rest find
+      // new places on it.
       setFilter: function (ids) {
         var keep = {};
         (ids || []).forEach(function (id) { keep[String(id)] = true; });
@@ -614,17 +987,19 @@
           item.el.hidden = !item.visible;
           item.listItem.hidden = !item.visible;
         });
-        relayout(true);
         if (state.scene) state.scene.setVisible(Object.keys(keep));
+        relayout(true);
       },
 
       // The view switched (js/gallery.js): the grid doesn't need any of this
-      // drawn, nor its WebGL contexts kept.
+      // drawn, nor its WebGL contexts kept — nor the hand pulled back.
       setActive: function (on) {
         if (on === state.active) return;
         state.active = on;
         if (!on) {
+          stopMotion();
           stopScene();
+          render();
           return;
         }
         relayout(false);

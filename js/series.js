@@ -521,20 +521,23 @@
             return;
           }
           // The page's arrival loader (js/loader.js) waits for the hero's
-          // main image and NOT for the products below. Which picture that is
-          // depends on whether the hero plays (data-hero on <html>, set by
-          // js/scroll-memory.js): the fragment marks it data-first-paint=
+          // first paint and NOT for the products below. Which pictures that
+          // is depends on whether the hero plays (data-hero on <html>, set by
+          // js/scroll-memory.js): the fragment marks them data-first-paint=
           // "play" or "skip" (the photo the reveal starts on, or the x-ray
-          // the stack rests on), falling back to the first <img> in the slot.
-          // On a grid that skips the hero the hero isn't the first paint at
-          // all — js/gallery.js lifts the loader once its first tiles are in.
+          // the stack rests on, with whatever lands in sight with it), falling
+          // back to the first <img> in the slot. All of them, so nothing of
+          // that first paint pops in after the reveal. On a grid that skips
+          // the hero the hero isn't the first paint at all — js/gallery.js
+          // lifts the loader once its first tiles are in.
           var mode = document.documentElement.getAttribute("data-hero") === "skip" ? "skip" : "play";
           var gridFirst = mode === "skip" && document.documentElement.getAttribute("data-gallery-view") === "grid";
-          var heroImg = slot.querySelector('img[data-first-paint~="' + mode + '"]') || slot.querySelector("img");
+          var heroImgs = Array.prototype.slice.call(slot.querySelectorAll('img[data-first-paint~="' + mode + '"]'));
+          if (!heroImgs.length && slot.querySelector("img")) heroImgs = [slot.querySelector("img")];
           if (gridFirst) {
             upgradeHeroImages(slot);
-          } else if (heroImg && window.EmjiveLoader) {
-            window.EmjiveLoader.imageReady(heroImg).then(function () {
+          } else if (heroImgs.length && window.EmjiveLoader) {
+            Promise.all(heroImgs.map(window.EmjiveLoader.imageReady)).then(function () {
               pageReady();
               upgradeHeroImages(slot);
             });

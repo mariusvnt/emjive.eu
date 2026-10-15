@@ -749,6 +749,227 @@ export { toolkit };
   // reduced-motion block already covers. See css/style.css.
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  // ---- the spin ---------------------------------------------------------
+  //
+  // How a model turns under a drag and comes home once let go: the
+  // TrackballControls feel (rotation only, heavier than the pointer), the
+  // coasting on release with its progressive braking, the leveling drift,
+  // and, once it has stopped, a pause and the ease back to the default pose.
+  // One implementation for every viewer (buildThreeViewer) and for the
+  // homepage stack's focused model (js/stack-scene.js, via toolkit.spinFor),
+  // so the two feel the same.
+  //
+  // `camera` orbits `controls.target`. options:
+  //   noAutoMotion()  true: no coasting, no drift, no ease back (see the
+  //                   viewer's own noAutoMotion())
+  //   home()          the default pose: { position, up, rollRad, radius }
+  //   pauseScale()    optional: how many times POST_INERTIA_PAUSE the
+  //                   stillness lasts before the ease back
+  //   onHome()        optional: the ease back has arrived
+  //
+  // TrackballControls already decays into a spin on release rather than
+  // stopping dead. This seed value assumes ~60fps; the actual per-frame
+  // factor is re-derived every frame from SPIN_DECAY_LAMBDA + real dt in
+  // step(), so spin-down feels the same at 60Hz vs. 120Hz+ displays
+  // (TrackballControls.update() itself takes no delta-time argument).
+  var SPIN_DAMPING_SEED = 0.04032;
+  var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - SPIN_DAMPING_SEED)) / REF_DT;
+
+  function createSpin(camera, controls, options) {
+    // Rotation only — matches the old disable-zoom behavior.
+    controls.noZoom = true;
+    controls.noPan = true;
+    // Lower = a given drag distance produces less rotation — decouples the
+    // motion from a direct 1:1 pointer mapping so it reads as heavier/more
+    // deliberate rather than instantly following the cursor.
+    controls.rotateSpeed = 0.5;
+    controls.dynamicDampingFactor = SPIN_DAMPING_SEED;
+    // three.js's own built-in "no momentum" flag — rotation only ever tracks
+    // the pointer's current position, never coasts on release. Simpler and
+    // more robust than fighting the decay math in step()
+    // (dynamicDampingFactor/SPIN_DECAY_LAMBDA) to approximate a dead stop.
+    //
+    // Assigned here AND re-asserted every frame in step(), which is not
+    // redundant: this line runs exactly once, at construction, while
+    // noAutoMotion() is live — so a visitor toggling reduced motion
+    // mid-session would otherwise keep whatever value was captured when the
+    // spin happened to be built. It's read inside controls.update(), and
+    // controls.update() is called from more than one place (a viewer's
+    // frameCamera, and step()), so the flag has to be correct before each of
+    // them rather than just once here.
+    controls.staticMoving = options.noAutoMotion();
+
+    var isDragging = false;
+    var waitingForSettle = false;
+    var pauseTimeoutId = null;
+    var resetTweenActive = false;
+    var resetTweenStartTime = 0;
+    var resetTweenFromPosition = new THREE.Vector3();
+    var resetTweenFromUp = new THREE.Vector3();
+    var lastAngularSpeed = 0; // rad/s, previous frame's spin rate — see PROGRESSIVE_BOOST_* above
+
+    var eyeDirection = new THREE.Vector3();
+    var eyeDirectionPrev = new THREE.Vector3();
+    var preFrameUp = new THREE.Vector3();
+    var tangentTowardUp = new THREE.Vector3();
+    var restRef = new THREE.Vector3();
+    var driftDelta = new THREE.Vector3();
+    var fromDirection = new THREE.Vector3();
+    var toDirection = new THREE.Vector3();
+    var tweenDirection = new THREE.Vector3();
+
+    function cancelReturn() {
+      waitingForSettle = false;
+      resetTweenActive = false;
+      if (pauseTimeoutId) {
+        clearTimeout(pauseTimeoutId);
+        pauseTimeoutId = null;
+      }
+    }
+
+    function onStart() {
+      isDragging = true;
+      cancelReturn();
+    }
+    function onEnd() {
+      isDragging = false;
+      waitingForSettle = true;
+    }
+    controls.addEventListener("start", onStart);
+    controls.addEventListener("end", onEnd);
+
+    // One frame of it, dt in seconds.
+    function step(dt) {
+      var home = options.home();
+      if (resetTweenActive) {
+        var t = Math.min(1, (performance.now() - resetTweenStartTime) / ROLLBACK_DURATION);
+        var eased = cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
+
+        fromDirection.copy(resetTweenFromPosition).sub(controls.target).normalize();
+        toDirection.copy(home.position).sub(controls.target).normalize();
+        slerpVectors(tweenDirection, fromDirection, toDirection, eased);
+        camera.position.copy(tweenDirection).multiplyScalar(home.radius).add(controls.target);
+
+        slerpVectors(camera.up, resetTweenFromUp, home.up, eased);
+        camera.lookAt(controls.target);
+        if (t >= 1) {
+          resetTweenActive = false;
+          if (options.onHome) options.onHome();
+        }
+        return;
+      }
+
+      // Both the spin's own momentum (TrackballControls rotating .up
+      // right along with the eye) and the leveling drift want to move
+      // .up this frame. Taking drift's delta from .up as it stood BEFORE
+      // this frame's momentum update, then adding it to .up as
+      // controls.update() leaves it, means drift isn't reacting to (and
+      // partially undoing) whatever momentum just did.
+      preFrameUp.copy(camera.up);
+      var slowness = 1 - Math.min(1, lastAngularSpeed / PROGRESSIVE_BOOST_SPEED);
+      var lambdaThisFrame = SPIN_DECAY_LAMBDA * (1 + slowness * PROGRESSIVE_BOOST_MAX);
+      controls.dynamicDampingFactor = 1 - Math.exp(-2 * lambdaThisFrame * dt);
+      // Re-asserted per frame, not just at construction — see its own
+      // comment there. controls.update() reads it, so it has to be right
+      // for the frame that is about to consume it.
+      controls.staticMoving = options.noAutoMotion();
+      controls.update();
+
+      eyeDirectionPrev.copy(eyeDirection);
+      eyeDirection.copy(camera.position).sub(controls.target).normalize();
+      lastAngularSpeed = eyeDirectionPrev.angleTo(eyeDirection) / dt;
+
+      var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
+
+      // freeOrbit and reduced motion both skip this leveling-drift
+      // correction entirely — camera.up (and therefore the framing) stays
+      // exactly wherever the drag left it, with no auto-correction ever
+      // nudging it back toward level. It's the subtlest of the four, and
+      // the most unsettling to watch if you didn't ask for it: the image
+      // rotates slowly under a stationary pointer. freeOrbit wants this
+      // off for a second reason beyond "let a pose stay put": roll (the
+      // camera's orientation around its own view axis) is now a real,
+      // savable part of a product's `3d-viewer-camera-default` — see
+      // frameCamera()'s `roll` handling — and this drift would otherwise
+      // fight whatever roll a free-drag just dialed in.
+      //
+      // The attractor is the resting up for the current eye direction
+      // (restUpRaw with the product's own roll), not WORLD_UP itself: the
+      // resting pose then sits exactly on a fixed point (tangent is 0),
+      // so an authored roll holds instead of decaying toward level, and a
+      // roll-0 model stops churning camera.up along the view axis (an
+      // invisible change that still defeated render-on-demand). Left
+      // unnormalized, its length is sin(angle from the pole), which makes
+      // the in-plane pull for roll 0 identical to the old WORLD_UP-based
+      // one, sin^2 fade near the poles included. It flips sign crossing a
+      // pole, but s and tangentTowardUp flip together, so driftDelta
+      // doesn't — the same two-attractor continuity as before, the two
+      // attractors now being the authored roll and roll + 180deg.
+      if (!options.noAutoMotion()) {
+        restUpRaw(restRef, eyeDirection, home.rollRad);
+        var s = preFrameUp.dot(restRef);
+        tangentTowardUp.copy(restRef).addScaledVector(preFrameUp, -s);
+        var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
+        driftDelta.copy(tangentTowardUp).multiplyScalar(driftRateThisFrame * s * (1 - poleAlignment));
+        camera.up.add(driftDelta).normalize();
+      }
+      camera.lookAt(controls.target);
+
+      if (waitingForSettle && !isDragging) {
+        var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
+        if (frameAngle < SETTLE_ANGULAR_VELOCITY * dt) {
+          waitingForSettle = false;
+          // freeOrbit and reduced motion both skip arming the
+          // ease-back-to-default reset too — combined with staticMoving
+          // above (no coasting) and the drift skip just above (no
+          // up-vector correction), the camera simply stays exactly where
+          // the drag left it once released.
+          if (!options.noAutoMotion()) {
+            pauseTimeoutId = setTimeout(function () {
+              pauseTimeoutId = null;
+              resetTweenFromPosition.copy(camera.position);
+              resetTweenFromUp.copy(camera.up);
+              resetTweenStartTime = performance.now();
+              resetTweenActive = true;
+            }, POST_INERTIA_PAUSE * (options.pauseScale ? options.pauseScale() : 1));
+          }
+        }
+      }
+    }
+
+    // Straight into the ease back, from wherever it is (no pause): a model
+    // that stops being the one turned by hand. Not under noAutoMotion, which
+    // leaves a model where it was put; nothing to do if it is home already.
+    function goHome() {
+      if (options.noAutoMotion() || isDragging) return;
+      var home = options.home();
+      fromDirection.copy(camera.position).sub(controls.target).normalize();
+      toDirection.copy(home.position).sub(controls.target).normalize();
+      if (fromDirection.angleTo(toDirection) < 1e-4 && camera.up.angleTo(home.up) < 1e-4) return;
+      cancelReturn();
+      resetTweenFromPosition.copy(camera.position);
+      resetTweenFromUp.copy(camera.up);
+      resetTweenStartTime = performance.now();
+      resetTweenActive = true;
+    }
+
+    return {
+      step: step,
+      cancelReturn: cancelReturn,
+      goHome: goHome,
+      // Under a drag, coasting, waiting out the pause or easing back: not
+      // at rest in its default pose yet.
+      isBusy: function () {
+        return isDragging || waitingForSettle || pauseTimeoutId !== null || resetTweenActive;
+      },
+      dispose: function () {
+        cancelReturn();
+        controls.removeEventListener("start", onStart);
+        controls.removeEventListener("end", onEnd);
+      }
+    };
+  }
+
   // Builds a three.js viewer for a product and returns a handle so callers
   // (the homepage grid, and the product detail page's carousel) can swap
   // its metal finish later without reloading the .glb or losing whatever
@@ -1180,34 +1401,17 @@ export { toolkit };
     resizeObserver.observe(wrapper);
 
     var controls = new TrackballControls(camera, hitEl || renderer.domElement);
-    // Rotation only — matches the old disable-zoom behavior.
-    controls.noZoom = true;
-    controls.noPan = true;
-    // Lower = a given drag distance produces less rotation — decouples the
-    // motion from a direct 1:1 pointer mapping so it reads as heavier/more
-    // deliberate rather than instantly following the cursor.
-    controls.rotateSpeed = 0.5;
-    // TrackballControls already decays into a spin on release rather than
-    // stopping dead. This seed value assumes ~60fps; the actual per-frame
-    // factor is re-derived every frame from SPIN_DECAY_LAMBDA + real dt
-    // below, so spin-down feels the same at 60Hz vs. 120Hz+ displays
-    // (TrackballControls.update() itself takes no delta-time argument).
-    controls.dynamicDampingFactor = 0.04032;
-    var SPIN_DECAY_LAMBDA = (-0.5 * Math.log(1 - controls.dynamicDampingFactor)) / REF_DT;
-    // three.js's own built-in "no momentum" flag — rotation only ever tracks
-    // the pointer's current position, never coasts on release. Simpler and
-    // more robust than fighting the decay math below
-    // (dynamicDampingFactor/SPIN_DECAY_LAMBDA) to approximate a dead stop.
-    //
-    // Assigned here AND re-asserted every frame in the animate loop, which
-    // is not redundant: this line runs exactly once, at construction, while
-    // noAutoMotion() is live — so a visitor toggling reduced motion
-    // mid-session would otherwise keep whatever value was captured when the
-    // viewer happened to be built. It's read inside controls.update(), and
-    // controls.update() is called from two places (frameCamera below, and
-    // the animate loop), so the flag has to be correct before each of them
-    // rather than just once here.
-    controls.staticMoving = noAutoMotion();
+    // Its feel, and the ease back to the default pose once let go: shared
+    // with the homepage stack (createSpin, above). The defaults it eases back
+    // to are frameCamera's, below; once home, the idle nudge is scheduled.
+    var spin = createSpin(camera, controls, {
+      noAutoMotion: noAutoMotion,
+      home: function () {
+        return { position: defaultCameraPosition, up: defaultCameraUp, rollRad: defaultRollRad, radius: defaultRadius };
+      },
+      pauseScale: function () { return rollbackPauseScale; },
+      onHome: function () { scheduleIdleNudge(); }
+    });
 
     var defaultOrbit = product["3d-viewer-camera-default"] || DEFAULT_ORBIT;
     var explicitTarget = parseTargetString(product.cameraTarget);
@@ -1698,44 +1902,18 @@ export { toolkit };
       // static icon back instead of leaving a dead box.
       .catch(reportError);
 
-    // ---- idle reset / nudge / drift state (per-instance) ----
-    var isDragging = false;
+    // ---- idle nudge state (per-instance; the spin's own is createSpin's) ----
     // How many times POST_INERTIA_PAUSE the viewer waits before easing back
     // to its default pose (handle.setRollbackPauseScale): the product page's
     // design stage, where the visitor is looking at what they changed, waits
     // longer.
     var rollbackPauseScale = 1;
-    var waitingForSettle = false;
-    var pauseTimeoutId = null;
-    var resetTweenActive = false;
-    var resetTweenStartTime = 0;
-    var resetTweenFromPosition = new THREE.Vector3();
-    var resetTweenFromUp = new THREE.Vector3();
     var nudgeActive = false;
     var nudgePhase = 0;
     var nudgePhaseStartTime = 0;
     var idleTimeoutId = null;
     var lastFrameTime = null;
-    var lastAngularSpeed = 0; // rad/s, previous frame's spin rate — see PROGRESSIVE_BOOST_* above
-
-    var eyeDirection = new THREE.Vector3();
-    var eyeDirectionPrev = new THREE.Vector3();
-    var preFrameUp = new THREE.Vector3();
-    var tangentTowardUp = new THREE.Vector3();
-    var restRef = new THREE.Vector3();
-    var driftDelta = new THREE.Vector3();
-    var fromDirection = new THREE.Vector3();
-    var toDirection = new THREE.Vector3();
     var tweenDirection = new THREE.Vector3();
-
-    function cancelReturnToPose() {
-      waitingForSettle = false;
-      resetTweenActive = false;
-      if (pauseTimeoutId) {
-        clearTimeout(pauseTimeoutId);
-        pauseTimeoutId = null;
-      }
-    }
 
     function clearIdleTimer() {
       if (idleTimeoutId) {
@@ -1765,15 +1943,8 @@ export { toolkit };
       }, IDLE_NUDGE_DELAY);
     }
 
-    controls.addEventListener("start", function () {
-      isDragging = true;
-      cancelReturnToPose();
-      cancelNudge();
-    });
-    controls.addEventListener("end", function () {
-      isDragging = false;
-      waitingForSettle = true;
-    });
+    // The spin cancels its own ease back on a drag's start (createSpin).
+    controls.addEventListener("start", cancelNudge);
 
     // Detected via our own pointer tracking (not TrackballControls' "start"
     // event, which fires on any pointerdown regardless of movement) so a
@@ -2046,7 +2217,7 @@ export { toolkit };
         clearTimeout(wireTimer);
         // A loader still waiting on this viewer has nothing left to wait for.
         if (loadGate) loadGate.done();
-        cancelReturnToPose();
+        spin.dispose();
         clearIdleTimer();
         // The one piece of teardown that isn't about GPU resources, and
         // the one that was missing: without it this viewer's cancelNudge
@@ -2177,8 +2348,8 @@ export { toolkit };
 
     var renderedEye = new THREE.Vector3();
     var renderedUp = new THREE.Vector3();
-    // Its own scratch vector rather than reusing eyeDirection: that one is
-    // the else-branch's frame-to-frame angular-speed state (it's read via
+    // Its own scratch vector rather than reusing createSpin's eyeDirection:
+    // that one is the spin's frame-to-frame angular-speed state (it's read via
     // eyeDirectionPrev at the top of the next frame), and writing to it
     // from here — which also runs during the nudge/reset tweens, where the
     // else branch isn't maintaining it — would quietly feed a bogus dt
@@ -2260,98 +2431,9 @@ export { toolkit };
             nudgePhaseStartTime = performance.now();
           }
         }
-      } else if (resetTweenActive) {
-        var t = Math.min(1, (performance.now() - resetTweenStartTime) / ROLLBACK_DURATION);
-        var eased = cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
-
-        fromDirection.copy(resetTweenFromPosition).sub(controls.target).normalize();
-        toDirection.copy(defaultCameraPosition).sub(controls.target).normalize();
-        slerpVectors(tweenDirection, fromDirection, toDirection, eased);
-        camera.position.copy(tweenDirection).multiplyScalar(defaultRadius).add(controls.target);
-
-        slerpVectors(camera.up, resetTweenFromUp, defaultCameraUp, eased);
-        camera.lookAt(controls.target);
-        if (t >= 1) {
-          resetTweenActive = false;
-          scheduleIdleNudge();
-        }
       } else {
-        // Both the spin's own momentum (TrackballControls rotating .up
-        // right along with the eye) and the leveling drift want to move
-        // .up this frame. Taking drift's delta from .up as it stood BEFORE
-        // this frame's momentum update, then adding it to .up as
-        // controls.update() leaves it, means drift isn't reacting to (and
-        // partially undoing) whatever momentum just did.
-        preFrameUp.copy(camera.up);
-        var slowness = 1 - Math.min(1, lastAngularSpeed / PROGRESSIVE_BOOST_SPEED);
-        var lambdaThisFrame = SPIN_DECAY_LAMBDA * (1 + slowness * PROGRESSIVE_BOOST_MAX);
-        controls.dynamicDampingFactor = 1 - Math.exp(-2 * lambdaThisFrame * dt);
-        // Re-asserted per frame, not just at construction — see its own
-        // comment there. controls.update() reads it, so it has to be right
-        // for the frame that is about to consume it.
-        controls.staticMoving = noAutoMotion();
-        controls.update();
-
-        eyeDirectionPrev.copy(eyeDirection);
-        eyeDirection.copy(camera.position).sub(controls.target).normalize();
-        lastAngularSpeed = eyeDirectionPrev.angleTo(eyeDirection) / dt;
-
-        var poleAlignment = Math.abs(eyeDirection.dot(WORLD_UP));
-
-        // freeOrbit and reduced motion both skip this leveling-drift
-        // correction entirely — camera.up (and therefore the framing) stays
-        // exactly wherever the drag left it, with no auto-correction ever
-        // nudging it back toward level. It's the subtlest of the four, and
-        // the most unsettling to watch if you didn't ask for it: the image
-        // rotates slowly under a stationary pointer. freeOrbit wants this
-        // off for a second reason beyond "let a pose stay put": roll (the
-        // camera's orientation around its own view axis) is now a real,
-        // savable part of a product's `3d-viewer-camera-default` — see
-        // frameCamera()'s `roll` handling above — and this drift would
-        // otherwise fight whatever roll a free-drag just dialed in.
-        //
-        // The attractor is the resting up for the current eye direction
-        // (restUpRaw with the product's own roll), not WORLD_UP itself: the
-        // resting pose then sits exactly on a fixed point (tangent is 0),
-        // so an authored roll holds instead of decaying toward level, and a
-        // roll-0 model stops churning camera.up along the view axis (an
-        // invisible change that still defeated render-on-demand). Left
-        // unnormalized, its length is sin(angle from the pole), which makes
-        // the in-plane pull for roll 0 identical to the old WORLD_UP-based
-        // one, sin^2 fade near the poles included. It flips sign crossing a
-        // pole, but s and tangentTowardUp flip together, so driftDelta
-        // doesn't — the same two-attractor continuity as before, the two
-        // attractors now being the authored roll and roll + 180deg.
-        if (!noAutoMotion()) {
-          restUpRaw(restRef, eyeDirection, defaultRollRad);
-          var s = preFrameUp.dot(restRef);
-          tangentTowardUp.copy(restRef).addScaledVector(preFrameUp, -s);
-          var driftRateThisFrame = 1 - Math.exp(-DRIFT_RATE * dt);
-          driftDelta.copy(tangentTowardUp).multiplyScalar(driftRateThisFrame * s * (1 - poleAlignment));
-          camera.up.add(driftDelta).normalize();
-        }
-        camera.lookAt(controls.target);
-
-        if (waitingForSettle && !isDragging) {
-          var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
-          if (frameAngle < SETTLE_ANGULAR_VELOCITY * dt) {
-            waitingForSettle = false;
-            // freeOrbit and reduced motion both skip arming the
-            // ease-back-to-default reset too — combined with staticMoving
-            // above (no coasting) and the drift skip just above (no
-            // up-vector correction), the camera simply stays exactly where
-            // the drag left it once released.
-            if (!noAutoMotion()) {
-              pauseTimeoutId = setTimeout(function () {
-                pauseTimeoutId = null;
-                resetTweenFromPosition.copy(camera.position);
-                resetTweenFromUp.copy(camera.up);
-                resetTweenStartTime = performance.now();
-                resetTweenActive = true;
-              }, POST_INERTIA_PAUSE * rollbackPauseScale);
-            }
-          }
-        }
+        // The ease back, or the spin and its drift (createSpin).
+        spin.step(dt);
       }
 
       drawIfChanged();
@@ -2379,6 +2461,19 @@ export { toolkit };
   // included). A model turned by the inverse of this, seen by a camera
   // looking down -Z with +Y up, shows the face its fallback-img does.
   function orbitOrientation(orbitConfig) {
+    var pose = defaultPose(orbitConfig);
+    var camera = new THREE.Object3D();
+    camera.position.copy(pose.eyeDir);
+    camera.up.copy(pose.up);
+    // An Object3D's lookAt points its +Z at the target; a camera's points
+    // -Z at it — the camera's own case is what's wanted, so look away.
+    camera.lookAt(pose.eyeDir.clone().multiplyScalar(2));
+    return camera.quaternion.clone();
+  }
+
+  // Where a default orbit's camera stands (eyeDir, a unit vector from the
+  // target) and its up, as frameCamera() leaves them, with its roll.
+  function defaultPose(orbitConfig) {
     var orbit = parseOrbitConfig(orbitConfig || DEFAULT_ORBIT);
     var eyeDir = new THREE.Vector3(
       Math.sin(orbit.phiRad) * Math.sin(orbit.thetaRad),
@@ -2392,13 +2487,95 @@ export { toolkit };
         .applyAxisAngle(eyeDir, orbit.rollRad);
     }
     up.normalize();
-    var camera = new THREE.Object3D();
-    camera.position.copy(eyeDir);
-    camera.up.copy(up);
-    // An Object3D's lookAt points its +Z at the target; a camera's points
-    // -Z at it — the camera's own case is what's wanted, so look away.
-    camera.lookAt(eyeDir.clone().multiplyScalar(2));
-    return camera.quaternion.clone();
+    return { eyeDir: eyeDir, up: up, rollRad: orbit.rollRad };
+  }
+
+  // The focused model's idle (spinFor): a slow turn about the screen's
+  // vertical (its default view's up), a turntable seen face on whatever the
+  // product's tilt, once it has been left alone at home for IDLE_SPIN_DELAY ms,
+  // easing in over IDLE_SPIN_RAMP seconds to IDLE_SPIN_SPEED (rad/s: a turn
+  // every 24 s). A drag takes over at once; once the model is back home it
+  // waits the delay again. Never under reduced motion.
+  var IDLE_SPIN_DELAY = 1500;
+  var IDLE_SPIN_RAMP = 1.5;
+  var IDLE_SPIN_SPEED = (Math.PI * 2) / 24;
+
+  // A model turned by hand outside a viewer (js/stack-scene.js's focused
+  // model): a stand-in camera on the product's default orbit, one unit from
+  // the model's middle, turned by a drag on hitEl exactly as a viewer's
+  // camera is (createSpin) — coasting, leveling, and easing back home once
+  // let go — and, while idle (setIdle), circling the model slowly. The model
+  // shows what that camera would see when it is turned by the inverse of
+  // `quaternion` (at home: the inverse of orbitOrientation()).
+  function spinFor(product, hitEl) {
+    var pose = defaultPose(product && product["3d-viewer-camera-default"]);
+    var camera = new THREE.PerspectiveCamera();
+    camera.position.copy(pose.eyeDir);
+    camera.up.copy(pose.up);
+    camera.lookAt(0, 0, 0);
+    var home = { position: pose.eyeDir.clone(), up: pose.up.clone(), rollRad: pose.rollRad, radius: 1 };
+    var controls = new TrackballControls(camera, hitEl);
+
+    // The idle turn: wanted (idleOn), and from when (idleAt, ms; Infinity
+    // until the model is home again after a drag).
+    var idleOn = false;
+    var idleAt = Infinity;
+    function armIdle() {
+      idleAt = performance.now() + IDLE_SPIN_DELAY;
+    }
+
+    var spin = createSpin(camera, controls, {
+      noAutoMotion: function () { return reducedMotion.matches; },
+      home: function () { return home; },
+      onHome: function () { if (idleOn) armIdle(); }
+    });
+    function onDragStart() { idleAt = Infinity; }
+    controls.addEventListener("start", onDragStart);
+
+    function step(dt) {
+      var now = performance.now();
+      if (idleOn && now >= idleAt && !spin.isBusy() && !reducedMotion.matches) {
+        var ramp = Math.min(1, (now - idleAt) / 1000 / IDLE_SPIN_RAMP);
+        var angle = IDLE_SPIN_SPEED * ramp * ramp * (3 - 2 * ramp) * dt;
+        // About the default view's own vertical — the screen's, whatever the
+        // product's tilt — so the camera's up IS the axis and stays put.
+        camera.position.applyAxisAngle(home.up, angle);
+        camera.up.copy(home.up);
+        camera.lookAt(0, 0, 0);
+        // Not the spin's step meanwhile: its leveling drift pulls up towards
+        // the world's vertical, which would tip the model off this axis.
+        return;
+      }
+      spin.step(dt);
+    }
+
+    return {
+      quaternion: camera.quaternion,
+      step: step,
+      // Turning by hand, coasting, waiting or easing back home: not at rest.
+      isBusy: spin.isBusy,
+      // Only the focused model answers a drag on the shared hitEl.
+      setEnabled: function (on) { controls.enabled = !!on; },
+      // The focused model idles; one that stops being it goes home.
+      setIdle: function (on) {
+        on = !!on;
+        if (on === idleOn) return;
+        idleOn = on;
+        if (on) {
+          armIdle();
+        } else {
+          idleAt = Infinity;
+          spin.goHome();
+        }
+      },
+      // hitEl moved or changed size: a drag's turn is measured against it.
+      handleResize: function () { controls.handleResize(); },
+      dispose: function () {
+        controls.removeEventListener("start", onDragStart);
+        spin.dispose();
+        controls.dispose();
+      }
+    };
   }
 
   toolkit = {
@@ -2435,6 +2612,7 @@ export { toolkit };
     orbitOrientation: function (product) {
       return orbitOrientation(product && product["3d-viewer-camera-default"]);
     },
+    spinFor: spinFor,
     // The ?mem=1 read-out counts every live renderer (js/viewer-entry.js).
     trackRenderer: function (renderer) { liveRenderers.push(renderer); },
     untrackRenderer: function (renderer) {

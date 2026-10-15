@@ -285,13 +285,15 @@ const designsSchema = {
 
 const productSchema = {
   type: "object",
-  required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "geometry", "assets"],
+  required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "size-range", "geometry", "assets"],
   properties: {
     id: str,
     name: { type: "string", minLength: 1 },
     category: str,
     description: str,
     "default-metal": str,
+    // Each metal's price at the reference size (62 mm); it scales linearly
+    // with the size, and "size-range" is the sizes the product is made in.
     "per-metal-specs": {
       type: "object",
       additionalProperties: {
@@ -299,6 +301,11 @@ const productSchema = {
         required: ["price"],
         properties: { price: { type: "number", minimum: 0 } }
       }
+    },
+    "size-range": {
+      type: "object",
+      required: ["min", "max"],
+      properties: { min: { type: "number", exclusiveMinimum: 0 }, max: { type: "number", exclusiveMinimum: 0 } }
     },
     geometry: geometrySchema,
     "hero-hand-visibility": {
@@ -591,6 +598,8 @@ if (index && validate("data/series.json", indexSchema, index)) {
         else itemSlugs.set(itemSlug, series.slug + " / " + product.id);
         if (!series.categories.includes(product.category)) fail(label, 'category "' + product.category + '" is not declared by its series');
         if (!metals.has(product["default-metal"])) fail(label, 'default-metal "' + product["default-metal"] + '" is not in metals');
+
+        if (product["size-range"].min > product["size-range"].max) fail(label, "size-range min is above its max");
 
         // Every metal needs a spec (the picker reads each) and an icon and
         // fallback image (the picker swaps them live).

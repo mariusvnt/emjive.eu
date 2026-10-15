@@ -1,9 +1,12 @@
 /* ==========================================================================
    Bones — hero behaviour: frontier band lift, then scroll-driven x-ray wipe,
    then (in the gallery's stack view) the entrance: a further stretch of
-   scrolling, the pin still held, over which the hand fades back while the
-   gallery's products come up onto it (js/gallery-stack.js, which this feeds
-   through window.EmjiveHero.publishStage and takes the rings from, rings()).
+   scrolling, the pin still held, over which the camera pulls back from the
+   hand — it shrinks towards the circle the gallery's rings stand on round
+   the wrist, the arm below it carrying on down the screen, and fades back to
+   a trace (js/gallery-stack.js, which this feeds through
+   window.EmjiveHero.publishStage, and which takes the rings from rings(), the
+   circle from orbit() and drives the pull-back through setZoom()).
    A hero already seen on this device (data-hero="skip") isn't played: the
    page lands at its end, in the stack view with the whole of it still above
    (scrolling back up goes back through the entrance and the wipe to its
@@ -39,6 +42,21 @@
   // on a phone the toolbar coming and going moves innerHeight by a few px,
   // and the very bottom of the page must still read as "arrived".
   var ENTRANCE_DONE = 0.995;
+
+  // The wrist, as a % of the full picture's width and height: the middle of
+  // the circle the gallery's rings stand on (orbit()), which is also the
+  // point the camera pulls back from. The circle's radius is how far the
+  // rings on the hand are from it, on average, so they start on it (or
+  // ORBIT_R_FALLBACK of the picture's height, with none on the hand).
+  var WRIST_X = 50.5;
+  var WRIST_Y = 80.5;
+  var ORBIT_R_FALLBACK = 0.39;
+  // The top of the hand (its longest fingertip), as a % of the picture's
+  // height: orbit() hands it over, so the gallery can keep the fingers on
+  // screen once the camera has pulled back.
+  var HAND_TOP_Y = 11.7;
+  // The x-ray has faded to its rest opacity by this point of the entrance.
+  var XRAY_FADE_END = 0.8;
 
   // The hero skipped in the grid view (data-hero="skip" on <html>,
   // js/scroll-memory.js): the hero isn't shown, and the reveal's end state is
@@ -184,7 +202,9 @@
     } else {
       entrance = totalScroll > 0 && rawScrolled >= totalScroll ? 1 : 0;
     }
-    revealXrayGroup.style.opacity = entrancePx > 0 ? String(1 - entrance * (1 - restOpacity())) : "";
+    revealXrayGroup.style.opacity = entrancePx > 0
+      ? String(1 - Math.min(1, entrance / XRAY_FADE_END) * (1 - restOpacity()))
+      : "";
     window.EmjiveHero.publishStage(entrance);
   }
 
@@ -230,12 +250,51 @@
       // stack takes each ring off the hand by these (rings() below).
       ring.setAttribute("data-product-id", product.id);
       ring.setAttribute("data-rotation", String(onHand.rotation || 0));
+      ring.setAttribute("data-x", String(onHand.x));
+      ring.setAttribute("data-y", String(onHand.y));
+      ring.setAttribute("data-scale", String(onHand.scale));
       ring.style.setProperty("--ring-x", onHand.x + "%");
       ring.style.setProperty("--ring-y", onHand.y + "%");
       ring.style.setProperty("--ring-size", onHand.scale + "%");
       ring.style.setProperty("--ring-rotation", onHand.rotation + "deg");
       revealXrayGroup.appendChild(ring);
     });
+  }
+
+  // The x-ray group's box on the screen as laid out, before any pull-back
+  // (setZoom) — its transform is only ever the pull-back's and the centring
+  // translateX(-50%), so its layout box is what the pull-back starts from.
+  // And the phone's crop of the picture (hero.css: what share of the full
+  // width is left, and where it starts, in %).
+  function layoutBox() {
+    var pin = revealXrayGroup.offsetParent || revealXrayGroup.parentNode;
+    var stage = pin.getBoundingClientRect();
+    var w = revealXrayGroup.offsetWidth;
+    var h = revealXrayGroup.offsetHeight;
+    var style = getComputedStyle(document.documentElement);
+    var crop = parseFloat(style.getPropertyValue("--hero-crop"));
+    var cropLeft = parseFloat(style.getPropertyValue("--hero-crop-left"));
+    return {
+      left: stage.left + (stage.width - w) / 2,
+      top: stage.top + stage.height - h,
+      width: w,
+      height: h,
+      crop: isFinite(crop) && crop > 0 ? crop : 1,
+      cropLeft: isFinite(cropLeft) ? cropLeft : 0
+    };
+  }
+
+  // A point given as a % of the FULL picture, as the screen shows it (the
+  // phone's crop re-expresses x the way hero.css's .reveal__ring does).
+  function pointOn(box, xPct, yPct) {
+    return {
+      x: box.left + box.width * ((xPct - box.cropLeft) / box.crop) / 100,
+      y: box.top + box.height * yPct / 100
+    };
+  }
+
+  function ringEls() {
+    return revealXrayGroup ? revealXrayGroup.querySelectorAll(".reveal__ring") : [];
   }
 
   window.EmjiveSeriesHero = {
@@ -265,12 +324,58 @@
     onProducts: updateHeroRings,
 
     // The rings on the hand, for js/gallery-stack.js to take off it:
-    // [{ id, el, rotation }] — rotation in degrees, as the ring lies.
+    // [{ id, el, rotation, x, y, size }] — rotation in degrees, as the ring
+    // lies; its middle and its width (the ring's own, unturned) in px of the
+    // screen, as laid out before any pull-back.
     rings: function () {
       if (!revealXrayGroup) return [];
-      return Array.prototype.map.call(revealXrayGroup.querySelectorAll(".reveal__ring"), function (el) {
-        return { id: el.getAttribute("data-product-id"), el: el, rotation: parseFloat(el.getAttribute("data-rotation")) || 0 };
+      var box = layoutBox();
+      return Array.prototype.map.call(ringEls(), function (el) {
+        var at = pointOn(box, parseFloat(el.getAttribute("data-x")) || 0, parseFloat(el.getAttribute("data-y")) || 0);
+        return {
+          id: el.getAttribute("data-product-id"),
+          el: el,
+          rotation: parseFloat(el.getAttribute("data-rotation")) || 0,
+          x: at.x,
+          y: at.y,
+          size: box.width * ((parseFloat(el.getAttribute("data-scale")) || 0) / box.crop) / 100
+        };
       });
+    },
+
+    // The circle round the wrist the gallery's rings stand on, in px of the
+    // screen as laid out before any pull-back: { x, y, r }, and how high the
+    // hand reaches (top: its fingertips' y). null without a hero to measure.
+    orbit: function () {
+      if (!revealXrayGroup || !revealXrayGroup.offsetHeight) return null;
+      var box = layoutBox();
+      var wrist = pointOn(box, WRIST_X, WRIST_Y);
+      var rings = this.rings();
+      var r = ORBIT_R_FALLBACK * box.height;
+      if (rings.length) {
+        r = rings.reduce(function (sum, ring) {
+          return sum + Math.sqrt(Math.pow(ring.x - wrist.x, 2) + Math.pow(ring.y - wrist.y, 2));
+        }, 0) / rings.length;
+      }
+      return { x: wrist.x, y: wrist.y, r: r, top: pointOn(box, WRIST_X, HAND_TOP_Y).y };
+    },
+
+    // The camera pulling back (js/gallery-stack.js): the hand shrinks by
+    // `scale` about the wrist, which moves by (dx, dy) px. (1, 0, 0) is the
+    // hand as laid out.
+    setZoom: function (scale, dx, dy) {
+      if (!revealXrayGroup) return;
+      if (scale === 1 && !dx && !dy) {
+        revealXrayGroup.style.removeProperty("transform");
+        revealXrayGroup.style.removeProperty("transform-origin");
+        return;
+      }
+      var box = layoutBox();
+      // Pulled back, the wipe is long over (its clip is inset(0) by then), and
+      // a clip to the group's box would cut off the arm hanging below it.
+      revealXrayGroup.style.clipPath = "none";
+      revealXrayGroup.style.transformOrigin = ((WRIST_X - box.cropLeft) / box.crop) + "% " + WRIST_Y + "%";
+      revealXrayGroup.style.transform = "translateX(-50%) translate(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px) scale(" + scale.toFixed(5) + ")";
     },
 
     // data-hero / data-gallery-view on <html> just changed (js/gallery.js: a

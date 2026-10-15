@@ -5,9 +5,8 @@ each collection brings its own products, its own homepage hero animation,
 and its own design manifest, with one field in `data/series.json` deciding
 which one the homepage shows. A homepage gallery that is either a stack of
 the items' 3D models (glTF/GLB) rising out of the hero onto the x-ray hand —
-floating, turning slowly, then falling into a pile when the first one is
-tapped; tap one to turn it round — or a plain grid of photos for a quick
-pick. Falls back to photos if no model is set yet. Clicking a product opens its
+floating and rocking very slowly; tap one to open its page — or a plain
+grid of photos for a quick pick. Falls back to photos if no model is set yet. Clicking a product opens its
 detail page — a three-stage scroll: a feed of photos and a description, the
 3D model with a metal picker and, for some items, a choice of designs, then
 its specs (a size you set by dragging a circle round the model, dimensions

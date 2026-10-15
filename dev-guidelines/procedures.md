@@ -136,7 +136,7 @@ picks which metal the *homepage* gallery shows (the stack's models, the grid's
 tiles and the Select sheet's start), since there's no metal picker there to
 switch it.
 
-Leave `assets.model: ""` if there's no 3D file yet — the stack and the focus row
+Leave `assets.model: ""` if there's no 3D file yet — the stack
 will just show `assets.icons[metal]` instead. The homepage itself still displays nothing but
 the model/icon and a `Name.category` label; `description` and
 `per-metal-specs` only appear once you click through to the product page.
@@ -415,7 +415,7 @@ the tool only edits an already-existing entry's values.
 The viewer construction itself (renderer/scene/camera setup, camera-orbit/
 idle-reset behaviour, and applying `METAL_PRESETS`) lives in one place —
 `buildThreeViewer()` in `js/three-viewer.js`, exposed as
-`window.EmjiveModelViewer` — shared by the homepage (the stack's models, built by `js/stack-scene.js`, and the focused product's viewer) and the
+`window.EmjiveModelViewer` — shared by the homepage (the stack's models, built by `js/stack-scene.js`) and the
 product page's model in the design stage, so a metal swap on the product page re-tints the
 same model in place instead of reloading it or resetting the camera angle.
 
@@ -651,7 +651,7 @@ Two things read it back:
   centered "No selected item" state once it's empty again.
 
 Both lists open the same **Modify sheet** (`js/modify-modal.js`): metal and
-size, with the item's own 3D model (and, for a product with photos, a "See photos" button to its page), resting on the tapped row. While it's
+size, with the item's own 3D model (and a "Go to page" button to its page), resting on the tapped row. While it's
 up, the page's bar turns into its **Unselect | Save** strip; Unselect
 removes the item and offers **Undo** on the item's own line in the list for a few seconds. See
 `client-scripts.md` for the mechanics.

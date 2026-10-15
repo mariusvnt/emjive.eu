@@ -98,7 +98,6 @@ export function createStackScene(options) {
   var qTop = toolkit.orbitOrientation({ "3d-viewer-camera-default": { rotation: 0, tilt: 0, zoom: 100 } }).invert();
   var zAxis = new T.Vector3(0, 0, 1);
   var tmpQ = new T.Quaternion();
-  var tmpQ2 = new T.Quaternion();
 
   function rotZ(deg, out) {
     // Clockwise on screen is about -Z in a y-up world.
@@ -352,7 +351,6 @@ export function createStackScene(options) {
   /* ---- the loop ---------------------------------------------------------------------
      Draws only when something moved: the entrance (on each new progress), a
      floating stack (always). */
-  var lastTime = 0;
   var raf = 0;
 
   // Floating, a model's idle: it rocks about the axis pointing at the

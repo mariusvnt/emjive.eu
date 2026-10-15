@@ -7,8 +7,8 @@
             circle round its wrist, a plate the visitor turns to bring one to
             the top (js/gallery-stack.js, mounted from here);
      grid   a table, a product a row, built here: no 3D, each row's picture
-            a strip of slides (the model's own view, then the photos) swiped
-            sideways; a tap goes to the product's page.
+            a deck of cards (the model's own view, then the photos) dealt
+            with a swipe sideways; a tap goes to the product's page.
    And the hero: data-hero="play" plays the reveal first, "skip" lands on the
    gallery at rest. It plays once per device — this file sets the seen flag
    once it has played out.
@@ -182,14 +182,23 @@
   syncControls();
 
   /* ---- the grid ---------------------------------------------------------------
-     A header row, then a row (a tile) a product: its index, its pictures in a
-     strip (the model's own default view — the fallback-img the 3D viewer
-     starts from elsewhere, or the icon for a product with no model — then the
-     photos), dots under them when there's more than one, and its facts.
-     Swiped natively (overflow + scroll snap): a swipe that scrolls never
-     becomes a click, so a click anywhere on the tile is a tap meant for it. */
-  function slide(src, alt, modifier) {
-    var img = el("img", "grid-tile__slide " + modifier);
+     A header row, then a row (a tile) a product: its index, its pictures as a
+     deck of cards seen from an angle (the model's own default view — the
+     fallback-img the 3D viewer starts from elsewhere, or the icon for a
+     product with no model — on top, then the photos), and its facts. Each
+     card behind sits a little
+     further right and a little smaller, a sliver of it out past the right
+     edge of the one before (css/style.css). A swipe sideways deals the deck —
+     the front card goes to the back, or the back one comes to the front — and
+     so does a tap on a card behind; a tap on the front card, or anywhere else
+     on the tile, opens the product. */
+  // How many cards show behind the front one; any more wait under the last.
+  var DECK_DEPTH = 3;
+  // How far a press travels sideways before it deals a card, in px.
+  var DEAL_PX = 24;
+
+  function card(src, alt, modifier) {
+    var img = el("img", "grid-tile__card " + modifier);
     img.src = src;
     img.alt = alt;
     img.width = 512;
@@ -200,26 +209,80 @@
     return img;
   }
 
-  function wireDots(slides, dots) {
-    var buttons = Array.prototype.slice.call(dots.children);
-    var current = -1;
-    function sync() {
-      var width = slides.clientWidth || 1;
-      var index = Math.max(0, Math.min(buttons.length - 1, Math.round(slides.scrollLeft / width)));
-      if (index === current) return;
-      if (buttons[current]) buttons[current].classList.remove("is-current");
-      buttons[index].classList.add("is-current");
-      current = index;
-    }
-    slides.addEventListener("scroll", sync, { passive: true });
-    buttons.forEach(function (button, i) {
-      button.addEventListener("click", function (e) {
-        // A dot pages the strip; it isn't a tap on the tile.
-        e.stopPropagation();
-        slides.scrollTo({ left: i * slides.clientWidth, behavior: "smooth" });
+  // The deck goes round: dealing on from the last card brings the first back
+  // to the front. Each card's place in it (0 the front) is --pos, which
+  // css/style.css turns into where it sits and how small; the cards past
+  // DECK_DEPTH share the last place, under it.
+  function wireDeck(frame, deck) {
+    var cards = Array.prototype.slice.call(deck.children);
+    var count = cards.length;
+    var current = 0;
+    var press = null;
+    var dealt = false;
+
+    function place() {
+      cards.forEach(function (c, i) {
+        var pos = (i - current + count) % count;
+        c.style.setProperty("--pos", Math.min(pos, DECK_DEPTH));
+        // The card leaving the front drops under the rest at once and slides
+        // back beneath them; the one coming from the back rises over them.
+        c.style.zIndex = String(count - pos);
+        c.classList.toggle("is-front", pos === 0);
       });
+    }
+
+    function deal(index) {
+      current = ((index % count) + count) % count;
+      place();
+    }
+
+    frame.style.setProperty("--deck-depth", Math.min(count - 1, DECK_DEPTH));
+    place();
+
+    // Swiped, mouse, pen and touch alike: within 45° of horizontal and
+    // DEAL_PX long, a press deals one card — leftwards the next, rightwards
+    // the one before; nearer the vertical it is the page's scroll (by touch
+    // the browser's own, touch-action: pan-y, which cancels the press).
+    deck.addEventListener("pointerdown", function (e) {
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      dealt = false;
     });
-    sync();
+    deck.addEventListener("pointermove", function (e) {
+      if (!press || e.pointerId !== press.id) return;
+      var dx = e.clientX - press.x;
+      var dy = e.clientY - press.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < DEAL_PX) return;
+      press = null;
+      if (Math.abs(dx) <= Math.abs(dy)) return;
+      dealt = true;
+      deal(current + (dx < 0 ? 1 : -1));
+    });
+    function release(e) {
+      if (press && e.pointerId === press.id) press = null;
+    }
+    deck.addEventListener("pointerup", release);
+    deck.addEventListener("pointercancel", release);
+
+    // A swipe that dealt isn't a tap on the tile; nor is a tap on a card
+    // behind, which brings that card to the front.
+    deck.addEventListener("click", function (e) {
+      if (dealt) {
+        dealt = false;
+        e.stopPropagation();
+        return;
+      }
+      var target = e.target.closest ? e.target.closest(".grid-tile__card") : null;
+      if (target && !target.classList.contains("is-front")) {
+        e.stopPropagation();
+        deal(cards.indexOf(target));
+      }
+    });
+
+    deck.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      deal(current + (e.key === "ArrowRight" ? 1 : -1));
+    });
   }
 
   // A tile is a link to the product's own page.
@@ -295,7 +358,7 @@
     indexCell.setAttribute("aria-hidden", "true");
     tile.appendChild(indexCell);
     var frame = el("div", "grid-tile__frame");
-    var slides = el("div", "grid-tile__slides");
+    var deck = el("div", "grid-tile__deck");
     var assets = product.assets || {};
     var metal = product["default-metal"];
     var name = product.name || "";
@@ -303,29 +366,20 @@
       (assets.icons && assets.icons[metal]);
     var firstImg = null;
     if (first) {
-      firstImg = slide(first, name, "grid-tile__slide--model");
-      slides.appendChild(firstImg);
+      firstImg = card(first, name, "grid-tile__card--model");
+      deck.appendChild(firstImg);
     }
     (assets.photos || []).forEach(function (photo) {
-      slides.appendChild(slide(photo.src, photo.description || name, "grid-tile__slide--photo"));
+      deck.appendChild(card(photo.src, photo.description || name, "grid-tile__card--photo"));
     });
-    frame.appendChild(slides);
+    frame.appendChild(deck);
 
-    if (slides.children.length > 1) {
-      slides.tabIndex = 0;
-      slides.setAttribute("role", "group");
-      slides.setAttribute("aria-roledescription", "carousel");
-      slides.setAttribute("aria-label", name + " pictures");
-      var dots = el("span", "grid-tile__dots");
-      dots.setAttribute("aria-hidden", "true");
-      for (var i = 0; i < slides.children.length; i++) {
-        var dot = el("button", "grid-tile__dot");
-        dot.type = "button";
-        dot.tabIndex = -1;
-        dots.appendChild(dot);
-      }
-      frame.appendChild(dots);
-      wireDots(slides, dots);
+    if (deck.children.length > 1) {
+      deck.tabIndex = 0;
+      deck.setAttribute("role", "group");
+      deck.setAttribute("aria-roledescription", "carousel");
+      deck.setAttribute("aria-label", name + " pictures");
+      wireDeck(frame, deck);
     }
     // The body: the picture, then beside it the item's facts, a column each
     // (css/style.css).

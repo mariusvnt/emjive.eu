@@ -369,7 +369,7 @@
   // immediately.
   function visibleFigureImages() {
     var viewportHeight = window.innerHeight || 0;
-    var all = document.querySelectorAll(".grid-tile__slide:first-child, .stack-item__img");
+    var all = document.querySelectorAll(".grid-tile__card:first-child, .stack-item__img");
     var out = [];
     for (var i = 0; i < all.length; i++) {
       var rect = all[i].getBoundingClientRect();

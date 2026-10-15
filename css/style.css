@@ -1272,9 +1272,11 @@ body:has(.site-header__menu.is-open) .gallery-control {
    (.grid-tile--head) names them in the same places — on a phone its labels
    stack as the facts do. Category is always a column, even when the series
    has only one. No rules: 3rem between products
-   on a phone, up to 15rem on a desktop, and 3rem under the header. The picture is a strip of slides (the model's own
-   view, then the product's photos) swiped natively, sideways, with scroll
-   snapping; a tap anywhere on a row opens the product's page. */
+   on a phone, up to 15rem on a desktop, and 3rem under the header. The
+   picture is a deck of cards (the model's own view, then the product's
+   photos) seen from an angle, dealt with a swipe sideways; a tap anywhere on
+   a row opens the product's page, but on a card behind, which it brings to
+   the front. */
 .product-grid {
   --grid-cols: 2;
   --grid-picture-gap: 1.5rem;
@@ -1341,72 +1343,76 @@ body:has(.site-header__menu.is-open) .gallery-control {
   column-gap: var(--grid-picture-gap);
   align-items: center;
 }
+/* The picture's square holds a deck of cards seen from an angle, all inside
+   it: the front card square against its left edge, centred on its height,
+   and behind it, --deck-depth of them at most (js/gallery.js), each moved
+   --deck-peek further right and --deck-shrink smaller — shrunk about its own
+   right edge, so that edge shows exactly --deck-peek past the one before.
+   The front card is as wide as the square less those peeks, so the last
+   card's edge is the square's. A card's place is --pos (0 the front), set on
+   it by js/gallery.js; dealing glides each card to its new place. The model's
+   card is frosted glass (the cards behind show through it, blurred 8px),
+   the photos carry
+   a soft shadow where there is a deck, so each one's edge reads against the
+   next. */
 .grid-tile__frame {
+  --deck-depth: 0;
+  /* cqw: of the square's width (it is the container). */
+  --deck-peek: 6cqw;
+  --deck-shrink: 0.07;
   grid-column: 1;
   position: relative;
   aspect-ratio: 1 / 1;
+  container-type: inline-size;
 }
-.grid-tile__slides {
-  display: flex;
+/* isolation: the cards' z-indexes stay in the deck, under the loader. */
+.grid-tile__deck {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  align-items: center;
+  justify-items: start;
   width: 100%;
   height: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
+  isolation: isolate;
+  touch-action: pan-y;
 }
-.grid-tile__slides::-webkit-scrollbar { display: none; }
-/* The first CSS pixel of a slide is left transparent (padding-left): where the
-   strip's edge falls between two device pixels (a 150% screen, a tile that is
-   not a whole number of pixels wide) its clip rounds outwards, and one device
-   pixel of the next slide would show as a rim on the right edge of this one.
-   The next slide's own first pixels are empty there. */
-.grid-tile__slide {
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100%;
-  padding-left: 1px;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
+.grid-tile__card {
+  grid-area: 1 / 1;
+  width: calc(100% - var(--deck-depth) * var(--deck-peek));
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
+  background: var(--bg);
+  transform-origin: 100% 50%;
+  transform:
+    translateX(calc(var(--pos, 0) * var(--deck-peek)))
+    scale(calc(1 - var(--pos, 0) * var(--deck-shrink)));
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
   -webkit-user-drag: none;
   user-select: none;
 }
-.grid-tile__slide--photo {
+.grid-tile__deck[role="group"] .grid-tile__card {
+  box-shadow: 0 0 0.75rem rgba(0, 0, 0, 0.08);
+}
+.grid-tile__card--photo {
   object-fit: cover;
 }
-.grid-tile__dots {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0.25rem;
-  display: flex;
-  justify-content: center;
-  gap: 0.125rem;
-}
-.grid-tile__dot {
-  width: 1rem;
-  height: 1rem;
-  padding: 0;
-  border: none;
+.grid-tile__card--model {
   background: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
-.grid-tile__dot::before {
-  content: "";
-  width: var(--dot);
-  height: var(--dot);
-  border-radius: 50%;
-  background: var(--category-col);
-  opacity: 0.35;
-  transition: opacity var(--fade-quick) ease;
-}
-.grid-tile__dot.is-current::before {
-  opacity: 1;
+/* In a deck, the frost's edge is a tight gradient darkening it, inside the
+   card, as the glass bars' edges are (.glass): three inset shadows, the
+   darkest the tightest, so close to the edge all three compound and the
+   last of it fades out a few pixels in — the clean line between the glass
+   and the photos it blurs. Under the model's picture, which only touches
+   the edge where there's nothing round the ring. */
+.grid-tile__deck[role="group"] .grid-tile__card--model {
+  box-shadow:
+    inset 0 0 1px rgba(0, 0, 0, 0.1),
+    inset 0 0 3px rgba(0, 0, 0, 0.06),
+    inset 0 0 6px rgba(0, 0, 0, 0.04);
 }
 /* The facts (a <dl>, its labels visually hidden — the header row is only
    seen), in the body's second column, flush right: stacked on a phone;

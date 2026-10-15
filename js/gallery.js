@@ -90,8 +90,6 @@
     cats: [],
     onShowAll: null,
     emptyMsg: null,
-    // Whether the grid has a Category column: the series has more than one.
-    withCategory: false,
     // The entrance's progress, as the hero last published it.
     stage: null
   };
@@ -228,19 +226,15 @@
   }
 
   // The columns of a row's facts, in order: Id (the name — also the row's
-  // button for a keyboard), Category (only where the series has more than
-  // one), Size (the range it is made in) and Price (what it starts at, over
-  // all the metals: the price follows the size, js/selection.js priceAt).
+  // button for a keyboard), Category (even where the series has only one),
+  // Size (the range it is made in) and Price (what it starts at, over all the
+  // metals: the price follows the size, js/selection.js priceAt).
   var FACTS = [
     { key: "name", label: "Id" },
     { key: "category", label: "Category" },
     { key: "size", label: "Size" },
     { key: "price", label: "Price" }
   ];
-
-  function factKeys() {
-    return FACTS.filter(function (fact) { return fact.key !== "category" || state.withCategory; });
-  }
 
   // The header row: the same cells as a product's row, the labels in them,
   // so it lines up with the rows at every width (css/style.css). Only seen —
@@ -251,7 +245,7 @@
     head.appendChild(el("span", "grid-tile__index", "No."));
     var body = el("div", "grid-tile__body");
     var facts = el("div", "grid-tile__facts");
-    factKeys().forEach(function (fact) {
+    FACTS.forEach(function (fact) {
       facts.appendChild(el("span", "grid-tile__fact grid-tile__fact--" + fact.key, fact.label));
     });
     body.appendChild(facts);
@@ -281,7 +275,7 @@
 
   function buildFacts(product) {
     var list = el("dl", "grid-tile__facts");
-    factKeys().forEach(function (fact) {
+    FACTS.forEach(function (fact) {
       var row = el("div", "grid-tile__fact grid-tile__fact--" + fact.key);
       row.appendChild(el("dt", "visually-hidden", fact.label));
       row.appendChild(factValue(product, fact.key));
@@ -350,8 +344,6 @@
 
   function renderGrid(products) {
     grid.innerHTML = "";
-    state.withCategory = Object.keys(counts()).length > 1;
-    grid.classList.toggle("has-category", state.withCategory);
     if (products.length) grid.appendChild(buildHead());
     state.tiles = products.map(function (product, index) {
       var tile = buildTile(product, index);

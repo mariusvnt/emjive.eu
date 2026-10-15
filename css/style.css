@@ -1249,8 +1249,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
    per fact — 1.5rem from the picture to the facts, the page's own edge
    (--edge-px) from fact to fact. A header row
    (.grid-tile--head) names them in the same places — on a phone its labels
-   stack as the facts do. Category is a column only when the series has more
-   than one (.has-category, js/gallery.js). No rules: 3rem between products
+   stack as the facts do. Category is always a column, even when the series
+   has only one. No rules: 3rem between products
    on a phone, up to 9rem on a desktop, and 3rem under the header. The picture is a strip of slides (the model's own
    view, then the product's photos) swiped natively, sideways, with scroll
    snapping; a tap anywhere on a row opens the product's page. */
@@ -1275,10 +1275,9 @@ body:has(.site-header__menu.is-open) .gallery-control {
      first one shown is always the header's gap under it. */
   gap: var(--grid-head-gap) 0.5rem;
 }
-/* The picture, then Id, Size, Price — and Category, when there is one. */
+/* The picture, then Id, Category, Size, Price. */
 @media (min-width: 641px) {
-  .product-grid { --grid-cols: 4; --grid-fact-cols: 3; }
-  .product-grid.has-category { --grid-cols: 5; --grid-fact-cols: 4; }
+  .product-grid { --grid-cols: 5; --grid-fact-cols: 4; }
 }
 
 .product-grid__loading {
@@ -1288,8 +1287,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
   color: var(--category-col);
 }
 
-/* A row: the grid's two columns, whole. The index and the facts share a
-   baseline; the picture hangs from the row's top. Same trap as everywhere
+/* A row: the grid's two columns, whole. The index and the facts are centered
+   on the picture's height, in the middle of its square. Same trap as everywhere
    else on the site: display: grid beats the UA stylesheet's
    [hidden] { display: none }, and the filter hides rows with it rather than
    rebuilding them. */
@@ -1297,7 +1296,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
-  align-items: baseline;
+  align-items: center;
   min-width: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -1319,11 +1318,10 @@ body:has(.site-header__menu.is-open) .gallery-control {
     calc((100% - var(--grid-picture-gap) - (var(--grid-cols) - 2) * var(--edge-px)) / var(--grid-cols))
     minmax(0, 1fr);
   column-gap: var(--grid-picture-gap);
-  align-items: baseline;
+  align-items: center;
 }
 .grid-tile__frame {
   grid-column: 1;
-  align-self: start;
   position: relative;
   aspect-ratio: 1 / 1;
 }

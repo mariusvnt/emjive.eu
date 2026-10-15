@@ -45,7 +45,7 @@
   --button-text-transform: uppercase;
   /* The secondary button: the same recipe, 30% smaller — its size, its
      letter-spacing and the padding around its text are the main button's
-     times --button-secondary-scale. The "Find my size", "See photos" and
+     times --button-secondary-scale. The "Find my size", "Go to page" and
      "Back to photos" buttons. */
   --button-secondary-scale: 0.7;
   --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
@@ -1861,8 +1861,8 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 .order-item__thumb {
   flex: 0 0 auto;
-  width: 3rem;
-  height: 3rem;
+  width: 3.75rem;
+  height: 3.75rem;
   object-fit: contain;
   background: transparent;
 }
@@ -2867,8 +2867,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 .product-detail__label-thumb {
   flex: 0 0 auto;
-  width: 3rem;
-  height: 3rem;
+  width: 3.75rem;
+  height: 3.75rem;
   object-fit: contain;
   background: transparent;
 }
@@ -4749,16 +4749,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal--modify .size-modal__panel {
   max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
 }
-/* "See photos", next to the model (js/modify-modal.js): to its right, just under
+/* "Go to page", by the model (js/modify-modal.js): hugging the right margin of
+   the sheet's content (the edge its rows end on), just under
    the line where the sheet's own surface begins (the frame's lower half is
    painted, its upper half is not), a secondary button (the site's button
-   format, 30% smaller). The frame takes no taps, so the button asks for
+   format, 30% smaller) with an arrow before its label. The frame takes no taps, so the button asks for
    them. */
-.size-modal__photos-toggle {
+.size-modal__page-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
   position: absolute;
   z-index: 2;
   top: calc(50% + 0.5rem);
-  left: calc(50% + var(--mini-tile) * 0.375 + 0.75rem);
+  /* Less the letter-spacing the last letter carries after it, so the
+     letters themselves end on the margin. */
+  right: calc(max(var(--edge-px), (100% - var(--size-modal-max)) / 2 + var(--edge-px)) - var(--button-secondary-letter-spacing));
   padding: calc(0.3rem * var(--button-secondary-scale)) 0;
   border: none;
   background: none;
@@ -4774,16 +4780,13 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   pointer-events: auto;
   transition: opacity var(--fade-quick) ease;
 }
-.size-modal__photos-toggle[hidden] {
-  display: none;
-}
-@media (max-width: 640px) {
-  .size-modal__photos-toggle {
-    left: calc(50% + var(--mini-tile) * 0.33 + 0.75rem);
-  }
+/* The arrow, left of the label: the size finder's, pointing on, as tall as the label's caps. */
+.size-modal__page-toggle svg {
+  width: 1.2em;
+  height: 1.2em;
 }
 @media (hover: hover) {
-  .size-modal__photos-toggle:hover { opacity: 0.6; }
+  .size-modal__page-toggle:hover { opacity: 0.6; }
 }
 /* The model's stand-in while the sheet slides in (js/modify-modal.js builds
    the viewer only once it has): its poster image, in a box sized exactly

@@ -11,8 +11,8 @@
      - the live 3D model (drag rotates it), its top half sticking out above
        the sheet, in the frame of product.html's carousel (js/carousel.js,
        with the one slide: no paging, no photos here), and next to it a
-       "See photos" button — for a product that has photos — which takes
-       the visitor to the product page, where they are the first stage. The
+       "Go to page" button, with an arrow, which takes the visitor to the
+       product's page. The
        sheet never waits for the model: it opens on the model's poster
        image, and the viewer is built once it has slid in (scheduleViewer);
      - the metal picker, which re-tints that model in place;
@@ -130,11 +130,11 @@
   viewport.appendChild(track);
   carouselEl.appendChild(viewport);
   carouselFrame.appendChild(carouselEl);
-  // Next to the model: the product's photos are its page's first stage.
-  var photosToggle = el("button", "size-modal__photos-toggle", "See photos");
-  photosToggle.type = "button";
-  photosToggle.hidden = true;
-  carouselFrame.appendChild(photosToggle);
+  // Next to the model: on to the product's own page.
+  var pageToggle = el("button", "size-modal__page-toggle", "Go to page");
+  pageToggle.type = "button";
+  pageToggle.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12 H21 M14 5 L21 12 L14 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
+  carouselFrame.appendChild(pageToggle);
 
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
@@ -429,7 +429,7 @@
   /* ---- the model's slide ---------------------------------------------------
      The one slide is the model — its poster image to begin with (see
      scheduleViewer), or the icon for a product with no model. The photos
-     aren't here (the "See photos" button next to it goes to them). No
+     aren't here (the "Go to page" button next to it goes to them). No
      captions and no x-ray backdrop at this size. */
   function iconSlide() {
     var src = iconSrc(state.selectedMetal);
@@ -473,14 +473,12 @@
       if (fallback) track.appendChild(fallback);
     }
 
-    photosToggle.hidden = !(product.assets && product.assets.photos && product.assets.photos.length);
     carouselFrame.classList.add("product-carousel--single");
   }
 
-  // The photos are the first stage of the product's page: there, if this is
-  // that page already (the sheet opened from its own bar's drawer), the sheet
-  // closes and the page goes back to the top.
-  function seePhotos() {
+  // The product's page: if this is that page already (the sheet opened from
+  // its own bar's drawer), the sheet closes and the page goes back to the top.
+  function goToPage() {
     var href = window.EmjiveSeries.productHref(state.product);
     if (window.location.pathname.replace(/\/+$/, "") === href) {
       close();
@@ -489,7 +487,7 @@
     }
     window.location.href = href;
   }
-  photosToggle.addEventListener("click", seePhotos);
+  pageToggle.addEventListener("click", goToPage);
 
   // The sheet goes up first and the model follows. Building a viewer means a
   // fresh WebGL context and a synchronous shader compile (js/three-viewer.js),

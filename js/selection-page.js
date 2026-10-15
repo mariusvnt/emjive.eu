@@ -309,7 +309,8 @@
         return listState === "list" ? rows.buttonAt(binding.index) : null;
       },
       fallbackFocus: function () {
-        return (listState === "list" && rows.buttonAt(0)) || backLink;
+        // The row on top, the latest.
+        return (listState === "list" && rows.buttonAt(window.EmjiveSelection.getSelection().length - 1)) || backLink;
       }
     });
   }
@@ -317,6 +318,7 @@
   var rows = window.EmjiveOrderRows.create({
     listEl: itemsEl,
     showPrice: true,
+    newestFirst: true,
     onModify: openModify
   });
 

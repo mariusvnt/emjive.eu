@@ -12,8 +12,8 @@
   "metal-technology": { "steel": "binder-jetting", "silver": "lost-wax", "bronze": "lost-wax" },
 
   "metal-composition": {
-    "steel": "316L stainless steel",
-    "silver": "925 silver",
+    "steel": "316L steel (iron 68%, chrome 17%, nickel 12.5%, molybdène 2.5%)",
+    "silver": "925 silver (silver 92.5%, other metals 7.5%)",
     "bronze": "CuSn10 bronze (90% copper, 10% tin)"
   },
 

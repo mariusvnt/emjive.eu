@@ -44,6 +44,9 @@
      showPrice          each row shows its price, to the right of its label (the
                         order list and the bar's drawer alike)
      onModify(binding)  a row was tapped — binding.item / binding.index
+     newestFirst        the rows stand in reverse: the latest item on top, the
+                        oldest at the bottom (the drawers). Indexes and
+                        everything else still follow the selection's order
      dropAtOnce         a dropped undo line (another row was tapped while it
                         was on offer) leaves the list at once instead of
                         closing: for the bar's drawer, which is about to
@@ -182,6 +185,16 @@
     var rowClass = options.rowClass || "";
     var showPrice = !!options.showPrice;
     var dropAtOnce = !!options.dropAtOnce;
+    var newestFirst = !!options.newestFirst;
+
+    // Where the row at `index` goes in the list: right before this element
+    // (null: at the end). `bindings` is in selection order, the list in
+    // reverse of it when newestFirst — the row goes just above the one
+    // before it in the selection.
+    function slotFor(index) {
+      var neighbour = bindings[newestFirst ? index - 1 : index];
+      return neighbour ? neighbour.li : null;
+    }
 
     // One entry per row still in the list, in list order:
     // { item, index, li, inner, button, thumb, name, attrs, price }. A row
@@ -438,7 +451,7 @@
       held = null;
       // Only moved when something has come between (re-inserting an element
       // drops the state its transitions start from — it would just snap).
-      var next = bindings[index] ? bindings[index].li : null;
+      var next = slotFor(index);
       if (li.nextElementSibling !== next) listEl.insertBefore(li, next);
       bindings.splice(index, 0, binding);
       syncBindings(items);
@@ -512,7 +525,8 @@
       expanding = [];
       bindings = items.map(function (item) {
         var binding = buildRow(item);
-        listEl.appendChild(binding.li);
+        if (newestFirst) listEl.insertBefore(binding.li, listEl.firstChild);
+        else listEl.appendChild(binding.li);
         return binding;
       });
       syncBindings(items);
@@ -569,8 +583,7 @@
         collapse(bindings.splice(change.index, 1)[0]);
       } else {
         var binding = buildRow(items[change.index]);
-        var next = bindings[change.index];
-        listEl.insertBefore(binding.li, next ? next.li : null);
+        listEl.insertBefore(binding.li, slotFor(change.index));
         bindings.splice(change.index, 0, binding);
         syncBindings(items);
         expand(binding);

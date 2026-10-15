@@ -8,7 +8,7 @@
             mounted from here);
      grid   tiles in columns, built here: no 3D, each tile a strip of slides
             (the model's own view, then the photos) swiped sideways; a tap
-            opens the Modify sheet in its Select mode, without leaving the page.
+            goes to the product's page.
    And the hero: data-hero="play" plays the reveal first, "skip" lands on the
    gallery at rest. It plays once per device — this file sets the seen flag
    once it has played out.
@@ -213,12 +213,8 @@
     sync();
   }
 
-  function openSelect(product, returnFocus) {
-    if (window.EmjiveSelectionBar && window.EmjiveSelectionBar.openSelect) {
-      window.EmjiveSelectionBar.openSelect(product, state.slug, { returnFocus: returnFocus });
-      return;
-    }
-    // No bar to select into (its scripts failed): the product's own page.
+  // A tile is a link to the product's own page.
+  function openProduct(product) {
     window.location.href = window.EmjiveSeries.productHref(product, state.slug);
   }
 
@@ -261,12 +257,12 @@
 
     var label = el("button", "grid-tile__label");
     label.type = "button";
-    label.setAttribute("aria-label", "Select " + name + (product.category ? ", " + product.category : ""));
+    label.setAttribute("aria-label", "Open " + name + (product.category ? ", " + product.category : ""));
     label.appendChild(el("span", "grid-tile__label-name", name));
     if (product.category) label.appendChild(el("span", "grid-tile__label-type", "." + product.category.toLowerCase()));
     tile.appendChild(label);
 
-    tile.addEventListener("click", function () { openSelect(product, label); });
+    tile.addEventListener("click", function () { openProduct(product); });
 
     // The model's picture hides behind a loader until it has loaded, as the
     // old cards' did (js/loader.js).

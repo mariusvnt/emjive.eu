@@ -124,6 +124,7 @@
     listEl: rowsEl,
     rowClass: "order-item--drawer",
     showPrice: true,
+    newestFirst: true,
     dropAtOnce: true,
     onModify: openModify,
     onResize: syncDrawerHeight
@@ -221,7 +222,7 @@
 
   function peekNewest() {
     if (drawer.classList.contains("is-open") || reducedHeight !== null) return;
-    var row = rowsEl.lastElementChild;
+    var row = rowsEl.firstElementChild;
     if (!row) return;
     cancelPeek();
     // A lone row shows from the list's very top, its padding included.

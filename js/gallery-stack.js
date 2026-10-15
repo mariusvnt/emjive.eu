@@ -5,30 +5,24 @@
    page stays pinned on the hand and the scrolling carries on into the
    entrance (series/<slug>/hero.js publishes its progress, 0 to 1, through
    window.EmjiveHero.onStage): the products rise from under the screen like a
-   wave, left to right, while the rings on the hand pop off it and fly to
-   their own places, and the hand fades back. Then they float, spread over
-   the screen. A tap on one takes it out of the stack: it flies to the top,
-   where it becomes the gallery's old row — the live 3D model to turn, the
-   bar behind it, the name — and a tap on the model, the bar or the name
-   opens its page. The first such tap also turns gravity on: the others drop
-   into a pile.
+   wave, left to right, while the rings on the hand pop off it and turn in
+   place before flying to their own places, and the hand fades back. Then
+   they float, spread over the screen, each rocking very slowly about the
+   axis pointing at the visitor. A tap on one opens its page.
 
    Two ways of drawing the stack, the same layout and the same wave:
-     - the 3D stack (js/stack-scene.js, a lazy chunk with three.js and a
-       physics engine): every model in one shared canvas, bodies that float,
-       fall and collide. It takes over from the pictures once it has loaded;
+     - the 3D stack (js/stack-scene.js, a lazy chunk with three.js): every
+       model in one shared canvas. It takes over from the pictures once it
+       has loaded;
      - the image stack: each product's default view (fallback-img), the very
        picture its 3D model is framed to match — the first paint, and all of
        the stack where the 3D one can't run (no WebGL, reduced motion, the
-       chunk failing). Nothing physical about it: it lays itself out again,
-       with a glide, when the focused product changes.
-   The focused product's own 3D viewer is js/three-viewer.js's, like the
-   product page's (one WebGL context), whichever draws the rest.
+       chunk failing). It doesn't float; it lays itself out again, with a
+       glide, when the filter changes.
 
    window.EmjiveGalleryStack = { mount(stage, options) } -> {
      setFilter(ids), setActive(on)
-   } — mounted by js/gallery.js. options: products, slug, active, focused
-   (an id to start focused on: Back from its page), onFocusChange(id|null).
+   } — mounted by js/gallery.js. options: products, slug, active.
    ========================================================================== */
 
 (function () {
@@ -38,10 +32,9 @@
   // How much of the entrance the items' starts are spread over, left to
   // right: the last one sets off at this point and still lands at the end.
   var WAVE_SPREAD = 0.45;
-  // A ring's pop off the hand takes this much of the entrance; it then flies
-  // for the rest. It swells to POP_SCALE while it pops.
+  // A ring's pop off the hand takes this much of the entrance, turning in
+  // place at its size on the hand; it then flies for the rest.
   var POP_END = 0.25;
-  var POP_SCALE = 1.3;
   // How far an item is turned as it sets off (it untwists as it rises).
   var TUMBLE_DEG = 25;
 
@@ -55,15 +48,11 @@
   // How far an item may wander from its cell's middle, as a share of the
   // room it has there.
   var JITTER = 0.6;
-  // Between the focus row and the stack under it (the image stack).
-  var FOCUS_GAP = 12;
 
-  // ---- focusing -------------------------------------------------------------
-  // The flight to the focus row and back (css/style.css .stack-item.is-moving
+  // ---- moving ---------------------------------------------------------------
+  // The image stack's glide to a new place (css/style.css .stack-item.is-moving
   // has the same).
   var FLY_MS = 550;
-  // The focus row's figure fading over the landed model, or off it.
-  var FADE_MS = 150;
   // A press that moves further than this is a scroll, not a tap.
   var TAP_SLOP = 6;
 
@@ -74,7 +63,6 @@
   function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
   function clamp01(x) { return clamp(x, 0, 1); }
   function lerp(a, b, t) { return a + (b - a) * t; }
-  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
   function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
   // Overshoots its end a little and settles back: the wave's crest.
   function easeOutBack(t) {
@@ -119,19 +107,18 @@
        u     how far it has come from its start to its place (0 to 1, a
              little past 1 on the crest)
        spin  how much of its tumble it still has (1 to 0)
-       ring  how much of a ring's top shot still shows (1 to 0)
-       pop   a ring's swell while it pops off the hand */
+       ring  how much of a ring's top shot still shows (1 to 0) */
   function waveAt(item, p) {
-    if (p >= 1) return { u: 1, spin: 0, ring: 0, pop: 1 };
+    if (p >= 1) return { u: 1, spin: 0, ring: 0 };
     if (item.ringStart) {
       if (p <= POP_END) {
-        return { u: 0, spin: 0, ring: 1, pop: 1 + (POP_SCALE - 1) * easeOutCubic(clamp01(p / POP_END)) };
+        return { u: 0, spin: 0, ring: 1 };
       }
       var f = clamp01((p - POP_END) / (1 - POP_END));
-      return { u: easeInOutCubic(f), spin: 0, ring: 1 - smoothstep(0, 0.5, f), pop: POP_SCALE };
+      return { u: easeInOutCubic(f), spin: 0, ring: 1 - smoothstep(0, 0.5, f) };
     }
     var t = clamp01((p - item.delay) / (1 - WAVE_SPREAD));
-    return { u: easeOutBack(t), spin: 1 - t, ring: 0, pop: 1 };
+    return { u: easeOutBack(t), spin: 1 - t, ring: 0 };
   }
 
   // Where an item is at entrance p, in px of the screen: its middle (x, y),
@@ -153,7 +140,7 @@
       y: lerp(s.y, t.y, w.u),
       rot: lerp(s.rot, t.rot, u) + spin,
       spin: spin,
-      size: lerp(s.size * w.pop, t.size, u),
+      size: lerp(s.size, t.size, u),
       ring: w.ring,
       fromRing: !!item.ringStart,
       ringRot: s.rot,
@@ -173,17 +160,11 @@
       p: null,
       items: [],
       byId: {},
-      focused: null,
-      // Bumped by every focus change, so a slower continuation of an earlier
-      // one can tell it has been overtaken.
-      focusToken: 0,
-      // Taps have turned gravity on (the 3D stack's).
-      gravity: false,
       // The 3D stack, once it has taken over; and its build in flight.
       scene: null,
       sceneToken: 0,
       sceneLoading: false,
-      // The Modify sheet is up: the focused viewer's context is lent to it.
+      // The Modify sheet is up: the stack holds still behind it.
       suspended: false,
       // Items gliding in the image stack (no handover to 3D meanwhile).
       moving: 0
@@ -194,41 +175,11 @@
     var lightEl = el("div", "stack-light");
     stage.appendChild(lightEl);
 
-    var focusEl = el("div", "stack-focus");
-    var card = el("article", "product-card");
-    var barLink = el("a", "product-card__bar-link");
-    // A same-destination duplicate of the label below, which stays the real
-    // keyboard-reachable link — as on the old rows.
-    barLink.setAttribute("aria-hidden", "true");
-    barLink.tabIndex = -1;
-    var figure = el("div", "product-card__figure");
-    var poster = el("img");
-    poster.alt = "";
-    poster.width = 512;
-    poster.height = 512;
-    poster.decoding = "async";
-    poster.draggable = false;
-    figure.appendChild(poster);
-    var label = el("a", "product-card__label");
-    var labelName = el("span", "product-card__label-name");
-    var labelType = el("span", "product-card__label-type");
-    label.appendChild(labelName);
-    label.appendChild(labelType);
-    card.appendChild(barLink);
-    card.appendChild(figure);
-    card.appendChild(label);
-    focusEl.appendChild(card);
-    stage.appendChild(focusEl);
-
-    // For the keyboard and screen readers: one button per product, which
-    // takes it out of the stack just as a tap does (the stack itself is a
-    // picture).
+    // For the keyboard and screen readers: one link per product, to its page,
+    // as a tap on it goes (the stack itself is a picture).
     var listEl = el("ul", "visually-hidden");
     listEl.setAttribute("aria-label", "Products");
     stage.appendChild(listEl);
-    var statusEl = el("p", "visually-hidden");
-    statusEl.setAttribute("role", "status");
-    stage.appendChild(statusEl);
 
     function buildItem(product) {
       var assets = product.assets || {};
@@ -259,22 +210,21 @@
       itemEl.dataset.id = product.id;
       lightEl.appendChild(itemEl);
 
+      var href = window.EmjiveSeries.productHref(product, slug);
       var li = el("li");
-      var button = el("button", null, (product.name || "") + (product.category ? ", " + product.category : ""));
-      button.type = "button";
-      li.appendChild(button);
+      var link = el("a", null, (product.name || "") + (product.category ? ", " + product.category : ""));
+      link.href = href;
+      li.appendChild(link);
       listEl.appendChild(li);
 
       var item = {
         id: String(product.id),
         product: product,
-        href: window.EmjiveSeries.productHref(product, slug),
-        poster: src,
+        href: href,
         el: itemEl,
         img: img,
         ringImg: ringImg,
         listItem: li,
-        listButton: button,
         visible: true,
         target: { x: 0, y: 0, rot: 0, size: SIZE_MIN },
         tumble: TUMBLE_DEG,
@@ -282,9 +232,6 @@
         // Measured off the hand when the entrance begins: { x, y, rot, size }.
         ringStart: null
       };
-      button.addEventListener("click", function () {
-        focus(item, { fromKeyboard: true });
-      });
       return item;
     }
 
@@ -308,32 +255,14 @@
       return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, window.innerHeight - barHeight()) };
     }
 
-    // The focus row sits at the top of the domain; the model lands exactly on
-    // its figure's box.
-    function placeFocusRow() {
-      focusEl.style.setProperty("--focus-top", domain().top + "px");
-    }
-
-    function slotRect() {
-      var r = figure.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2, rot: 0, size: r.width };
-    }
-
-    // The image stack makes room under the focus row for the focused product.
-    function stackDomain() {
-      var d = domain();
-      if (state.focused && !state.scene) d.top = figure.getBoundingClientRect().bottom + FOCUS_GAP;
-      return d;
-    }
-
     // A grid of cells over the domain, the column count the one that gives
     // the items the most room, the last row centred; each item somewhere in
     // its cell (seeded), slightly turned.
     function layout() {
-      var list = state.items.filter(function (item) { return item.visible && item !== state.focused; });
+      var list = state.items.filter(function (item) { return item.visible; });
       var n = list.length;
       if (!n) return;
-      var d = stackDomain();
+      var d = domain();
       var w = d.right - d.left;
       var h = Math.max(1, d.bottom - d.top);
       var best = { cols: 1, cell: 0 };
@@ -390,10 +319,11 @@
     }
 
     // While the entrance is under way the rings are the stack's: the hero's
-    // own are hidden (hero.css hides them for a skipped hero).
+    // own are hidden (hero.css hides them for a skipped hero, so they are
+    // shown by name when the page is scrolled back up to them).
     function showHeroRings(show) {
       heroRings().forEach(function (ring) {
-        ring.el.style.visibility = show ? "" : "hidden";
+        ring.el.style.visibility = show ? "visible" : "hidden";
       });
     }
 
@@ -414,7 +344,7 @@
       var started = p > 0;
       showHeroRings(!started);
       state.items.forEach(function (item) {
-        if (!item.visible || item === state.focused || item.held || item.gliding) return;
+        if (!item.visible || item.gliding) return;
         // Before the entrance starts a ring is the hero's, and the item
         // taking it over isn't there yet (its top shot included, which the
         // 3D stack keeps visible on its own).
@@ -433,111 +363,12 @@
       // The rings are measured as they're taken off the hand, while the pin
       // holds the hand still.
       if ((was === null || was === 0) && p > 0 && p < 1) measureRings();
-      if (was === 1 && p < 1) {
-        // Scrolling back up into the entrance: anything focused goes back
-        // first, and the 3D stack's items go back the way they came from
-        // wherever they are now.
-        unfocus({ instant: true });
-        if (state.scene) syncTargetsFromScene();
-      }
       var nowLanded = p === 1;
       if (nowLanded !== landed) {
         landed = nowLanded;
         stage.classList.toggle("is-landed", landed);
       }
       render();
-    }
-
-    /* ---- the focus row ----------------------------------------------------- */
-    function setFocusContent(item) {
-      var product = item.product;
-      poster.src = item.poster;
-      poster.alt = product.name || "";
-      poster.hidden = false;
-      labelName.textContent = product.name || "";
-      labelType.textContent = product.category ? "." + product.category.toLowerCase() : "";
-      barLink.href = item.href;
-      label.href = item.href;
-    }
-
-    // A click on the model (not a drag that turned it) opens the product's
-    // page — the viewer's own controls take the drag. Same 6px rule as the
-    // old rows, and only for a pointer that went down here.
-    var navPointer = null;
-    var navX = 0;
-    var navY = 0;
-    figure.addEventListener("pointerdown", function (e) {
-      navPointer = e.pointerId;
-      navX = e.clientX;
-      navY = e.clientY;
-    });
-    figure.addEventListener("pointercancel", function (e) {
-      if (e.pointerId === navPointer) navPointer = null;
-    });
-    figure.addEventListener("pointerup", function (e) {
-      if (e.pointerId !== navPointer) return;
-      navPointer = null;
-      if (!state.focused || !focusEl.classList.contains("is-shown")) return;
-      if (Math.sqrt(Math.pow(e.clientX - navX, 2) + Math.pow(e.clientY - navY, 2)) <= TAP_SLOP) {
-        window.location.href = state.focused.href;
-      }
-    });
-
-    /* ---- the focused product's viewer -----------------------------------------
-       The grid cards' recipe: built over the poster, transparent, and swapped
-       in in one frame once its model has drawn; the poster comes back if it
-       fails or goes. One at a time. */
-    var viewer = { handle: null, hold: null, token: 0 };
-
-    function startViewer(item) {
-      var token = ++viewer.token;
-      var assets = item.product.assets || {};
-      if (!assets.model || state.suspended || !window.EmjiveLoadViewer) return;
-      window.EmjiveLoadViewer().then(function (factory) {
-        if (token !== viewer.token || state.focused !== item || state.suspended || typeof factory !== "function") return;
-        var hold = window.EmjiveLoader ? window.EmjiveLoader.mount(figure) : null;
-        var handle = null;
-        try {
-          handle = factory(item.product, item.product["default-metal"], {
-            hdri: window.EmjiveSeries.hdriPath(slug),
-            poster: false,
-            loader: hold || false,
-            maxPixelRatio: 1.5,
-            onReady: function () {
-              if (viewer.handle !== handle) return;
-              handle.el.style.opacity = "1";
-              poster.hidden = true;
-            },
-            onError: function () {
-              if (viewer.handle === handle) stopViewer();
-            }
-          });
-        } catch (err) {
-          console.error("emjive: the focused model's viewer could not start", err);
-        }
-        if (!handle) {
-          if (hold) hold.done();
-          return;
-        }
-        viewer.handle = handle;
-        viewer.hold = hold;
-        handle.el.style.opacity = "0";
-        figure.appendChild(handle.el);
-      }, function () {});
-    }
-
-    function stopViewer() {
-      viewer.token++;
-      if (viewer.hold) {
-        viewer.hold.done();
-        viewer.hold = null;
-      }
-      if (viewer.handle) {
-        viewer.handle.dispose();
-        if (viewer.handle.el.parentNode) viewer.handle.el.parentNode.removeChild(viewer.handle.el);
-        viewer.handle = null;
-      }
-      poster.hidden = false;
     }
 
     /* ---- moving items in the image stack -----------------------------------
@@ -576,9 +407,8 @@
       });
     }
 
-    // The image stack's items find their new places (the focus row came or
-    // went, the filter changed, the screen turned). An item held at the focus
-    // row while the figure fades off it goes once that's done (letGo).
+    // The image stack's items find their new places (the filter changed, the
+    // screen turned).
     function relayout(animate) {
       layout();
       if (!landed) {
@@ -590,112 +420,10 @@
         return;
       }
       state.items.forEach(function (item) {
-        if (!item.visible || item === state.focused || item.held) return;
+        if (!item.visible) return;
         if (animate && !reducedMotion.matches) glide(item, poseAt(item, 1));
         else place(item, poseAt(item, 1));
       });
-    }
-
-    function after(ms) {
-      return new Promise(function (resolve) { setTimeout(resolve, ms); });
-    }
-
-    /* ---- focus and unfocus ----------------------------------------------------
-       In: the item flies to the focus row's figure (the 3D stack's model in
-       its canvas, or the picture), the figure fades in over it, the bar and
-       the name come, the live viewer is built. Out: the name and the bar go,
-       the item is put back where the figure is and the figure fades off it,
-       and it goes back into the stack (falling, in the 3D one). */
-    function focus(item, opts) {
-      opts = opts || {};
-      if (!item || !item.visible || item === state.focused || !landed) return;
-      var token = ++state.focusToken;
-      var previous = state.focused;
-      if (previous) letGo(previous, false);
-      state.focused = item;
-      if (options.onFocusChange) options.onFocusChange(item.id);
-      statusEl.textContent = (item.product.name || "") + " — open its page from its name";
-
-      placeFocusRow();
-      var slot = slotRect();
-      var instant = !!opts.instant || reducedMotion.matches;
-
-      // Lands only once the previous figure has faded off its own model.
-      var cleared = previous && !instant ? after(FADE_MS) : Promise.resolve();
-      var flown;
-      if (state.scene) {
-        flown = state.scene.takeOut(item.id, slot, instant);
-      } else if (instant) {
-        item.el.style.visibility = "hidden";
-        flown = Promise.resolve();
-      } else {
-        flown = glide(item, slot);
-      }
-      if (!state.scene) relayout(!instant);
-
-      Promise.all([flown, cleared]).then(function () {
-        if (token !== state.focusToken) return;
-        setFocusContent(item);
-        focusEl.classList.add("is-shown");
-        return after(instant ? 0 : FADE_MS);
-      }).then(function () {
-        if (token !== state.focusToken) return;
-        if (state.scene) state.scene.hide(item.id);
-        else item.el.style.visibility = "hidden";
-        focusEl.classList.add("is-labelled");
-        startViewer(item);
-        if (opts.fromKeyboard) label.focus();
-      });
-    }
-
-    // Puts `item` back into the stack from the focus row. relayoutAfter:
-    // nothing takes its place (an unfocus, not a swap).
-    function letGo(item, relayoutAfter, instant) {
-      instant = instant || reducedMotion.matches;
-      focusEl.classList.remove("is-labelled");
-      stopViewer();
-      var slot = slotRect();
-      item.held = true;
-      if (state.scene) {
-        state.scene.showAt(item.id, slot);
-      } else {
-        item.el.style.visibility = "";
-        place(item, slot);
-      }
-      focusEl.classList.remove("is-shown");
-      var settle = function () {
-        item.held = false;
-        // Focused again meanwhile (a quick tap back on it): it stays.
-        if (state.focused === item) return;
-        if (state.scene) state.scene.release(item.id);
-        else if (instant) place(item, poseAt(item, 1));
-        else glide(item, poseAt(item, 1));
-      };
-      if (relayoutAfter) relayout(!instant);
-      if (instant) settle();
-      else setTimeout(settle, FADE_MS);
-    }
-
-    function unfocus(opts) {
-      opts = opts || {};
-      var item = state.focused;
-      if (!item) return;
-      state.focusToken++;
-      state.focused = null;
-      if (options.onFocusChange) options.onFocusChange(null);
-      statusEl.textContent = "";
-      var hadFocus = focusEl.contains(document.activeElement);
-      letGo(item, true, !!opts.instant);
-      if (hadFocus || opts.fromKeyboard) item.listButton.focus();
-    }
-
-    /* ---- gravity ----------------------------------------------------------------
-       The first tap on a product turns gravity on: the others drop into a
-       pile. It always points down — the phone's own movements don't tilt it. */
-    function enableGravity() {
-      if (state.gravity) return;
-      state.gravity = true;
-      if (state.scene) state.scene.enableGravity();
     }
 
     /* ---- taps on the stack ----------------------------------------------------- */
@@ -714,26 +442,12 @@
 
     stage.addEventListener("click", function (e) {
       if (!landed) return;
-      // The focus row's figure and links have their own business; the empty
-      // filter's message too.
-      if (e.target.closest(".product-card__figure, .product-card__bar-link, .product-card__label, .product-grid__loading")) return;
+      // The empty filter's message has its own business.
+      if (e.target.closest(".product-grid__loading")) return;
       if (Math.sqrt(Math.pow(e.clientX - downX, 2) + Math.pow(e.clientY - downY, 2)) > TAP_SLOP) return;
       var id = pick(e.clientX, e.clientY, e.target);
       var item = id !== null && id !== undefined ? state.byId[String(id)] : null;
-      if (item) {
-        enableGravity();
-        focus(item);
-      } else {
-        unfocus();
-      }
-    });
-
-    document.addEventListener("keydown", function (e) {
-      if (e.key !== "Escape" || !state.focused) return;
-      if (window.EmjiveFocusTrap && window.EmjiveFocusTrap.isActive && window.EmjiveFocusTrap.isActive()) return;
-      // The header menu or the bar's drawer takes this Escape (js/series.js).
-      if (document.querySelector(".site-header__menu.is-open, .selection-bar__drawer.is-open")) return;
-      unfocus({ fromKeyboard: true });
+      if (item) window.location.href = item.href;
     });
 
     /* ---- the 3D stack ------------------------------------------------------------
@@ -750,16 +464,6 @@
       return out;
     }
 
-    function syncTargetsFromScene() {
-      var where = state.scene.positions();
-      state.items.forEach(function (item) {
-        if (where[item.id]) {
-          item.target.x = where[item.id].x;
-          item.target.y = where[item.id].y;
-        }
-      });
-    }
-
     var readyScene = null;
 
     function maybeHandOver() {
@@ -769,13 +473,9 @@
       var poses = {};
       var p = state.p === null ? 0 : state.p;
       state.items.forEach(function (item) {
-        if (item.visible && item !== state.focused) poses[item.id] = poseAt(item, p);
+        if (item.visible) poses[item.id] = poseAt(item, p);
       });
-      scene.handOver(poses, {
-        focused: state.focused ? state.focused.id : null,
-        gravity: state.gravity,
-        entrance: p
-      });
+      scene.handOver(poses, { entrance: p });
       state.scene = scene;
       stage.classList.add("is-3d");
     }
@@ -799,8 +499,6 @@
             return { id: item.id, product: item.product, size: item.target.size, ring: !!item.ringImg };
           }),
           hdri: window.EmjiveSeries.hdriPath(slug),
-          domain: domain,
-          slot: slotRect,
           poseAt: function (id, p) {
             var item = state.byId[id];
             return item ? poseAt(item, p) : null;
@@ -860,30 +558,23 @@
 
     /* ---- the page's own comings and goings --------------------------------------- */
 
-    // The Modify sheet (from the bar's drawer, or the grid's Select) builds a
-    // viewer of its own: the focused one gives its context back meanwhile, and
-    // the stack holds still behind the sheet.
+    // The Modify sheet (from the bar's drawer) builds a viewer of its own: the
+    // stack holds still behind it.
     window.addEventListener("emjive:modify-open", function () {
       state.suspended = true;
-      stopViewer();
       if (state.scene) state.scene.setPaused(true);
     });
     window.addEventListener("emjive:modify-close", function () {
       state.suspended = false;
       if (state.scene) state.scene.setPaused(false);
-      if (state.focused && focusEl.classList.contains("is-labelled")) startViewer(state.focused);
     });
 
     // A page kept in the back/forward cache is a live page: nothing 3D is
     // worth keeping there (js/main.js's old grid did the same). Coming back,
     // the pictures are the stack again until the 3D one has rebuilt.
-    window.addEventListener("pagehide", function () {
-      stopViewer();
-      stopScene();
-    });
+    window.addEventListener("pagehide", stopScene);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
-      if (state.focused) startViewer(state.focused);
       whenPageRevealed(startScene);
     });
     document.addEventListener("visibilitychange", function () {
@@ -894,16 +585,13 @@
     window.addEventListener("resize", function () {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
-        placeFocusRow();
         if (state.p !== null && state.p > 0 && state.p < 1) measureRings();
         relayout(false);
-        if (state.focused) setFocusContent(state.focused);
         if (state.scene) state.scene.resize();
       }, 150);
     });
 
     /* ---- start ----------------------------------------------------------------- */
-    placeFocusRow();
     layout();
     if (window.EmjiveHero) {
       window.EmjiveHero.onStage(setStage);
@@ -913,22 +601,14 @@
       setStage(1);
     }
 
-    // Back from the focused product's page: it is focused again, straight
-    // away — and the tap that focused it had turned gravity on.
-    if (options.focused && state.byId[String(options.focused)] && landed) {
-      state.gravity = true;
-      focus(state.byId[String(options.focused)], { instant: true });
-    }
-
     if (state.active) whenPageRevealed(startScene);
 
     return {
-      // ids: the products to show. The hidden leave the stack (and the
-      // focus row, if one was there); the rest find new places.
+      // ids: the products to show. The hidden leave the stack; the rest find
+      // new places.
       setFilter: function (ids) {
         var keep = {};
         (ids || []).forEach(function (id) { keep[String(id)] = true; });
-        if (state.focused && !keep[state.focused.id]) unfocus({ instant: true });
         state.items.forEach(function (item) {
           item.visible = !!keep[item.id];
           item.el.hidden = !item.visible;
@@ -944,11 +624,9 @@
         if (on === state.active) return;
         state.active = on;
         if (!on) {
-          unfocus({ instant: true });
           stopScene();
           return;
         }
-        placeFocusRow();
         relayout(false);
         whenPageRevealed(startScene);
       }

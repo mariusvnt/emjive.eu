@@ -4,7 +4,10 @@
    scrolling, the pin still held, over which the hand fades back while the
    gallery's products come up onto it (js/gallery-stack.js, which this feeds
    through window.EmjiveHero.publishStage and takes the rings from, rings()).
-   A hero already seen on this device (data-hero="skip") just holds the end.
+   A hero already seen on this device (data-hero="skip") isn't played: the
+   page lands at its end, in the stack view with the whole of it still above
+   (scrolling back up goes back through the entrance and the wipe to its
+   start); in the grid view the hero isn't shown at all.
 
    Loaded at runtime by js/series.js from this series' "hero.js" path in
    data/series.json. Two rules this file has to keep:
@@ -37,12 +40,45 @@
   // and the very bottom of the page must still read as "arrived".
   var ENTRANCE_DONE = 0.995;
 
-  // The hero skipped (data-hero="skip" on <html>, js/scroll-memory.js): the
-  // reveal's end state, held — hero.css covers the first paint, this the
-  // inline styles a played reveal leaves behind (a replay going back to
-  // skip, say).
+  // The hero skipped in the grid view (data-hero="skip" on <html>,
+  // js/scroll-memory.js): the hero isn't shown, and the reveal's end state is
+  // simply held — the selection bar there, the entrance done. In the stack
+  // view a skipped hero is the whole reveal, landed at its end (landAtEnd).
   function isSkipped() {
-    return document.documentElement.getAttribute("data-hero") === "skip";
+    var root = document.documentElement;
+    return root.getAttribute("data-hero") === "skip" && root.getAttribute("data-gallery-view") === "grid";
+  }
+
+  // A visitor arriving on a skipped hero in the stack view (a fresh history
+  // entry; Back restores its own offset) is taken to the end of the reveal
+  // once the stylesheet has made it tall, and until then the reveal reads as
+  // finished — the stack must not start its entrance for the frames before.
+  var awaitingEnd = false;
+  var LAND_MS = 2000;
+
+  function landAtEnd() {
+    var root = document.documentElement;
+    var until = Date.now() + LAND_MS;
+    (function step() {
+      if (!awaitingEnd) return;
+      // Hero.css has landed when the reveal is taller than its own pin.
+      var tall = revealSection.offsetHeight > window.innerHeight * 1.5;
+      if (!tall && Date.now() < until) {
+        requestAnimationFrame(step);
+        return;
+      }
+      awaitingEnd = false;
+      // Only from the top: a visitor who has already scrolled is left where
+      // they are.
+      if (tall && (window.pageYOffset || window.scrollY || 0) === 0) {
+        var previous = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto";
+        window.scrollTo(0, root.scrollHeight);
+        if (previous) root.style.scrollBehavior = previous;
+        else root.style.removeProperty("scroll-behavior");
+      }
+      updateReveal();
+    })();
   }
 
   function restOpacity() {
@@ -62,7 +98,7 @@
 
   function updateReveal() {
     revealTicking = false;
-    if (isSkipped()) {
+    if (isSkipped() || awaitingEnd) {
       showEnd();
       return;
     }
@@ -217,7 +253,13 @@
 
       window.addEventListener("scroll", requestRevealUpdate, { passive: true });
       window.addEventListener("resize", requestRevealUpdate);
+      var memory = window.EmjiveScrollMemory;
+      var landed = memory && memory.landing && memory.landing();
+      var root = document.documentElement;
+      awaitingEnd = !!(landed && landed.fresh && !(memory.isRestoring && memory.isRestoring()) &&
+        root.getAttribute("data-hero") === "skip" && root.getAttribute("data-gallery-view") === "stack");
       updateReveal();
+      if (awaitingEnd) landAtEnd();
     },
 
     onProducts: updateHeroRings,

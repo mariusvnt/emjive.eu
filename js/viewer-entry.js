@@ -40,8 +40,8 @@ window.EmjiveLoadViewer = function () {
   return pending;
 };
 
-// The homepage gallery's shared 3D stack (js/stack-scene.js: the physics
-// engine and the scene, on top of three-viewer.js's chunk, which it imports)
+// The homepage gallery's shared 3D stack (js/stack-scene.js: the scene,
+// on top of three-viewer.js's chunk, which it imports)
 // — asked for by js/gallery-stack.js only, once the page has revealed.
 // Resolves to its create() function; cached, a failure included, like the
 // viewer's.

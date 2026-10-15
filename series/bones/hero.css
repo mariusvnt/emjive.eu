@@ -100,14 +100,12 @@ html[data-gallery-view="stack"] .reveal {
   --reveal-entrance-vh: 100vh;
 }
 
-/* The hero skipped (data-hero="skip", js/scroll-memory.js): no scrolling at
-   all, just the pin, showing where the reveal ends — the photo wiped away,
-   the x-ray faded back, the band gone. The rings are the stack's by then
-   (js/gallery-stack.js); in the grid the hero isn't shown at all. hero.js
-   sets the same clips inline; these cover the first paint, before it runs. */
-html[data-hero="skip"] .reveal {
-  height: var(--reveal-pin-height);
-}
+/* The hero skipped (data-hero="skip", js/scroll-memory.js): the page lands
+   at the reveal's end — the photo wiped away, the x-ray faded back, the band
+   gone — with the whole of it still above, to scroll back up into. The rings
+   are the stack's by then (js/gallery-stack.js); in the grid the hero isn't
+   shown at all. hero.js sets the same clips inline; these cover the first
+   paint, before it runs. */
 html[data-hero="skip"] .reveal__img--normal {
   clip-path: inset(0 0 100% 0);
 }
@@ -115,7 +113,6 @@ html[data-hero="skip"] .reveal__xray-group {
   clip-path: inset(0 0 0 0);
   opacity: var(--reveal-xray-rest-opacity);
 }
-html[data-hero="skip"] .reveal__frontier,
 html[data-hero="skip"] .reveal__ring {
   visibility: hidden;
 }

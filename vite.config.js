@@ -63,7 +63,7 @@ const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 //     and rewrites the reference; the verbatim copy still has the bare
 //     `three` import nothing at runtime can resolve.
 //   js/stack-scene.js — the same for the homepage's 3D stack: Vite bundles it
-//     (dist/assets/stack-scene-<hash>.js, with cannon-es) behind
+//     (dist/assets/stack-scene-<hash>.js) behind
 //     js/viewer-entry.js's dynamic import; the source has bare imports.
 //   js/three-viewer.js — the unbundled ES module source. The built pages
 //     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this

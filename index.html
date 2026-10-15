@@ -109,6 +109,11 @@
         <a href="/creation-process" class="is-info">Creation process</a>
       </nav>
     </div>
+    <!-- Under the header, going down with its menu: the title bar's blur
+         and chromatic aberration (css/style.css .site-header__veil). -->
+    <span class="site-header__veil" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+    </span>
   </div>
 </header>
 
@@ -137,7 +142,17 @@
          (js/gallery.js). Which one, and whether the hero plays first, is
          decided in the <head> (js/scroll-memory.js) as data-gallery-view and
          data-hero on <html>. -->
-    <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button">switch to grid view</button>
+    <!-- The icon and the word of the view the button goes to (grid view
+         from the stack, stack view from the grid) — both written out, one
+         shown by data-gallery-view on <html> (css/style.css), so there is
+         nothing to swap and nothing flashes. The accessible name is
+         js/gallery.js's. -->
+    <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button" aria-label="switch to grid view">
+      <svg class="gallery-control__icon gallery-control__icon--grid" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 3.5h7v7h-7z M13.5 3.5h7v7h-7z M3.5 13.5h7v7h-7z M13.5 13.5h7v7h-7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <svg class="gallery-control__icon gallery-control__icon--eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12C5 6.8 8.5 4.8 12 4.8S19 6.8 22 12c-3 5.2-6.5 7.2-10 7.2S5 17.2 2 12z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="gallery-control__label gallery-control__label--grid">grid view</span>
+      <span class="gallery-control__label gallery-control__label--stack">stack view</span>
+    </button>
 
     <!-- Second hero slot: art that has to sit inside .products, behind the
          grid, rather than inside the hero section itself. -->

@@ -72,7 +72,10 @@
     if (hero !== "skip") hero = "play";
     html.setAttribute("data-gallery-view", view);
     html.setAttribute("data-hero", hero);
-    return { view: view, hero: hero, focused: saved && saved.focused ? String(saved.focused) : null };
+    // fresh: a history entry nothing was saved for yet — a visitor arriving,
+    // not coming Back. A skipped hero in the stack view is then landed at its
+    // end (series/<slug>/hero.js), the whole of it still above.
+    return { view: view, hero: hero, fresh: !saved };
   }
 
   // Ancient browser with no history.scrollRestoration: leave the whole
@@ -149,7 +152,7 @@
     return;
   }
 
-  // The whole record for this entry: { y, h, hero, view, focused }.
+  // The whole record for this entry: { y, h, hero, view }.
   function readEntry() {
     try {
       var raw = window.sessionStorage.getItem(STORAGE_PREFIX + key);
@@ -184,8 +187,7 @@
         y: Math.round(window.pageYOffset || window.scrollY || 0),
         h: Math.round(html.scrollHeight),
         hero: landing.hero,
-        view: landing.view,
-        focused: landing.focused
+        view: landing.view
       }));
     } catch (e) { /* private mode / quota — nothing to do */ }
   }
@@ -417,18 +419,15 @@
   window.EmjiveScrollMemory = {
     isRestoring: function () { return restoring; },
 
-    // What this entry landed on, as decided above: { hero, view, focused }.
+    // What this entry landed on, as decided above: { hero, view, fresh }.
     landing: function () { return landing; },
 
-    // js/gallery.js, whenever the visitor changes any of the three (a view
-    // switch, a replay, a model focused or let go): kept for this entry, so
-    // Back comes back to it. Written at once — a tap on the focused model
-    // navigates away straight after.
+    // js/gallery.js, whenever the visitor changes either (a view switch):
+    // kept for this entry, so Back comes back to it. Written at once.
     remember: function (patch) {
       if (!patch) return;
       if (patch.hero === "play" || patch.hero === "skip") landing.hero = patch.hero;
       if (patch.view === "stack" || patch.view === "grid") landing.view = patch.view;
-      if ("focused" in patch) landing.focused = patch.focused ? String(patch.focused) : null;
       save();
     },
 

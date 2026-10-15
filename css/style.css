@@ -698,6 +698,62 @@ button, input, textarea {
 }
 .site-header__menu-inner { overflow: hidden; min-height: 0; }
 
+/* Under the header, whatever scrolls beneath it: the product page's title bar
+   effect (.product-detail__label-veil, below) — three stacked backdrop
+   blurs, 1px, 3px and 6px, each under a mask that eases out over its own
+   height, the strongest the shortest, and a fourth layer that splits the
+   colour channels apart (Chromium only, js/main.js) — hanging from the bottom
+   edge of the header. It is the last child of the menu, so it goes down with
+   it when the menu opens; visible even while the closed menu isn't. Half a
+   pixel lower than the menu's box: the header's own border is there. The
+   product page has none: its title bar is right under the header, and has
+   the effect of its own. */
+.site-header__veil {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + .5px);
+  height: 3.5rem;
+  visibility: visible;
+  pointer-events: none;
+}
+body:has(.product-stage) .site-header__veil {
+  display: none;
+}
+.site-header__veil > span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
+}
+.site-header__veil > span:nth-child(1) {
+  height: 3.5rem;
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+.site-header__veil > span:nth-child(2) {
+  height: 2.4rem;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.site-header__veil > span:nth-child(3) {
+  height: 1.3rem;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.site-header__veil > span:nth-child(4) {
+  display: none;
+  height: 2.6rem;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+}
+.has-backdrop-svg .site-header__veil > span:nth-child(4) {
+  display: block;
+  backdrop-filter: url(#emjiveAberration);
+}
+
 .site-header__nav {
   padding: var(--header-menu-pt) var(--edge-px) var(--header-menu-pb);
   display: flex;
@@ -780,7 +836,7 @@ button, input, textarea {
 /* js/main.js hides the whole row only for a zero-category series (nothing
    at all to show) by setting [hidden] on it — every other page/series
    combination always shows something (Gallery, a single inert tag, or the
-   full filter). Same trap as .product-card[hidden] below:
+   full filter). Same trap as .grid-tile[hidden] below:
    .site-header__filter { display: flex } above is an author rule, so it
    beats the UA [hidden] { display: none } regardless of specificity —
    needs an explicit override to actually disappear. */
@@ -927,18 +983,24 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 
 /* ---- the control under the header ----------------------------------------
-   "switch to grid view" / "switch to stack view" at the top right
-   (js/gallery.js). Plain text in the site's button format (the --button-*
-   tokens, as the Select bar's); mix-blend-mode keeps it legible over the photo,
-   the x-ray and the page alike. Under the header (and its menu), over the
-   gallery. */
+   "grid view" (with a grid icon on its left) / "stack view" (with an eye) at
+   the top right (js/gallery.js) — the view it goes to. Plain text in the
+   site's button format (the --button-* tokens, as the Select bar's);
+   mix-blend-mode keeps it legible over the photo, the x-ray and the page
+   alike. Above the header's effect (.site-header__veil), so over the header
+   itself too — which is why it steps aside while the menu is open, as the
+   menu used to cover it. In the stack view it is only there once the
+   entrance is done (js/gallery.js adds .is-ready then). */
 :root {
   --gallery-controls-height: 2.5rem;
 }
 .gallery-control {
   position: fixed;
   top: var(--header-height);
-  z-index: 79;
+  z-index: 81;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
   height: var(--gallery-controls-height);
   margin: 0;
   padding: 0 var(--edge-px);
@@ -956,6 +1018,25 @@ html[data-gallery-view="grid"] .gallery-stage {
   -webkit-tap-highlight-color: transparent;
 }
 .gallery-control--view { right: 0; }
+.gallery-control__icon {
+  width: 1.25em;
+  height: 1.25em;
+  flex: 0 0 auto;
+}
+/* The view it goes to: from the stack, the grid; from the grid, the stack. */
+html[data-gallery-view="stack"] .gallery-control__icon--eye,
+html[data-gallery-view="stack"] .gallery-control__label--stack,
+html[data-gallery-view="grid"] .gallery-control__icon--grid,
+html[data-gallery-view="grid"] .gallery-control__label--grid {
+  display: none;
+}
+.gallery-control--view:not(.is-ready),
+body:has(.site-header__menu.is-open) .gallery-control {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
 @media (hover: hover) {
   .gallery-control:hover { opacity: 0.6; }
 }
@@ -985,7 +1066,7 @@ html[data-gallery-view="grid"] .gallery-stage {
 /* ---- the stack --------------------------------------------------------------
    One fixed layer over the whole screen (js/gallery-stack.js): the shared 3D
    canvas at the bottom, the image stack over it (the first paint, and the
-   whole of the stack where the 3D one can't run), the focus row on top.
+   whole of the stack where the 3D one can't run).
    Nothing on it takes a tap until the products have landed (.is-landed):
    before that the visitor is scrolling through the reveal, and every touch
    is theirs. The domain the products move in — under the controls, over
@@ -1046,8 +1127,7 @@ html[data-gallery-view="grid"] .gallery-stage {
   user-select: none;
 }
 .stack-item__ring { opacity: 0; }
-/* Flying to or from the focus row, or to a new place once the layout
-   changes (the image stack only — the 3D one moves its own models). */
+/* Gliding to a new place once the layout changes (the image stack only — the 3D one moves its own models). */
 .stack-item.is-moving {
   transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1);
 }
@@ -1060,78 +1140,6 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 .gallery-stage.is-3d .stack-item__ring {
   visibility: visible;
-}
-
-/* The focused product: the gallery's old row (.product-card — model in the
-   left half, the full-width bar behind it, the name in the right half), at
-   the top of the domain. It stays laid out while hidden so its box can be
-   measured: the model flies to exactly there. The figure fades in over the
-   model as it lands, then the bar comes in from the screen's left edge and the
-   name comes in; going, the name leaves first, the bar after, the figure
-   last. */
-:root {
-  --focus-size: min(36vw, 38svh);
-}
-@media (max-width: 640px) {
-  :root {
-    --focus-size: calc(50vw - var(--edge-px));
-  }
-}
-/* Only its figure, bar and name take a tap, and only while shown: a tap
-   anywhere else on the row is a tap on the stack's background. */
-.stack-focus {
-  position: absolute;
-  top: var(--focus-top, 0px);
-  left: 0;
-  right: 0;
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 0 var(--edge-px);
-  pointer-events: none;
-}
-.stack-focus .product-card__figure,
-.stack-focus .product-card__bar-link,
-.stack-focus .product-card__label {
-  pointer-events: none;
-}
-.stack-focus.is-shown .product-card__figure,
-.stack-focus.is-labelled .product-card__bar-link,
-.stack-focus.is-labelled .product-card__label {
-  pointer-events: auto;
-}
-.stack-focus .product-card__figure {
-  width: var(--focus-size);
-  height: var(--focus-size);
-  padding: 0;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.stack-focus.is-shown .product-card__figure {
-  opacity: 1;
-}
-.stack-focus .product-card__figure .emjive-3d-viewer {
-  cursor: pointer;
-}
-.stack-focus .product-card__bar-link {
-  transform: translateY(-50%) scaleX(0);
-  /* The bar, the screen's width, comes in from the screen's left edge (and
-     leaves towards it). */
-  transform-origin: 0 50%;
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s;
-}
-.stack-focus.is-labelled .product-card__bar-link {
-  transform: translateY(-50%) scaleX(1);
-  transition-delay: 0s;
-}
-.stack-focus .product-card__label {
-  opacity: 0;
-  transform: translate(-0.5rem, -50%);
-  transition: opacity var(--fade-quick) ease, transform var(--fade-quick) ease;
-}
-.stack-focus.is-labelled .product-card__label {
-  opacity: 1;
-  transform: translate(0, -50%);
-  transition-delay: 0.2s;
 }
 
 /* An empty filter, in the stack: the message where the products would be. */
@@ -1280,212 +1288,6 @@ html[data-gallery-view="grid"] .gallery-stage {
   color: var(--category-col);
 }
 
-/* Two even halves at every width, split exactly at the row's (and so the
-   screen's, since the grid itself is centered) horizontal center — model
-   centered within the left half, label starting flush at the right half.
-   minmax(0, 1fr) rather than a bare 1fr on both tracks is what keeps that
-   true regardless of how wide the model gets. A bare 1fr is shorthand for
-   minmax(auto, 1fr): its minimum track sizing function is auto, which lets
-   an oversized item's own specified size (not just its min-content)
-   inflate the track's base size past its fair 1fr share — confirmed via
-   getBoundingClientRect, a bare 1fr let column 1 grow to match
-   product-card__figure's explicit width outright, collapsing column 2
-   toward 0. minmax(0, 1fr) fixes it at the TRACK, by giving it a fixed
-   (rather than auto) minimum sizing function, instead of on the item —
-   giving the ITEM its own min-width: 0 does NOT work here, since the auto
-   minimum a bare 1fr resolves to is driven by the item's specified size
-   regardless of its own min-width.
-   Even halves only stay honest as long as the model also FITS its half —
-   see product-card__figure's phone override below for why it's sized to
-   exactly that on phones.
-   .product-card's own min-width: 0 is a separate fix one level up:
-   without it, an oversized child bubbles up into .product-grid's single
-   column and widens the whole page past the viewport (seen as
-   product-card__bar-link's 100vw breakout sitting a few px right of
-   center, with a matching hairline of genuinely scrollable overflow on
-   the right). */
-.product-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  background: transparent;
-  min-width: 0;
-}
-/* Required, not decorative: the `display: grid` above beats the UA
-   stylesheet's `[hidden] { display: none }`, so without this the category
-   filter's `card.hidden = true` would do nothing at all. Same precedence
-   trap as .selection-bar__icons[hidden] further down. Cards are hidden
-   rather than removed and re-rendered on purpose — rebuilding them would
-   destroy and recreate every three.js WebGLRenderer on each toggle, and
-   nothing on the live site disposes contexts, so the grid would silently
-   and permanently degrade to static icons once the browser's context
-   budget ran out. */
-.product-card[hidden] { display: none; }
-
-/* A full-viewport-width divider bar behind each row, doubling as the
-   click target for the row (so clicking anywhere on the bar — not just
-   the model or the product-card__label text — opens the product page).
-   One real <a> instead of a separate decorative pseudo-element + an
-   invisible link layered on top of it. left: calc(50% - 50vw) computes
-   the bar's absolute position directly off the viewport in one step,
-   re-centering on the card's own midpoint and overflowing evenly past
-   both edges out to the true screen edges — this only lines up because
-   the card's midpoint really does sit on the viewport's true center. If
-   it visibly doesn't (a gap on one edge, a hair of real horizontal
-   scroll on the other, seen on phones specifically), check
-   .product-card's own min-width: 0 first — that's what stops its
-   content from ballooning .product-grid past the viewport width in the
-   first place (see the comment there). z-index: 0
-   keeps it behind the figure/label (z-index: 1), so those still take
-   priority over their own areas. */
-.product-card__bar-link {
-  position: absolute;
-  top: 50%;
-  left: calc(50% - 50vw);
-  background: var(--black-bg);
-  transform: translateY(-50%);
-  width: 100vw;
-  height: 1.2rem;
-  z-index: 0;
-}
-
-/* Two separate formulas — one desktop, one phone (override below) —
-   rather than one continuous clamp(vw) across the whole range, since
-   the two are sized on different terms: desktop is a free-standing fluid
-   size that comfortably fits its half of the row, phone is pinned to
-   that half exactly.
-   height repeats the same value as width (a square) rather than using
-   aspect-ratio: 1/1 to derive it — Safari has a documented history of
-   grid row-sizing not correctly accounting for an aspect-ratio-derived
-   size on a grid item, which would make .product-card's align-items:
-   center (and so .product-card__bar-link's own top, which reads
-   .product-card's height independently) center against a height the
-   grid *thinks* the figure has rather than its real rendered height —
-   visible as the model box sitting off from the white band. An explicit
-   height sidesteps that: both numbers are unambiguous before layout
-   even starts, nothing needs to be derived. */
-/* A single-cell grid, not a plain block — every child is placed in that
-   one cell (grid-area: 1 / 1 below) so the placeholder image and the live
-   3D viewer OVERLAP rather than following each other in normal flow.
-   That's required since the viewer is mounted over the picture (the stack's
-   focus row, js/gallery-stack.js, as the old grid cards did): both
-   are in the layout at once for the whole load (swapped in one frame), and as
-   plain in-flow blocks each sized to the full content box, the second one
-   was pushed entirely below the first — leaving the canvas poking out
-   through the figure's own bottom padding as a stray band, with the model
-   itself clipped away by overflow: hidden until the fade finished. It
-   worked before only because exactly one of the two was ever in flow:
-   the icon was hidden the instant the viewer was appended. Layering them
-   properly removes that dependency instead of reinstating it. */
-.product-card__figure {
-  grid-column: 1;
-  justify-self: center;
-  position: relative;
-  display: grid;
-  grid-template: 1fr / 1fr;
-  width: clamp(168px, 36vw, 636px);
-  height: clamp(168px, 36vw, 636px);
-  padding: clamp(19px, 4.8vw, 88px);
-  overflow: hidden;
-}
-/* On phones the model box is exactly its half of the row:
-   .product-grid pads the row by --edge-px on each side, so each half is
-   (100vw - 2 * --edge-px) / 2. Anything wider can't be centered in that
-   half without either running off the screen's left edge or onto
-   product-card__label (position: absolute at a fixed 75% of the card,
-   independent of the grid) — both seen on a real iPhone at the earlier
-   252px phone floor, which is wider than a half on every iPhone width.
-   padding drops to 0 so the rendered model keeps as much of that
-   narrower box as possible (the box itself is transparent, so the
-   padding was only ever shrinking the canvas inside it) — at 393px wide
-   that's a ~177px model vs the original ~162px. */
-@media (max-width: 640px) {
-  .product-card__figure {
-    width: calc(50vw - var(--edge-px));
-    height: calc(50vw - var(--edge-px));
-    padding: 0;
-  }
-}
-
-/* Same cell for both, so paint order is DOM order — the viewer is
-   appended after the placeholder and therefore sits on top of it, which
-   is exactly what the crossfade needs. z-index keeps the pair above
-   .product-card__bar-link (z-index: 0) as before. */
-.product-card__figure > img,
-.product-card__figure .emjive-3d-viewer {
-  grid-area: 1 / 1;
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-}
-.product-card__figure > img {
-  object-fit: cover;
-}
-/* js/gallery-stack.js toggles this picture's [hidden] once the focused
-   product's 3D viewer takes over its spot (startViewer/stopViewer) — same trap as
-   .product-card[hidden] above and .selection-empty[hidden]/
-   .selection-list[hidden] elsewhere: the base img rule's `display: block`
-   is an AUTHOR-origin declaration, which beats the UA stylesheet's
-   `[hidden] { display: none }` regardless of specificity (normal-priority
-   author rules always win over normal-priority user-agent ones). Without
-   this, a "hidden" icon stayed laid out and interactive on top of the
-   canvas underneath it — invisible-looking (the canvas painted over it)
-   but still very much there for hit-testing, silently swallowing every
-   pointer event meant for the model and making it undraggable. */
-.product-card__figure > img[hidden] {
-  display: none;
-}
-
-/* Starts exactly where the old fixed-width, centered-in-column-2 box used
-   to: column 2 is the right half of .product-card (50%–100%, no gap/
-   padding on the card), and centering a 6.25rem box in it puts that box's
-   left edge at 50% + (50% - 6.25rem)/2 = 75% - 3.125rem — reproduced here
-   directly rather than through grid placement, since this is no longer a
-   sized grid item. Its right edge, instead of closing the box at a fixed
-   width, is broken out to the TRUE viewport edge via right: calc(50% -
-   50vw) — the same full-bleed math .product-card__bar-link uses for its
-   own 100vw span — leaving left+right (no explicit width) to stretch the
-   box open between the two. A name+category combo long enough to overflow
-   the old fixed box used to just run off toward the screen edge, clipped
-   wherever html's own overflow-x: hidden (see the base-rule gotchas)
-   happened to land rather than anywhere this rule controlled — possibly
-   mid-letter. The mask below fades the label's own text out over its
-   last 0.75rem instead, and because the box's 100% mark IS the true edge
-   now (not an arbitrary fixed width), that fade always lands exactly at
-   the real edge, at any viewport size. Masking the label itself — rather
-   than a shared overlay painted across the whole row — is deliberate:
-   .product-card__bar-link sits directly behind this box at that same
-   edge and has to stay solid black all the way out; an overlay would
-   have faded it right along with the text, a mask scoped to just this
-   element can't touch it at all. A short label, nowhere near that last
-   0.75rem, renders exactly as before either way. */
-.product-card__label {
-  position: absolute;
-  left: calc(75% - 3.125rem);
-  right: calc(50% - 50vw);
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  font-size: calc(1rem * var(--text-scale));
-  letter-spacing: 0.05em;
-  color: var(--black);
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 0.75rem), transparent 100%);
-}
-.product-card__label-name {
-  font-family: var(--font-main);
-  color: var(--white);
-}
-.product-card__label-type {
-  font-family: var(--font-secondary);
-  font-size: 0.75em;
-  color: var(--category-col);
-}
 /* ==========================================================================
    Standalone content pages (archives, creation process, series manifest)
 
@@ -1539,7 +1341,7 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 /* display: flex above beats the UA [hidden]{display:none} rule (author
    styles always win over UA ones regardless of selector specificity) —
-   same trap .product-card[hidden]/.selection-bar__icons[hidden] exist for
+   same trap .grid-tile[hidden]/.selection-bar__icons[hidden] exist for
    elsewhere in this file. */
 .selection-empty[hidden] { display: none; }
 .selection-empty p {
@@ -2612,7 +2414,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 /* Row sits on the plain page background, normally colored; a separately
    rendered 1.2rem-tall band runs the full width of the screen ON TOP of
    everything (icon, name label, price) via the same left:50%+translate
-   (-50%) breakout .product-card::before uses. It has no color of its
+   (-50%) breakout. It has no color of its
    own — backdrop-filter: invert(1) inverts whatever's showing through it
    instead (same technique as .reveal__frontier's scanner band), so
    thumbnail/text/price stay their normal colors and just appear inverted
@@ -5447,10 +5249,7 @@ body.has-series-hero .selection-bar {
 }
 
 /* The single site-wide rule. Every interactive element below is either a
-   real <button>/<a href>/<input> in page markup or one built by js/ — the
-   one deliberate exception is .product-card__bar-link, which carries
-   tabindex="-1" + aria-hidden (js/gallery-stack.js) precisely because it duplicates
-   .product-card__label, and so can never match :focus-visible anyway.
+   real <button>/<a href>/<input> in page markup or one built by js/.
    tabindex="-1" is left out on purpose: that's how the two sheets'
    dialog roots (.size-modal) take focus — from script, only so a screen
    reader announces them — and they aren't controls to ring. Worse, this
@@ -5516,17 +5315,12 @@ input:focus-visible,
   outline: var(--focus-ring-inverted);
   outline-offset: -4px;
 }
-/* The other controls that are positioned already keep their own place too
-   when a keyboard focuses them: the site-wide rule's position: relative
-   would pull a product card's name (the stack's focus row) out of its spot
-   over the card, and the gallery's two fixed controls out from under the
-   header into the page — and its z-index under the stack. */
-.product-card .product-card__label:focus-visible {
-  position: absolute;
-}
+/* The gallery's two fixed controls keep their own place when a keyboard
+   focuses them: the site-wide rule's position: relative would pull them out
+   from under the header into the page — and their z-index under the stack. */
 .products .gallery-control:focus-visible {
   position: fixed;
-  z-index: 79;
+  z-index: 81;
 }
 
 /* The size field shows no outline while it's being typed into — a

@@ -16,7 +16,7 @@
    metal-independent geometry is stored here — the PRINT model's ("print", the
    .stl a product names in assets.stl) where it has one, since that is the
    piece that is made and priced, else the .glb's own. "min-box" is the .glb's
-   box in its own frame: the homepage stack's colliders (js/stack-scene.js) are
+   box in its own frame: the homepage stack's hit boxes (js/stack-scene.js) are
    made of it.
 
    - volume-cm3: the enclosed volume of the mesh. Models are authored in

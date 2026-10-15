@@ -58,7 +58,7 @@ function bool(b) {
 // to spell the fields out itself, and would have dropped any field the
 // measuring script added. "min-box" is the minimum-volume box's pose
 // (centre + axes, the axes in the same order as dimensions-mm) — the
-// homepage stack's colliders are made of it; omitted when absent. "print" is
+// homepage stack's hit boxes are made of it; omitted when absent. "print" is
 // the same piece as it is printed (measured on its STL): its volume and
 // dimensions, which the product page shows and prices, and the STL's hash;
 // omitted when absent. `indent` is the line's own: a product's (6 spaces) by default, a design

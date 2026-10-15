@@ -205,7 +205,7 @@ const geometrySchema = {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
     // The minimum-volume box's pose, in the model's frame: the homepage
-    // stack's colliders are made of it (js/stack-scene.js).
+    // stack's hit boxes are made of it (js/stack-scene.js).
     "min-box": {
       type: "object",
       required: ["center", "axes"],
@@ -370,7 +370,7 @@ function validate(where, schema, data) {
 
 // A measured model's "geometry" against its file: model-sha1 pins the
 // measurements to the exact model they were taken from
-// (scripts/measure-models.js), and the stack's colliders are built on min-box
+// (scripts/measure-models.js), and the stack's hit boxes are built on min-box
 // as a box — three unit axes at right angles. Anything else (a hand edit, a bad
 // merge) makes a skewed box out of numbers it doesn't measure. A model with a
 // print model (stlRel) has its measurements, too, pinned to that file the

@@ -64,24 +64,19 @@
     if (memory && memory.remember) memory.remember(patch);
   }
 
-  function landing() {
-    var memory = window.EmjiveScrollMemory;
-    return (memory && memory.landing && memory.landing()) || {};
-  }
-
   function hero() {
     return window.EmjiveSeriesHero && window.EmjiveSeriesHero.setMode ? window.EmjiveSeriesHero : null;
   }
 
   // Instant, whatever html { scroll-behavior: smooth } says — the page jumps
   // under the veil, where nobody sees it travel.
-  function jumpToTop() {
+  function jumpTo(top) {
     var previous = html.style.scrollBehavior;
     html.style.scrollBehavior = "auto";
     try {
-      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      window.scrollTo({ top: top, left: 0, behavior: "instant" });
     } catch (e) {
-      window.scrollTo(0, 0);
+      window.scrollTo(0, top);
     }
     if (previous) html.style.scrollBehavior = previous;
     else html.style.removeProperty("scroll-behavior");
@@ -135,11 +130,20 @@
   /* ---- the control ----------------------------------------------------------- */
 
   function syncControls() {
-    if (viewToggle) viewToggle.textContent = view() === "grid" ? "switch to stack view" : "switch to grid view";
+    // What it shows (an icon and a word) is css/style.css's, keyed on the
+    // same attribute; this is its name.
+    if (!viewToggle) return;
+    viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to stack view" : "switch to grid view");
+    // In the stack view it comes only once the visitor has scrolled down all
+    // the way to the stack (the entrance done); the grid's button is always
+    // there.
+    viewToggle.classList.toggle("is-ready", view() === "grid" || state.stage === 1);
   }
 
   // Either view lands at rest: the hero has had its turn (a visitor leaving
-  // it for the other view has had enough of it), the page is at the top.
+  // it for the other view has had enough of it) — the grid at the top of the
+  // page, the stack at the end of the hero, which is still there to scroll
+  // back up into.
   function switchView(next) {
     if (next === view()) return;
     throughVeil(function () {
@@ -147,9 +151,10 @@
       html.setAttribute("data-hero", "skip");
       writeLocal(VIEW_KEY, next);
       writeLocal(SEEN_KEY, "1");
-      remember({ view: next, hero: "skip", focused: null });
+      remember({ view: next, hero: "skip" });
       if (state.stack) state.stack.setActive(next === "stack");
-      jumpToTop();
+      // The stack's page is tall again by now (the attributes above).
+      jumpTo(next === "stack" ? html.scrollHeight : 0);
       if (hero()) hero().setMode();
       placeEmptyMessage();
       syncControls();
@@ -167,6 +172,7 @@
   if (window.EmjiveHero) {
     window.EmjiveHero.onStage(function (progress) {
       state.stage = progress;
+      syncControls();
       if (progress === 1 && heroMode() === "play") writeLocal(SEEN_KEY, "1");
     });
   }
@@ -400,9 +406,7 @@
         state.stack = window.EmjiveGalleryStack.mount(stage, {
           products: products,
           slug: state.slug,
-          active: view() === "stack",
-          focused: landing().focused,
-          onFocusChange: function (id) { remember({ focused: id }); }
+          active: view() === "stack"
         });
       }
       applyFilter();

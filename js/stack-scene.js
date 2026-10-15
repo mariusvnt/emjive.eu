@@ -37,8 +37,24 @@ var PX = 100;
 var MAX_PIXEL_RATIO = 1.5;
 // A frame's dt is never taken as more than this (a tab coming back).
 var MAX_DT = 1 / 15;
+// A clipping plane's constant that cuts nothing.
+var NO_CUT = 1e9;
+// The top shot's perspective, put back on a model lying on the hand
+// (placeOnHand()): each point drawn as the shot's camera saw it, nearer
+// points spread out from the model's middle, farther ones drawn in.
+var SHOT_VERTEX = [
+  "if (uShotAmount > 0.0) {",
+  "  float shotK = uShotDist / max(uShotDist - (mvPosition.z - uShotCenter.z), 1e-4);",
+  "  mvPosition.xy = uShotCenter.xy + (mvPosition.xy - uShotCenter.xy) * mix(1.0, shotK, uShotAmount);",
+  "  gl_Position = projectionMatrix * mvPosition;",
+  "}"
+].join("\n");
 
 function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function smoothstep(a, b, x) {
+  var t = clamp01((x - a) / (b - a));
+  return t * t * (3 - 2 * t);
+}
 
 export function createStackScene(options) {
   if (!toolkit) return null;
@@ -52,6 +68,8 @@ export function createStackScene(options) {
     return null;
   }
   toolkit.configureRenderer(renderer, MAX_PIXEL_RATIO);
+  // The finger a ring on the hand is worn on (placeCut()).
+  renderer.localClippingEnabled = true;
   toolkit.trackRenderer(renderer);
   var canvas = renderer.domElement;
   canvas.className = "stack-canvas";
@@ -79,6 +97,8 @@ export function createStackScene(options) {
   var qTop = toolkit.orbitOrientation({ "3d-viewer-camera-default": { rotation: 0, tilt: 0, zoom: 100 } }).invert();
   var zAxis = new T.Vector3(0, 0, 1);
   var tmpQ = new T.Quaternion();
+  var yAxis = new T.Vector3(0, 1, 0);
+  var tmpPlane = new T.Plane();
 
   function rotZ(deg, out) {
     // Clockwise on screen is about -Z in a y-up world.
@@ -157,6 +177,32 @@ export function createStackScene(options) {
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
     entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
+    // Where a top shot cuts it (scripts/auto-render.js's finger occluder:
+    // half way up its bounding box, along the axis the shot looks down),
+    // and the plane that cuts it so here (placeCut()).
+    entry.cutMin = box.min.y;
+    entry.cutHeight = box.max.y - box.min.y;
+    entry.clip = new T.Plane(yAxis.clone(), NO_CUT);
+    entry.material.clippingPlanes = [entry.clip];
+    // How far the top shot's camera stood from the model's middle
+    // (js/three-viewer.js frameCamera: the default zoom, straight down), in
+    // the model's own units; and the uniforms that draw it so.
+    var framing = toolkit.defaultFraming(entry.product);
+    entry.shotDist = entry.radius * framing.zoom / Math.sin(framing.fovDeg * Math.PI / 360);
+    entry.shot = {
+      uShotCenter: { value: new T.Vector3() },
+      uShotDist: { value: 1 },
+      uShotAmount: { value: 0 }
+    };
+    entry.material.onBeforeCompile = function (shader) {
+      shader.uniforms.uShotCenter = entry.shot.uShotCenter;
+      shader.uniforms.uShotDist = entry.shot.uShotDist;
+      shader.uniforms.uShotAmount = entry.shot.uShotAmount;
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform vec3 uShotCenter;\nuniform float uShotDist;\nuniform float uShotAmount;")
+        .replace("#include <project_vertex>", "#include <project_vertex>\n" + SHOT_VERTEX);
+    };
+    entry.material.customProgramCacheKey = function () { return "emjive-stack-shot"; };
     root.traverse(function (node) {
       if (!node.isMesh) return;
       disposeMaterial(node.material);
@@ -249,9 +295,12 @@ export function createStackScene(options) {
   }
 
   /* ---- the camera and the canvas ------------------------------------------------- */
+  // The canvas as big as the layer it fills (css/style.css .gallery-stage:
+  // the screen without a phone's browser bars, so their coming and going
+  // leaves it as it is).
   function resize() {
-    var w = Math.max(1, window.innerWidth);
-    var h = Math.max(1, window.innerHeight);
+    var w = Math.max(1, options.host.clientWidth || window.innerWidth);
+    var h = Math.max(1, options.host.clientHeight || window.innerHeight);
     renderer.setSize(w, h, false);
     camera.left = 0;
     camera.right = w / PX;
@@ -289,9 +338,42 @@ export function createStackScene(options) {
       rotZ(pose.rot || 0, entry.group.quaternion).multiply(entry.restQ);
     }
     entry.group.scale.setScalar(entry.size ? pose.size / entry.size : 1);
+    placeOnHand(entry, pose);
     twistSprite(entry);
     var alpha = pose.alpha === undefined ? 1 : pose.alpha;
     setOpacity(entry, alpha * (1 - (pose.ring || 0)));
+  }
+
+  // A ring on the hand is drawn as its top shot shows it, so it lands
+  // exactly on the picture it crossfades with (scripts/auto-render.js):
+  //   - cut as the shot is: the shots were rendered with an invisible
+  //     finger through the ring, hiding everything below half its height
+  //     (addFingerOccluder) — the band under the finger, the inside of a
+  //     cuff. The model wears the same finger, which slides out of it (the
+  //     cut going down to its foot) as it swings off the hand;
+  //   - in the shot's perspective: the shot's camera stood close, so the
+  //     ring's top spreads wider than this scene's flat camera draws it.
+  // Both are whole on the hand and gone by the time its top shot has faded
+  // (the same stretch of the slide, 0 to 0.5).
+  function placeOnHand(entry, pose) {
+    if (!entry.clip) return;
+    var share = pose.fromRing && pose.u < 1 ? 1 - smoothstep(0, 0.5, pose.u) : 0;
+    entry.shot.uShotAmount.value = share;
+    if (share <= 0) {
+      entry.clip.normal.copy(yAxis);
+      entry.clip.constant = NO_CUT;
+      return;
+    }
+    tmpPlane.normal.copy(yAxis);
+    tmpPlane.constant = -(entry.cutMin + entry.cutHeight * 0.5 * share);
+    entry.group.updateMatrixWorld(true);
+    // The box was measured in the holder's frame (the model's parent).
+    entry.clip.copy(tmpPlane).applyMatrix4(entry.holder.matrixWorld);
+    // The model's middle as the camera sees it, and the shot's distance at
+    // the size the model is drawn.
+    camera.updateMatrixWorld();
+    entry.shot.uShotCenter.value.setFromMatrixPosition(entry.group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+    entry.shot.uShotDist.value = entry.shotDist * entry.holder.scale.x * entry.group.scale.x;
   }
 
   // A picture standing in for a model always faces the camera; it turns with

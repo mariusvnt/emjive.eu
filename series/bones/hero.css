@@ -75,6 +75,10 @@
      and the hand fades back. Only in the stack view — the grid simply follows
      the reveal. */
   --reveal-entrance-vh: 0px;
+  /* Room added to the entrance, as a share of it, for the wheel to roll
+     back to the hand in before the camera moves in (set by hero.js's
+     setEntranceRoom, for js/gallery-stack.js). */
+  --reveal-entrance-room: 0;
   --reveal-frontier-height: 0.8rem; /* height of the scanning band (narrow-screen override below); width is always full screen */
   /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
      which also needs it, lives outside .reveal entirely. */
@@ -96,10 +100,40 @@
   --ring-size: 6%;
   --ring-rotation: 0deg;
 
-  height: calc(var(--reveal-scroll-vh) + var(--reveal-entrance-vh));
+  height: calc(var(--reveal-scroll-vh) + var(--reveal-entrance-vh) * (1 + var(--reveal-entrance-room)));
 }
 html[data-gallery-view="stack"] .reveal {
   --reveal-entrance-vh: 100vh;
+}
+/* The pinned frame never moves at the end of the page. It is as tall as the
+   screen without a phone's browser bars (--reveal-pin-height, 100vh), and a
+   sticky frame can't stay pinned past the end of what holds it: with the
+   bars showing at the end of the page (Safari brings them back there), the
+   page ending with the reveal pushed it up by the bars' height — the hand
+   with it, off the wheel (which is fixed to the screen), and a script
+   catching up with that lagged the browser's own scrolling by a frame.
+   So the page ends that much before the reveal does (the margin, 100svh -
+   100lvh: the bars' height, 0 where there are none), the overhang clipped
+   (overflow: clip on the hero's box: no scroll container, the pin still
+   sticks): at the end of the page, bars or not, the frame is still pinned,
+   and hero.js ends the entrance where the page ends without the bars.
+   A few px more than the bars (--reveal-end-slack): ending exactly where the
+   frame lets go, the page's end (whole px) and the bars' height (fractions
+   of one) could leave it a fraction past that point, and the frame,
+   flipping between pinned and not as a phone scrolled, shimmered there. */
+@supports (height: 100lvh) and (overflow: clip) {
+  html[data-gallery-view="stack"] .series-hero {
+    /* Its own formatting context, so the reveal's negative margin shortens
+       this box (and the page) rather than collapsing through it to the page's
+       end, where it did nothing; overflow: clip, unlike hidden, doesn't make
+       one. */
+    display: flow-root;
+    overflow: clip;
+  }
+  html[data-gallery-view="stack"] .reveal {
+    --reveal-end-slack: 4px;
+    margin-bottom: calc(100svh - 100lvh - var(--reveal-end-slack));
+  }
 }
 
 /* The hero skipped (data-hero="skip", js/scroll-memory.js): the page lands
@@ -119,13 +153,13 @@ html[data-hero="skip"] .reveal__ring {
   visibility: hidden;
 }
 
-/* Measured by hero.js: the entrance stretch, in px. */
+/* Measured by hero.js: the entrance stretch, its room included, in px. */
 .reveal__entrance {
   position: absolute;
   left: 0;
   bottom: 0;
   width: 1px;
-  height: var(--reveal-entrance-vh);
+  height: calc(var(--reveal-entrance-vh) * (1 + var(--reveal-entrance-room)));
   visibility: hidden;
   pointer-events: none;
 }

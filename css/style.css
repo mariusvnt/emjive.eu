@@ -222,6 +222,15 @@ body {
      to) html for the root document's own scroll boundary. */
   overscroll-behavior-x: none;
 }
+/* The homepage (data-gallery-view, set in its <head> by
+   js/scroll-memory.js) has no vertical bounce either: the wheel is the
+   page's end, and scrolling on past it does nothing — no rubber band
+   pulling the pinned wheel up off the screen. It goes at the top too
+   (CSS has no per-edge switch), and with it a phone's pull-to-refresh. */
+html[data-gallery-view],
+html[data-gallery-view] body {
+  overscroll-behavior-y: none;
+}
 /* Reserves room for the floating selection bar (fixed to the viewport
    bottom) so it never sits on top of page content — scoped automatically
    to only the pages that actually render one via :has(), rather than
@@ -859,7 +868,10 @@ body:has(.product-stage) .site-header__veil {
    Must stay a plain box: .reveal__pin inside it is position: sticky, which
    silently stops working if any ancestor gets overflow (other than
    visible), transform, filter, contain or will-change. Don't "just add
-   overflow: hidden" here to fix some horizontal-scroll bug. */
+   overflow: hidden" here to fix some horizontal-scroll bug. (The one
+   exception is overflow: clip, which makes no scroll container: the bundle's
+   hero.css sets it in the wheel view, to clip the reveal's overhang past the
+   page's end.) */
 .series-hero {
   /* vh first as the fallback for a browser without the small-viewport unit
      (before Safari 15.4 / Chrome 108); the svh line below wins everywhere
@@ -1074,10 +1086,19 @@ body:has(.site-header__menu.is-open) .gallery-control {
    Nothing on it takes a tap until the products have landed (.is-landed):
    before that the visitor is scrolling through the reveal, and every touch
    is theirs. The domain the circle lives in — under the controls, over the
-   selection bar — is the script's; the layer itself is the screen. */
+   selection bar — is the script's; the layer itself is the screen.
+   As tall as the screen without a phone's browser bars (100lvh; 100vh,
+   the same thing there, where lvh isn't known), never following them:
+   pinned to its edges (inset: 0) it changed height the moment the bars
+   came or went, and the canvas, stretched to it until the script had
+   resized it, drew the whole wheel lower for a moment, then snapped back. */
 .gallery-stage {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+  height: 100lvh;
   z-index: 3;
   pointer-events: none;
   overflow: hidden;
@@ -1251,16 +1272,16 @@ body:has(.site-header__menu.is-open) .gallery-control {
    (.grid-tile--head) names them in the same places — on a phone its labels
    stack as the facts do. Category is always a column, even when the series
    has only one. No rules: 3rem between products
-   on a phone, up to 9rem on a desktop, and 3rem under the header. The picture is a strip of slides (the model's own
+   on a phone, up to 15rem on a desktop, and 3rem under the header. The picture is a strip of slides (the model's own
    view, then the product's photos) swiped natively, sideways, with scroll
    snapping; a tap anywhere on a row opens the product's page. */
 .product-grid {
   --grid-cols: 2;
   --grid-picture-gap: 1.5rem;
   --grid-head-gap: 3rem;
-  /* 3rem on a phone (375px), growing with the width to 9rem at --max
+  /* 3rem on a phone (375px), growing with the width to 15rem at --max
      (1440px), and no further. */
-  --grid-row-gap: clamp(3rem, 9.01vw + 0.89rem, 9rem);
+  --grid-row-gap: clamp(3rem, 18.03vw - 1.23rem, 15rem);
   position: relative;
   z-index: 1;
   max-width: var(--max);

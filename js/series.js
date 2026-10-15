@@ -208,6 +208,10 @@
   // onto the hand (js/gallery-stack.js). null until a hero publishes one.
   var heroStageSubscribers = [];
   var heroStage = null;
+  // How the gallery plays that number (js/gallery-stack.js: part of it may
+  // only turn the wheel), so the hero's own part of the entrance can keep
+  // pace with the gallery's: mapStage(p), p itself when nothing is set.
+  var heroStageMap = null;
 
   window.EmjiveHero = {
     onScroll: function (fn) {
@@ -227,7 +231,13 @@
         heroStageSubscribers[i](progress);
       }
     },
-    stage: function () { return heroStage; }
+    stage: function () { return heroStage; },
+    setStageMap: function (fn) {
+      heroStageMap = typeof fn === "function" ? fn : null;
+    },
+    mapStage: function (progress) {
+      return heroStageMap ? heroStageMap(progress) : progress;
+    }
   };
 
   /* ---------------------------------------------------------------------

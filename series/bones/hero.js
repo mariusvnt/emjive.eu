@@ -35,6 +35,7 @@
   var revealNormal = null;
   var revealFrontier = null;
   var revealEntrance = null;
+  var revealPin = null;
   var siteHeader = null;
   var revealTicking = false;
 
@@ -128,11 +129,14 @@
     // The gallery's entrance stretch at the end of the reveal (0 in the grid
     // view): the wipe plays over everything before it.
     var entrancePx = revealEntrance ? revealEntrance.getBoundingClientRect().height : 0;
-    // Clamped to >= 0: on mobile browsers, CSS vh and window.innerHeight
-    // can briefly disagree (dynamic address bar resizing the viewport),
-    // which could otherwise make this negative and fall through to the
-    // "fully revealed" branch below even at scroll position 0.
-    var totalScroll = Math.max(0, rect.height - entrancePx - window.innerHeight);
+    // How long the pin holds: the reveal's height less the pin's own (100vh,
+    // the screen without a phone's browser bars) — not window.innerHeight,
+    // which the bars change as they come and go: measured against it, a fast
+    // scroll hiding them made the wipe and the entrance jump. Clamped to
+    // >= 0, which could otherwise fall through to the "fully revealed"
+    // branch below even at scroll position 0.
+    var pinHeight = revealPin ? revealPin.offsetHeight : window.innerHeight;
+    var totalScroll = Math.max(0, rect.height - entrancePx - pinHeight);
     var scrolled = totalScroll > 0 ? Math.min(totalScroll, rawScrolled) : 0;
 
     // Phase 1: the frontier band lifts up from below the viewport until
@@ -197,13 +201,21 @@
     // grid), the reveal simply ends where the wipe does.
     var entrance;
     if (entrancePx > 0) {
-      entrance = Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entrancePx));
+      // The page ends before the reveal by a phone's browser bars' height
+      // (hero.css: the reveal's negative margin): the entrance ends where
+      // the page does with the bars hidden, so it is always played out.
+      var shortfall = Math.max(0, -(parseFloat(getComputedStyle(revealSection).marginBottom) || 0));
+      var entranceLength = Math.max(1, entrancePx - shortfall);
+      entrance = Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entranceLength));
       if (entrance >= ENTRANCE_DONE) entrance = 1;
     } else {
       entrance = totalScroll > 0 && rawScrolled >= totalScroll ? 1 : 0;
     }
+    // The x-ray fades at the gallery's own pace (EmjiveHero.mapStage: a
+    // wheel rolling back to the hand holds the camera, and this with it).
+    var faded = window.EmjiveHero.mapStage ? window.EmjiveHero.mapStage(entrance) : entrance;
     revealXrayGroup.style.opacity = entrancePx > 0
-      ? String(1 - Math.min(1, entrance / XRAY_FADE_END) * (1 - restOpacity()))
+      ? String(1 - Math.min(1, faded / XRAY_FADE_END) * (1 - restOpacity()))
       : "";
     window.EmjiveHero.publishStage(entrance);
   }
@@ -304,6 +316,7 @@
       revealNormal = revealSection ? revealSection.querySelector(".reveal__img--normal") : null;
       revealFrontier = document.getElementById("revealFrontier");
       revealEntrance = revealSection ? revealSection.querySelector(".reveal__entrance") : null;
+      revealPin = revealSection ? revealSection.querySelector(".reveal__pin") : null;
       // Fixed, so it visually sits (z-index 80) over whatever scrolls
       // underneath it — see the bar-trigger comment in updateReveal().
       siteHeader = document.querySelector(".site-header");
@@ -376,6 +389,16 @@
       revealXrayGroup.style.clipPath = "none";
       revealXrayGroup.style.transformOrigin = ((WRIST_X - box.cropLeft) / box.crop) + "% " + WRIST_Y + "%";
       revealXrayGroup.style.transform = "translateX(-50%) translate(" + dx.toFixed(2) + "px," + dy.toFixed(2) + "px) scale(" + scale.toFixed(5) + ")";
+    },
+
+    // Room added to the entrance for the wheel to roll back to the hand in
+    // (js/gallery-stack.js), as a share of the entrance's own length: the
+    // reveal grows by it at its end, and the published stage runs over
+    // the whole stretch, room included.
+    setEntranceRoom: function (share) {
+      if (!revealSection) return;
+      revealSection.style.setProperty("--reveal-entrance-room", String(share));
+      requestRevealUpdate();
     },
 
     // data-hero / data-gallery-view on <html> just changed (js/gallery.js: a

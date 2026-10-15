@@ -136,9 +136,11 @@
     viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to list");
     // In the stack view it comes only once the visitor has scrolled down to
     // the wheel (the entrance as good as done: from the point the wheel counts
-    // as landed, js/gallery-stack.js LAND_AT); the grid's button is always
-    // there.
-    viewToggle.classList.toggle("is-ready", view() === "grid" || (state.stage !== null && state.stage >= 0.9));
+    // as landed, js/gallery-stack.js LAND_AT — of the entrance as the wheel
+    // plays it, EmjiveHero.mapStage, its roll back to the hand left out);
+    // the grid's button is always there.
+    var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
+    viewToggle.classList.toggle("is-ready", view() === "grid" || (stage !== null && stage >= 0.9));
   }
 
   // Either view lands at rest: the hero has had its turn (a visitor leaving

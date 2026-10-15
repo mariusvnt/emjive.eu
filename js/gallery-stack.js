@@ -51,6 +51,16 @@
   // ease is all but flat), and a page coming Back a little short of its old
   // offset (a phone's toolbar back, the screen shorter) still lands on it.
   var LAND_AT = 0.9;
+  // A plate left turned rolls back to the hand before the camera moves in
+  // (stageAt()): the first scrolling up from the landing only turns it, over
+  // room added to the entrance — this share of its length for every place
+  // it has to turn by, up to ROLL_MAX.
+  var ROLL_PER_STEP = 0.1;
+  var ROLL_MAX = 0.5;
+  // The plate follows the scroll through its roll back on a spring (rad/s,
+  // critically damped): whatever the scrolling — a wheel's notches, a flick
+  // — it eases into each move and out of it.
+  var ROLL_SPRING = 9;
 
   // ---- the circle -------------------------------------------------------------
   // A product's size, as a share of the arc of the circle each one has.
@@ -145,6 +155,15 @@
       suspended: false,
       // The visitor has turned the plate (or tapped it).
       touched: false,
+      // The room the entrance has been given for the plate's roll back to
+      // the hand (syncRoom()), as a share of its length.
+      room: 0,
+      // How far the plate has rolled back as drawn (x, 0 to 1, and its
+      // speed v): following the scroll's own (rollTarget()) on a spring.
+      roll: { x: 0, v: 0 },
+      // The turn a plate kept rolled back (keepRolledBack()) is still on its
+      // way from, until the spring has brought it home; null otherwise.
+      rollFrom: null,
       // The product this history entry left at the top (Back to the page:
       // js/scroll-memory.js), to turn the plate back to.
       restoreId: window.EmjiveScrollMemory && window.EmjiveScrollMemory.wheel
@@ -255,7 +274,24 @@
 
     /* ---- geometry -------------------------------------------------------------
        The domain the circle lives in: under the header and the controls,
-       over the selection bar's summary row, the screen's full width. */
+       over the selection bar's summary row, the screen's full width.
+
+       Its height is the screen's with a phone's browser bars showing (100svh,
+       viewHeight()), not window.innerHeight: the bars come and go as the
+       page is scrolled — a fast scroll down to the wheel hides them — and
+       the circle laid out again for each would jump. Laid out once for the
+       smaller screen, it fits whichever way the bars are, and a resize that
+       only moves them changes nothing (the resize handler, below). */
+    var vhProbe = document.createElement("div");
+    vhProbe.setAttribute("aria-hidden", "true");
+    vhProbe.style.cssText = "position:absolute;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:100vh";
+    vhProbe.style.height = "100svh";
+    document.body.appendChild(vhProbe);
+
+    function viewHeight() {
+      return vhProbe.offsetHeight || window.innerHeight;
+    }
+
     function barHeight() {
       var summary = document.querySelector(".selection-bar__summary");
       return summary ? summary.getBoundingClientRect().height : 56;
@@ -264,7 +300,7 @@
     function domain() {
       var top = header ? header.getBoundingClientRect().bottom : 0;
       if (viewToggle) top = Math.max(top, viewToggle.getBoundingClientRect().bottom);
-      return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, window.innerHeight - barHeight()) };
+      return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, viewHeight() - barHeight()) };
     }
 
     function hero() {
@@ -372,7 +408,7 @@
       // go down to clear the header with them.
       var z = R1 / r0;
       var handDrop = 0;
-      if (orbit && isFinite(orbit.top) && window.innerWidth > window.innerHeight) {
+      if (orbit && isFinite(orbit.top) && window.innerWidth > viewHeight()) {
         var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
         var tipY = c1.y + z * (orbit.top - c0.y);
         handDrop = Math.max(0, headerBottom + HAND_TOP_GAP - tipY);
@@ -484,8 +520,149 @@
       return out;
     }
 
-    function currentPose(item, p) {
-      var pose = poseAt(item, p, state.theta);
+    /* ---- back to the hand -------------------------------------------------------
+       The slots were given out with the plate unturned (orbitLayout()), so a
+       whole turn (theta a multiple of TAU) is where the rings on the hand
+       slide the least. A plate left turned elsewhere is rolled back there by
+       the scroll before anything else moves, over room of its own: the hero's
+       entrance is made longer by as much as the turn back needs
+       (rollShare(), applied by syncRoom() through the hero's
+       setEntranceRoom), and that room sits just above the landing
+       (LAND_AT). Scrolling up from the landing, it only turns the plate —
+       easing in and out — and the camera's pull-back and the rings' slide
+       then play over the entrance exactly as they would unturned.
+       Scrolling down plays it the other way. */
+    function hasHand() {
+      return state.items.some(function (item) { return item.visible && item.hand; });
+    }
+
+    // How much room the plate's turn back needs, as a share of the entrance.
+    function rollShare() {
+      if (!state.L || !hasHand()) return 0;
+      return Math.min(ROLL_MAX, ROLL_PER_STEP * Math.abs(wrap(state.theta)) / state.L.step);
+    }
+
+    // The published entrance (raw, 0 to 1 over the whole stretch, the room
+    // included) as the stack plays it: how far the camera and the rings have
+    // come (p, 0 to 1 over the entrance proper) and how the plate is turned
+    // (theta).
+    function stageAt(raw) {
+      var room = state.room;
+      var p = raw;
+      if (room > 0) {
+        var u = raw * (1 + room);
+        p = u >= LAND_AT + room ? u - room : Math.min(u, LAND_AT);
+      }
+      var eased = easeInOutCubic(clamp01(state.roll.x));
+      var theta = state.theta;
+      if (state.rollFrom !== null) theta = lerp(state.rollFrom, state.theta, eased);
+      else if (room > 0) theta = lerp(state.theta, state.theta + wrap(-state.theta), eased);
+      return { p: p, theta: theta };
+    }
+
+    // How far the scroll has the plate rolled back: 0 at the landing, 1
+    // once past the room.
+    function rollTarget() {
+      if (state.rollFrom !== null) return 1;
+      var room = state.room;
+      if (room <= 0 || state.p === null) return 0;
+      return clamp01((LAND_AT + room - state.p * (1 + room)) / room);
+    }
+
+    // One step of the plate's spring towards the scroll; whether it still
+    // moves.
+    function stepRoll(dt) {
+      var r = state.roll;
+      var target = rollTarget();
+      if (reducedMotion.matches) {
+        r.x = target;
+        r.v = 0;
+        return false;
+      }
+      r.v += (ROLL_SPRING * ROLL_SPRING * (target - r.x) - 2 * ROLL_SPRING * r.v) * dt;
+      r.x += r.v * dt;
+      if (Math.abs(target - r.x) < 1e-4 && Math.abs(r.v) < 1e-3) {
+        r.x = target;
+        r.v = 0;
+        // A plate kept rolled back, home now as drawn too.
+        if (state.rollFrom !== null) {
+          state.rollFrom = null;
+          r.x = 0;
+        }
+        return false;
+      }
+      return true;
+    }
+
+    function rollSettled() {
+      return state.roll.v === 0 && state.roll.x === rollTarget();
+    }
+
+    // Scrolled past the room: the plate is rolled all the way back.
+    function rolledBack() {
+      return state.room > 0 && state.p !== null && state.p * (1 + state.room) <= LAND_AT;
+    }
+
+    // Landed: past the room, at the end of the entrance proper.
+    function landedAt(raw) {
+      return raw * (1 + state.room) >= LAND_AT + state.room;
+    }
+
+    // Rolled all the way back: the plate stays there. Its room goes (the
+    // render after this, syncRoom(): below the visitor, so nothing they see
+    // moves), and scrolling down again lands on it as it now is — the
+    // product at the top, kept for Back, the one at home. The spring, if it
+    // is still on its way, carries on there (rollFrom).
+    function keepRolledBack() {
+      state.rollFrom = state.theta;
+      state.theta += wrap(-state.theta);
+      var slot = focusedSlot(state.theta);
+      var top = null;
+      state.items.forEach(function (item) {
+        if (item.visible && item.slot === slot) top = item;
+      });
+      if (top && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
+        window.EmjiveScrollMemory.rememberWheel(top.id);
+      }
+    }
+
+    // The room made to match the plate as it now rests. The page grows (or
+    // shrinks) by it just above the landing: a visitor at the landing is
+    // kept where they are against it — unless Back is restoring an offset,
+    // which was saved with this room already there.
+    function syncRoom() {
+      var share = rollShare();
+      if (Math.abs(share - state.room) < 1e-6) return;
+      var h = hero();
+      if (!h || !h.setEntranceRoom) return;
+      var root = document.documentElement;
+      // How far the visitor is from the page's end, which is the
+      // entrance's: the room goes in above them, so that is what stays.
+      var fromEnd = Math.max(0, root.scrollHeight - root.clientHeight - window.scrollY);
+      var raw = state.p === null ? 0 : state.p;
+      var u = raw * (1 + state.room);
+      var keep = landedAt(raw) &&
+        !(window.EmjiveScrollMemory && window.EmjiveScrollMemory.isRestoring && window.EmjiveScrollMemory.isRestoring());
+      h.setEntranceRoom(share);
+      var grown = share - state.room;
+      state.room = share;
+      if (keep) {
+        // Shrinking, the browser has already pulled a visitor at the end up
+        // with it; growing, it hasn't moved them. Either way, from the end.
+        var previous = root.style.scrollBehavior;
+        root.style.scrollBehavior = "auto";
+        window.scrollTo(0, Math.max(0, root.scrollHeight - root.clientHeight - fromEnd));
+        if (previous) root.style.scrollBehavior = previous;
+        else root.style.removeProperty("scroll-behavior");
+        u += grown;
+      }
+      // Until the hero publishes again, the entrance as it now stands.
+      if (state.p !== null) state.p = clamp01(u / (1 + share));
+    }
+
+    function currentPose(item, raw) {
+      var at = stageAt(raw);
+      var pose = poseAt(item, at.p, at.theta);
       if (!blend) return pose;
       var from = blend.from[item.id];
       if (!from) return pose;
@@ -518,9 +695,10 @@
       }
     }
 
-    function focusedSlot() {
+    // The slot at the top with the plate turned by theta.
+    function focusedSlot(theta) {
       var L = state.L;
-      return ((Math.round(-state.theta / L.step) % L.n) + L.n) % L.n;
+      return ((Math.round(-theta / L.step) % L.n) + L.n) % L.n;
     }
 
     function setFocus(item) {
@@ -530,8 +708,9 @@
       state.focus = item;
       if (item) item.nameEl.classList.add("is-shown");
       // Turned by the visitor: kept for this history entry, so Back to the
-      // page finds the plate turned the same way.
-      if (item && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
+      // page finds the plate turned the same way (not while it rolls back to
+      // the hand: it is still turned the visitor's way).
+      if (item && landed && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
         window.EmjiveScrollMemory.rememberWheel(item.id);
       }
       var name = item ? (item.product.name || "") : "";
@@ -559,11 +738,12 @@
         if (h && h.setZoom) h.setZoom(1, 0, 0);
         return;
       }
-      var cam = cameraAt(p);
+      var at = stageAt(p);
+      var cam = cameraAt(at.p);
       if (h && h.setZoom) h.setZoom(cam.scale, cam.x - L.c0.x, cam.y - L.c0.y + cam.handDrop);
 
       var poses = {};
-      var slot = focusedSlot();
+      var slot = focusedSlot(at.theta);
       var focus = null;
       state.items.forEach(function (item) {
         if (!item.visible) return;
@@ -589,6 +769,8 @@
       orbitEl.style.left = cam.x.toFixed(1) + "px";
       orbitEl.style.top = cam.y.toFixed(1) + "px";
       placeSpin();
+      // The plate at rest: the room for its roll back to match.
+      if (motion.mode === "idle") syncRoom();
     }
 
     // The drag target over the focused product, while the plate is still and
@@ -608,7 +790,14 @@
       var was = state.p;
       state.p = p;
       if (layoutStale() || ((was === null || was === 0) && p > 0 && p < 1)) orbitLayout();
-      var nowLanded = p >= LAND_AT;
+      // The first stage: the plate as the scroll has it, nothing to ease.
+      if (was === null) {
+        state.roll.x = rollTarget();
+        state.roll.v = 0;
+      }
+      if (rolledBack()) keepRolledBack();
+      if (!rollSettled()) kick();
+      var nowLanded = landedAt(p);
       if (nowLanded !== landed) {
         landed = nowLanded;
         stage.classList.toggle("is-landed", landed);
@@ -670,6 +859,8 @@
         else going = true;
       }
       if (motion.mode === "drag") going = true;
+      if (stepRoll(dt)) going = true;
+      if (rolledBack()) keepRolledBack();
       if (blend) {
         if (now - blend.start >= FLY_MS) blend = null;
         else going = true;
@@ -934,11 +1125,21 @@
       if (state.scene) state.scene.setPaused(document.visibilityState === "hidden" || state.suspended);
     });
 
+    // A phone's browser bars coming or going resize the window but not the
+    // layout (domain()): only the canvas follows them then, and the circle,
+    // the hand and a turn under way are left as they are.
     var resizeTimer = 0;
+    var laidOutFor = window.innerWidth + "x" + viewHeight();
     window.addEventListener("resize", function () {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         if (state.scene) state.scene.resize();
+        var size = window.innerWidth + "x" + viewHeight();
+        if (size === laidOutFor) {
+          render();
+          return;
+        }
+        laidOutFor = size;
         relayout(false);
       }, 150);
     });
@@ -947,6 +1148,13 @@
     orbitLayout();
     state.theta = homeTheta();
     if (window.EmjiveHero) {
+      // The hero's own part of the entrance (the x-ray fading back) keeps
+      // pace with the camera's, the plate's roll back left out of it.
+      if (window.EmjiveHero.setStageMap) {
+        window.EmjiveHero.setStageMap(function (raw) {
+          return state.active && state.L ? stageAt(raw).p : raw;
+        });
+      }
       window.EmjiveHero.onStage(setStage);
       var published = window.EmjiveHero.stage();
       setStage(published === null ? (document.documentElement.getAttribute("data-hero") === "skip" ? 1 : 0) : published);

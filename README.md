@@ -3,10 +3,12 @@
 A static site for the em·ji·ve jewelry brand, organised into **series** —
 each collection brings its own products, its own homepage hero animation,
 and its own design manifest, with one field in `data/series.json` deciding
-which one the homepage shows. A homepage gallery that is either a stack of
-the items' 3D models (glTF/GLB) rising out of the hero onto the x-ray hand —
-floating and rocking very slowly; tap one to open its page — or a plain
-grid of photos for a quick pick. Falls back to photos if no model is set yet. Clicking a product opens its
+which one the homepage shows. A homepage gallery that is either a wheel of
+the items' 3D models (glTF/GLB) — the camera pulls back from the hero's
+x-ray hand to a circle of them round its wrist, a plate you turn to bring
+one to the top, where it turns slowly and can be spun by hand — or a plain
+list (a row per item: its pictures, size range and starting price) for a
+quick pick. Falls back to pictures if no model is set yet. Clicking a product opens its
 detail page — a three-stage scroll: a feed of photos and a description, the
 3D model with a metal picker and, for some items, a choice of designs, then
 its specs (a size you set by dragging a circle round the model, dimensions
@@ -215,8 +217,9 @@ tooling, and the assets folder).
 
 This is intentionally a starting skeleton so the aesthetic — colors, type,
 layout, animations, real photography, real 3D models — can keep evolving
-from here. Eight of the nine current products still have no photography,
-no description, and no selling price. (Each product's weight, size and an
+from here. Nine of the ten current products still have no photography,
+no description, and no selling price. (Where there is one, the price
+follows the ring size: it is set for 62 mm and scales with it.) (Each product's weight, size and an
 estimated production cost are real: they're derived from the measured volume
 of the piece as it is printed — its STL, kept out of git — see
 `npm run measure-models` in the dev-guidelines.)

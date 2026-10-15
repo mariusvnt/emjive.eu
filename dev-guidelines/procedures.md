@@ -103,6 +103,7 @@ existing one — `bones` is the only one so far. To start a *new* series, see
     "silver": { "price": 0 },
     "bronze": { "price": 0 }
   },
+  "size-range": { "min": 40, "max": 80 },
   "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
   "3d-viewer-camera-default": { "rotation": 0, "tilt": 75, "zoom": 105 },
   "assets": {
@@ -132,20 +133,22 @@ rendered from the data, so there's nothing to hand-sync.
 shape as `per-metal-specs` below — leave a metal's value as `""` until you
 have a real render for it (`npm run auto-render` fills these in; nothing
 else does). `default-metal` (further up) is a separate field — it only
-picks which metal the *homepage* gallery shows (the stack's models, the grid's
-tiles and the Select sheet's start), since there's no metal picker there to
-switch it.
+picks which metal the *homepage* gallery shows (the wheel's models, the
+list's pictures), since there's no metal picker there to switch it.
 
-Leave `assets.model: ""` if there's no 3D file yet — the stack
-will just show `assets.icons[metal]` instead. The homepage itself still displays nothing but
-the model/icon and a `Name.category` label; `description` and
-`per-metal-specs` only appear once you click through to the product page.
-Reload the page and the new card appears automatically.
+Leave `assets.model: ""` if there's no 3D file yet — the wheel
+will just show `assets.icons[metal]` instead. The homepage shows the
+model/icon, the name and, in the list, the category, the `size-range` and the
+lowest price ("from € x"); `description` only appears once you click through
+to the product page. Reload the page and the new item appears automatically.
 
 `per-metal-specs` holds one entry per metal in the top-level `"metals"` list,
 each with just `price` (a plain number — `0` renders as "TBD", so
 leave it `0` until you have a real price rather than inventing one). It is the
-selling price, shown in the product page's label bar. The Characteristics
+selling price **at 62 mm**: every price on the site scales with the size
+(`price × size / 62`), from the smallest to the largest of the product's
+`size-range` (`{ "min": 40, "max": 80 }` for every product so far) — see
+`data.md`. The Characteristics
 section is not hand-written: it shows weight, size and a cost breakdown
 derived from the piece's measured `geometry` (the print model's,
 `geometry.print`, where it has one) and the per-metal `metal-costs`

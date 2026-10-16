@@ -32,8 +32,7 @@
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
 
-  // The same two keys js/scroll-memory.js reads in the <head>.
-  var SEEN_KEY = "emjive_hero_seen";
+  // The key js/scroll-memory.js reads in the <head>.
   var VIEW_KEY = "emjive_gallery_view";
   // The veil's fade (--fade-standard), plus a margin for its fallback timer.
   var VEIL_MS = 300;
@@ -153,7 +152,6 @@
       html.setAttribute("data-gallery-view", next);
       html.setAttribute("data-hero", "skip");
       writeLocal(VIEW_KEY, next);
-      writeLocal(SEEN_KEY, "1");
       remember({ view: next, hero: "skip" });
       if (state.stack) state.stack.setActive(next === "stack");
       // The stack's page is tall again by now (the attributes above).
@@ -170,13 +168,11 @@
     });
   }
 
-  // The entrance's progress (series/<slug>/hero.js). Its end is where the
-  // hero has been seen: from then on this device lands on the gallery.
+  // The entrance's progress (series/<slug>/hero.js).
   if (window.EmjiveHero) {
     window.EmjiveHero.onStage(function (progress) {
       state.stage = progress;
       syncControls();
-      if (progress === 1 && heroMode() === "play") writeLocal(SEEN_KEY, "1");
     });
   }
   syncControls();

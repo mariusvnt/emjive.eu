@@ -42,10 +42,7 @@
   "use strict";
 
   var STORAGE_PREFIX = "emjive:scroll:";
-  // The hero plays once per device: set by js/gallery.js once it has played
-  // out (or the visitor went to the grid instead).
-  var SEEN_KEY = "emjive_hero_seen";
-  // The view the visitor last chose, on this device.
+  // The view the visitor last chose, this visit (cleared by a landing).
   var VIEW_KEY = "emjive_gallery_view";
 
   var html = document.documentElement;
@@ -58,17 +55,32 @@
      In order: the entry's own saved state (Back, or a reload of the same
      entry, rebuilds exactly the layout that was left — mid-hero included);
      an address carrying #products (the header's "Gallery" link) skips the
-     hero; otherwise the device's seen flag. The view is the device's
-     choice, stack unless the visitor picked the grid. Storage that throws
-     (Safari with site data blocked) leaves the defaults: the hero plays,
-     in the stack. */
+     hero; otherwise whether the visitor is navigating inside the site (the
+     page they came from is one of ours) — the hero plays on every landing
+     (typed address, bookmark, a link from elsewhere, a new tab) and never
+     again within a visit. The view resets with it: a landing starts on the
+     wheel and forgets the last choice; inside the visit it is the visitor's
+     choice, stack unless they picked the grid. Storage that throws (Safari
+     with site data blocked) leaves the defaults: in the stack. */
+  function cameFromThisSite() {
+    try {
+      return !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function decideLanding(saved) {
+    var landing = !saved && !cameFromThisSite();
+    if (landing) {
+      try { window.localStorage.removeItem(VIEW_KEY); } catch (e) { /* blocked: nothing was kept */ }
+    }
     var view = saved && saved.view ? saved.view : readLocal(VIEW_KEY);
     if (view !== "grid") view = "stack";
     var hero;
     if (saved && saved.hero) hero = saved.hero;
     else if (window.location.hash === "#products") hero = "skip";
-    else hero = readLocal(SEEN_KEY) ? "skip" : "play";
+    else hero = cameFromThisSite() ? "skip" : "play";
     if (hero !== "skip") hero = "play";
     html.setAttribute("data-gallery-view", view);
     html.setAttribute("data-hero", hero);

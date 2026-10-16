@@ -899,7 +899,7 @@
     }
 
     function ignoreTarget(target) {
-      return target === spinEl || target.closest(".stack-orbit__go") || target.closest(".product-grid__loading");
+      return target === spinEl || target.closest(".stack-orbit__go") || target.closest(".page-message");
     }
 
     // A drag on the focused product turns its model: the rectangle it is

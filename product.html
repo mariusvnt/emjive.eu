@@ -106,14 +106,14 @@
 
 <main class="product-detail" id="productDetail" tabindex="-1">
 <noscript>
-  <div class="page-shell">
-    <p class="page-shell__loading">This page needs JavaScript to load its content.</p>
+  <div class="page-message page-message--screen">
+    <p class="page-message__text">This page needs JavaScript to load its content.</p>
   </div>
 </noscript>
 
   <!-- Only ever holds the not-found message now (js/product.js showNotFound);
        the wait itself is the page's arrival loader (js/loader.js). -->
-  <p class="product-detail__loading" id="productDetailLoading" role="status" hidden></p>
+  <div class="page-message page-message--screen" id="productDetailLoading" role="status" hidden></div>
 
   <div class="product-detail__content" id="productDetailContent" hidden>
 

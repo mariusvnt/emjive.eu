@@ -442,7 +442,10 @@
   // The empty filter's message, in whichever view is showing.
   function placeEmptyMessage() {
     if (!state.emptyMsg) return;
-    var host = view() === "grid" ? grid : stage;
+    var inGrid = view() === "grid";
+    var host = inGrid ? grid : stage;
+    state.emptyMsg.classList.toggle("page-message--grid", inGrid);
+    state.emptyMsg.classList.toggle("page-message--stage", !inGrid);
     if (state.emptyMsg.parentNode !== host) host.appendChild(state.emptyMsg);
   }
 
@@ -453,19 +456,16 @@
     }
     var text = "Nothing in " + state.cats.map(function (c) { return "." + c; }).join(" or ") + " in this series yet. ";
     if (!state.emptyMsg) {
-      // Reuses .product-grid__loading as the empty state — it already spans
-      // the full grid row, centered and muted.
-      state.emptyMsg = el("p", "product-grid__loading");
-      state.emptyMsg.setAttribute("role", "status");
-      state.emptyMsg.appendChild(document.createTextNode(text));
-      var showAll = el("button", "btn", "Show all");
-      showAll.type = "button";
-      showAll.addEventListener("click", function () {
-        if (state.onShowAll) state.onShowAll();
-      });
-      state.emptyMsg.appendChild(showAll);
+      // The site's one message component (EmjiveMessage); placeEmptyMessage
+      // below gives it the grid's or the stage's placement. Built once, then
+      // only its text changes, so a focused "Show all" keeps its focus.
+      state.emptyMsg = el("div");
+      window.EmjiveMessage.show(state.emptyMsg, text, {
+        label: "Show all",
+        onClick: function () { if (state.onShowAll) state.onShowAll(); }
+      }, "status");
     } else {
-      state.emptyMsg.firstChild.nodeValue = text;
+      state.emptyMsg.querySelector(".page-message__text").textContent = text;
     }
     state.emptyMsg.hidden = false;
     placeEmptyMessage();
@@ -495,12 +495,9 @@
       host = heroSlot;
       host.classList.add("page-message--hero");
     } else {
-      host = el("div", "page-message--grid");
-      if (view() === "grid") grid.appendChild(host);
-      else {
-        host.classList.add("product-grid__loading");
-        stage.appendChild(host);
-      }
+      var inGrid = view() === "grid";
+      host = el("div", inGrid ? "page-message--grid" : "page-message--stage");
+      (inGrid ? grid : stage).appendChild(host);
     }
     window.EmjiveMessage.show(host,
       "The gallery couldn't be loaded. Check your connection and try again.",
@@ -519,8 +516,11 @@
     .then(function (products) {
       state.products = products;
       if (!products.length) {
-        grid.appendChild(el("p", "product-grid__loading",
-          "No products yet — add some to this series' products.json (see data/series.json)"));
+        var none = el("div", "page-message--grid");
+        window.EmjiveMessage.show(none,
+          "No products yet — add some to this series' products.json (see data/series.json)",
+          null, "status");
+        grid.appendChild(none);
       }
       renderGrid(products);
       if (window.EmjiveGalleryStack) {

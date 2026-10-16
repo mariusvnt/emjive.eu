@@ -379,13 +379,19 @@ button, input, textarea {
 
 /* ==========================================================================
    Messages — what the page says when it can't show what it was asked for
-   (a failed load, an item or series that doesn't exist). One component, built
-   by window.EmjiveMessage.show() (js/series.js): the text is left-justified
-   but sits in a block --message-width of the screen wide, centred; a button,
-   when there is one, is centred on the screen 1.5rem under it. Text is 12px
-   of grey DINish at the base scale (0.75rem x --text-scale, so 14.4px on a
-   wide screen, like the rest of the site's copy); the button is the plain text
+   (a failed load, an item or series that doesn't exist, a page that needs
+   JavaScript, a 404). One component, built by window.EmjiveMessage.show()
+   (js/series.js) or written out by hand where there is no script (404.html,
+   the <noscript> blocks): the text is a block as wide as it needs to be, up
+   to --message-width of the screen, centred — so one line reads centred on the
+   screen and several read left-justified inside that block; a button, when
+   there is one, is centred on the screen 1.5rem under it. Text is 12px of grey
+   DINish at the base scale (0.75rem x --text-scale, so 14.4px on a wide
+   screen, like the rest of the site's copy); the button is the plain text
    button (same recipe as .selection-empty__back, no outline, no box).
+   A message that takes the whole screen (--screen, --hero) sits a third of
+   the way down rather than in the middle: the group of text and button is
+   centred in the top two thirds of the screen.
    ========================================================================== */
 :root {
   --message-width: 60vw;
@@ -398,23 +404,52 @@ button, input, textarea {
   margin: 0;
 }
 .page-message[hidden] { display: none; }
-/* In the hero's slot on the homepage, when the series index itself failed to
-   load and so no hero ever will: fills the first screen and centres the
-   message in it, where the visitor is actually looking. */
+/* The whole screen, the group centred in its top two thirds (the bottom third
+   is padding). --hero is in the hero's slot on the homepage, when the series
+   index itself failed to load and so no hero ever will: it fills the first
+   screen in the page's flow. --screen is fixed over a page with nothing else
+   to show (a product or series that doesn't exist, a failed load, a 404, no
+   JavaScript), under the header. */
+.page-message--hero,
+.page-message--screen {
+  box-sizing: border-box;
+  justify-content: center;
+  padding: 0 var(--edge-px) calc(100svh / 3);
+}
 .page-message--hero {
   min-height: 100svh;
-  justify-content: center;
 }
-/* In the product grid (the series loaded but its products did not). */
+.page-message--screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+/* In the product list (the series loaded but its products did not, or a
+   filter that matches none). */
 .page-message--grid {
   grid-column: 1 / -1;
   padding: 3rem 0;
 }
+/* The same in the wheel's stage (a fixed, full-height layer): the group
+   centred a third of the way down it. Takes taps, which the stage itself
+   mostly doesn't. */
+.page-message--stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% / 3);
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
 .page-message__text {
-  width: var(--message-width);
+  display: block;
+  max-width: var(--message-width);
+  margin: 0;
   text-align: left;
   font-family: var(--font-main);
   font-size: calc(0.75rem * var(--text-scale));
+  font-weight: 400;
+  letter-spacing: normal;
   line-height: 1.4;
   color: var(--category-col);
 }
@@ -1251,15 +1286,6 @@ body:has(.site-header__menu.is-open) .gallery-control {
   .stack-orbit__go:hover { opacity: 0.6; }
 }
 
-/* An empty filter, in the stack: the message where the products would be. */
-.gallery-stage .product-grid__loading {
-  position: absolute;
-  top: 40%;
-  left: 0;
-  right: 0;
-  pointer-events: auto;
-}
-
 /* ---- the grid -----------------------------------------------------------------
    One product a row, at every width, and no 3D at all: the visitor in a hurry.
    A table of two parts. The index, a column as wide as its widest number
@@ -1301,13 +1327,6 @@ body:has(.site-header__menu.is-open) .gallery-control {
 /* The picture, then Id, Category, Size, Price. */
 @media (min-width: 641px) {
   .product-grid { --grid-cols: 5; --grid-fact-cols: 4; }
-}
-
-.product-grid__loading {
-  grid-column: 1 / -1;
-  padding: 3rem;
-  text-align: center;
-  color: var(--category-col);
 }
 
 /* A row: the grid's two columns, whole. The index and the facts are centered
@@ -1481,10 +1500,6 @@ body:has(.site-header__menu.is-open) .gallery-control {
   margin: 0 auto;
   padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
   min-height: 55vh;
-}
-.page-shell__loading {
-  font-size: calc(0.8rem * var(--text-scale));
-  color: var(--category-col);
 }
 /* The section-head inside a .page-shell is already inside the max-width and
    edge padding, so it must not apply them a second time. */
@@ -2223,12 +2238,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   padding: var(--stage-top) var(--edge-px) 0;
   background: var(--bg);
 }
-
-.product-detail__loading {
-  color: var(--category-col);
-  padding-top: 3rem;
-}
-.product-detail__loading .btn { margin-left: 0.5rem; margin-top: 0; }
 
 /* ---- the show: three stages on one sticky stage ----
    .product-stage is a tall track and .product-stage__pin the one screen

@@ -112,13 +112,13 @@
      series never means adding a page. -->
 <main class="page-shell series-manifest" id="seriesManifest" tabindex="-1">
 <noscript>
-  <div class="page-shell">
-    <p class="page-shell__loading">This page needs JavaScript to load its content.</p>
+  <div class="page-message page-message--screen">
+    <p class="page-message__text">This page needs JavaScript to load its content.</p>
   </div>
 </noscript>
   <!-- Only ever holds the not-found message now (js/series-page.js); the
        wait itself is the page's arrival loader (js/loader.js). -->
-  <p class="page-shell__loading" id="seriesManifestLoading" hidden></p>
+  <div class="page-message page-message--screen" id="seriesManifestLoading" hidden></div>
 
   <div class="series-manifest__content" id="seriesManifestContent" hidden>
     <div class="section-head">

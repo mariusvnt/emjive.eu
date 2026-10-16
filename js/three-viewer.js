@@ -766,6 +766,11 @@ export { toolkit };
   //   pauseScale()    optional: how many times POST_INERTIA_PAUSE the
   //                   stillness lasts before the ease back
   //   onHome()        optional: the ease back has arrived
+  //   autoReturn()    optional, true if absent: false leaves a released model
+  //                   where it was put (no ease back of its own); goHome(true)
+  //                   is then the only way back
+  //   onAway(away)    optional: the model has been turned off its default
+  //                   pose (true), or is back on it / on its way (false)
   //
   // TrackballControls already decays into a spin on release rather than
   // stopping dead. This seed value assumes ~60fps; the actual per-frame
@@ -807,6 +812,15 @@ export { toolkit };
     var resetTweenFromPosition = new THREE.Vector3();
     var resetTweenFromUp = new THREE.Vector3();
     var lastAngularSpeed = 0; // rad/s, previous frame's spin rate — see PROGRESSIVE_BOOST_* above
+    // Whether the eye stands off the default pose by more than AWAY_ANGLE
+    // (reported through options.onAway, only when it is asked for).
+    var away = false;
+    var AWAY_ANGLE = 0.03; // rad, ~1.7 degrees
+    function setAway(value) {
+      if (value === away) return;
+      away = value;
+      if (options.onAway) options.onAway(away);
+    }
 
     var eyeDirection = new THREE.Vector3();
     var eyeDirectionPrev = new THREE.Vector3();
@@ -854,6 +868,7 @@ export { toolkit };
         camera.lookAt(controls.target);
         if (t >= 1) {
           resetTweenActive = false;
+          setAway(false);
           if (options.onHome) options.onHome();
         }
         return;
@@ -905,7 +920,9 @@ export { toolkit };
       // pole, but s and tangentTowardUp flip together, so driftDelta
       // doesn't — the same two-attractor continuity as before, the two
       // attractors now being the authored roll and roll + 180deg.
-      if (!options.noAutoMotion()) {
+      // Off too while the model is left where it was put (options.autoReturn):
+      // only the release inertia (staticMoving, above) stays.
+      if (!options.noAutoMotion() && (!options.autoReturn || options.autoReturn())) {
         restUpRaw(restRef, eyeDirection, home.rollRad);
         var s = preFrameUp.dot(restRef);
         tangentTowardUp.copy(restRef).addScaledVector(preFrameUp, -s);
@@ -914,6 +931,11 @@ export { toolkit };
         camera.up.add(driftDelta).normalize();
       }
       camera.lookAt(controls.target);
+
+      if (options.onAway && !away) {
+        toDirection.copy(home.position).sub(controls.target).normalize();
+        if (eyeDirection.angleTo(toDirection) > AWAY_ANGLE) setAway(true);
+      }
 
       if (waitingForSettle && !isDragging) {
         var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
@@ -924,7 +946,7 @@ export { toolkit };
           // above (no coasting) and the drift skip just above (no
           // up-vector correction), the camera simply stays exactly where
           // the drag left it once released.
-          if (!options.noAutoMotion()) {
+          if (!options.noAutoMotion() && (!options.autoReturn || options.autoReturn())) {
             pauseTimeoutId = setTimeout(function () {
               pauseTimeoutId = null;
               resetTweenFromPosition.copy(camera.position);
@@ -939,14 +961,21 @@ export { toolkit };
 
     // Straight into the ease back, from wherever it is (no pause): a model
     // that stops being the one turned by hand. Not under noAutoMotion, which
-    // leaves a model where it was put; nothing to do if it is home already.
-    function goHome() {
-      if (options.noAutoMotion() || isDragging) return;
+    // leaves a model where it was put (unless `force`: a visitor's own ask);
+    // nothing to do if it is home already.
+    function goHome(force) {
+      if ((!force && options.noAutoMotion()) || isDragging) return;
       var home = options.home();
       fromDirection.copy(camera.position).sub(controls.target).normalize();
       toDirection.copy(home.position).sub(controls.target).normalize();
-      if (fromDirection.angleTo(toDirection) < 1e-4 && camera.up.angleTo(home.up) < 1e-4) return;
+      if (fromDirection.angleTo(toDirection) < 1e-4 && camera.up.angleTo(home.up) < 1e-4) {
+        setAway(false);
+        return;
+      }
       cancelReturn();
+      // On its way: the flag drops now, and rises again if a hand takes the
+      // model before it has arrived.
+      setAway(false);
       resetTweenFromPosition.copy(camera.position);
       resetTweenFromUp.copy(camera.up);
       resetTweenStartTime = performance.now();
@@ -957,6 +986,7 @@ export { toolkit };
       step: step,
       cancelReturn: cancelReturn,
       goHome: goHome,
+      isAway: function () { return away; },
       // Under a drag, coasting, waiting out the pause or easing back: not
       // at rest in its default pose yet.
       isBusy: function () {
@@ -1410,6 +1440,8 @@ export { toolkit };
         return { position: defaultCameraPosition, up: defaultCameraUp, rollRad: defaultRollRad, radius: defaultRadius };
       },
       pauseScale: function () { return rollbackPauseScale; },
+      autoReturn: function () { return autoReturn; },
+      onAway: options.onAway,
       onHome: function () { scheduleIdleNudge(); }
     });
 
@@ -1908,6 +1940,9 @@ export { toolkit };
     // design stage, where the visitor is looking at what they changed, waits
     // longer.
     var rollbackPauseScale = 1;
+    // Whether a released model eases back on its own (handle.setAutoReturn);
+    // off, it stays where it was put until returnHome().
+    var autoReturn = true;
     var nudgeActive = false;
     var nudgePhase = 0;
     var nudgePhaseStartTime = 0;
@@ -1932,7 +1967,9 @@ export { toolkit };
     var nudgePlays = 0;
     function scheduleIdleNudge() {
       clearIdleTimer();
-      if (options.nudge === false || interactionSuppressed || isStatic || noAutoMotion() || viewerPaused) return;
+      // A model left off its pose (autoReturn off) would be snapped to the
+      // nudge's waypoints.
+      if (options.nudge === false || interactionSuppressed || isStatic || noAutoMotion() || viewerPaused || spin.isAway()) return;
       if (touchDevice && nudgePlays >= NUDGE_MAX_PLAYS_TOUCH) return;
       idleTimeoutId = setTimeout(function () {
         idleTimeoutId = null;
@@ -2162,6 +2199,19 @@ export { toolkit };
       // next release.
       setRollbackPauseScale: function (scale) {
         rollbackPauseScale = scale > 0 ? scale : 1;
+      },
+      // false: a released model stays where it was put (the product page's
+      // design stage); options.onAway(true) then says when it stands off its
+      // pose, and returnHome() is the way back.
+      setAutoReturn: function (on) {
+        autoReturn = on !== false;
+      },
+      // The ease back to the default pose, now, even under reduced motion
+      // (the visitor asked for it).
+      returnHome: function () {
+        cancelNudge();
+        spin.goHome(true);
+        needsRender = true;
       },
       // What the page needs to draw a circle round the model that is as big as
       // the model is: the reach of its box from the middle of the viewer, in

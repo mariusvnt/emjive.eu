@@ -2961,6 +2961,45 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   transform: translate(-50%, calc(-50% - var(--lift)));
   opacity: var(--d-in);
 }
+/* The reset button, centred just above the model's box (it goes up with it by
+   the lift): hidden until the model has been turned off its pose
+   (.is-away, js/product.js setModelAway), then fading in with the rest of
+   design; a tap only in design. */
+.product-reset {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift));
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--black);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease;
+}
+.product-reset svg {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.product-reset.is-away {
+  opacity: var(--d-on);
+}
+.product-stage[data-stage="design"] .product-reset.is-away {
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .product-stage[data-stage="design"] .product-reset.is-away:hover { opacity: 0.6; }
+}
 .product-model .emjive-3d-viewer,
 .product-model .size-modal__model-poster {
   position: relative;
@@ -3854,6 +3893,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-design__xray {
     top: calc(var(--tile) / 2);
     opacity: 1;
+  }
+  .product-reset {
+    display: none;
   }
   .product-below {
     position: static;

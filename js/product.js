@@ -29,9 +29,14 @@
   // number as DESIGN_FROM in js/product-stages.js and --d-in's in
   // css/style.css.
   var DESIGN_FROM = 0.55;
-  // How many times the usual stillness a model waits in the design stage
-  // before easing back to its default pose.
-  var DESIGN_ROLLBACK_PAUSE = 3;
+  var resetEl = document.getElementById("productModelReset");
+
+  // The reset button fades in once the model has been turned off its pose and
+  // out when it is back (or on its way, after a tap).
+  function setModelAway(away) {
+    state.modelAway = !!away;
+    if (resetEl) resetEl.classList.toggle("is-away", state.modelAway);
+  }
 
   var state = {
     product: null,
@@ -79,9 +84,12 @@
     // The share of the design stretch its browsing eases in over
     // (js/product-stages.js).
     ramp: 1,
-    // The viewer's rollback pause, as a multiple (DESIGN_ROLLBACK_PAUSE in
-    // the design stage); kept so a viewer built later starts with it.
-    rollbackPauseScale: 1,
+    // Whether a released model eases back to its pose on its own: not in the
+    // design stage, where it stays and the reset button (productModelReset)
+    // is the way back. Kept for a viewer built later, like the pause.
+    autoReturn: true,
+    // Whether the model stands turned off its pose (the viewer says so).
+    modelAway: false,
     sweep: 0,
     fit: 0,
     // The chosen ring size over the model's base size (setModelSize), and
@@ -729,6 +737,7 @@
     box.innerHTML = "";
     box.classList.remove("is-model");
     state.modelHandle = null;
+    setModelAway(false);
     state.posterImg = null;
     state.iconFallbackImg = null;
     // Resolves when the 3D model is on screen — or will never be (no viewer,
@@ -775,6 +784,8 @@
         // leaves a quarter of the viewer's width as a margin. A press outside
         // it scrolls the page.
         hitCircle: 0.25,
+        // The model turned off its pose (or back on it): the reset button.
+        onAway: setModelAway,
         // Fires for an initial load/HDRI failure OR — since three-viewer.js
         // also treats a WebGL context loss as a failure — for a model that
         // HAD already loaded and was on screen: iOS Safari can silently
@@ -832,7 +843,7 @@
       // Out of sight while the design stage is (the inspiration stage): no
       // drawing, no idle nudge.
       handle.setPaused(state.designOut);
-      handle.setRollbackPauseScale(state.rollbackPauseScale);
+      handle.setAutoReturn(state.autoReturn);
       // Wherever the show is now — a rebuild after the Modify sheet or Back
       // can land in specs.
       applyStageToViewer();
@@ -872,6 +883,7 @@
         state.modelHandle.dispose();
         state.modelHandle = null;
       }
+      setModelAway(false);
       settleViewer();
       showIcon();
     }
@@ -913,6 +925,7 @@
         state.modelHandle.el.parentNode.removeChild(state.modelHandle.el);
       }
       state.modelHandle = null;
+      setModelAway(false);
     }
 
     if (hasModel) {
@@ -1401,6 +1414,14 @@
     // feed's room it fitted then is only taken into the track now.
     fitFeed();
     stages.update();
+    // Design: the model back to its pose, the button fading out as it goes.
+    if (resetEl) {
+      resetEl.addEventListener("click", function () {
+        resetEl.blur();
+        setModelAway(false);
+        if (state.modelHandle) state.modelHandle.returnHome();
+      });
+    }
     // The end of specs: the way back to the first stage (there is no loop).
     var restart = document.getElementById("productRestart");
     if (restart) {
@@ -1448,12 +1469,16 @@
     // Out of sight (before design's things start to come in): the viewer
     // holds still — no drawing, no idle nudge.
     // In design, where the visitor looks at what they have changed, a released
-    // model waits three times as long before easing back to its pose (not in
-    // specs, nor in the plain column).
-    var pauseScale = stage.stage === "design" ? DESIGN_ROLLBACK_PAUSE : 1;
-    if (pauseScale !== state.rollbackPauseScale) {
-      state.rollbackPauseScale = pauseScale;
-      if (state.modelHandle && state.modelHandle.setRollbackPauseScale) state.modelHandle.setRollbackPauseScale(pauseScale);
+    // model stays where it was put (the reset button takes it back); not in
+    // specs, nor in the plain column, which it enters at its pose.
+    var autoReturn = stage.stage !== "design";
+    if (autoReturn !== state.autoReturn) {
+      state.autoReturn = autoReturn;
+      var handle = state.modelHandle;
+      if (handle) {
+        handle.setAutoReturn(autoReturn);
+        if (autoReturn && (stage.stage === "specs" || stage.stage === "flow")) handle.returnHome();
+      }
     }
     var out = !state.flow && stage.toDesign <= DESIGN_FROM;
     if (out === state.designOut) return;

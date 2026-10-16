@@ -45,23 +45,23 @@ Both typefaces are self-hosted now — neither is pulled from Google Fonts at ru
 
 | Lines | Section |
 |---|---|
-| 183–371 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below. Also the `html.emjive-restoring-scroll` block (`min-height` on `body` from `--emjive-restore-height`, `overflow-anchor: none`, `.product-grid` hidden), which only exists during a back-navigation restore — see below |
-| 372–433 | Messages — what a page shows when it can't show what it was asked for (`.page-message`, e.g. `.page-message--hero` when the series index failed to load) |
-| 434–472 | Pop-up notice (`.emjive-notice`, `EmjiveOrderRows.notice` — see the `.emjive-notice` entry further down) |
-| 473–558 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
-| 559–847 | Header — including the header's blur (`.site-header__veil`),  the dual-purpose filter/Gallery row (`.site-header__filter`, its options span, category tags' `.is-active` dot indicator, and the `.site-header__filter[hidden]` override — see the gotcha below) |
-| 848–902 | Series hero slots (`.series-hero`, `.series-hero-backdrop`) — the two empty containers the hero fragment gets cloned into. See the warning below |
-| 903–942 | Section heads (shared component) |
-| 943–1450 | Products — the homepage **gallery** (see "The homepage gallery" below): the view rules (`html[data-gallery-view]` × `[data-hero]`), `.gallery-control`, `.gallery-veil`, the stack — the wheel (`.gallery-stage`, `.stack-canvas`, `.stack-light`, `.stack-item`, `.stack-spin`, `.stack-orbit*`) and the grid — the list (`.product-grid`, `.grid-tile*`). (The old row's rules — `.product-card*` and the stack's `.stack-focus` — went with the focus row.) |
-| 1451–1482 | Standalone content pages (`.page-shell`) — archives, creation process, terms, series manifest |
-| 1483–1976 | Selection / order page — the rows here are also the floating bar's drawer rows (sub-map below) |
-| 1977–2188 | Checkout bar — `launch-order.html`'s own blurred bar (`.order-checkout-bar`), not `.selection-bar` (see `pages.md`/`client-scripts.md`); also home to the shared **`.glass`** block (see "Blurred bars" below), then its strip mode (a 3-beat cascade — see the Modify strip entry below) and the drawer that opens over it (`.order-checkout-drawer`) |
-| 2189–4810 | Product detail page (by far the largest — sub-map below), ending with both size sheets, the "Find my size" buttons, the size finder and the page lock |
-| 4811–5156 | Floating selection bar |
-| 5157–5376 | Modify strip — the Unselect \| Save layer either bar turns into while the Modify sheet is open |
-| 5377–5506 | Focus visibility (`--focus-ring` tokens + the site-wide `:focus-visible` rules) — see "Accessibility rules" below |
-| 5507–5667 | Loader — the logo loading mark (`.loader`, built by `js/loader.js`); see its section below |
-| 5668–5740 | Reduced motion — the file's only `!important`, deliberately last. See "Accessibility rules" below |
+| 183–379 | Base element rules (`html`/`body`/headings/etc.) — see gotchas below. Also the `html.emjive-restoring-scroll` block (`min-height` on `body` from `--emjive-restore-height`, `overflow-anchor: none`, `.product-grid` hidden), which only exists during a back-navigation restore — see below |
+| 380–476 | Messages — what a page shows when it can't show what it was asked for, or needs JavaScript, or is a 404 (`.page-message`; `--hero`, `--screen`, `--grid`, `--stage` place it) |
+| 477–515 | Pop-up notice (`.emjive-notice`, `EmjiveOrderRows.notice` — see the `.emjive-notice` entry further down) |
+| 516–601 | Shared 3D viewer (`.emjive-3d-viewer` — see below) |
+| 602–890 | Header — including the header's blur (`.site-header__veil`),  the dual-purpose filter/Gallery row (`.site-header__filter`, its options span, category tags' `.is-active` dot indicator, and the `.site-header__filter[hidden]` override — see the gotcha below) |
+| 891–948 | Series hero slots (`.series-hero`, `.series-hero-backdrop`) — the two empty containers the hero fragment gets cloned into. See the warning below |
+| 949–988 | Section heads (shared component) |
+| 989–1488 | Products — the homepage **gallery** (see "The homepage gallery" below): the view rules (`html[data-gallery-view]` × `[data-hero]`), `.gallery-control`, `.gallery-veil`, the stack — the wheel (`.gallery-stage`, `.stack-canvas`, `.stack-light`, `.stack-item`, `.stack-spin`, `.stack-orbit*`) and the grid — the list (`.product-grid`, `.grid-tile*`). (The old row's rules — `.product-card*` and the stack's `.stack-focus` — went with the focus row.) |
+| 1489–1516 | Standalone content pages (`.page-shell`) — archives, creation process, terms, series manifest |
+| 1517–2010 | Selection / order page — the rows here are also the floating bar's drawer rows (sub-map below) |
+| 2011–2222 | Checkout bar — `launch-order.html`'s own blurred bar (`.order-checkout-bar`), not `.selection-bar` (see `pages.md`/`client-scripts.md`); also home to the shared **`.glass`** block (see "Blurred bars" below), then its strip mode (a 3-beat cascade — see the Modify strip entry below) and the drawer that opens over it (`.order-checkout-drawer`) |
+| 2223–4838 | Product detail page (by far the largest — sub-map below), ending with both size sheets, the "Find my size" buttons, the size finder and the page lock |
+| 4839–5184 | Floating selection bar |
+| 5185–5404 | Modify strip — the Unselect \| Save layer either bar turns into while the Modify sheet is open |
+| 5405–5534 | Focus visibility (`--focus-ring` tokens + the site-wide `:focus-visible` rules) — see "Accessibility rules" below |
+| 5535–5695 | Loader — the logo loading mark (`.loader`, built by `js/loader.js`); see its section below |
+| 5696–5768 | Reduced motion — the file's only `!important`, deliberately last. See "Accessibility rules" below |
 
 The line numbers in the sub-maps below are older and only approximate — the section banners (`/* ===== … */`) are the reliable anchors.
 
@@ -215,7 +215,7 @@ The compact logo as a loading mark that lives **inside the container of the asse
 ## Production-hygiene rules (added with the hardening pass)
 
 - **`.skip-link`** (next to `.visually-hidden`): the same clipped-rect recipe until `:focus`, then a full-width bar exactly the header's height (`--header-height`, which — with `--header-pt`/`--header-pb`/`--header-image-size` — now lives on `:root`, since the link is the header's sibling), `--bg`/`--black`, laid over it (z-index 100), **no outline**.
-- **`.page-message`** — the failed-load / not-found component built by `window.EmjiveMessage.show()` (`js/series.js`): text left-justified in a `--message-width` (60vw) block centred on the screen, button centred 1.5rem under it. The text is DINish in `--category-col` at `calc(0.75rem * var(--text-scale))` — 12px at the base scale, 14.4px on a wide screen, like the rest of the copy; `.page-message__button` is the plain text button (the `.selection-empty__back` recipe, no outline). `--hero` fills the first screen of the homepage's empty hero slot; `--grid` spans the product grid.
+- **`.page-message`** — the one component for every "didn't load" / "doesn't exist" / "needs JavaScript" / 404 message, built by `window.EmjiveMessage.show()` (`js/series.js`) or written out by hand where there is no script (`404.html`, the `<noscript>` blocks). The text is a block as wide as it needs to be, up to `--message-width` (60vw), centred — so one line reads centred on the screen and several read left-justified inside the block (no `width`, no `text-align: center`: the shrink-wrap does it); the button is centred 1.5rem under it. The text is DINish in `--category-col` at `calc(0.75rem * var(--text-scale))` — 12px at the base scale, 14.4px on a wide screen, like the rest of the copy; `.page-message__button` is the plain text button (the `--button-*` tokens, the `.selection-empty__back` recipe, no outline). Placement: `--hero` fills the first screen of the homepage's empty hero slot (in flow) and `--screen` is `position: fixed` over a page with nothing else to show (product / series not found or failed, `404.html`, `<noscript>`); both pad the bottom by `100svh / 3` so the group is centred in the top two thirds (its centre a third of the way down). `--grid` spans the product list (a failed products load, an empty filter, no products) and `--stage` sits in the wheel's stage with its centre at 1/3 of the stage's height and takes taps. `.page-message__text` also resets heading styles, since `404.html` makes it the `<h1>`.
 - **`.emjive-notice`** — the `alert()` replacement (`EmjiveOrderRows.notice`): a full-width `--black`-on-`--bg` bar that slides up out of the bottom and rests on the highest visible bottom element (selection bar + drawer, Select/checkout bar, checkout drawer, Modify sheet — measured when shown, set as `--notice-rest`); an outer clip element sits above that stack so the bar rises from it rather than across the blurred bars; z-index 89 (under the bars' 90), `pointer-events: none`.
 - **Focus ring** is `1.6px` (`--focus-ring`, `--focus-ring-inverted`) — 20% thinner than the original 2px. Chrome snaps outlines to whole device pixels, so it reads as 1px on a 1x screen.
 - **Closed panels leave the tab order**: `.site-header__menu` and `.selection-bar__drawer` are `visibility: hidden` when closed, with the visibility transition *delayed on close* so the collapse still plays (`.disclosure__panel`'s existing recipe). The drawer is also visible during an Add's peek (`.selection-bar.is-peeking`).

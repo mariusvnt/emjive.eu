@@ -24,11 +24,11 @@
   var modelBoxEl = document.getElementById("productModel");
   // js/product-stages.js's handle, once mounted (wireStages).
   var stages = null;
-  // Up to here of the way to design (--to-design), design's things haven't
-  // started to come in: the model is out of sight and holds still. The same
-  // number as DESIGN_FROM in js/product-stages.js and --d-in's in
-  // css/style.css.
-  var DESIGN_FROM = 0.55;
+  // Until the way to design (--to-design) has begun, the model is out of
+  // sight and holds still. From then the band crosses the screen and shows it
+  // behind itself (refreshStage); design's other things come in later, from
+  // --d-from (css/style.css, set by refreshStage).
+  var MODEL_FROM = 0;
   var resetEl = document.getElementById("productModelReset");
 
   // The reset button fades in once the model has been turned off its pose and
@@ -689,39 +689,168 @@
     });
   }
 
-  // The trail under the last photo: its last row of pixels, copied twice into
-  // canvases one pixel tall that the CSS stretches over the trail's height
-  // (css/style.css .product-feed__trail) — the stretched row is the same
-  // colours as the photo's edge, so there is no seam — one in its own colours
-  // and one that goes to grey, and a layer in the page's own background over
-  // both. Each of those two takes more of the picture the further down it
-  // goes, on a smooth curve, so that the row goes from the picture's colours
-  // through grey to --bg exactly at the bottom, and a change to --bg is
-  // followed with no script. A picture the page can't read back (a failed
-  // load) leaves no trail. In the middle of the trail, a line saying where the
-  // scrolling leads (TRAIL_HINT): there the trail is at least half the page's
-  // colour, which black always reads on.
-  var TRAIL_HINT = "scroll down to explore design options";
+  // The trail under the last photo: a slit-scan smear of the photo's edge. Its
+  // last TRAIL_DEPTH rows of pixels, taken from the last one upwards, are laid
+  // down the trail one canvas row at a time, the stretch growing smoothly from
+  // about the photo's own scale at the seam (the first row is the photo's last
+  // row itself, and the next few go on up it at the pace it was going) to a
+  // single row held over the rest, so the edge is carried on as an echo that
+  // coarsens into streaks, with no step where the photo ends. It is drawn
+  // into a canvas that the CSS stretches over the trail's height
+  // (css/style.css .product-feed__trail), under a layer in the page's own
+  // background that fades it, so the smear goes from the picture's colours to
+  // --bg exactly at the bottom, and a change to --bg is followed with no
+  // script. A picture the page can't read back (a failed load) leaves no
+  // trail.
+  //
+  // The red, green and blue are drawn apart — the red of each row slips one
+  // way and its blue the other — by an amount that begins inside the photo,
+  // TRAIL_FRINGE_LEAD rem above its bottom edge (buildPhotoFringe: a canvas
+  // over that stretch of the picture), and goes on growing down the trail, up
+  // to TRAIL_FRINGE of the width at TRAIL_FRINGE_FULL rem from where it began,
+  // so colour fringes open up along the streaks. Both are one profile
+  // (trailFringe), so the trail takes up exactly where the photo's canvas
+  // leaves off. They stop short of the sides: the red and blue slipping off the
+  // edge would leave a coloured edge, so the split fades into the plain picture
+  // over the outer stretch of each side and is not there at all on the
+  // outermost pixels. Drawn once (the photo's, again when its width changes).
+  var TRAIL_DEPTH = 180;       // rows of the photo's edge the smear is made of
+  var TRAIL_ROWS = 288;        // the smear's height, in canvas rows
+  var TRAIL_PACE = 3;          // how fast the stretch grows: the photo's rows per canvas row at the seam are DEPTH * PACE / ROWS
+  var TRAIL_FRINGE = 0.04;     // the red-to-blue gap at its widest, as a share of the width
+  var TRAIL_FRINGE_LEAD = 6;   // rem of the photo, above its bottom edge, that carry it
+  var TRAIL_FRINGE_FULL = 14;  // rem from where it begins to where it is widest
+  function trailFringe(rem) {
+    return Math.pow(Math.max(0, Math.min(1, rem / TRAIL_FRINGE_FULL)), 1.8);
+  }
+  // A picture's rows split in red, green and blue: the picture times each
+  // colour, with the side each is pushed to.
+  function fringeChannels(source, width, height) {
+    return [["#f00", 1], ["#0f0", 0], ["#00f", -1]].map(function (spec) {
+      var canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(source, 0, 0);
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = spec[0];
+      ctx.fillRect(0, 0, width, height);
+      return { canvas: canvas, side: spec[1] };
+    });
+  }
+  // The split rows on a canvas of their own, transparent towards the sides:
+  // row y takes its pixels from row rowAt(y) of the channels, split by the
+  // profile's value rem0 + (y + 0.5) / height * remSpan rem along. Added
+  // together, the three channels are the picture again where they are not
+  // apart.
+  function fringeSplit(channels, width, height, rowAt, rem0, remSpan) {
+    var canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    var ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "lighter";
+    var widest = Math.round(width * TRAIL_FRINGE * 0.5);
+    for (var y = 0; y < height; y++) {
+      var shift = Math.round(widest * trailFringe(rem0 + (y + 0.5) / height * remSpan));
+      var sy = rowAt(y);
+      for (var c = 0; c < channels.length; c++) {
+        var dx = shift * channels[c].side;
+        ctx.drawImage(channels[c].canvas, 0, sy, width, 1, dx, y, width, 1);
+        if (dx) ctx.drawImage(channels[c].canvas, 0, sy, width, 1, dx > 0 ? dx - width : dx + width, y, width, 1);
+      }
+    }
+    // None within the widest slip of the edge (where the wrapped-round pixels
+    // are), full from twice that in.
+    var edge = Math.min(width / 4, widest + 2);
+    var fade = ctx.createLinearGradient(0, 0, width, 0);
+    fade.addColorStop(0, "rgba(0,0,0,0)");
+    fade.addColorStop(edge / width, "rgba(0,0,0,0)");
+    fade.addColorStop(Math.min(0.5, 2 * edge / width), "#000");
+    fade.addColorStop(Math.max(0.5, 1 - 2 * edge / width), "#000");
+    fade.addColorStop(1 - edge / width, "rgba(0,0,0,0)");
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, 0, width, height);
+    return canvas;
+  }
+  function remPx() {
+    return parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+  }
   function buildTrail(trail, img) {
     if (!trail || trail.firstChild || !img.naturalWidth) return;
     try {
       var width = Math.min(img.naturalWidth, 1600);
+      var depth = Math.min(TRAIL_DEPTH, img.naturalHeight);
+      var strip = document.createElement("canvas");
+      strip.width = width;
+      strip.height = depth;
+      strip.getContext("2d").drawImage(img, 0, img.naturalHeight - depth, img.naturalWidth, depth, 0, 0, width, depth);
+      var channels = fringeChannels(strip, width, depth);
       var row = document.createElement("canvas");
       row.width = width;
-      row.height = 1;
-      row.getContext("2d").drawImage(img, 0, img.naturalHeight - 1, img.naturalWidth, 1, 0, 0, width, 1);
-      var grey = document.createElement("canvas");
-      grey.width = width;
-      grey.height = 1;
-      grey.getContext("2d").drawImage(row, 0, 0);
-      grey.className = "product-feed__trail-grey";
+      row.height = TRAIL_ROWS;
+      var ctx = row.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      // How far up the photo's edge a row of the trail is taken from.
+      var rowAt = function (y) {
+        var t = (y + 0.5) / TRAIL_ROWS;
+        return depth - 1 - Math.min(depth - 1, Math.floor(depth * (1 - Math.pow(1 - t, TRAIL_PACE))));
+      };
+      for (var y = 0; y < TRAIL_ROWS; y++) ctx.drawImage(strip, 0, rowAt(y), width, 1, 0, y, width, 1);
+      var span = (trail.offsetHeight / remPx()) || 12;
+      ctx.drawImage(fringeSplit(channels, width, TRAIL_ROWS, rowAt, TRAIL_FRINGE_LEAD, span), 0, 0);
       trail.appendChild(row);
-      trail.appendChild(grey);
-      trail.appendChild(el("p", "product-feed__trail-label", TRAIL_HINT));
       trail.classList.add("is-built");
+      watchPhotoFringe(img);
     } catch (err) {
       trail.innerHTML = "";
     }
+  }
+
+  // The photo's own stretch of the effect: a canvas over its bottom
+  // TRAIL_FRINGE_LEAD rem (css/style.css .product-feed__fringe) holding the
+  // same rows split from nothing at its top to where the trail takes up at
+  // its bottom. Transparent towards the sides, so the picture itself shows
+  // there. It has to cover exactly those rem of the picture, so it is drawn
+  // from the picture's rows at the width the photo has now, and again when
+  // that changes.
+  function buildPhotoFringe(img) {
+    var shown = img.clientWidth;
+    if (!shown || !img.naturalWidth) return false;
+    var width = Math.min(img.naturalWidth, 1600);
+    var height = Math.min(Math.round(TRAIL_FRINGE_LEAD * remPx() * width / shown), Math.floor(img.naturalHeight * width / img.naturalWidth));
+    var natural = Math.min(img.naturalHeight, Math.round(height * img.naturalWidth / width));
+    var strip = document.createElement("canvas");
+    strip.width = width;
+    strip.height = height;
+    strip.getContext("2d").drawImage(img, 0, img.naturalHeight - natural, img.naturalWidth, natural, 0, 0, width, height);
+    var canvas = img.parentNode.querySelector(".product-feed__fringe");
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "product-feed__fringe";
+      canvas.setAttribute("aria-hidden", "true");
+      img.parentNode.insertBefore(canvas, img.nextSibling);
+    }
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(
+      fringeSplit(fringeChannels(strip, width, height), width, height, function (y) { return y; }, 0, TRAIL_FRINGE_LEAD),
+      0, 0
+    );
+    return true;
+  }
+  function watchPhotoFringe(img) {
+    var built = 0;
+    var build = function () {
+      if (Math.abs(img.clientWidth - built) < 1) return;
+      if (buildPhotoFringe(img)) built = img.clientWidth;
+    };
+    build();
+    if (window.ResizeObserver) new ResizeObserver(build).observe(img);
   }
 
   /* ---- 2b. the model (design, then specs) ---------------------------------- */
@@ -1480,7 +1609,7 @@
         if (autoReturn && (stage.stage === "specs" || stage.stage === "flow")) handle.returnHome();
       }
     }
-    var out = !state.flow && stage.toDesign <= DESIGN_FROM;
+    var out = !state.flow && stage.toDesign <= MODEL_FROM;
     if (out === state.designOut) return;
     state.designOut = out;
     if (state.modelHandle) state.modelHandle.setPaused(out);
@@ -1542,8 +1671,8 @@
   }
 
   // What the design stage's stretch of browsing takes the show up by, in
-  // pixels (css/style.css --room-1: the two bars and a blank, or the room
-  // fitDesignRoom has found it takes), read off a probe that is as tall.
+  // pixels (css/style.css --room-1: the room fitDesignRoom has found it takes),
+  // read off a probe that is as tall.
   var designRoomProbe = null;
   function designRoomPx() {
     if (!designRoomProbe) {
@@ -1559,13 +1688,14 @@
   // product with several designs — are tall too, and the last of them can stand
   // under the bars at the bottom of the screen: the stage's stretch of
   // scrolling takes the show up by what it takes for it to clear them by
-  // DESIGN_CLEAR_REM (css/style.css --design-room; it is never less than the two
-  // bars and a blank, --room-0). Measured as it would stand unshifted — less
+  // DESIGN_CLEAR_REM (css/style.css --design-room: none, so nothing but the
+  // last of them is under the bars' edge when the stretch ends, and the
+  // stretch is no longer than it takes). Measured as it would stand unshifted — less
   // the show's browsing and the model's lift, which it goes up with — so it
   // holds still once it has moved. Once the picker has gone to its place in
   // the specs column (.is-specs-layout) nothing of design stands where it did:
   // the last figure is kept.
-  var DESIGN_CLEAR_REM = 8;
+  var DESIGN_CLEAR_REM = 0;
   var designRoom = 0;
   function fitDesignRoom() {
     if (!stageEl) return;
@@ -1585,6 +1715,8 @@
     if (Math.abs(room - designRoom) < 0.5) return;
     designRoom = room;
     stageEl.style.setProperty("--design-room", room.toFixed(1) + "px");
+    // The stretch is as long as the room takes to cover.
+    if (stages) stages.update();
   }
 
   function clamp(x, lo, hi) {
@@ -1620,17 +1752,20 @@
   // eases in (js/product-stages.js entry(), over `ramp` of the stretch, the
   // show's own curve), so it speeds up from rest by the same amount as the
   // show does, and the model goes on from there at the pace it has got to.
-  function modelRise(w, place, room, ratio, ramp) {
+  // The whole path stands `base` higher: where design holds the model (from the
+  // first pixel of the way to design, before the stretch's browsing begins),
+  // which is also where the path to specs starts from.
+  function modelRise(w, place, room, ratio, ramp, base) {
     var wh = ratio / (ratio + 1);
     var x = clamp(w, 0, 1);
     var a = ramp > 0 ? Math.min(1, ramp) : 1;
-    if (x <= wh) return wh > 0 ? room * browseEntry(x / wh, a) : 0;
+    if (x <= wh) return base + (wh > 0 ? room * browseEntry(x / wh, a) : 0);
     var u = (x - wh) / (1 - wh);
-    var dist = place - room;
+    var dist = place - room - base;
     // The pace the browsing ends at, over the one of a straight line.
     var pace = 1 / (1 - a / 2);
-    if (dist > 1) return room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
-    return room + dist * u * u * (3 - 2 * u);
+    if (dist > 1) return base + room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
+    return base + room + dist * u * u * (3 - 2 * u);
   }
 
   // How far a stretch's browsing has got (0 to 1) at u of the way through it:
@@ -1729,6 +1864,12 @@
     // model stands at rest (`place`): the middle of its tile (the design
     // frame, which the lift doesn't move), less the browsing it is under now.
     var place = 0;
+    // Design holds the model, and everything laid out against it but the x-ray
+    // (the lift carries them), higher than the tile's middle: its middle on
+    // DESIGN_ANCHOR of the screen's height, or just under the title bar if the
+    // model is so tall that its head would run under it, and then DESIGN_GAP_REM
+    // lower (`hold`, from rest).
+    var hold = 0;
     if (designFrameEl && !state.flow) {
       var box = designFrameEl.getBoundingClientRect();
       var titleBar = document.querySelector(".product-detail__label-bar");
@@ -1738,8 +1879,9 @@
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
       place = Math.max(0, box.top + box.height / 2 + browsed - middle);
+      hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
     }
-    var path = modelRise(state.along, place, room, ratio, state.ramp);
+    var path = modelRise(state.along, place, room, ratio, state.ramp, hold);
     var span = state.flow ? null : modelSpan();
     if (span && span.bottom > span.top) {
       // The model's foot and head where they stand at rest (nothing applied).
@@ -1756,7 +1898,7 @@
       t0 = clamp(1 - (restBottom - room + h / 2) / (viewport + h), 0.08, 0.7);
       t1 = clamp(1 - (restTop - room + h / 2) / (viewport + h), t0 + 0.1, 0.92);
       var along = function (x) {
-        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio, state.ramp);
+        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio, state.ramp, hold);
       };
       var knots = [0, t0, t1, 1];
       var places = [viewport + h / 2, restBottom - along(t0), restTop - along(t1), -h / 2];
@@ -1766,6 +1908,32 @@
       sweep = clamp((bottom - barY) / (bottom - top), 0, 1);
       barOn = t > 0 && t < 1;
       if (band && barOn) band.style.top = barY.toFixed(1) + "px";
+    }
+    // The first transition, inspiration to design, has the same band: from under
+    // the screen to over it as the show comes in, a pure function of the
+    // scroll. The model is shown behind it, as the grey is in specs: its box
+    // is cut at the band's top edge (--model-cut, css/style.css .product-model),
+    // nothing above the band yet and all of it once the band is past — the
+    // box rather than the shader, so the poster and the icon come in the same
+    // way as the live model.
+    // Design's other things come in from where the band's top edge is at the
+    // title bar's lower edge — about to go under it — to the end.
+    var labelBar = document.querySelector(".product-detail__label-bar");
+    if (band && labelBar && !state.flow) {
+      var fromH = screenHeight();
+      var dFrom = (fromH - labelBar.getBoundingClientRect().bottom) / (fromH + band.offsetHeight);
+      stageEl.style.setProperty("--d-from", clamp(dFrom, 0.3, 0.95).toFixed(4));
+    }
+    var cutting = band && !barOn && !state.flow && t === 0 && state.toDesign > 0 && state.toDesign < 1;
+    if (cutting) {
+      var bandH = band.offsetHeight;
+      var viewportH = screenHeight();
+      var cutY = viewportH + bandH / 2 - (viewportH + bandH) * state.toDesign;
+      band.style.top = cutY.toFixed(1) + "px";
+      barOn = true;
+      if (modelBoxEl) modelBoxEl.style.setProperty("--model-cut", (cutY - bandH / 2 - modelBoxEl.getBoundingClientRect().top).toFixed(1) + "px");
+    } else if (modelBoxEl) {
+      modelBoxEl.style.removeProperty("--model-cut");
     }
     state.sweep = sweep;
     // The picker changes place (under the model / in the specs column) in the middle
@@ -1825,6 +1993,10 @@
   // size (or a half-typed one) is the base. The size also goes to the label
   // bar, and to the dimensions and the cost diagram.
   var SPECS_ANCHOR = 0.25;
+  // Where design holds the model's middle: a third of the way down the screen,
+  // and DESIGN_GAP_REM lower.
+  var DESIGN_ANCHOR = 1 / 3;
+  var DESIGN_GAP_REM = 4.5;
   var SPECS_HALF_HEIGHT = 0.13;
   // The gap before the model in specs, on top of where it would stand: 7.5rem.
   var SPECS_GAP_REM = 7.5;
@@ -1863,6 +2035,14 @@
   // as the size nears an end in the direction of the drag: within
   // RING_RESIST_MM of it the gain falls, by a smooth curve, to
   // RING_RESIST_END of itself at the end — so the extremes take a long drag.
+  // The size sticks to a whole number while the drag is within this many
+  // millimetres of it (a notch to land on); farther, it is free to the tenth.
+  var RING_DETENT_MM = 0.25;
+  // Round the circle, the circles of the sizes near it: one at every
+  // RULER_STEP_MM, each clearer the nearer the size is to it, and gone from
+  // RULER_REACH_MM (and half a step) away.
+  var RULER_STEP_MM = 5;
+  var RULER_REACH_MM = 15;
   var RING_DRAG_GAIN = 0.5;
   var RING_RESIST_MM = 10;
   var RING_RESIST_END = 0.2;
@@ -1882,6 +2062,37 @@
       max: g.reachPx * g.fitScale * (SIZE_MAX_MM / SIZE_BASE_MM),
       perMm: g.reachPx * g.fitScale / SIZE_BASE_MM
     };
+  }
+
+  // The ruler's circles: one for each multiple of RULER_STEP_MM in the sizes'
+  // range, each the circle of its size — at its radius from the circle's
+  // middle, the circle's own scale, so the circle itself is on one when the
+  // size is one of them — and each with an opacity that is a function of how
+  // far the size is from it, so that it comes up as the size nears and dies
+  // away as it leaves, whatever the other circles are doing. Made on first
+  // need, and then only moved.
+  var rulerShape = "";
+  function syncRuler(ring, g) {
+    if (!ring.rings) return;
+    var mm = clamp(state.sizeFactor * SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM);
+    var perMm = g.now / mm;
+    var key = mm.toFixed(2) + "|" + perMm.toFixed(2) + "|" + SIZE_MIN_MM + "|" + SIZE_MAX_MM;
+    if (key === rulerShape) return;
+    rulerShape = key;
+    for (var k = Math.ceil(SIZE_MIN_MM / RULER_STEP_MM) * RULER_STEP_MM; k <= SIZE_MAX_MM; k += RULER_STEP_MM) {
+      var tick = ring.ticks[k];
+      if (!tick) {
+        tick = ring.ticks[k] = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        tick.setAttribute("class", "product-size-ring__tick");
+        ring.rings.appendChild(tick);
+      }
+      // How near it is, as a curve that keeps the nearest in full and lets the
+      // rest drop away fast (--reach); the ruler's showing multiplies it in
+      // the CSS, circle by circle.
+      var reach = clamp(1 - Math.abs(k - mm) / (RULER_REACH_MM + RULER_STEP_MM / 2), 0, 1);
+      tick.setAttribute("r", (k * perMm).toFixed(2));
+      tick.style.setProperty("--reach", (reach * reach).toFixed(3));
+    }
   }
 
   // A disc as an SVG path: for the band, an annulus (evenodd) of two.
@@ -1921,6 +2132,7 @@
       ring.el.style.setProperty("--ring-r", g.now.toFixed(1) + "px");
       designFrameEl.style.setProperty("--ring-r-max", g.max.toFixed(1) + "px");
     }
+    syncRuler(ring, g);
     var given = state.sizeText !== "";
     ring.el.classList.toggle("is-unset", !given);
     ring.hit.setAttribute("aria-valuenow", given ? state.sizeText : String(SIZE_BASE_MM));
@@ -1947,8 +2159,18 @@
     var el = document.getElementById("productSizeRing");
     var hit = document.getElementById("productSizeRingHit");
     if (!el || !hit) return;
-    state.sizeRing = { el: el, hit: hit };
+    state.sizeRing = { el: el, hit: hit, rings: null, ticks: null };
     var grabbed = null;
+
+    var ruler = el.querySelector(".product-size-ring__ruler");
+    if (ruler) {
+      var rings = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      rings.setAttribute("class", "product-size-ring__rings");
+      rings.setAttribute("aria-hidden", "true");
+      ruler.appendChild(rings);
+      state.sizeRing.rings = rings;
+      state.sizeRing.ticks = {};
+    }
 
     function setSize(mm) {
       mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
@@ -1970,6 +2192,12 @@
       return Math.sqrt(dx * dx + dy * dy);
     }
 
+    // The size the hand's is shown as: the whole number it is near, or itself.
+    function detent(mm) {
+      var whole = Math.round(mm);
+      return Math.abs(mm - whole) <= RING_DETENT_MM ? whole : mm;
+    }
+
     function follow(e) {
       var g = state.ringGeo;
       if (!g || !grabbed) return;
@@ -1978,7 +2206,7 @@
       grabbed.distance = distance;
       if (delta === 0) return;
       grabbed.mm = clamp(grabbed.mm + delta * dragGain(grabbed.mm, delta), SIZE_MIN_MM, SIZE_MAX_MM);
-      setSize(grabbed.mm);
+      setSize(detent(grabbed.mm));
     }
 
     hit.addEventListener("pointerdown", function (e) {
@@ -1987,13 +2215,17 @@
       // Where it was taken: the size moves from here, the circle doesn't jump
       // to the finger.
       grabbed = { id: e.pointerId, distance: fingerAt(e), mm: currentSize() };
+      el.classList.add("is-held");
       try { hit.setPointerCapture(e.pointerId); } catch (err) { /* a pointer that is already gone */ }
     });
     hit.addEventListener("pointermove", function (e) {
       if (grabbed && e.pointerId === grabbed.id) follow(e);
     });
     function release(e) {
-      if (grabbed && e.pointerId === grabbed.id) grabbed = null;
+      if (grabbed && e.pointerId === grabbed.id) {
+        grabbed = null;
+        el.classList.remove("is-held");
+      }
     }
     hit.addEventListener("pointerup", release);
     hit.addEventListener("pointercancel", release);

@@ -718,6 +718,9 @@ export { toolkit };
   var HAND_OFFSETS = [0, -40, 40]; // px, index-matched to the 3 nudge waypoints
   var DRIFT_RATE = 1.5; // 1/second, continuous up-leveling rate
   var SETTLE_ANGULAR_VELOCITY = 0.024; // rad/s treated as "spin has stopped"
+  // How many times harder a model brakes when it is stopping to be sent home
+  // (the reset button) than when it coasts after a release.
+  var HOME_BRAKE_SCALE = 4;
   var REF_DT = 1 / 60;
   // Progressive-braking tuning: plain exponential decay (a single constant
   // lambda) keeps slowing at the same PROPORTIONAL rate forever, which
@@ -806,6 +809,9 @@ export { toolkit };
 
     var isDragging = false;
     var waitingForSettle = false;
+    // goHome(true) was asked while the model was still coasting: it comes to
+    // a stop on its own first (waitingForSettle), then rolls home at once.
+    var homeWhenSettled = false;
     var pauseTimeoutId = null;
     var resetTweenActive = false;
     var resetTweenStartTime = 0;
@@ -834,6 +840,7 @@ export { toolkit };
 
     function cancelReturn() {
       waitingForSettle = false;
+      homeWhenSettled = false;
       resetTweenActive = false;
       if (pauseTimeoutId) {
         clearTimeout(pauseTimeoutId);
@@ -882,7 +889,7 @@ export { toolkit };
       // partially undoing) whatever momentum just did.
       preFrameUp.copy(camera.up);
       var slowness = 1 - Math.min(1, lastAngularSpeed / PROGRESSIVE_BOOST_SPEED);
-      var lambdaThisFrame = SPIN_DECAY_LAMBDA * (1 + slowness * PROGRESSIVE_BOOST_MAX);
+      var lambdaThisFrame = SPIN_DECAY_LAMBDA * (1 + slowness * PROGRESSIVE_BOOST_MAX) * (homeWhenSettled ? HOME_BRAKE_SCALE : 1);
       controls.dynamicDampingFactor = 1 - Math.exp(-2 * lambdaThisFrame * dt);
       // Re-asserted per frame, not just at construction — see its own
       // comment there. controls.update() reads it, so it has to be right
@@ -932,7 +939,7 @@ export { toolkit };
       }
       camera.lookAt(controls.target);
 
-      if (options.onAway && !away) {
+      if (options.onAway && !away && !homeWhenSettled) {
         toDirection.copy(home.position).sub(controls.target).normalize();
         if (eyeDirection.angleTo(toDirection) > AWAY_ANGLE) setAway(true);
       }
@@ -941,6 +948,11 @@ export { toolkit };
         var frameAngle = eyeDirectionPrev.angleTo(eyeDirection);
         if (frameAngle < SETTLE_ANGULAR_VELOCITY * dt) {
           waitingForSettle = false;
+          if (homeWhenSettled) {
+            homeWhenSettled = false;
+            beginHome();
+            return;
+          }
           // freeOrbit and reduced motion both skip arming the
           // ease-back-to-default reset too — combined with staticMoving
           // above (no coasting) and the drift skip just above (no
@@ -965,6 +977,26 @@ export { toolkit };
     // nothing to do if it is home already.
     function goHome(force) {
       if ((!force && options.noAutoMotion()) || isDragging) return;
+      // Still coasting from a release: it comes to a stop first, braking harder
+      // than it would have (HOME_BRAKE_SCALE; the settle in step() then sends it
+      // home), rather than the
+      // roll back starting under a model that is still turning.
+      if (!controls.staticMoving && lastAngularSpeed > SETTLE_ANGULAR_VELOCITY) {
+        cancelReturn();
+        waitingForSettle = true;
+        homeWhenSettled = true;
+        setAway(false);
+        return;
+      }
+      beginHome();
+    }
+    function beginHome() {
+      // Whatever the model coasted on is spent: TrackballControls keeps its
+      // release momentum (the last turn's axis and angle) while the ease back
+      // runs without it, and would take it up again at the home pose.
+      controls._lastAngle = 0;
+      controls._movePrev.copy(controls._moveCurr);
+      lastAngularSpeed = 0;
       var home = options.home();
       fromDirection.copy(camera.position).sub(controls.target).normalize();
       toDirection.copy(home.position).sub(controls.target).normalize();

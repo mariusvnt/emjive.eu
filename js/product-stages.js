@@ -16,7 +16,8 @@
    the feed at FEED_PACE, --feed-hold below), the transition to design
    (--stage-step-in in css/style.css), the design stretch, the transition to
    specs (--stage-step) and the specs stretch (--end-hold below); the design
-   stretch is --hold-ratio of the transition after it.
+   stretch is --hold-ratio of the transition after it, which is set below
+   (syncDesignHold) so that it is as long as it takes to browse design's room.
 
    window.EmjiveProductStages.mount(stageEl, { onChange }) reads the track's
    position on every scroll frame (the technique series/bones/hero.js uses
@@ -93,6 +94,9 @@
   // all of it). Reaches 1 at u = 1, and is 0 at 0. The design stretch and the
   // specs stretch both begin with it.
   var ENTRY_SCREENS = 1 / 3;
+  // The least the design stretch is, in screens: a rest for the model, even
+  // when everything of design stands clear of the bars already.
+  var DESIGN_MIN_SCREENS = 0.25;
   // How fast the show browses the specs column once up to speed: 15px up for
   // every 24px scrolled. The specs stretch is then as long as it takes to
   // cover its room at that pace (plus the ramp), whatever the room is: the
@@ -175,6 +179,8 @@
       return el;
     }
     var roomProbe = probe("var(--room-0)");
+    var designRoomProbe = probe("var(--room-1)");
+    var stepProbe = probe("var(--stage-step)");
     var stepInProbe = probe("var(--stage-step-in)");
 
     // The inspiration stretch's length in scroll, in pixels, as last set on
@@ -194,6 +200,27 @@
       feedHold = want;
       if (want > 0) stageEl.style.setProperty("--feed-hold", want.toFixed(1) + "px");
       else stageEl.style.removeProperty("--feed-hold");
+    }
+
+    // The design stretch's length: the room design has to cover (--room-1,
+    // fitted by js/product.js) at BROWSE_PACE, plus the half of the ramp it
+    // eases in over, and never less than DESIGN_MIN_SCREENS. It is set as
+    // --hold-ratio, its share of the transition to specs (--stage-step), which
+    // the track's height and every place that reads the stretch go by.
+    var holdRatio = -1;
+    function syncDesignHold() {
+      var want = -1;
+      if (!flow.matches) {
+        var step = stepProbe.offsetHeight;
+        if (step > 0) {
+          var ramp = screenPx() * ENTRY_SCREENS;
+          want = Math.max(screenPx() * DESIGN_MIN_SCREENS, designRoomProbe.offsetHeight / BROWSE_PACE + ramp / 2) / step;
+        }
+      }
+      if (Math.abs(want - holdRatio) < 0.0005) return;
+      holdRatio = want;
+      if (want >= 0) stageEl.style.setProperty("--hold-ratio", want.toFixed(4));
+      else stageEl.style.removeProperty("--hold-ratio");
     }
 
     // The specs stretch's length in scroll, in pixels, as last set on the
@@ -262,7 +289,12 @@
       if (stageEl.getAttribute("data-stage") !== next.stage) stageEl.setAttribute("data-stage", next.stage);
       var inFlow = next.stage === "flow";
       stageEl.classList.toggle("is-feed-gone", !inFlow && next.toDesign >= FEED_GONE_AT);
-      stageEl.classList.toggle("is-design-out", !inFlow && next.toDesign <= DESIGN_FROM);
+      // Where design's things start to come in is the page's (--d-from, set by
+      // js/product.js from where the band is by the title bar); DESIGN_FROM
+      // until it has.
+      var dFrom = parseFloat(stageEl.style.getPropertyValue("--d-from"));
+      stageEl.classList.toggle("is-design-out", !inFlow && next.toDesign <= (dFrom > 0 ? dFrom : DESIGN_FROM));
+      stageEl.classList.toggle("is-model-out", !inFlow && next.toDesign <= 0);
       onChange({ toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, ramp: next.ramp, stage: next.stage });
     }
 
@@ -273,6 +305,7 @@
         return;
       }
       syncFeedHold();
+      syncDesignHold();
       syncEndHold();
       var m = measure();
       var s = m.scrolled;

@@ -2251,8 +2251,10 @@ body:has(.order-checkout-bar:not([hidden])) {
    0 -> 1 variable:
      --i-out   inspiration's things (the feed) going: the first 0.45 of the
                way to design
-     --d-in    design's things arriving: its last 0.45 (js/product-stages.js
-               has the same two numbers, FEED_GONE_AT and DESIGN_FROM)
+     --d-in    design's things arriving: from --d-from, where the band that
+               crosses the screen on the way to design is about to go under
+               the title bar (js/product.js refreshStage), to the end (the
+               model itself comes in behind the band, not by this)
      --p-out   design's things going: from the first pixel of the design
                stretch (--leave, linear in the scroll, js/product-stages.js)
                to the point where --to-specs reaches --t0
@@ -2280,8 +2282,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   --t0: 0.3;
   --t1: 0.6;
   --hold-ratio: 0.3;
+  --d-from: 0.55;
   --i-out: clamp(0, 1 - var(--to-design) / 0.45, 1);
-  --d-in: clamp(0, (var(--to-design) - 0.55) / 0.45, 1);
+  --d-in: clamp(0, (var(--to-design) - var(--d-from)) / (1 - var(--d-from)), 1);
   --p-out: clamp(0, 1 - var(--leave), 1);
   --d-on: calc(var(--d-in) * var(--p-out));
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
@@ -2299,8 +2302,9 @@ body:has(.order-checkout-bar:not([hidden])) {
      stage's stretch of scrolling the page is (--browse-0, -1, -2). In
      inspiration the feed goes up by its own room (--feed-room, js/product.js
      fitFeed: what it takes for its end to clear the bars). Then the show goes
-     up by that much of the stage's room: the two bottom bars' height and a
-     blank (--room-1) in design, which it holds through the fade to specs
+     up by that much of the stage's room: what it takes for the last of
+     design's things to stand clear of the two bottom bars (--room-1) in
+     design, which it holds through the fade to specs
      until the model's fit begins (--s-in) — the model's own rise — and then
      comes back down; in specs, whatever it takes for the end of the column to
      clear the bars, and no less than they are tall (--browse-room,
@@ -2309,11 +2313,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   /* The least the show goes up by in a stage: the bars' height and a blank,
      4rem, more. */
   --room-0: calc(var(--bars-h) + 4rem);
-  /* The design stage's room: that, or what it takes for the last of design's
-     things to clear the bars by 8rem (--design-room, js/product.js
-     fitDesignRoom), whichever is more. */
+  /* The design stage's room: what it takes for the last of design's things to
+     stand clear of the bars, no more (--design-room, js/product.js
+     fitDesignRoom). Its stretch of scrolling is as long as it takes to cover
+     it (--hold-ratio, set by js/product-stages.js syncDesignHold). */
   --design-room: 0px;
-  --room-1: max(var(--room-0), var(--design-room));
+  --room-1: var(--design-room);
   --browse-0: 0;
   --browse-1: 0;
   --browse-2: 0;
@@ -2390,6 +2395,11 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-stage.is-design-out .product-design-frame {
   visibility: hidden;
 }
+/* The model alone is out of sight only until the way to design begins: the
+   band that crosses the screen then shows it (.product-model's --model-cut). */
+.product-stage.is-design-out:not(.is-model-out) .product-model {
+  visibility: visible;
+}
 
 /* ---- 1. the feed (inspiration) ----
    The description, plain text 1.5rem under the title and left-aligned with
@@ -2407,7 +2417,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   --feed-w: min(560px, 100%);
   --feed-exit: 6rem;
   /* How tall the trail under the last photo is. */
-  --trail-h: 32rem;
+  --trail-h: 12rem;
   position: absolute;
   z-index: 3;
   top: 0;
@@ -2511,23 +2521,38 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-size: 0.65em;
   margin-left: 0.3em;
 }
-/* The trail under the last photo (js/product.js buildTrail): the photo's last
-   row of pixels, carried on down — two canvases a pixel tall stretched over
-   the trail's height, so every row of it is that row — which goes to the
-   page's background. A canvas of its own colours; over it a copy in grey,
-   and over both a layer in --bg, each one more there the further down: the
-   alpha of each follows a smooth curve (smoothstep, in nine stops) from none
-   at the top to all of it at the bottom — the grey a little before the
-   bottom (at 0.7 of the height) — so a row is a bit more grey and a bit
-   lighter than the one above it, down to a row that is --bg exactly. Nothing
-   in it names a colour but --bg, so a change of the background is followed
-   by itself. The height is reserved from the start (the page is the page's
-   colour there anyway). */
+/* The trail under the last photo (js/product.js buildTrail): a slit-scan smear
+   of the photo's edge — its last rows of pixels, stretched more and more as
+   they go down, the red and blue of each drawn further apart — which goes to
+   the page's background. One canvas stretched over the trail's height, and over
+   it a layer in --bg, more there the further down: its alpha follows a smooth
+   curve (smootherstep, in nine stops: no slope and no bend at either end) from
+   none at the top to all of it at the bottom, so a row is a bit lighter than
+   the one above it, down to a row that is --bg exactly. Nothing in it names a
+   colour but --bg, so a change of the background is followed by itself. The
+   height is reserved from the start (the page is the page's colour there
+   anyway). */
+/* The photo's stretch of the effect (js/product.js buildPhotoFringe): a canvas
+   over the picture's bottom 6rem (its height is the same constant,
+   TRAIL_FRINGE_LEAD), holding those rows with the colour split beginning in
+   them. */
+.product-feed__fringe {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: block;
+  width: 100%;
+  height: 6rem;
+  pointer-events: none;
+}
 .product-feed__trail {
   position: relative;
   align-self: flex-start;
   width: var(--feed-w);
-  height: var(--trail-h);
+  /* One pixel up over the photo, with the height to match, so no hairline of
+     the page's colour shows between them where the photo ends between pixels. */
+  margin-top: -1px;
+  height: calc(var(--trail-h) + 1px);
   overflow: hidden;
   pointer-events: none;
 }
@@ -2538,41 +2563,22 @@ body:has(.order-checkout-bar:not([hidden])) {
   width: 100%;
   height: 100%;
 }
-.product-feed__trail > .product-feed__trail-grey {
-  filter: grayscale(1);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 8.75%, rgba(0, 0, 0, 0.156) 17.5%, rgba(0, 0, 0, 0.316) 26.25%, rgba(0, 0, 0, 0.5) 35%, rgba(0, 0, 0, 0.684) 43.75%, rgba(0, 0, 0, 0.844) 52.5%, rgba(0, 0, 0, 0.957) 61.25%, #000 70%);
-}
-/* The line in the middle of the trail (js/product.js TRAIL_HINT): centred on
-   it both ways, over the layers (the one in --bg is the trail's ::after). */
-.product-feed__trail-label {
-  position: absolute;
-  z-index: 1;
-  left: 50%;
-  top: 50%;
-  width: calc(100% - 2 * var(--edge-px));
-  margin: 0;
-  transform: translate(-50%, -50%);
-  font-family: var(--font-secondary);
-  font-size: calc(0.65rem * var(--text-scale));
-  line-height: 1.5;
-  text-align: center;
-  color: var(--black);
-}
 .product-feed__trail.is-built::after {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--bg);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 12.5%, rgba(0, 0, 0, 0.156) 25%, rgba(0, 0, 0, 0.316) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.684) 62.5%, rgba(0, 0, 0, 0.844) 75%, rgba(0, 0, 0, 0.957) 87.5%, #000 100%);
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.043) 12.5%, rgba(0, 0, 0, 0.156) 25%, rgba(0, 0, 0, 0.316) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.684) 62.5%, rgba(0, 0, 0, 0.844) 75%, rgba(0, 0, 0, 0.957) 87.5%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.016) 12.5%, rgba(0, 0, 0, 0.104) 25%, rgba(0, 0, 0, 0.275) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.725) 62.5%, rgba(0, 0, 0, 0.896) 75%, rgba(0, 0, 0, 0.984) 87.5%, #000 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.016) 12.5%, rgba(0, 0, 0, 0.104) 25%, rgba(0, 0, 0, 0.275) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.725) 62.5%, rgba(0, 0, 0, 0.896) 75%, rgba(0, 0, 0, 0.984) 87.5%, #000 100%);
 }
 
 /* The scan band: a full-screen-width inversion band riding the cut of the
    model's metal -> wireframe sweep — the homepage hero's frontier band
    (series/bones/hero.css), inverting whatever is behind it rather than
    painting a colour. Fixed, placed by js/product.js from where the viewer
-   says the cut is; on only while the sweep is under way. */
+   says the cut is; on only while the sweep is under way. It also crosses the
+   screen once as inspiration gives way to design, from under it to over it
+   with the transition (refreshStage), the same band with no model to cut. */
 .product-stage__scan {
   position: fixed;
   left: 0;
@@ -2946,8 +2952,12 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 
 /* The model's box, in the tile's middle, and up by the lift (its rise to its
-   place in specs). In with design (--d-in), and there from then on: in specs
-   it turns grey and shrinks into its box (js/three-viewer.js). Only a circle
+   place in specs). It comes in behind the band that crosses the screen on the
+   way to design (js/product.js refreshStage sets --model-cut, how far down
+   the box the band is: nothing above it shows, all of it once it is past —
+   unset, and so no cut, the rest of the time; the margins are negative so
+   what overhangs the box is not cut either), and is there from then on: in
+   specs it turns grey and shrinks into its box (js/three-viewer.js). Only a circle
    of the viewer answers to a drag (.emjive-3d-viewer__hit); a drag that
    starts anywhere else scrolls the page. A model that isn't live (its poster,
    the icon fallback) turns grey with specs rather than staying in metal. */
@@ -2959,7 +2969,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: var(--model-size);
   height: var(--model-size);
   transform: translate(-50%, calc(-50% - var(--lift)));
-  opacity: var(--d-in);
+  clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
 }
 /* The reset button, centred just above the model's box (it goes up with it by
    the lift): hidden until the model has been turned off its pose
@@ -3023,10 +3033,9 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    Real product x-ray source images have a fair amount of transparent padding
    baked in around the actual artwork, so it is sized well past the tile
    (1.66x, floored at 512px so it stays substantial even for a small --tile on
-   narrow screens). 3:4 (taller than wide), centred on the tile. In with design
-   (--d-in), and fading out from the first pixel of the design stage's stretch
-   of scrolling (--browse-1), gone where the transition to specs begins —
-   sooner than design's other things. See js/product.js for the per-product
+   narrow screens). 3:4 (taller than wide), centred on the tile. In and out
+   with design's other things (--d-on): in with --d-in, fading out from the
+   first pixel of the design stage's stretch of scrolling (--leave). See js/product.js for the per-product
    src/hidden toggle (product.assets.xray). */
 .product-design__xray {
   /* 0.88 on a narrow screen (400px and under), 1.1 on a wide one (1440px and
@@ -3049,7 +3058,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: calc(var(--xray-width) * 4 / 3);
   object-fit: cover;
   pointer-events: none;
-  opacity: calc(var(--d-in) * (1 - var(--browse-1)));
+  opacity: var(--d-on);
 }
 /* A smartphone: the same query as PHONE_QUERY in js/loader.js (which picks the
    file) — and --xray-crop is PHONE_CROP.xray in scripts/make-image-variants.js
@@ -3361,7 +3370,10 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    specs. The line is only drawn; what takes a touch is a band round it
    (.product-size-ring__hit: the whole box, clipped to the circle's band —
    clip-path clips hit-testing too, as for the viewer's own overlay), and the
-   dot on the line, the slider's old grip, marks where it was last taken. The
+   dot on the line, the slider's old grip, marks where it was last taken.
+   Round it, a ruler (.product-size-ring__ruler, js/product.js syncSizeRing):
+   the circles of the sizes at every five millimetres either side of the
+   size, showing while the circle is held or has the keyboard's focus. The
    box is as big as the circle at its largest, and a band's width more
    (--ring-box); --ring-r is the circle's radius now, --ring-angle where the
    dot is. */
@@ -3427,6 +3439,50 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-size-ring__hit:focus-visible ~ .product-size-ring__dot {
   background: var(--black);
 }
+/* The ruler: the circles of the sizes near the size, from the circle's middle.
+   Each stands at its size's radius (the circle's scale: pixels per
+   millimetre), with an opacity of its own, the nearest in full and the
+   farther fading. They come in with a touch and go a moment after it is let
+   go. */
+.product-size-ring__ruler {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  --ruler-on: 0;
+}
+.product-size-ring.is-held .product-size-ring__ruler,
+.product-size-ring__hit:focus-visible ~ .product-size-ring__ruler {
+  --ruler-on: 1;
+}
+.product-size-ring__rings {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+.product-size-ring__tick {
+  fill: none;
+  stroke: var(--category-col);
+  stroke-width: 1px;
+  /* Each circle has its own opacity (--reach, set by the script by its
+     distance from the size), at once, as the size moves; the ruler's showing
+     is the stroke's own, and fades in and out circle by circle — no fade on
+     the ruler as a whole. The way out waits a moment after the touch is let
+     go. */
+  opacity: var(--reach, 0);
+  stroke-opacity: var(--ruler-on);
+  transition: stroke-opacity var(--fade-standard) ease 0.7s;
+}
+.product-size-ring.is-held .product-size-ring__tick,
+.product-size-ring__hit:focus-visible ~ .product-size-ring__ruler .product-size-ring__tick {
+  transition-delay: 0s;
+}
+
 /* ---- the metal picker (js/metal-picker.js) ----
    Three squares, --metal-gap apart, each showing its metal's swatch (a square
    made by scripts/auto-render.js, shown as it is), a dot in the middle of the

@@ -9,12 +9,13 @@
    supersample-then-downscale tricks.
 
    Usage:
-     node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only]
+     node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only]
      node scripts/auto-render.js --image-variants [--series=<slug>]
      npm run auto-render -- steel bronze
      npm run auto-render -- --series=bones
      npm run auto-render -- --product=rib-cage,foramen
      npm run auto-render -- --image-variants
+     npm run auto-render -- --wheel-posters-only
 
    --product limits a run to those products (their designs included) and
    leaves the metal squares alone. A product with several designs gets, for
@@ -61,6 +62,17 @@
      "assets.icons"/"assets.fallback-img" objects (keyed by metal, alongside
      "per-metal-specs") are updated in place to point at them — the old
      file, if the path changed, is deleted.
+   - One wheel poster per product: the model as the homepage wheel draws it
+     (js/stack-scene.js, the very code the page runs, so the swap from the
+     poster to the live model moves and recolours nothing): a flat
+     (orthographic) camera, the model turned to its default view, the
+     environment fixed in the scene rather than turning with a viewer's
+     camera, and the model sized as the wheel sizes it. It is therefore NOT
+     the fallback-img, which is what a viewer's perspective camera sees.
+     Saved as a 512x512 transparent WebP beside the icon, indexed under
+     "assets.wheel-poster" (keyed by metal), shown by the wheel's pictures
+     (js/gallery-stack.js). --wheel-posters-only renders just these (and
+     patches products.json), leaving every other render as it is.
    - One top shot per product: a straight-down (camera-orbit phi: 0deg)
      view lit by the same studio HDRI every other render here uses (set by
      window.EmjiveModelViewer itself before onReady fires — this harness
@@ -115,6 +127,11 @@ const ICON_SIZE = 512;
 // fallback-img saved at this size never needs to be scaled by the browser.
 const FALLBACK_IMG_SIZE = ICON_SIZE;
 const TOP_SHOT_SIZE = 1024;
+// The wheel's picture of a model: the size of its box in the wheel's own
+// maths (js/stack-scene.js), captured at the pixel ratio the wheel's renderer
+// draws at (its MAX_PIXEL_RATIO) so what is saved is what the wheel shows.
+const WHEEL_POSTER_SIZE = ICON_SIZE;
+const WHEEL_POSTER_SCALE = 1.5;
 // The swatch is captured through a square frame of SWATCH_CAPTURE css px -
 // the biggest square inside the sphere's disc (the camera's fov is solved for
 // that, see swatchOrbit in js/three-viewer.js) - at CAPTURE_SCALE, and saved
@@ -203,10 +220,13 @@ const HARNESS_HTML = `<!doctype html>
      from CAPTURE_SCALE), and the screenshot captures a zoomed-in crop
      instead of the full frame. */
   .emjive-3d-viewer, .emjive-3d-viewer__canvas { width: 100%; height: 100%; display: block; }
+  /* Same for the wheel's canvas (css/style.css gives it its place on the page). */
+  .stack-canvas { width: 100%; height: 100%; display: block; }
 </style>
 </head><body>
 <script type="module">
   import * as THREE from "three";
+  import { createStackScene } from "/js/stack-scene.js";
 
   window.__renderReady = false;
 
@@ -222,9 +242,12 @@ const HARNESS_HTML = `<!doctype html>
   // silently rendered them solid black), so it needs no help from this
   // harness to stay correctly scoped to whichever renderer is current.
   var currentHandle = null;
+  var currentStack = null;
   function disposeCurrentHandle() {
     if (currentHandle && currentHandle.renderer) currentHandle.renderer.dispose();
     currentHandle = null;
+    if (currentStack) currentStack.dispose();
+    currentStack = null;
   }
 
   // Square unless a height is given.
@@ -272,6 +295,44 @@ const HARNESS_HTML = `<!doctype html>
     handle.el.style.height = "100%";
     wrap.appendChild(handle.el);
     currentHandle = handle;
+  };
+
+  // The model as the homepage wheel draws it: the wheel's own scene
+  // (js/stack-scene.js) with this one product in it, in this metal, at rest
+  // in the middle of a sizePx box at the size it takes there (a pose of
+  // sizePx in a base size of sizePx). Everything that makes it look the way
+  // it does in the wheel - the flat camera, the fixed environment, the
+  // framing - is the wheel's code, not a copy of it.
+  window.__renderWheelPoster = function (product, metalKey, sizePx, hdriRelPath) {
+    window.__renderReady = false;
+    disposeCurrentHandle();
+    var wrap = mountTargetWrap(sizePx);
+    var host = document.createElement("div");
+    host.id = "target";
+    host.style.cssText = "position: relative; width: 100%; height: 100%;";
+    wrap.appendChild(host);
+    var stack = createStackScene({
+      host: host,
+      hdri: hdriRelPath,
+      items: [{ id: "0", product: Object.assign({}, product, { "default-metal": metalKey }), size: sizePx }]
+    });
+    if (!stack) {
+      throw new Error("could not create a WebGL context while rendering the wheel poster for " + product.name + " (" + metalKey + ")");
+    }
+    currentStack = stack;
+    return stack.ready.then(function () {
+      stack.handOver({ "0": { x: sizePx / 2, y: sizePx / 2, size: sizePx, rot: 0, alpha: 1 } });
+      // Two rAFs, as for every other render: the settled frame is the one
+      // screenshotted.
+      return new Promise(function (resolve) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            window.__renderReady = true;
+            resolve();
+          });
+        });
+      });
+    });
   };
 
   // A soft radial-gradient contact shadow under the model, generated
@@ -607,6 +668,15 @@ async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, i
   await writeWebp(normalizeIconFraming(sharp(buffer), ICON_SIZE), iconOutPath);
 }
 
+async function renderWheelPoster(page, product, metalKey, outPath, hdriRelPath) {
+  await page.setViewport({ width: WHEEL_POSTER_SIZE, height: WHEEL_POSTER_SIZE, deviceScaleFactor: WHEEL_POSTER_SCALE });
+  await page.evaluate((p, m, s, h) => window.__renderWheelPoster(p, m, s, h), product, metalKey, WHEEL_POSTER_SIZE, hdriRelPath);
+  await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
+  const handle = await page.$("#target");
+  const buffer = await handle.screenshot({ omitBackground: true });
+  await writeWebp(sharp(buffer).resize(WHEEL_POSTER_SIZE, WHEEL_POSTER_SIZE), outPath);
+}
+
 async function captureTopShotTarget(page, cssSizePx, product, metalKey, hdriRelPath) {
   await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
   await page.evaluate((p, m, s, h) => window.__renderTopShot(p, m, s, h), product, metalKey, cssSizePx, hdriRelPath);
@@ -832,6 +902,10 @@ async function main() {
   // products.json writes. The loop for tuning the swatch scene
   // (scene-tool.html's swatch mode) without re-rendering the catalog.
   const swatchesOnly = args.includes("--swatches-only");
+  // Just the wheel posters (and their products.json paths): the loop for
+  // re-rendering them after a change to the wheel's drawing, without
+  // touching the icons, fallback images, top shots or swatches.
+  const wheelPostersOnly = args.includes("--wheel-posters-only");
   // Just the other versions of the big images (see make-image-variants.js) —
   // no browser, no render.
   // Handled before anything else so it needs neither Chrome nor a valid metal.
@@ -962,6 +1036,30 @@ async function main() {
             );
           }
 
+          const wheelRelPath = folder + "/" + slug(product.name) + "_wheel-poster_" + metal + ".webp";
+          const wheelAbsPath = path.join(ROOT, wheelRelPath);
+
+          console.log("  wheel poster: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + wheelRelPath);
+          await renderWheelPoster(page, product, metal, wheelAbsPath, target.hdri);
+
+          const oldWheelRelPath = product.assets && product.assets["wheel-poster"] && product.assets["wheel-poster"][metal];
+          if (oldWheelRelPath !== wheelRelPath) {
+            const patched = updateProductMetalFieldInText(target.text, product, "wheel-poster", metal, wheelRelPath);
+            if (patched) {
+              target.text = patched;
+              if (oldWheelRelPath) {
+                const oldAbs = path.join(ROOT, oldWheelRelPath);
+                if (path.resolve(oldAbs) !== path.resolve(wheelAbsPath)) deleteIfExists(oldAbs);
+              }
+            } else {
+              console.warn(
+                "  could not find the assets.wheel-poster." + metal + " line to update in " + rel +
+                " for " + product.name + " — set it by hand: " + wheelRelPath
+              );
+            }
+          }
+          if (wheelPostersOnly) continue;
+
           const fallbackRelPath = folder + "/" + slug(product.name) + "_fallback-img_" + metal + ".webp";
           const fallbackAbsPath = path.join(ROOT, fallbackRelPath);
           const relOutPath = folder + "/" + slug(product.name) + "_icon_" + metal + ".webp";
@@ -1063,7 +1161,7 @@ async function main() {
     }
 
     // A run limited to some products leaves the metal squares as they are.
-    if (!onlyProducts) {
+    if (!onlyProducts && !wheelPostersOnly) {
       console.log("\n--- swatches ---");
       await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
     }
@@ -1072,7 +1170,7 @@ async function main() {
       if (target.text !== target.raw) {
         fs.writeFileSync(target.absPath, target.text, "utf8");
         console.log("\nUpdated " + path.relative(ROOT, target.absPath).replace(/\\/g, "/") +
-          " icon/top-shot paths.");
+          " asset paths.");
       }
     }
 
@@ -1080,7 +1178,7 @@ async function main() {
     // rows' 128px thumbnails: rewrite those so they match (and so a metal
     // that has just been added gets its siblings at all). A swatches-only
     // run wrote no icons.
-    if (!swatchesOnly) {
+    if (!swatchesOnly && !wheelPostersOnly) {
       console.log("\n--- icon thumbnails ---");
       await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
     }

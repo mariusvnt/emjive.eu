@@ -320,7 +320,7 @@ const productSchema = {
     },
     assets: {
       type: "object",
-      required: ["model", "icons", "fallback-img", "xray", "top-shot", "photos"],
+      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "top-shot", "photos"],
       properties: {
         model: str,
         // Optional: the specs stage draws it over the model (hand-added; no
@@ -332,6 +332,7 @@ const productSchema = {
         stl: str,
         icons: metalMap,
         "fallback-img": metalMap,
+        "wheel-poster": metalMap,
         xray: str,
         "top-shot": metalMap,
         photos: {
@@ -612,7 +613,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         for (const field of ["per-metal-specs"]) {
           for (const key of Object.keys(product[field])) if (!metals.has(key)) fail(label, field + ' has unknown metal "' + key + '"');
         }
-        for (const field of ["icons", "fallback-img", "top-shot"]) {
+        for (const field of ["icons", "fallback-img", "wheel-poster", "top-shot"]) {
           for (const [metal, rel] of Object.entries(product.assets[field])) {
             if (!metals.has(metal)) fail(label, "assets." + field + ' has unknown metal "' + metal + '"');
             checkPath(label + " assets." + field + "." + metal, rel);

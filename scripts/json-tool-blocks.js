@@ -19,7 +19,7 @@
      Field order/shape mirrors the real hand-authored files exactly (see
      data/series/bones/products.json's Furcula entry and data/series.json's
      bones entry). renderProductBlock deliberately never accepts
-     icons/fallback-img/top-shot from its caller's own input — those three
+     icons/fallback-img/wheel-poster/top-shot from its caller's own input — those three
      per-metal maps are always copied straight from the product object
      passed in, which json-tool-server.js only ever builds from the CURRENT
      on-disk product (plus whatever hand-owned fields the form changed) —
@@ -479,6 +479,9 @@ function renderProductBlock(p, metals) {
     "        },",
     '        "fallback-img": {',
     renderMetalPathMap(assets["fallback-img"], metals, "          "),
+    "        },",
+    '        "wheel-poster": {',
+    renderMetalPathMap(assets["wheel-poster"], metals, "          "),
     "        },",
     '        "xray": "' + esc(assets.xray) + '",',
     '        "top-shot": {',

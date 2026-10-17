@@ -1170,8 +1170,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 /* Each one sized and placed by the script (width/height, then one transform:
    where it is, how it's turned, how big — and its opacity, as it comes into
-   sight). Its picture is the model's own default view (fallback-img), the one
-   the 3D model hands over to without a pixel moving; a ring taken off the
+   sight). Its picture is the model as the 3D stack draws it (wheel-poster),
+   the one the 3D model hands over to without a pixel moving; a ring taken off the
    hand carries its top shot too, faded out as it slides to its place. */
 .stack-item {
   position: absolute;

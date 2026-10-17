@@ -221,7 +221,7 @@ function collectDriftWarnings(seriesIndex, seriesData) {
 // root-containment check below. Every write/delete destination must match
 // one of these two shapes AND must never look like an auto-render-owned
 // filename (belt-and-suspenders: renderProductBlock never even accepts
-// icons/fallback-img/top-shot from form input, so no caller in this file
+// icons/fallback-img/wheel-poster/top-shot from form input, so no caller in this file
 // ever builds such a path — but a bad destPath reaching here at all should
 // still be rejected outright, not just produce a wrong-looking file). ----
 
@@ -233,7 +233,7 @@ const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+
 // gets to via isAllowedAssetDestPath.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
-const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|top-shot)_/;
+const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|top-shot)_/;
 
 function isAllowedAssetDestPath(destPath) {
   if (typeof destPath !== "string" || !destPath) return false;
@@ -447,7 +447,7 @@ async function handleGlobalMetal(req, res) {
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
     // Cascade cleanup: strip the removed metal's key from every product's
-    // per-metal-specs/icons/fallback-img/top-shot, in every series, by
+    // per-metal-specs/icons/fallback-img/wheel-poster/top-shot, in every series, by
     // re-rendering each product block against the NEW metals list —
     // renderProductBlock only ever emits keys for the metals it's given,
     // so this alone is enough; no separate per-object key-deletion needed.
@@ -685,10 +685,11 @@ async function handleProductAdd(req, res) {
     return sendJson(res, 409, { error: 'a product already uses folder ' + folder + ' ("' + collision.name + '") — pick a different name/category' });
   }
 
-  const assets = { model: "", icons: {}, "fallback-img": {}, xray: "", "top-shot": {}, photos: [] };
+  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "top-shot": {}, photos: [] };
   metals.forEach((m) => {
     assets.icons[m] = "";
     assets["fallback-img"][m] = "";
+    assets["wheel-poster"][m] = "";
     assets["top-shot"][m] = "";
   });
 
@@ -746,7 +747,7 @@ async function handleProductAdd(req, res) {
     folder,
     written,
     reminder:
-      "Run `npm run auto-render` to generate icons/fallback-img/top-shots for this product, and " +
+      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/top-shots for this product, and " +
       "`npm run measure-models` to measure its weight, size and cost (`npm run validate-data` fails until you do)."
   });
 }
@@ -784,7 +785,7 @@ async function handleProductEdit(req, res) {
 
   // Never renders from `fields` alone — merge onto the CURRENT parsed
   // product first, so any field the form didn't touch (most importantly
-  // assets.icons/fallback-img/top-shot, which this tool never edits at
+  // assets.icons/fallback-img/wheel-poster/top-shot, which this tool never edits at
   // all) survives untouched into the re-rendered block.
   const merged = Object.assign({}, current, { name: nextName, category: nextCategory });
   if (fields.description !== undefined) merged.description = fields.description;
@@ -828,7 +829,7 @@ async function handleProductEdit(req, res) {
     }
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
-      " — run `npm run auto-render` to regenerate icons/fallback-img/top-shots there; stale renders were left behind in the old folder."
+      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/top-shots there; stale renders were left behind in the old folder."
     );
   }
 

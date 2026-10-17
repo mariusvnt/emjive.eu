@@ -23,8 +23,10 @@
      - the 3D stack (js/stack-scene.js, a lazy chunk with three.js): every
        model in one shared canvas. It takes over from the pictures once it
        has loaded;
-     - the image stack: each product's default view (fallback-img), the very
-       picture its 3D model is framed to match — the first paint, and all of
+     - the image stack: each product's wheel poster (wheel-poster, scripts/
+       auto-render.js: the model drawn the way the 3D stack draws it, so the
+       one hands over to the other without a pixel changing; the fallback-img
+       where a product has none) — the first paint, and all of
        the stack where the 3D one can't run (no WebGL, reduced motion, the
        chunk failing). The focused one can't be turned.
 
@@ -205,7 +207,8 @@
     function buildItem(product) {
       var assets = product.assets || {};
       var metal = product["default-metal"];
-      var src = (assets.model && assets["fallback-img"] && assets["fallback-img"][metal]) ||
+      var src = (assets.model && ((assets["wheel-poster"] && assets["wheel-poster"][metal]) ||
+        (assets["fallback-img"] && assets["fallback-img"][metal]))) ||
         (assets.icons && assets.icons[metal]) || "";
       var itemEl = el("div", "stack-item");
       itemEl.setAttribute("aria-hidden", "true");

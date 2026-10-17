@@ -415,7 +415,7 @@
       }
 
       state.L = {
-        n: n, step: step, c0: c0, r0: r0, c1: c1, R1: R1, z: z, handDrop: handDrop,
+        n: n, step: step, c0: c0, r0: r0, c1: c1, R1: R1, z: z, handDrop: handDrop, dom: d,
         s: s, S: s * FOCUS_SCALE, fromHero: !!orbit, ringsSeen: heroRings().length
       };
       list.forEach(function (item) {
@@ -439,6 +439,94 @@
       var h = hero();
       if (!L.fromHero && h && h.orbit && h.orbit()) return true;
       return L.ringsSeen === 0 && heroRings().length > 0;
+    }
+
+    // What the layout was measured against has since moved: the hero laid out
+    // otherwise (its stylesheet, a picture, the screen turned or resized with
+    // no event for the stack to see) or the domain's edges. The wrist and the
+    // circle are measured once, so left alone this is a wheel drawn for
+    // another page — the hand off down the screen, the circle off up it —
+    // until the next scroll back through the hero measures it again. Checked
+    // at the moments that matter (landing, a page coming back, a resize), not
+    // per scroll frame: it reads the layout.
+    function layoutDrifted() {
+      var L = state.L;
+      if (!L || !L.fromHero) return false;
+      var h = hero();
+      var orbit = h && h.orbit ? h.orbit() : null;
+      if (!orbit) return false;
+      var d = domain();
+      return Math.abs(orbit.x - L.c0.x) > 1 || Math.abs(orbit.y - L.c0.y) > 1 || Math.abs(orbit.r - L.r0) > 1 ||
+        Math.abs(d.top - L.dom.top) > 1 || Math.abs(d.bottom - L.dom.bottom) > 1 || Math.abs(d.right - L.dom.right) > 1;
+    }
+
+    // The layout measured again where the plate stands: as the visitor left
+    // it once they have turned it, otherwise as it lands (homeTheta()).
+    function remeasure() {
+      // Snapped: whatever glide the poses of the old layout were on (the
+      // filter's, at mount) must not carry them to the new one on screen.
+      blend = null;
+      if (state.touched) {
+        relayout(false);
+        return;
+      }
+      orbitLayout();
+      state.theta = homeTheta();
+      if (state.scene && state.L) state.scene.setBaseSize(state.L.s);
+      render();
+    }
+
+    function checkLayout() {
+      if (state.active && layoutDrifted()) remeasure();
+    }
+
+    // Whether the wheel is laid out for good, the layout made right first if it
+    // can be: the hero in and styled, its state published, nothing measured
+    // against another page than the one that stands. The homepage keeps its
+    // arrival cover down until it is (js/gallery.js), so a late stylesheet or
+    // a restore settling never shows as a jump.
+    function settleLayout() {
+      if (!state.active || !window.EmjiveHero) return true;
+      var h = hero();
+      if (h && h.isStyled && h.isStyled() && h.refresh) h.refresh();
+      if (heroPending()) return false;
+      if (layoutStale() || layoutDrifted()) remeasure();
+      syncWaiting();
+      return true;
+    }
+
+    /* The hero isn't all in yet: its state not published, its stylesheet
+       not applied, or the rings not on its hand (they are made when the
+       products arrive, after the stack may have been mounted). The wheel
+       laid out before that is the one without the hand — the products in
+       catalog order, the first at the top — and its slots change once the
+       rings are there (the ones that slide the least take the places nearest
+       them: foramen at the top, not furcula), so it is not drawn until then
+       (.is-waiting): the wheel lands on its own first product, never
+       turning from another. Given up after HERO_WAIT_MS, for a hero that
+       never comes whole. */
+    var HERO_WAIT_MS = 8000;
+    var heroWaitEnds = Date.now() + HERO_WAIT_MS;
+    var heroIsIn = false;
+
+    function heroPending() {
+      if (heroIsIn) return false;
+      var pending = false;
+      if (Date.now() <= heroWaitEnds && window.EmjiveHero) {
+        var h = hero();
+        if (window.EmjiveHero.stage() === null) pending = true;
+        else if (h && h.isStyled && !h.isStyled()) pending = true;
+        else if (h && state.items.some(function (item) { return item.ringImg; }) && heroRings().length === 0) pending = true;
+      }
+      if (!pending) heroIsIn = true;
+      return pending;
+    }
+
+    function syncWaiting() {
+      var waiting = heroPending();
+      stage.classList.toggle("is-waiting", waiting);
+      // Not drawn: nothing to glide from when it is.
+      if (waiting) blend = null;
     }
 
     /* ---- the camera -------------------------------------------------------------
@@ -734,6 +822,7 @@
       var p = state.p === null ? 0 : state.p;
       var started = p > 0;
       showHeroRings(!started);
+      syncWaiting();
       if (!L || !state.active) {
         if (h && h.setZoom) h.setZoom(1, 0, 0);
         return;
@@ -789,7 +878,14 @@
     function setStage(p) {
       var was = state.p;
       state.p = p;
-      if (layoutStale() || ((was === null || was === 0) && p > 0 && p < 1)) orbitLayout();
+      var stale = layoutStale();
+      if (stale || ((was === null || was === 0) && p > 0 && p < 1)) {
+        orbitLayout();
+        // The hero has arrived: the plate lands as this history entry left
+        // it, or on the first place, as at the start.
+        if (stale && !state.touched) state.theta = homeTheta();
+        if (stale) blend = null;
+      }
       // The first stage: the plate as the scroll has it, nothing to ease.
       if (was === null) {
         state.roll.x = rollTarget();
@@ -803,6 +899,8 @@
         stage.classList.toggle("is-landed", landed);
         if (!landed) stopMotion();
         syncSceneFocus();
+        // Arriving on the wheel is where a stale layout shows: checked here.
+        if (landed) checkLayout();
       }
       render();
     }
@@ -1119,10 +1217,14 @@
     window.addEventListener("pagehide", stopScene);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
+      checkLayout();
       whenPageRevealed(startScene);
     });
     document.addEventListener("visibilitychange", function () {
       if (state.scene) state.scene.setPaused(document.visibilityState === "hidden" || state.suspended);
+      // A page coming back after a long while (a tab the phone kept, its
+      // screen turned meanwhile): measured again if it moved.
+      if (document.visibilityState === "visible") checkLayout();
     });
 
     // A phone's browser bars coming or going resize the window but not the
@@ -1136,7 +1238,8 @@
         if (state.scene) state.scene.resize();
         var size = window.innerWidth + "x" + viewHeight();
         if (size === laidOutFor) {
-          render();
+          if (layoutDrifted()) remeasure();
+          else render();
           return;
         }
         laidOutFor = size;
@@ -1171,20 +1274,17 @@
     var heroWaitUntil = Date.now() + 8000;
     (function waitForHero() {
       if (state.touched || Date.now() > heroWaitUntil) return;
-      if (!layoutStale()) {
-        setTimeout(waitForHero, 250);
-        return;
-      }
-      orbitLayout();
-      state.theta = homeTheta();
-      if (state.scene && state.L) state.scene.setBaseSize(state.L.s);
-      render();
-      setTimeout(waitForHero, 250);
+      if (layoutStale() || (state.active && layoutDrifted())) remeasure();
+      else syncWaiting();
+      setTimeout(waitForHero, 100);
     })();
 
     if (state.active) whenPageRevealed(startScene);
 
     return {
+      // See settleLayout().
+      settleLayout: settleLayout,
+
       // ids: the products to show. The hidden leave the circle; the rest find
       // new places on it.
       setFilter: function (ids) {

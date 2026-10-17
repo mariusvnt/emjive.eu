@@ -291,6 +291,12 @@ html.emjive-restoring-scroll .product-grid,
 html.emjive-restoring-scroll .gallery-stage {
   visibility: hidden;
 }
+/* The hero too, in the wheel view: its hand is drawn at the size it has laid
+   out until the wheel pulls it back (js/gallery-stack.js), and shown before
+   that it jumps. Shown with the wheel, when the restore is over. */
+html.emjive-restoring-scroll[data-gallery-view="stack"] .series-hero {
+  visibility: hidden;
+}
 
 h1, h2, h3 {
   font-family: var(--font-main);
@@ -1140,6 +1146,12 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 .gallery-stage.is-landed {
   pointer-events: auto;
+}
+/* The hero isn't all in yet (js/gallery-stack.js heroPending()): the wheel is
+   laid out without its hand, the products in catalog order, and would turn
+   to its real places once it arrives. Not drawn until then. */
+.gallery-stage.is-waiting {
+  opacity: 0;
 }
 .stack-canvas {
   position: absolute;

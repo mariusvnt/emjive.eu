@@ -93,6 +93,51 @@
     stage: null
   };
 
+  /* ---- the arrival cover and the wheel ---------------------------------------
+     The wheel is laid out from the hero (the wrist, the rings on the hand) and
+     the screen, which arrive on their own time — the hero's stylesheet last,
+     on a cold cache — and a restored scroll settles meanwhile: drawn before
+     they are in, it jumps into place. So in the stack view the page is not
+     shown until the wheel has settled its layout (settleLayout()):
+       - a landing has the page's arrival cover (js/loader.js) held down
+         for it;
+       - a restored scroll (Back, a reload) has the hero and the wheel hidden
+         by js/scroll-memory.js until then — the page background, nothing
+         more, which a restore from the cache is done with in a few frames —
+         and only if that runs long does js/loader.js raise the cover, with
+         its logo, to hold the wait.
+     Given up after WHEEL_SETTLE_MS. */
+  var WHEEL_SETTLE_MS = 5000;
+  var wheelHold = view() === "stack" && window.EmjiveLoader && window.EmjiveLoader.holdPage
+    ? window.EmjiveLoader.holdPage()
+    : null;
+  var wheelSettled = false;
+
+  function releaseWheel() {
+    var release = wheelHold;
+    wheelHold = null;
+    if (release) release();
+  }
+
+  function isRestoring() {
+    var memory = window.EmjiveScrollMemory;
+    return !!(memory && memory.isRestoring && memory.isRestoring());
+  }
+
+  function releaseWhenWheelSettled() {
+    var until = Date.now() + WHEEL_SETTLE_MS;
+    (function check() {
+      if (wheelSettled) return;
+      if (!state.stack || view() !== "stack" || Date.now() > until ||
+          (!isRestoring() && state.stack.settleLayout())) {
+        wheelSettled = true;
+        releaseWheel();
+        return;
+      }
+      setTimeout(check, 50);
+    })();
+  }
+
   /* ---- the veil -------------------------------------------------------------
      A switch of view changes the page wholesale — its height, what's in it,
      where it's scrolled — so it crosses through the page background: it fades
@@ -532,10 +577,16 @@
       // The gallery is the last thing that changes this page's height, so
       // this is the signal js/scroll-memory.js is waiting on to finish
       // restoring a back-navigation's scroll position.
+      if (state.stack && view() === "stack" && isRestoring() && window.EmjiveScrollMemory.holdUntil) {
+        window.EmjiveScrollMemory.holdUntil(function () { return state.stack.settleLayout(); });
+      }
       signalContentReady();
+      releaseWhenWheelSettled();
     })
     .catch(function (err) {
       console.error("Could not load the gallery:", err);
+      wheelSettled = true;
+      releaseWheel();
       showLoadFailure();
       if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
       // Still signalled: a failed fetch means the height this page is ever

@@ -766,13 +766,20 @@
      exists, so the cover is a pseudo-element on <html> (an opaque --bg layer
      one step under the loader, set right now so half-built content never
      flashes) and the loader itself is mounted on <body> as soon as it can be.
-     Skipped when the homepage is restoring a back-navigation scroll
-     (js/scroll-memory.js owns that, and hides the grid itself) and, because
-     scripts don't rerun, on a bfcache restore. */
+     Not up on the homepage restoring a back-navigation scroll
+     (js/scroll-memory.js owns that and keeps the page hidden itself) unless
+     that runs long. A page can hold the cover
+     down past pageReady() with holdPage() (the homepage's wheel until it is
+     laid out: js/gallery.js). Skipped, because scripts don't rerun, on a
+     bfcache restore. */
 
   var pageHold = null;
   var pageActive = false;
   var pageIsReady = false;
+  // pageReady() has been called, and what else must be in before the cover
+  // lifts (holdPage()).
+  var pageWanted = false;
+  var pageHolds = 0;
 
   function revealPage() {
     root.classList.add("emjive-page-revealing");
@@ -805,10 +812,28 @@
       pageReadyAnnounced = true;
       window.dispatchEvent(new Event("emjive:pageready"));
     }
-    if (!pageActive || pageIsReady) return;
+    pageWanted = true;
+    if (!pageActive || pageIsReady || pageHolds > 0) return;
     pageIsReady = true;
     if (!pageHold) return; // body not parsed yet; the mount below sees the flag
     pageHold.done().then(revealPage);
+  }
+
+  // The cover stays down past pageReady() until every hold taken here is
+  // released: for what the first paint's pictures don't tell, like a page
+  // whose layout is measured from other things still arriving (the
+  // homepage's wheel: js/gallery.js). Returns the release, safe to call more
+  // than once. The watchdog lifts the cover whatever is still held.
+  function holdPage() {
+    if (!pageActive || pageIsReady) return noop;
+    var released = false;
+    pageHolds++;
+    return function () {
+      if (released) return;
+      released = true;
+      pageHolds = Math.max(0, pageHolds - 1);
+      if (pageWanted) pageReady();
+    };
   }
 
   function startPage() {
@@ -816,9 +841,7 @@
     if (pageIsReady) pageHold.done().then(revealPage);
   }
 
-  if (root.hasAttribute("data-page-loader") &&
-      !reduceQuery.matches &&
-      !root.classList.contains("emjive-restoring-scroll")) {
+  function coverPageNow() {
     pageActive = true;
     root.classList.add("emjive-page-loading");
     if (document.readyState === "loading") {
@@ -828,13 +851,42 @@
     }
     // A page script that fails before calling pageReady() must not leave the
     // cover up for good.
-    setTimeout(pageReady, WATCHDOG_MS);
+    setTimeout(function () {
+      pageHolds = 0;
+      pageReady();
+    }, WATCHDOG_MS);
     window.addEventListener("pageshow", function (e) {
       if (e.persisted) {
         pageIsReady = true;
         root.classList.remove("emjive-page-loading", "emjive-page-revealing");
       }
     });
+  }
+
+  var pageLoaderWanted = root.hasAttribute("data-page-loader") && !reduceQuery.matches;
+
+  // Up from the first paint — except on a homepage restoring a scroll
+  // (js/scroll-memory.js hides the page itself until it is laid out, which
+  // from the cache is a few frames): the cover is raised, with the loader,
+  // only if the restore is still going on RESTORE_COVER_MS in, and lifts
+  // with it.
+  var RESTORE_COVER_MS = 400;
+
+  if (pageLoaderWanted) {
+    if (!root.classList.contains("emjive-restoring-scroll")) {
+      coverPageNow();
+    } else {
+      setTimeout(function () {
+        var memory = window.EmjiveScrollMemory;
+        if (pageActive || !memory || !memory.isRestoring || !memory.isRestoring()) return;
+        coverPageNow();
+        var release = holdPage();
+        (function wait() {
+          if (memory.isRestoring()) setTimeout(wait, 50);
+          else release();
+        })();
+      }, RESTORE_COVER_MS);
+    }
   }
 
   window.EmjiveLoader = {
@@ -849,6 +901,7 @@
     setSrc: setSrc,
     upgradeImage: upgradeImage,
     pageReady: pageReady,
+    holdPage: holdPage,
     // Has pageReady() been called yet? (For a script that starts after the
     // event it announces has already fired.)
     isPageReady: function () { return pageReadyAnnounced; }

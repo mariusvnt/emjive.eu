@@ -391,12 +391,31 @@
     return out;
   }
 
+  // The page's own say in when it is done (holdUntil()): polled each frame,
+  // within the deadline like everything else here.
+  var layoutCheck = null;
+
+  function layoutReady() {
+    return new Promise(function (resolve) {
+      (function check() {
+        var done;
+        try { done = !layoutCheck || layoutCheck(); } catch (e) { done = true; }
+        if (done || !restoring || expired()) return resolve();
+        requestAnimationFrame(check);
+      })();
+    });
+  }
+
   function settle() {
     heightReady()
       .then(function () {
         if (!restoring) return;
         if (!userTookOver) applyScroll(targetY);
         return Promise.race([Promise.all(visibleFigureImages()), timeout(SETTLE_MS)]);
+      })
+      .then(function () {
+        if (!restoring) return;
+        return layoutReady();
       })
       .then(function () {
         if (!restoring) return;
@@ -438,6 +457,14 @@
 
   window.EmjiveScrollMemory = {
     isRestoring: function () { return restoring; },
+
+    // js/gallery.js: the restore is not over, and the page not shown, until
+    // fn() says the gallery is laid out for good (or the deadline passes) —
+    // the hero, hidden meanwhile like the gallery, would otherwise show up
+    // drawn for another layout and jump into place.
+    holdUntil: function (fn) {
+      if (typeof fn === "function") layoutCheck = fn;
+    },
 
     // What this entry landed on, as decided above: { hero, view, fresh }.
     landing: function () { return landing; },

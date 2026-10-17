@@ -309,6 +309,15 @@
     return revealXrayGroup ? revealXrayGroup.querySelectorAll(".reveal__ring") : [];
   }
 
+  // hero.css has landed when the reveal is taller than its own pin. Until
+  // then the pin is only as tall as the markup (the stylesheet is fetched
+  // beside the fragment and the products, and on a cold cache it can come
+  // last), so nothing laid out is the hero's: the gallery's stack must not
+  // take its measures from it, and orbit() and rings() say there is none.
+  function styled() {
+    return !!(revealSection && revealPin && revealSection.offsetHeight > revealPin.offsetHeight * 1.5);
+  }
+
   window.EmjiveSeriesHero = {
     init: function () {
       revealSection = document.getElementById("revealSection");
@@ -325,6 +334,14 @@
 
       window.addEventListener("scroll", requestRevealUpdate, { passive: true });
       window.addEventListener("resize", requestRevealUpdate);
+      // The reveal changing height without a scroll or a resize: hero.css
+      // landing after this script ran (a cold cache), the entrance's room.
+      // Without it a page restored to the end of the reveal stays at the
+      // stage it measured against the unstyled markup (0), the hand and the
+      // wheel both drawn for it.
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(requestRevealUpdate).observe(revealSection);
+      }
       var memory = window.EmjiveScrollMemory;
       var landed = memory && memory.landing && memory.landing();
       var root = document.documentElement;
@@ -336,12 +353,18 @@
 
     onProducts: updateHeroRings,
 
+    // For js/gallery-stack.js, which holds the page's arrival cover until the
+    // hero is laid out: whether hero.css is in (true with no reveal to wait
+    // on), and the reveal's state as it stands now, published at once.
+    isStyled: function () { return !revealSection || styled(); },
+    refresh: function () { if (revealSection) updateReveal(); },
+
     // The rings on the hand, for js/gallery-stack.js to take off it:
     // [{ id, el, rotation, x, y, size }] — rotation in degrees, as the ring
     // lies; its middle and its width (the ring's own, unturned) in px of the
     // screen, as laid out before any pull-back.
     rings: function () {
-      if (!revealXrayGroup) return [];
+      if (!revealXrayGroup || !styled()) return [];
       var box = layoutBox();
       return Array.prototype.map.call(ringEls(), function (el) {
         var at = pointOn(box, parseFloat(el.getAttribute("data-x")) || 0, parseFloat(el.getAttribute("data-y")) || 0);
@@ -360,7 +383,7 @@
     // screen as laid out before any pull-back: { x, y, r }, and how high the
     // hand reaches (top: its fingertips' y). null without a hero to measure.
     orbit: function () {
-      if (!revealXrayGroup || !revealXrayGroup.offsetHeight) return null;
+      if (!revealXrayGroup || !revealXrayGroup.offsetHeight || !styled()) return null;
       var box = layoutBox();
       var wrist = pointOn(box, WRIST_X, WRIST_Y);
       var rings = this.rings();

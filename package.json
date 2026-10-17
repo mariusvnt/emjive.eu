@@ -30,7 +30,6 @@
     "@gltf-transform/core": "^4.5.0",
     "@gltf-transform/extensions": "^4.5.0",
     "@gltf-transform/functions": "^4.5.0",
-    "@vitejs/plugin-basic-ssl": "^1.2.0",
     "ajv": "^8.20.0",
     "draco3dgltf": "^1.5.7",
     "eslint": "^10.12.0",

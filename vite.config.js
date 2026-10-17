@@ -1,7 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
-import basicSsl from "@vitejs/plugin-basic-ssl";
 import sharp from "sharp";
 import { slugify } from "./scripts/slugs.js";
 
@@ -502,11 +501,6 @@ export default defineConfig({
   // which cannot be loaded with { type: "module" }.
   worker: { format: "es" },
   plugins: [
-    // Serves the dev server and `vite preview` over HTTPS with a self-signed
-    // certificate: iOS only offers the motion-sensor permission on secure pages,
-    // so the gallery's tilt can't be tried on a phone over plain http://<ip>.
-    // Dev/preview only — it does nothing to the build.
-    basicSsl(),
     dropUnusedDracoDecoderCopies(),
     restoreHeadOrderAndPreload(),
     injectLoadHints(),

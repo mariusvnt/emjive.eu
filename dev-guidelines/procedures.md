@@ -16,7 +16,7 @@ This starts Vite's dev server (see `tooling.md`). You need a real server rather 
 **`npm run json-tool` (open `http://localhost:5201/`) does steps 1, 2, and 4
 below for you** — a form with drag-and-drop for the model/x-ray/photos,
 computing the folder/filename convention itself rather than asking you to
-get it right by hand. It deliberately leaves icons/fallback-img/top-shot
+get it right by hand. It deliberately leaves icons/fallback-img/wheel-poster/top-shot
 alone (step 3 stays a separate `npm run auto-render` run, see below — and a dropped x-ray needs `npm run image-variants`, step 2b) — see
 `tooling.md` for the tool's own architecture. The steps below are what it's
 doing under the hood, and still the way to do this by hand if you'd rather.
@@ -114,6 +114,7 @@ existing one — `bones` is the only one so far. To start a *new* series, see
       "bronze": "assets/series/bones/products/your-item-name_ring/your-ring-name_icon_bronze.webp"
     },
     "fallback-img": { "steel": "", "silver": "", "bronze": "" },
+    "wheel-poster": { "steel": "", "silver": "", "bronze": "" },
     "xray": "",
     "top-shot": { "steel": "", "silver": "", "bronze": "" },
     "photos": []
@@ -182,7 +183,9 @@ used as the design stage's backdrop behind the model — leave `""` until you ha
 auto-render` fills these in too, same as icons), and `fallback-img` (also
 one entry per metal, same shape — the 3D viewer's pre-load poster, likewise
 filled in by `npm run auto-render`; leave every metal as `""` until then,
-same as `top-shot`). Each icon also has a generated 128px thumbnail,
+same as `top-shot`), and `wheel-poster` (the same shape again — the homepage
+wheel's picture of the model, which `npm run auto-render` fills in too; the
+wheel falls back to `fallback-img` where it is empty). Each icon also has a generated 128px thumbnail,
 `<name>_icon_<metal>_128.webp` (the selection bar's and the order rows'
 image): `auto-render` writes them after a render, `npm run image-variants`
 writes any that are missing, and `npm run verify` fails if one is.
@@ -424,11 +427,11 @@ same model in place instead of reloading it or resetting the camera angle.
 
 ### Re-rendering icons and metal swatches after a shader change
 
-A product's `assets.icons`, its poster images (`assets.fallback-img`), its
+A product's `assets.icons`, its poster images (`assets.fallback-img`), its wheel posters (`assets.wheel-poster`), its
 top shots (`assets.top-shot`), and the metal picker's swatch squares (`css/style.css`'s
 `.product-metals__option[data-metal="..."]`) are all real renders of the
 PBR material — not hand-picked colors or gradients — using the exact same
-`METAL_PRESETS` values the live 3D models use. Icons/fallback-img/top-shots
+`METAL_PRESETS` values the live 3D models use. Icons/fallback-img/wheel-posters/top-shots
 are each lit with whichever HDRI their own product's series resolved to
 (`data/series.json`'s per-series `"hdri"` — see "Choosing a series' HDRI"
 above); the metal swatches use their own (`"swatch-hdri"`, blurred by
@@ -497,6 +500,15 @@ list, if none are given), across every series (or just one, with
   whichever HDRI that product's series resolved to (its own `"hdri"` key —
   see "Choosing a series' HDRI" above) — the same one the live site shows
   it under.
+- **Wheel posters** — one per product per metal, `<productname>_wheel-poster_<metal>.webp`
+  (512×512), `assets.wheel-poster` patched in place. The model as the homepage
+  wheel draws it, not as a viewer does: the render page puts the product in
+  `js/stack-scene.js`'s own scene (flat camera, the HDRI fixed on the screen,
+  sized as the wheel sizes it), so the poster the wheel shows before its 3D
+  models take over and the model that replaces it look the same.
+  `npm run auto-render -- --wheel-posters-only` re-renders just these (no
+  other file is touched): run it after changing how the wheel draws a model
+  (`js/stack-scene.js`), the metals or the HDRI, with the other renders.
 - **Top shots** — one per product per metal, same underlying pipeline as
   icons, and lit with that same resolved HDRI (set by
   `window.EmjiveModelViewer` itself before `onReady` fires — the harness

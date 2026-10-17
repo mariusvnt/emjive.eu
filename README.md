@@ -38,11 +38,8 @@ Then open the URL it prints. You can't just double-click `index.html` —
 the gallery loads its data via `fetch`, which browsers block on
 `file://`.
 
-The dev server runs over HTTPS with a self-signed certificate
-(`@vitejs/plugin-basic-ssl`), so your browser will warn about it once. That's
-deliberate: it was put there for iOS's motion-sensor permission, which only
-secure pages can ask, and it stays so a phone on the same Wi-Fi gets a secure
-context like the real site: `https://<your-ip>:5173/` (`npm run dev -- --host`).
+The dev server runs over plain HTTP. To try the site on a phone on the same
+Wi-Fi, run `npm run dev -- --host` and open `http://<your-ip>:5173/`.
 
 ## Deploying
 
@@ -191,7 +188,7 @@ data/series.json                                Series index + category vocabula
 data/series/<slug>/                             One series' products + manifest
 series/<slug>/                                  One series' hero bundle (html/css/js)
 assets/                                         Images, 3D models, fonts, HDRIs
-scripts/auto-render.js                          Re-renders product icons/swatches (+ the generated image versions)
+scripts/auto-render.js                          Re-renders product icons, wheel posters and swatches (+ the generated image versions)
 scripts/make-image-variants.js                  The desktop/smartphone, low/high-res versions of the big images
 scripts/split-models.js                         One Blender export of every model, cut into the catalog's model + wireframe + print (STL) files (npm run split-models)
 scripts/measure-models.js                       Each model's and print model's volume + size, written into products.json (npm run measure-models)

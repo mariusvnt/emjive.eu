@@ -131,7 +131,7 @@
       },
       "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "min-box": { "center": [0, 0.001, 0.895], "axes": [[-0.00333, 0.96624, 0.25762], [0.99999, 0.00345, 0], [0.00089, -0.25761, 0.96625]] }, "print": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "stl-sha1": "7d69624207734a65c565d84ae41753abfa24bf3e" }, "model-sha1": "5f385fd448ca29b611fae81f64649ffb07115b19" },
-      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
+      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/disc_ring/disc_gltf.glb",
@@ -451,7 +451,7 @@
       },
       "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "print": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "stl-sha1": "cb46095f71fbb626ffb2122957838a08891f5a57" }, "model-sha1": "f60960e08e9f5966017ab32e2f928aaa6e8a19b5" },
-      "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
+      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/joint_ring/joint_gltf.glb",

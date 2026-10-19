@@ -1,28 +1,15 @@
 # CLAUDE.md
 
-em·ji·ve is a static jewelry e-commerce site: 7 HTML pages (plus `404.html`, the server's error page), one CSS file, vanilla JS (no framework), a custom three.js/TrackballControls 3D viewer for products (free, pole-crossing rotation), a homepage gallery that is either a **wheel** of the 3D models on a circle round the hero's x-ray wrist, the camera pulling back from the hand to it, turned like a plate (one shared canvas), or a plain **list** (the code still calls the two views `stack` and `grid`), and a real localStorage-backed selection/cart system with no backend. The catalog is organised into **series**: `data/series.json` indexes them all, each with its own products, design manifest, and swappable homepage hero bundle, and one field there decides which series the homepage shows. `launch-order.html` is a full checkout review (item list, shipping, terms, a "Proceed to checkout" bar) but stops short of an actual payment step — no backend exists to take it further yet. [Vite](https://vitejs.dev) is the dev server — `npm run dev` — and is required (not optional) since the 3D viewer is an ES module resolving `three` from npm. `npm run verify` (lint, data-schema check, production build, built-output checks) is the gate every change passes before it can deploy.
+em·ji·ve is a static jewelry shop with no backend and no framework: HTML pages at the repo root, one stylesheet, vanilla JS, a three.js 3D layer, and JSON catalog data organised into series. The selection (cart) lives in `localStorage`, and checkout stops before payment. Vite is required to run it (`npm run dev`) and to build it, and `npm run verify` is the gate every change passes.
 
-This file is an index into `dev-guidelines/`, the full agent-facing documentation set. For the human-facing project overview, see [`README.md`](README.md) instead.
+Read [`dev-guidelines/rules.md`](dev-guidelines/rules.md) before changing anything. Then go to the guide for what you're looking for:
 
-## Known issues
+| Looking for… | Read |
+| --- | --- |
+| Where a file is, what it exposes, who uses a global, event or storage key | [`dev-guidelines/index.md`](dev-guidelines/index.md) (generated: `npm run docs-index`) |
+| Why the code is shaped as it is: pages and addresses, scripts and load order, the 3D layer, styling, images, build and deploy | [`dev-guidelines/code-guide.md`](dev-guidelines/code-guide.md) |
+| Products, series, designs, metals, categories; asset files and naming; the model/render pipeline and the tools; how to add or remove things | [`dev-guidelines/item-guide.md`](dev-guidelines/item-guide.md) |
+| What isn't built yet (empty pages, checkout, contact form) | [`dev-guidelines/code-guide.md`](dev-guidelines/code-guide.md) §8 |
+| The detail of anything | the code and its comments: the guides hold only the big whys |
 
-- `archives.html`, `creation-process.html`, `series.html` and `terms.html` are deliberately **empty shells** — real routes, meta tags and styling hooks, no designed content yet. The archives page in particular does *not* render the series list, even though `data/series.json` already holds everything it needs → [`dev-guidelines/pages.md`](dev-guidelines/pages.md)
-- `js/main.js` still carries a guarded `#contactForm` handler that no-ops, since no page has that element. Harmless, kept for whenever a contact form gets built → [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md)
-- `launch-order.html`'s "Proceed to checkout" button is a stub — no Stripe session, no backend to hit yet. Clicking it (once shipping + terms are filled in) just shows a pop-up notice saying so → [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md)
-
-## Where to look
-
-| Doc | Read this when... |
-|---|---|
-| [`dev-guidelines/rules.md`](dev-guidelines/rules.md) | Before touching anything — process rules for how to work in this repo |
-| [`dev-guidelines/procedures.md`](dev-guidelines/procedures.md) | You need a step-by-step: adding a product, changing/adding a metal, re-rendering icons, setting up fonts, etc. |
-| [`dev-guidelines/pages.md`](dev-guidelines/pages.md) | Working on any of the 7 HTML pages, their shared header, their addresses (`/gallery`, `/<item>`…), the homepage's hero/wheel/list and what a visitor lands on, or a series' hero bundle |
-| [`dev-guidelines/styling.md`](dev-guidelines/styling.md) | Touching `css/style.css`, or debugging a layout/visual issue |
-| [`dev-guidelines/client-scripts.md`](dev-guidelines/client-scripts.md) | Touching anything in `js/` (`series.js`, `main.js`, `gallery.js`, `gallery-stack.js`, `stack-scene.js`, `product.js`, `product-stages.js`, `selection*.js`, `modify-modal.js`, `size-finder.js`, `metal-picker.js`, `order-rows.js`, `carousel.js`, `focus-trap.js`, `series-page.js`, `three-viewer.js`, `viewer-entry.js`, `hdr-worker.js`, `scroll-memory.js`, `loader.js`) or a series' `hero.js` |
-| [`dev-guidelines/data.md`](dev-guidelines/data.md) | Touching `data/series.json`, a series' `products.json`/`manifest.json`, or their schema |
-| [`dev-guidelines/tooling.md`](dev-guidelines/tooling.md) | Touching `package.json` scripts, `scripts/auto-render.js`, `scripts/make-image-variants.js`, `scripts/slugs.js`, `scripts/measure-models.js`, `scripts/split-models.js`, `scripts/stl.js`, `scripts/scene-tool-server.js`/`scene-tool.html`, `scripts/json-tool-server.js`/`scripts/json-tool-blocks.js`/`json-tool.html`, `scripts/validate-data.js`, `scripts/check-dist.js`, `scripts/render-favicons.js`, `eslint.config.mjs`, `public/` (`.htaccess`, `robots.txt`, icons), `.github/workflows/`, `loader-test.html`, or `vite.config.js` |
-| [`dev-guidelines/assets.md`](dev-guidelines/assets.md) | Adding/moving files under `assets/` (incl. the generated `_lo`/`_m`/`_m_lo`/`_128` image versions, and the print models — STLs, **not in git**) |
-
-## Elsewhere
-
-`README.md` is the project's front door for a human landing on the repo for the first time — what it is, why it exists, and a quick-start. It intentionally doesn't duplicate anything above.
+`README.md` is the human-facing description of the site and doesn't repeat any of this.

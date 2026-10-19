@@ -1,0 +1,196 @@
+# Code guide
+
+How the code is put together and why, across HTML, JavaScript and CSS, plus the build and the deploy. Where each file is and what it exposes is in [index.md](index.md) (generated from the code). What must always hold is in [rules.md](rules.md). The catalog, its assets and the tools that make them are in [item-guide.md](item-guide.md).
+
+## 1. The shape of the site
+
+A static site: HTML pages at the repo root, one stylesheet, vanilla JavaScript and JSON data fetched by the pages themselves. There is no backend and no framework. The site is a catalog with a cart, and everything a visitor does fits in the browser: the selection lives in `localStorage`, and the order page stops at a "Proceed to checkout" button with nothing behind it yet.
+
+**Vite is required, both to run the site and to ship it.** The 3D layer is made of ES modules that import `three` from npm, and only a bundler resolves those imports. Everything else is classic scripts that Vite can't trace, so `vite.config.js` copies them across as they are. A plain static host serving the raw repo would break at the first `import "three"`, which is why what ships is `dist/`, never the repo.
+
+**Every page stays at the repo root.** The pages fetch `data/series.json` with a relative path, every path inside the data is relative to the root, and every page links `css/`, `js/` and `assets/` relatively. A page one folder down would resolve all of them against the wrong prefix, silently. The addresses are flat for the same reason: see below.
+
+## 2. Pages and addresses
+
+**One page per kind, never one per item or per series.**
+
+- `index.html` shows any series' gallery.
+- `product.html` shows any item.
+- `series.html` shows any series' manifest.
+- `launch-order.html` is the selection's checkout review.
+
+Adding a product or a series never adds a page. Then there are the shells (`archives`, `creation-process`, `terms`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
+
+**Clean, flat addresses.** `/gallery`, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no series, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Old `product.html?id=` links still land on `product.html`, which moves them to the clean address.
+
+**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, and a link-preview picture drawn at build time. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
+
+**One shared header.** Every page opens with the same header and nav. The category filter row is rendered from the active series' data, never written in the markup, because each series declares its own categories.
+
+**The homepage decides what the visitor lands on before `<body>` is parsed.**
+
+- **The hero.** It plays on every landing from outside the site and never again within a visit.
+- **The view.** The wheel or the list, remembered within the visit.
+- **Back and reload.** They rebuild exactly what was left, mid-hero included.
+
+All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page's height is built asynchronously (series index, hero bundle, products), and native scroll restoration would clamp to the top. CSS keys on the decision at first paint, so nothing flashes and then collapses.
+
+**The series hero is a swappable bundle.** `index.html` carries empty slots, and the featured series' hero (`series/<slug>/`: an HTML fragment of `<template>`s, a stylesheet and a script) is cloned into them at runtime. That lets each collection bring its own hero animation without the page changing. The hero's script is injected by a runtime string path, so Vite never sees it. It may not use bare imports, and it must be inert until called so the fragment, styles and script can all load in parallel. Two path conventions live side by side in a bundle: the fragment's image paths resolve against the page, the stylesheet's `url()`s against the stylesheet.
+
+**The gallery has two views of the same products** (the code calls them `stack` and `grid`):
+
+- **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. The circle is then a plate the visitor turns to bring an item to the top.
+- **The list.** One row per item, no 3D: for a quick pick.
+
+Filtering hides what is already built and never rebuilds it (see rules.md).
+
+**The product page is a three-stage scroll show**: inspiration (description and photos), then design (the model, the metal, the design options), then specs (the model as a blueprint, the size, dimensions, weight, cost). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
+
+**The Modify sheet is on every page**, opened from the floating selection bar's drawer or from the order list, and it shows the item's live 3D model. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk.
+
+## 3. Scripts
+
+**Two kinds.**
+
+- **Classic scripts**: almost all of `js/`, and each series' `hero.js`. No bundler is needed to ship them: they are copied verbatim and minified in place. They talk to each other through `window.Emjive*` globals, each set by one file. The index lists who sets and who reads each one, and `eslint.config.mjs` declares them, so a typo is caught.
+- **ES modules: the 3D layer** (`three-viewer.js`, `stack-scene.js`, the HDR worker and the small `viewer-entry.js` that loads them). Vite bundles these into hashed chunks.
+
+**Load order is a contract.**
+
+- Three scripts block in the `<head>`, each for a reason:
+  - `scroll-memory.js`, homepage only, first: the landing decision and the reserved height must be in place before the body is parsed.
+  - `loader.js`: the arrival cover must be up before the body is parsed, and every script uses it.
+  - `series.js`: `window.EmjiveSeries` must exist before anything runs, and starting the series fetch at head-parse time is what the hero's no-flash arrival relies on.
+- Everything else is `defer`red, so it downloads in parallel and runs in document order. Where one script builds on another, that order matters. The index shows each page's script list in order.
+
+**Everything starts from the series index.** `EmjiveSeries.ready` resolves the active series (the `?series=` in the address, or the featured one), and every page script starts from it rather than fetching data itself. Product lists are fetched once per series and shared. On the pages that need them first, they are requested the moment the index resolves.
+
+**Three ways scripts talk.**
+
+- **Globals** for APIs.
+- **A plain function registry** for the hero's scroll progress (`EmjiveHero`): it publishes once per animation frame, and a registry allocates nothing per publish.
+- **`CustomEvent`s on `window`** for state changes several scripts react to (the selection changing, the Modify sheet opening and closing).
+
+The index lists the event names and storage keys.
+
+**Failure is a designed state, not an exception.**
+
+- Every "didn't load" or "doesn't exist" message is one component (`EmjiveMessage`).
+- Every 3D model has a picture to fall back to: no WebGL, a failed chunk, a lost context, reduced motion.
+- A page that waits for its first paint (the homepage, the item page, the series page) holds an arrival loader until the pictures that paint is made of have decoded, so nothing pops in after the reveal.
+
+## 4. The 3D layer
+
+**One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `METAL_PRESETS`, which is why the model optimizer strips textures.
+
+**Free rotation.** The viewers use `TrackballControls`, so a model can be turned over its poles. The extra code around it handles what that freedom costs: a drift that levels "up" so it doesn't flip at a pole, spherical easing back to the default pose, and inertia that brakes cleanly.
+
+**Lazy.** The pages load only `viewer-entry.js` up front, and three.js plus the viewer (by far the largest download) come after the first paint. A page that never draws a model never fetches it unless a Modify sheet opens. The item page starts its model, HDRI and chunk itself once its first paint is in: hinting them in the `<head>` was measured to delay the largest picture.
+
+**The wheel draws every model in one canvas.** `js/stack-scene.js` gives the wheel one WebGL context and one environment map for all the models, and the Modify sheet has the only other renderer on the homepage. There are at most two at a time, and the wheel holds still while the sheet is open. Its drawing (a flat camera, the HDRI fixed on the screen) differs from a viewer's, which is why the wheel has posters rendered its own way.
+
+**iOS Safari's memory limit shapes the whole layer.** Safari ends a tab that uses too much memory, and the designs below follow from that:
+
+- **Low-poly models.** A small file can still decode to a lot of geometry.
+- **Geometry freed after the first draw.** The JavaScript copy is released once the GPU holds its own.
+- **One shared Draco loader.** A loader per model is a known cause of Draco failing on iOS, and its idle workers are ended.
+- **Capped pixel ratios.** The canvas budget is page-wide.
+- **Disposal that is idempotent and survives late async loads.** A model arriving after teardown is freed on the spot.
+
+`?mem=1` on any address shows the live counters, since a phone can't be inspected from the development machine.
+
+**Render on demand.** A viewer draws only when something changed. A browser may throw the drawing buffer away without losing the context (iOS does, on backgrounding and back-forward restores), so there are explicit repaint triggers for those moments.
+
+**No external requests.** The Draco decoder and the fonts are self-hosted, and the HDRI is decoded in a worker, off the main thread.
+
+## 5. Styling
+
+**One stylesheet, plain CSS**, in sections (listed in the index). A series' `hero.css` is injected after it and wins ties.
+
+**Tokens on `:root`, picked by role** (see rules.md). Most dimensions and timings are tokens too, so a value is changed in one place.
+
+**Phones are the baseline, with one breakpoint (640px).** The phone query that picks image versions is a separate, narrower test (narrow *and* tall), because it's about what part of a picture the screen can show.
+
+**Patterns that recur.** Recognising them saves re-deriving them:
+
+- bands that invert what passes under them (`backdrop-filter: invert`);
+- full-bleed breakouts from the centred column;
+- `0fr → 1fr` grid rows to animate to an automatic height;
+- selection dots that are always laid out and only toggled, so nothing shifts;
+- mask fades instead of ellipses;
+- blurred "glass" bars.
+
+Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden]` rule: the author rule beats the browser's.
+
+**Accessibility is structural.**
+
+- One `h1` and a distinct `<title>` per page, and a skip link to `<main>`.
+- One `:focus-visible` ring for the whole site. It positions its element, so already-positioned controls keep their own position.
+- The bottom sheets trap focus and lock the page.
+- Closed panels leave the tab order, and status changes go through live regions.
+- Reduced motion is honoured in three places that don't know about each other: the stylesheet, the viewers and the loader.
+
+## 6. Responsive images
+
+The big pictures (the hero, the item x-rays) come in up to four versions: desktop or phone, low or high resolution. The phone versions are **cropped** to the middle of the picture, because a phone only ever shows the middle. That's also why they are chosen in JavaScript from the phone query and not with `srcset`/`sizes`: `sizes` can't say "most of this is off-canvas". Low resolution comes first, and high resolution is swapped in once the page is idle. The crop fractions and the query live in several files (the image script, the stylesheets, the loader, the build), and `validate-data` checks that they agree.
+
+## 7. Build, verify, deploy
+
+**The build** (`vite.config.js`) makes a multi-page Vite build deployable:
+
+- Every page is an entry, so a new page needs adding there.
+- What Vite can't trace (classic scripts, and every path that only exists as data) is copied verbatim and the scripts are minified. Module sources, fonts that Vite already re-emits, and print models are left out.
+- Two things Vite does to every `<head>` are undone: it inlines the series index as `data:` and moves the stylesheet.
+- Preload hints are added for the featured series.
+- It writes the sitemap and the per-item pages and pictures.
+
+**`npm run verify`** is the gate (see rules.md), in this order:
+
+1. **Lint.** Typos and dead code across the shared globals; not a style gate.
+2. **The docs index check.**
+3. **Data validation.** The schemas, then what a schema can't check: every path exists with its exact case (the host is Linux, so case matters where Windows doesn't care), measured geometry matches its file, the image versions exist, mirrored constants agree.
+4. **The build.**
+5. **Assertions on the built output** (`check-dist`): nothing private shipped, every link resolves, the head order, the clean-URL rules, the per-item pages, the sitemap.
+
+**CI.** `.github/workflows/verify.yml` runs `verify` (plus an audit of runtime dependencies) on every pull request. `deploy.yml` runs on every push to `main`: it calls `verify` and ships the very `dist/` it built.
+
+**Hosting: OVH shared hosting (Apache), at the root of `emjive.eu`.**
+
+`public/.htaccess` is the host's whole configuration:
+
+- **Redirects:** HTTPS and a single host name.
+- **The clean-URL rules.**
+- **MIME types and compression.**
+- **Caching.** Hashed bundles are cached forever. Fixed-name HTML, scripts and JSON are revalidated on every load, which is the cache-busting for files that keep their names. Images and models get a short max-age for now, while the art still changes often.
+- **Security headers,** with the Content Security Policy still report-only.
+
+Every block sits in an `<IfModule>`, so a module missing on the plan skips its block silently: confirm each part with `curl -I` after a deploy that changes it. Anything placed on the server by hand is wiped by the next deploy, so it lives in `public/`.
+
+**The deploy** mirrors `dist/` to `www/` on the host over SFTP (`lftp`) in two passes: first upload everything, then delete what the build no longer produces. The previous releases' hashed bundles are kept back so that a visitor holding cached HTML doesn't 404 on a bundle that was just deleted. Clear them now and then by running the workflow by hand with **prune_old_assets**. **dry_run** lists what a run would upload and delete without touching the server. The job refuses to run without a built `dist/index.html`, so a broken build can't wipe the site. The server's SSH host keys are pinned in the workflow, so the password only ever goes to the real server. If OVH rotates its keys, the deploy stops with "Host key verification failed": re-scan with `ssh-keyscan` and replace the keys.
+
+One-time setup: SFTP enabled on the hosting (the "FTP - SSH" tab), and three repository secrets (Settings → Secrets and variables → Actions). The names say FTP, but the values are the SFTP ones:
+
+| Secret | Value |
+| --- | --- |
+| `FTP_SERVER` | the FTP/SSH host from the OVH control panel |
+| `FTP_USERNAME` | the FTP login |
+| `FTP_PASSWORD` | that login's password |
+
+To deploy without GitHub, upload the contents of a fresh `dist/` to `www/` with any SFTP client. Moving the site into a subfolder means changing `base` in `vite.config.js`. A new domain means changing the absolute `https://emjive.eu/…` addresses in every page's social tags and the build's site origin.
+
+**After a deploy that touches the host setup, check by hand** (only the live server proves these):
+
+- http → https and www → apex redirects;
+- the cache and compression headers on a fixed-name script, a hashed bundle and a model;
+- the branded 404 for a missing path;
+- `/robots.txt`, `/sitemap.xml` and `/favicon.ico`;
+- clean URLs: `/gallery`, `/archives` and an item answer `200`, `/index.html` and `/archives.html` redirect, an unknown name is a real 404;
+- the security headers.
+
+When the CSP report-only header logs nothing on any page, switch it to enforcing. Raise the HSTS max-age once HTTPS has been stable.
+
+## 8. Not built yet
+
+- **The content pages are empty shells.** `archives`, `creation-process`, `terms` and `series` have real addresses, meta tags and styling hooks, but no designed content. The archives page is meant to list every series from `data/series.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
+- **There is no checkout.** "Proceed to checkout" (once shipping and terms are filled in) only shows a notice saying so. A real payment step needs a backend (e.g. a Stripe Checkout session).
+- **There is no contact form.** `js/main.js` keeps a guarded handler that does nothing until a page has `#contactForm`. A real form needs a form backend.

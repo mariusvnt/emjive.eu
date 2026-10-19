@@ -31,7 +31,8 @@ export { toolkit };
   // fetch it.
   var dracoLoader = new DRACOLoader();
   // Resolved against the document: DRACOLoader resolves relative paths against
-  // the page URL, which breaks for pages outside the root.
+  // the page URL, which breaks for pages outside the root. vite.config.js drops
+  // three's own bundled decoder copies because of this call.
   dracoLoader.setDecoderPath(new URL("assets/draco/", document.baseURI).href);
   // At most 2 workers: each viewer decodes one model, and every worker holds its
   // own copy of the WASM heap, which phones can't afford.
@@ -116,6 +117,7 @@ export { toolkit };
 
   // Fallback only: callers pass options.hdri from data/series.json's "hdris"
   // (this module is series-unaware, and the render harness never loads js/series.js).
+  // The one HDRI path outside data/series.json: keep it in step with the file.
   var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);

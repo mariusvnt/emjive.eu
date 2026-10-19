@@ -1,3 +1,8 @@
+// Vite config: a multi-page build made deployable on a plain static host. Adds
+// the verbatim copy of what the build can't trace, the <head> fixes, load hints,
+// the sitemap, one page and link preview per item, clean URLs in dev and
+// preview, and the dropped decoder copies.
+
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";

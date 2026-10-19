@@ -473,7 +473,8 @@ function deleteIfExists(absPath) {
 
 // Replaces one metal's path in a product's "<blockKey>": {...} map, in the raw
 // text (hand alignment survives). The product is found by "id", the map within
-// its block. null if not found (the caller warns).
+// its block, which runs to the next "id": (so a design entry is keyed "key",
+// never "id"). null if not found (the caller warns).
 function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPath) {
   const idAnchor = `"id": "${product.id}"`;
   const startIdx = text.indexOf(idAnchor);
@@ -533,8 +534,8 @@ function designView(product, design) {
   });
 }
 
-// A product's render folder, from the series layout (assets.md's
-// <slug>_<category> convention), not from wherever its model sits.
+// A product's render folder, from the series layout (the <slug>_<category>
+// convention), not from wherever its model sits.
 function productFolder(seriesSlug, product) {
   return "assets/series/" + seriesSlug + "/products/" + slug(product.name) + "_" + product.category;
 }

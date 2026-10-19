@@ -1,7 +1,7 @@
 name: Deploy to OVH (SFTP)
 
 # On every push to main: runs verify.yml, then mirrors its dist/ to www/ on the
-# OVH hosting over SFTP. Secrets setup: README.md, "Deploying".
+# OVH hosting over SFTP. Secrets setup: dev-guidelines/code-guide.md, "Build, verify, deploy".
 # Run by hand with "dry_run" to list changes without touching the server.
 
 on:

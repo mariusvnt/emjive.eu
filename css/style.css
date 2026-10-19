@@ -1,3 +1,6 @@
+/* The site's one stylesheet, for every page; a series' hero.css is injected after it.
+   Phones are the baseline, with one breakpoint at 640px. */
+
 /* ==== Design tokens ==== */
 
 :root {

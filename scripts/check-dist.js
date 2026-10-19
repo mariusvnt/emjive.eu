@@ -132,8 +132,18 @@ for (const series of catalog.series) {
 for (const { product, series, slug } of items) {
   const file = slug + ".html";
   if (!fileSet.has(file)) { fail("no page for item " + product.name + ": dist/" + file + " is missing (emitItemPages in vite.config.js)"); continue; }
-  const head = fs.readFileSync(path.join(DIST, file), "utf8").split("</head>")[0];
+  const html = fs.readFileSync(path.join(DIST, file), "utf8");
+  const head = html.split("</head>")[0];
   const url = SITE_ORIGIN + "/" + slug;
+  const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
+  if (!ld) fail(file + ": no structured data (emitItemPages in vite.config.js)");
+  else {
+    let data = null;
+    try { data = JSON.parse(ld[1]); } catch (e) { fail(file + ": its structured data is not valid JSON"); }
+    if (data && (data["@type"] !== "Product" || data.name !== product.name || data.url !== url)) {
+      fail(file + ": its structured data is not this item's Product");
+    }
+  }
   if (!head.includes('<link rel="canonical" href="' + url + '" />')) fail(file + ": canonical is not " + url);
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(file + ": og:url is not " + url);
   if (!head.includes("<title>" + product.name)) fail(file + ": <title> does not start with the item's name");

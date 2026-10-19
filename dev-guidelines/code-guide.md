@@ -23,7 +23,7 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 
 **Clean, flat addresses.** `/gallery`, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no series, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Old `product.html?id=` links still land on `product.html`, which moves them to the clean address.
 
-**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, and a link-preview picture drawn at build time. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
+**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span once it has prices), and a link-preview picture drawn at build time. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
 
 **One shared header.** Every page opens with the same header and nav. The category filter row is rendered from the active series' data, never written in the markup, because each series declares its own categories.
 
@@ -69,7 +69,7 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 **Three ways scripts talk.**
 
 - **Globals** for APIs.
-- **A plain function registry** for the hero's scroll progress (`EmjiveHero`): it publishes once per animation frame, and a registry allocates nothing per publish.
+- **A plain function registry** for the hero's scroll progress (`EmjiveHero`): it publishes once per animation frame, and a registry allocates nothing per publish. The same registry carries the hero's rarer layout changes, which the wheel re-measures on instead of polling.
 - **`CustomEvent`s on `window`** for state changes several scripts react to (the selection changing, the Modify sheet opening and closing).
 
 The index lists the event names and storage keys.
@@ -102,7 +102,7 @@ The index lists the event names and storage keys.
 
 `?mem=1` on any address shows the live counters, since a phone can't be inspected from the development machine.
 
-**Render on demand.** A viewer draws only when something changed. A browser may throw the drawing buffer away without losing the context (iOS does, on backgrounding and back-forward restores), so there are explicit repaint triggers for those moments.
+**Render on demand.** A viewer draws only when something changed, and its loop stops once nothing moves (the wheel's too), so an idle page asks nothing of a phone's CPU; any change restarts it. A browser may throw the drawing buffer away without losing the context (iOS does, on backgrounding and back-forward restores), so there are explicit repaint triggers for those moments.
 
 **No external requests.** The Draco decoder and the fonts are self-hosted, and the HDRI is decoded in a worker, off the main thread.
 
@@ -143,7 +143,7 @@ The big pictures (the hero, the item x-rays) come in up to four versions: deskto
 **The build** (`vite.config.js`) makes a multi-page Vite build deployable:
 
 - Every page is an entry, so a new page needs adding there.
-- What Vite can't trace (classic scripts, and every path that only exists as data) is copied verbatim and the scripts are minified. Module sources, fonts that Vite already re-emits, and print models are left out.
+- What Vite can't trace (classic scripts, and every path that only exists as data) is copied verbatim and the scripts are minified. Module sources, fonts that Vite already re-emits, the HDRIs no series uses, and print models are left out.
 - Two things Vite does to every `<head>` are undone: it inlines the series index as `data:` and moves the stylesheet.
 - Preload hints are added for the featured series.
 - It writes the sitemap and the per-item pages and pictures.

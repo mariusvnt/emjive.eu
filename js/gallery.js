@@ -81,18 +81,33 @@
     return !!(memory && memory.isRestoring && memory.isRestoring());
   }
 
+  // Checked now, again whenever something it waits on changes (the hero's
+  // stage or layout, the scroll restore ending), and at the deadline. A check
+  // can make the hero publish, hence the next one waits a frame.
   function releaseWhenWheelSettled() {
     var until = Date.now() + WHEEL_SETTLE_MS;
-    (function check() {
+    var queued = false;
+    function check() {
+      queued = false;
       if (wheelSettled) return;
       if (!state.stack || view() !== "stack" || Date.now() > until ||
           (!isRestoring() && state.stack.settleLayout())) {
         wheelSettled = true;
         releaseWheel();
-        return;
       }
-      setTimeout(check, 50);
-    })();
+    }
+    function recheck() {
+      if (queued || wheelSettled) return;
+      queued = true;
+      requestAnimationFrame(check);
+    }
+    if (window.EmjiveHero) {
+      window.EmjiveHero.onStage(recheck);
+      if (window.EmjiveHero.onLayout) window.EmjiveHero.onLayout(recheck);
+    }
+    window.addEventListener("emjive:restore-end", recheck);
+    setTimeout(check, WHEEL_SETTLE_MS + 10);
+    check();
   }
 
   /* ---- the veil: a view switch fades through the page background ---- */
@@ -298,7 +313,7 @@
     }
     if (key === "category") return el("dd", "", (product.category || "").toLowerCase());
     if (key === "size") {
-      var range = sel.sizeRange(product);
+      var range = H.sizeRange(product);
       var unit = window.EmjiveSeries.categoryInfo(product.category).unit;
       return el("dd", "", range.min + " – " + range.max + (unit ? " " + unit : ""));
     }
@@ -468,9 +483,7 @@
       state.products = products;
       if (!products.length) {
         var none = el("div", "page-message--grid");
-        window.EmjiveMessage.show(none,
-          "No products yet — add some to this series' products.json (see data/series.json)",
-          null, "status");
+        window.EmjiveMessage.show(none, "No items in this series yet.", null, "status");
         grid.appendChild(none);
       }
       renderGrid(products);

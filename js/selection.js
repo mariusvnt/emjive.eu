@@ -155,20 +155,11 @@
   }
 
   /* ---- prices by size ----
-     per-metal-specs prices are at REFERENCE_SIZE_MM (62 mm) and scale
-     linearly: priceAt(size) = price x size / 62, whole euros, size clamped to
-     "size-range". A price of 0 means "TBD". */
-  var REFERENCE_SIZE_MM = 62;
-  var DEFAULT_SIZE_RANGE = { min: 40, max: 80 };
-
-  function sizeRange(product) {
-    var range = (product && product["size-range"]) || {};
-    var min = Number(range.min);
-    var max = Number(range.max);
-    return isFinite(min) && isFinite(max) && min > 0 && max >= min
-      ? { min: min, max: max }
-      : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
-  }
+     per-metal-specs prices are at EmjiveHelpers.REFERENCE_SIZE_MM and scale
+     linearly: priceAt(size) = price x size / reference, whole euros, size
+     clamped to "size-range". A price of 0 means "TBD". Mirrored in
+     scripts/helpers.js for the per-item pages' structured data. */
+  var sizeRange = window.EmjiveHelpers.sizeRange;
 
   // `size` may be a number or a typed string.
   function priceAt(product, metal, size) {
@@ -179,7 +170,7 @@
     if (!isFinite(mm) || mm <= 0) return 0;
     var range = sizeRange(product);
     mm = Math.min(Math.max(mm, range.min), range.max);
-    return Math.round(base * mm / REFERENCE_SIZE_MM);
+    return Math.round(base * mm / window.EmjiveHelpers.REFERENCE_SIZE_MM);
   }
 
   function priceRange(product, metal) {
@@ -234,10 +225,28 @@
     return whole + "." + (frac.length === 1 ? frac + "0" : frac);
   }
 
-  // Gates Add and Save: empty, "." or zero can't be ordered.
+  // A size at all: empty, "." or zero isn't one.
   function isValidSize(raw) {
     var size = normalizeSize(raw);
     return size !== "" && parseFloat(size) > 0;
+  }
+
+  // Gates Add and Save: a size within the product's "size-range".
+  function isOrderableSize(product, raw) {
+    if (!isValidSize(raw)) return false;
+    var mm = parseFloat(normalizeSize(raw));
+    var range = sizeRange(product);
+    return mm >= range.min && mm <= range.max;
+  }
+
+  // The size field's hint and validity: the range as its placeholder, and
+  // aria-invalid while it holds a size outside it.
+  function syncSizeField(input, product) {
+    var range = sizeRange(product);
+    input.placeholder = range.min + "–" + range.max;
+    var invalid = input.value !== "" && !isOrderableSize(product, input.value);
+    if (invalid) input.setAttribute("aria-invalid", "true");
+    else input.removeAttribute("aria-invalid");
   }
 
   // Appends a size as text, its decimals as a small .size-fraction without the
@@ -309,13 +318,13 @@
     priceFrom: priceFrom,
     formatPriceFrom: formatPriceFrom,
     formatPriceRange: formatPriceRange,
-    REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
-    sizeRange: sizeRange,
     priceAt: priceAt,
     priceRange: priceRange,
     sanitizeSizeInput: sanitizeSizeInput,
     normalizeSize: normalizeSize,
     isValidSize: isValidSize,
+    isOrderableSize: isOrderableSize,
+    syncSizeField: syncSizeField,
     appendSize: appendSize,
     itemKey: itemKey,
     singleChange: singleChange

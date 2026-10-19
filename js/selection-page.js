@@ -298,7 +298,7 @@
   /* ---- checkout: no backend yet, so a notice. Inert while the bar is the strip. ---- */
   checkoutButton.addEventListener("click", function () {
     if (checkoutButton.disabled || stripShown) return;
-    window.EmjiveOrderRows.notice("Checkout isn't connected yet. Wire this up to a Stripe Checkout session once the backend exists.");
+    window.EmjiveOrderRows.notice("Online checkout isn't open yet. Your selection stays saved on this device.");
   });
 
   /* ---- render ----

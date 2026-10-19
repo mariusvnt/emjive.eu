@@ -271,6 +271,65 @@
     return assetFor(product, "fallback-img", metal) || assetFor(product, "icons", metal);
   }
 
+  // The size, in mm, a product's model is drawn at and its per-metal prices are
+  // given for. Mirrored in scripts/helpers.js (validate-data checks).
+  var REFERENCE_SIZE_MM = 62;
+  var DEFAULT_SIZE_RANGE = { min: 40, max: 80 };
+
+  // A product's orderable sizes, { min, max } in mm; the default for a missing
+  // or malformed "size-range".
+  function sizeRange(product) {
+    var range = (product && product["size-range"]) || {};
+    var min = Number(range.min);
+    var max = Number(range.max);
+    return isFinite(min) && isFinite(max) && min > 0 && max >= min
+      ? { min: min, max: max }
+      : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
+  }
+
+  // An icon's 128px thumbnail version (scripts/make-image-variants.js).
+  function thumbSrc(src) {
+    return src && window.EmjiveLoader ? window.EmjiveLoader.variant(src, "128") : src;
+  }
+
+  // img shows src's thumbnail, falling back to src itself; none without src.
+  function setThumb(img, src) {
+    if (!src) img.removeAttribute("src");
+    else if (window.EmjiveLoader) window.EmjiveLoader.setSrc(img, thumbSrc(src), src);
+    else img.src = src;
+  }
+
+  // Decoded ahead, so a later swap to one shows at once; kept referenced so
+  // they stay in memory.
+  var preloaded = {};
+  function preload(srcs) {
+    srcs.forEach(function (src) {
+      if (!src || preloaded[src]) return;
+      var img = new Image();
+      img.src = src;
+      if (img.decode) img.decode().catch(function () {});
+      preloaded[src] = img;
+    });
+  }
+
+  /* ---- invert bands ---- */
+
+  // Safari's backdrop-filter re-samples late when content under an invert band
+  // changes in place; nudging the band's filter (.is-resampling) for two frames
+  // forces it.
+  var resampleTokens = new WeakMap();
+  function resampleBand(el) {
+    if (!el) return;
+    var token = (resampleTokens.get(el) || 0) + 1;
+    resampleTokens.set(el, token);
+    el.classList.add("is-resampling");
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (resampleTokens.get(el) === token) el.classList.remove("is-resampling");
+      });
+    });
+  }
+
   window.EmjiveHelpers = {
     el: el,
     clamp: clamp,
@@ -297,6 +356,12 @@
     dragPointer: dragPointer,
     requestJson: requestJson,
     assetFor: assetFor,
-    posterFor: posterFor
+    posterFor: posterFor,
+    REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
+    sizeRange: sizeRange,
+    thumbSrc: thumbSrc,
+    setThumb: setThumb,
+    preload: preload,
+    resampleBand: resampleBand
   };
 })();

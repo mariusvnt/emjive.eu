@@ -7,9 +7,9 @@ import globals from "globals";
 
 // The window.EmjiveX globals the classic scripts publish to each other.
 const EMJIVE = [
-  "EmjiveCarousel", "EmjiveFocusTrap", "EmjiveHelpers", "EmjiveHero", "EmjiveLoadViewer",
+  "EmjiveFocusTrap", "EmjiveHelpers", "EmjiveHero", "EmjiveLoadViewer",
   "EmjiveLoader", "EmjiveMenus", "EmjiveMessage", "EmjiveMetalPicker", "EmjiveModelViewer", "EmjiveModifyModal",
-  "EmjiveMotion", "EmjiveOrderRows", "EmjiveScrollMemory", "EmjiveSelection", "EmjiveSeries",
+  "EmjiveOrderRows", "EmjiveScrollMemory", "EmjiveSelection", "EmjiveSeries",
   "EmjiveSeriesHero"
 ];
 const emjiveGlobals = Object.fromEntries(EMJIVE.map((name) => [name, "readonly"]));

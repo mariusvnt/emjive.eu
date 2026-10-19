@@ -63,40 +63,9 @@
     });
   }
 
-  // Decoded ahead, so an unfaded icon swap shows the new one at once; kept
-  // referenced so they stay in memory.
-  var preloaded = {};
-
   // Rows show the icon's 128px variant.
-  function thumbSrc(src) {
-    return src && global.EmjiveLoader ? global.EmjiveLoader.variant(src, "128") : src;
-  }
-
-  function preload(srcs) {
-    srcs.forEach(function (src) {
-      if (!src || preloaded[src]) return;
-      var img = new Image();
-      img.src = src;
-      if (img.decode) img.decode().catch(function () {});
-      preloaded[src] = img;
-    });
-  }
-
-  // Safari's backdrop-filter re-samples late when content under an invert band
-  // changes in place; nudging the band's filter (.is-resampling) for two frames
-  // forces it.
-  var resampleTokens = new WeakMap();
-
-  function resampleBand(el) {
-    var token = (resampleTokens.get(el) || 0) + 1;
-    resampleTokens.set(el, token);
-    el.classList.add("is-resampling");
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        if (resampleTokens.get(el) === token) el.classList.remove("is-resampling");
-      });
-    });
-  }
+  var thumbSrc = H.thumbSrc;
+  var resampleBand = H.resampleBand;
 
   // No-fade change for a live preview; cancels any fadeSwap under way on `el`.
   function setNow(el, apply) {
@@ -157,10 +126,7 @@
 
       var thumb = document.createElement("img");
       thumb.className = "order-item__thumb";
-      if (item.image) {
-        if (global.EmjiveLoader) global.EmjiveLoader.setSrc(thumb, global.EmjiveLoader.variant(item.image, "128"), item.image);
-        else thumb.src = item.image;
-      }
+      H.setThumb(thumb, item.image);
       thumb.alt = "";
       // A picture arriving under the band: see resampleBand().
       thumb.addEventListener("load", function () { resampleBand(li); });
@@ -563,6 +529,5 @@
     noticeTimer = setTimeout(function () { noticeEl.classList.remove("is-shown"); }, NOTICE_MS);
   }
 
-  // preload and resampleBand are shared with js/product.js and js/modify-modal.js.
-  global.EmjiveOrderRows = { create: create, preload: preload, resampleBand: resampleBand, notice: notice };
+  global.EmjiveOrderRows = { create: create, notice: notice };
 })(window);

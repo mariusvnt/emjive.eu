@@ -6,11 +6,10 @@
 //
 // Its buttons are a strip the page's bar turns into (options.bar): Unselect |
 // Save. Unselect removes the item and the list keeps its row as an Undo line
-// for UNDO_MS (js/order-rows.js offerUndo). Select mode (openSelect, from the
-// wheel and list) shows one Add button for a product not yet selected.
+// for UNDO_MS (js/order-rows.js offerUndo). Save needs a size within the
+// product's "size-range".
 //
-// window.EmjiveModifyModal = { open(item, index, options),
-//   openSelect(product, slug, options), isOpen(), attach(bar) }
+// window.EmjiveModifyModal = { open(item, index, options), isOpen(), attach(bar) }
 // options:
 //   bar                         { el, show(strip), hide(strip) }: the strip goes
 //                               into el; the bar sequences the swap
@@ -19,7 +18,6 @@
 //   offerUndo(index, handlers)  hold the row as an Undo line (js/order-rows.js);
 //                               without it an Unselect is final
 //   onOpen(item), onClose()     the sheet is up / has closed
-//   onAdd()                     Select mode, just before adding
 //   returnFocus, fallbackFocus  elements or functions; fallbackFocus also
 //                               catches focus left on an expired Undo
 // Changes go through js/selection.js, whose "emjive:selection-changed" the
@@ -30,7 +28,7 @@
 (function () {
   "use strict";
 
-  if (!window.EmjiveSelection || !window.EmjiveSeries || !window.EmjiveCarousel) return;
+  if (!window.EmjiveSelection || !window.EmjiveSeries) return;
 
   // The sheet's 0.3s slide-out plus a margin: dispose the viewer only once out
   // of sight, or the model blanks mid-slide.
@@ -47,9 +45,9 @@
   }
 
   /* ---- DOM, built once ----
-     role/aria-* on .size-modal, not the panel: the carousel is the panel's
-     sibling, and js/focus-trap.js traps the whole modal. tabindex -1 lets it
-     take focus so its label is read first. */
+     role/aria-* on .size-modal, not the panel: the model's frame is the
+     panel's sibling, and js/focus-trap.js traps the whole modal. tabindex -1
+     lets it take focus so its label is read first. */
   var modal = el("div", "size-modal size-modal--drawer size-modal--modify");
   modal.id = "modifyModal";
   modal.setAttribute("aria-hidden", "true");
@@ -60,19 +58,15 @@
 
   var backdrop = el("div", "size-modal__backdrop");
 
-  // product.html's carousel markup, so js/carousel.js and its CSS apply;
-  // .size-modal__carousel shrinks it and lifts its top half above the sheet.
-  var carouselFrame = el("div", "size-modal__carousel product-carousel-frame");
-  var carouselEl = el("div", "product-carousel");
-  var viewport = el("div", "product-carousel__viewport");
-  var track = el("div", "product-carousel__track");
-  viewport.appendChild(track);
-  carouselEl.appendChild(viewport);
-  carouselFrame.appendChild(carouselEl);
+  // The model's frame, its top half above the sheet; the slot holds one slide
+  // per open (buildSlide).
+  var modelFrame = el("div", "size-modal__frame");
+  var slot = el("div", "size-modal__slot");
+  modelFrame.appendChild(slot);
   var pageToggle = el("button", "size-modal__page-toggle", "Go to page");
   pageToggle.type = "button";
   pageToggle.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12 H21 M14 5 L21 12 L14 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
-  carouselFrame.appendChild(pageToggle);
+  modelFrame.appendChild(pageToggle);
 
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
@@ -114,7 +108,7 @@
   panel.appendChild(content);
 
   var sheet = el("div", "size-modal__sheet");
-  sheet.appendChild(carouselFrame);
+  sheet.appendChild(modelFrame);
   sheet.appendChild(panel);
 
   modal.appendChild(backdrop);
@@ -146,21 +140,14 @@
   strip.inert = true;
   var unselectBtn = stripButton("modify-strip__unselect", "modify-strip__label", "Unselect");
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
-  // Select mode's single button.
-  var selectBtn = stripButton("modify-strip__select", "modify-strip__label", "Add");
   // After the buttons, so it paints over the label it inverts.
   var saveBand = stripBand("modify-strip__band");
   strip.appendChild(unselectBtn);
   strip.appendChild(saveBtn);
-  strip.appendChild(selectBtn);
   strip.appendChild(saveBand);
-
-  var carousel = window.EmjiveCarousel(carouselEl);
 
   var state = {
     isOpen: false,
-    // "modify" (Unselect | Save) or "select" (Add).
-    mode: "modify",
     // Bumped per open() so a slow fetch from an earlier click can't open over a later one.
     openToken: 0,
     item: null,
@@ -172,8 +159,8 @@
     guide: null,
     options: {},
     modelHandle: null,
-    // The model's slide and the image standing in for the model until the viewer
-    // is built (or for good); iconImg for a product without a model.
+    // The model's slide (in the slot) and the image standing in for the model
+    // until the viewer is built (or for good); iconImg for a product without a model.
     modelSlide: null,
     posterImg: null,
     iconImg: null,
@@ -195,17 +182,15 @@
     return H.posterFor(state.product, metal);
   }
 
-  // "modify", "select", or "saved" (band growing and fading, layout kept).
-  // Buttons outside the mode are inert. `instant`, or a hidden strip, skips the
-  // motion so the next open starts on its own layout.
+  // "modify" (Unselect | Save) or "saved" (band growing and fading, buttons
+  // inert). `instant`, or a hidden strip, skips the motion so the next open
+  // starts on its own layout.
   function setStripMode(mode, instant) {
     instant = instant || strip.classList.contains("is-hidden");
     if (instant) strip.classList.add("is-instant");
     strip.classList.toggle("is-saved", mode === "saved");
-    if (mode !== "saved") strip.classList.toggle("is-select", mode === "select");
     unselectBtn.inert = mode !== "modify";
     saveBtn.inert = mode !== "modify";
-    selectBtn.inert = mode !== "select";
     if (instant) {
       void strip.offsetWidth;
       strip.classList.remove("is-instant");
@@ -254,7 +239,7 @@
   // size, so the row's label never blanks.
   function draftValues() {
     var sel = window.EmjiveSelection;
-    var size = sel.isValidSize(sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size;
+    var size = sel.isOrderableSize(state.product, sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size;
     return {
       metal: state.selectedMetal,
       size: size,
@@ -288,8 +273,14 @@
   function iconSlide() {
     var src = iconSrc(state.selectedMetal);
     if (!src) return null;
-    var slide = window.EmjiveCarousel.imageSlide(src, state.product.name);
-    state.iconImg = slide.querySelector("img");
+    var slide = el("div", "size-modal__slide");
+    var img = el("img");
+    img.src = src;
+    img.alt = state.product.name || "";
+    img.draggable = false;
+    slide.appendChild(img);
+    if (window.EmjiveLoader) window.EmjiveLoader.cover(slide, H.imageReady(img));
+    state.iconImg = img;
     return slide;
   }
 
@@ -305,25 +296,23 @@
     return box;
   }
 
-  function buildSlides() {
+  function buildSlide() {
     var product = state.product;
-    track.innerHTML = "";
+    slot.innerHTML = "";
     state.modelSlide = null;
     state.posterImg = null;
     state.iconImg = null;
 
     if (product.assets && product.assets.model) {
-      // Smaller than the slide (the --model rule).
-      var modelSlide = el("div", "product-carousel__slide product-carousel__slide--model");
+      // Smaller than the slot (the --model rule).
+      var modelSlide = el("div", "size-modal__slide size-modal__slide--model");
       modelSlide.appendChild(posterBox());
-      track.appendChild(modelSlide);
+      slot.appendChild(modelSlide);
       state.modelSlide = modelSlide;
     } else {
       var fallback = iconSlide();
-      if (fallback) track.appendChild(fallback);
+      if (fallback) slot.appendChild(fallback);
     }
-
-    carouselFrame.classList.add("product-carousel--single");
   }
 
   // Already on that product's page: close and scroll to the top instead.
@@ -408,7 +397,7 @@
   // After the slide-out: free the viewer, then hand the wheel its slot back.
   function cleanup() {
     disposeViewer();
-    track.innerHTML = "";
+    slot.innerHTML = "";
     state.modelSlide = null;
     state.posterImg = null;
     state.iconImg = null;
@@ -417,38 +406,22 @@
 
   /* ---- Save, Unselect, Undo ---- */
 
-  // Save stays visible but acts only on an orderable size.
+  function orderable() {
+    return window.EmjiveSelection.isOrderableSize(state.product, sizeInput.value);
+  }
+
+  // Save stays visible but acts only on an orderable size; the field shows the range.
   function syncSave() {
-    var invalid = !window.EmjiveSelection.isValidSize(sizeInput.value);
-    saveBtn.disabled = invalid;
-    selectBtn.disabled = invalid;
+    saveBtn.disabled = !orderable();
+    window.EmjiveSelection.syncSizeField(sizeInput, state.product);
   }
 
   // quiet: an Enter save hands focus back without a ring (js/focus-trap.js).
   function save(quiet) {
-    if (!state.isOpen || !window.EmjiveSelection.isValidSize(sizeInput.value)) return;
-    if (state.mode === "select") {
-      select(quiet);
-      return;
-    }
+    if (!state.isOpen || !orderable()) return;
     window.EmjiveSelection.updateItem(state.index, draftValues());
     // The strip stays up for the band to play out; the row already shows what was saved.
     var bar = state.options.bar;
-    close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
-    leaveAfterSave(bar);
-  }
-
-  // Select mode: adds the product snapshot with the draft's metal, price, icon
-  // and size; the band plays as for a Save.
-  function select(quiet) {
-    var item = {};
-    Object.keys(state.item).forEach(function (key) { item[key] = state.item[key]; });
-    var draft = draftValues();
-    Object.keys(draft).forEach(function (key) { item[key] = draft[key]; });
-    item.size = window.EmjiveSelection.normalizeSize(sizeInput.value);
-    var bar = state.options.bar;
-    if (state.options.onAdd) state.options.onAdd();
-    window.EmjiveSelection.addItem(item);
     close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
     leaveAfterSave(bar);
   }
@@ -531,7 +504,6 @@
   }
 
   saveBtn.addEventListener("click", save);
-  selectBtn.addEventListener("click", save);
   unselectBtn.addEventListener("click", unselect);
 
   // Written back only when changed, so the caret doesn't jump.
@@ -583,12 +555,10 @@
     state.slug = slug;
     state.selectedMetal = item.metal;
     state.options = options;
-    state.mode = options.mode === "select" ? "select" : "modify";
-    modal.setAttribute("aria-label", state.mode === "select" ? "Add " + (product.name || "item") : "Modify selection");
 
     // Every metal's icon and poster decoded now, so picks swap at once.
     var assets = product.assets || {};
-    window.EmjiveOrderRows.preload(
+    H.preload(
       Object.keys(assets.icons || {}).map(function (m) { return assets.icons[m]; })
         .concat(Object.keys(assets["fallback-img"] || {}).map(function (m) { return assets["fallback-img"][m]; }))
     );
@@ -597,16 +567,15 @@
     sizeInput.value = window.EmjiveSelection.normalizeSize(item.size);
     state.guide = window.EmjiveSeries.categoryInfo(item.category)["size-guide"];
     finderToggle.hidden = !(window.EmjiveSizeFinder && state.guide && state.guide.rows && state.guide.rows.length);
-    buildSlides();
+    buildSlide();
     // Mounted (normally already, via attach) before the mode is set, so it is laid out first.
     mountStrip(options.bar);
-    setStripMode(state.mode, cutLeaveShort);
+    setStripMode("modify", cutLeaveShort);
     syncSave();
 
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
     state.isOpen = true;
-    carousel.sync(true);
 
     // After .is-open (focus() is a no-op while hidden). The trap also locks the page.
     window.EmjiveFocusTrap.activate(modal, {
@@ -672,39 +641,6 @@
       });
   }
 
-  // Select mode: a product not yet selected, at its default metal. The size
-  // starts at the last size chosen in its category, or empty.
-  function openSelect(product, slug, options) {
-    if (state.isOpen || !product) return;
-    state.openToken++;
-    // Added as its default design; choosing another is the product page's job.
-    product = window.EmjiveSeries.resolveDesign(product).view;
-    var metal = product["default-metal"];
-    var lastSize = "";
-    var selection = window.EmjiveSelection.getSelection();
-    for (var i = selection.length - 1; i >= 0; i--) {
-      if (selection[i].category === product.category && window.EmjiveSelection.isValidSize(selection[i].size)) {
-        lastSize = selection[i].size;
-        break;
-      }
-    }
-    var item = {
-      series: slug || window.EmjiveSeries.slug,
-      productId: product.id,
-      name: product.designName,
-      category: product.category,
-      metal: metal,
-      size: lastSize,
-      price: window.EmjiveSelection.priceAt(product, metal, lastSize),
-      image: H.assetFor(product, "icons", metal)
-    };
-    if (product.designKey) item.design = product.designKey;
-    var opts = {};
-    Object.keys(options || {}).forEach(function (key) { opts[key] = options[key]; });
-    opts.mode = "select";
-    show(item, null, product, item.series, opts);
-  }
-
   // Prefetch the products behind the selection after load, so the first Modify
   // on pages without product data doesn't wait. Failures are left to open().
   function prefetchProducts() {
@@ -731,7 +667,6 @@
 
   window.EmjiveModifyModal = {
     open: open,
-    openSelect: openSelect,
     isOpen: function () { return state.isOpen; },
     // Each page's bar calls this as soon as it exists, so the strip is in place before the first open.
     attach: mountStrip

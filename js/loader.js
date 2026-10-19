@@ -7,7 +7,6 @@
 //                        ancestor instead of the host's edges.
 //   cover(host, ready)              hide host's <img>s behind a loader until `ready`
 //                                   settles and the loader has left
-//   coverWithin(host, target, ready)  the same with a shared loader on host
 //   isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage   responsive images
 //   pageReady(), holdPage(), isPageReady()   the page's arrival loader
 //
@@ -43,7 +42,7 @@
   var DEFAULT_DELAY_MS = 150;
   var WATCHDOG_MS = 15000;
   var SAFE_POLL_MS = 25;
-  // Share of a target that must be visible for its wait to count (not a sliver at a carousel edge).
+  // Share of a target that must be visible for its wait to count (not a sliver at a clipping edge).
   var VISIBLE_RATIO = 0.2;
   // Past the last part's exit, so removal never lands on its last sub-pixel of opacity.
   var SAFE_MARGIN = 0.004;
@@ -340,9 +339,10 @@
   }
 
   /* ---- a loader shared by several assets ----
-     One loader for a carousel's model and photos; each asset takes a hold
-     naming its slide (opts.target). A hold counts only while its target is on
-     screen, and the loader is active while any unreleased hold is visible:
+     One loader on a frame (the product page's design frame), each load taking
+     a hold naming what it waits for (opts.target). A hold counts only while
+     its target is on screen, and the loader is active while any unreleased
+     hold is visible:
        - the show-delay runs from becoming active, and is dropped if it stops;
        - when no visible wait remains, it finishes its crossing and goes quiet,
          remaining holds still counted;
@@ -569,20 +569,6 @@
       .then(function () { host.classList.remove("is-loader-pending"); });
   }
 
-  // The target fades in as soon as `ready` settles, without waiting for the
-  // shared loader, which goes when nothing visible is loading.
-  function coverWithin(host, target, ready) {
-    if (!host || !target || reduceQuery.matches) return Promise.resolve();
-    target.classList.add("loader-host", "is-loader-pending");
-    var hold = mount(host, { target: target });
-    return Promise.resolve(ready)
-      .then(noop, noop)
-      .then(function () {
-        target.classList.remove("is-loader-pending");
-        return hold.done();
-      });
-  }
-
   /* ---- the page's arrival loader ----
      Opted into with data-page-loader on <html>. This runs in <head>, so the
      cover is a pseudo-element on <html> (set now, so half-built content never
@@ -687,11 +673,10 @@
         var memory = window.EmjiveScrollMemory;
         if (pageActive || !memory || !memory.isRestoring || !memory.isRestoring()) return;
         coverPageNow();
+        // Released when the restore ends (js/scroll-memory.js).
         var release = holdPage();
-        (function wait() {
-          if (memory.isRestoring()) setTimeout(wait, 50);
-          else release();
-        })();
+        window.addEventListener("emjive:restore-end", release, { once: true });
+        if (!memory.isRestoring()) release();
       }, RESTORE_COVER_MS);
     }
   }
@@ -699,7 +684,6 @@
   window.EmjiveLoader = {
     mount: mount,
     cover: cover,
-    coverWithin: coverWithin,
     isPhone: isPhone,
     onPhoneChange: onPhoneChange,
     versions: versions,

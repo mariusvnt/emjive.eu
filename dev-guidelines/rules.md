@@ -28,7 +28,7 @@ Every rule that must hold in this repo, process and code alike, and the one plac
 - **Never put a `url()` behind a `var()` on anything the product page's scroll restyles.** Set the property directly. Also, never measure the screen's height with `window.innerHeight` on the product page: use `EmjiveProductStages.screenPx()`.
 - **Gate hover styles with `@media (hover: hover)`.**
 - **Reduced motion uses `0.01ms`, never `0s`.** A zero-length transition fires no `transitionend`, and script waits on it.
-- **A value written in several files changes in all of them at once.** `validate-data` checks the phone query, the crop fractions and the slug rule across their copies. A new metal has to be added in every place [item-guide.md](item-guide.md) lists, because not all of them are checked.
+- **A value written in several files changes in all of them at once.** `validate-data` checks the phone query, the crop fractions, the slug rule and the reference size prices are given at across their copies. A new metal has to be added in every place [item-guide.md](item-guide.md) lists, because not all of them are checked.
 
 ## Comments
 
@@ -36,6 +36,7 @@ Comments in code (JS, CSS, HTML, scripts, config) are kept to the minimum that i
 
 - **What, only for structure.** Every file opens with a header comment: its first sentence is the file's line in the generated index, so it says plainly what the file is. Beyond that: section markers, and a line on a function or constant whose name doesn't say enough. No comment that restates the code.
 - **Why, only when the code can't show it.** A browser bug or quirk being worked around, an ordering or timing constraint, a value that must stay in step with another file, a trade-off that would otherwise look like a mistake. A sentence or two, not an essay.
+- **No sizes or counts that change with the assets.** No file sizes, vertex counts or chunk sizes: they go stale with the next export. Say "large" or "a fraction of" instead.
 - **Never about past versions.** No "used to", "replaced", "the old…" or "previously", and no account of what was tried and failed or how a bug was found. History belongs in commit messages.
 - **Local detail lives here, not in the docs.** A constraint that applies to one spot is a comment at that spot; the guides may point to the file.
 - **Kept true in the same pass.** Changing code means fixing or deleting the comments it invalidates right then. A wrong comment is worse than none.

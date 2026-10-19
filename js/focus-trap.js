@@ -2,7 +2,7 @@
 // #modifyModal, the size finder): window.EmjiveFocusTrap.
 //
 // The trap root is .size-modal, never .size-modal__panel: on #modifyModal
-// the carousel is a sibling of the panel. Controls outside the root (the
+// the model's frame is a sibling of the panel. Controls outside the root (the
 // Modify sheet's bar strip) join via `include`. A closed modal needs nothing
 // here: visibility: hidden already removes it from the Tab order.
 

@@ -13,7 +13,7 @@ Everything about the catalog's items: how the data is organised, where their fil
 - **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/series.json`.
   - **Categories** own sizing: the unit the size field asks for, and the size guide. A series picks the categories it sells.
   - **Metals** are global, because the 3D materials are global.
-  - **Lighting**: the HDRIs, named in one map; each series picks one.
+  - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship.
 - **Prices follow the size.** A product has one price per metal at a reference size, and every price on the site scales with the size (computed in `js/selection.js`). `0` means "TBD".
 - **Weight and cost are derived, never typed.** They come from the measured volume of the piece as it is printed, times each metal's constants (`metal-costs`). Nothing per-metal is stored that could go stale. The printed piece, not the 3D model on the page, is what is made, and the two can differ.
 

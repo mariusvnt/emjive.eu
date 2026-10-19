@@ -256,7 +256,7 @@
   if (contactForm) {
     contactForm.addEventListener("submit", function (e) {
       e.preventDefault();
-      alert("This form isn't connected yet. Wire it up to a form service (Formspree, Netlify Forms, etc.) — see README.");
+      alert("This form isn't available yet.");
     });
   }
 })();

@@ -260,29 +260,64 @@
     }
 
     // The slots for the hand's rings that minimize their total slide along the
-    // circle, over every assignment (hand: [{ item, angle }], n slots).
+    // circle (hand: [{ item, angle }], n slots): slots[i] is ring i's. The
+    // Hungarian algorithm, rings as rows (at most n), polynomial however many
+    // rings sit on the hand.
     function assignHandSlots(hand, n, step) {
-      var best = null;
-      var bestCost = Infinity;
-      var taken = [];
-      var picks = [];
-      (function search(i, cost) {
-        if (cost >= bestCost) return;
-        if (i === hand.length) {
-          bestCost = cost;
-          best = picks.slice();
-          return;
-        }
-        for (var k = 0; k < n; k++) {
-          if (taken[k]) continue;
-          taken[k] = true;
-          picks.push(k);
-          search(i + 1, cost + Math.abs(wrap(k * step - hand[i].angle)));
-          picks.pop();
-          taken[k] = false;
-        }
-      })(0, 0);
-      return best || [];
+      var k = hand.length;
+      if (!k || k > n) return [];
+      function cost(i, j) {
+        return Math.abs(wrap(j * step - hand[i].angle));
+      }
+      // 1-based potentials (u rows, v columns), each column's row (p) and the
+      // augmenting path back (way); column 0 is the free start.
+      var u = new Array(k + 1).fill(0);
+      var v = new Array(n + 1).fill(0);
+      var p = new Array(n + 1).fill(0);
+      var way = new Array(n + 1).fill(0);
+      for (var i = 1; i <= k; i++) {
+        p[0] = i;
+        var j0 = 0;
+        var minv = new Array(n + 1).fill(Infinity);
+        var used = new Array(n + 1).fill(false);
+        do {
+          used[j0] = true;
+          var i0 = p[j0];
+          var delta = Infinity;
+          var j1 = 0;
+          for (var j = 1; j <= n; j++) {
+            if (used[j]) continue;
+            var reduced = cost(i0 - 1, j - 1) - u[i0] - v[j];
+            if (reduced < minv[j]) {
+              minv[j] = reduced;
+              way[j] = j0;
+            }
+            if (minv[j] < delta) {
+              delta = minv[j];
+              j1 = j;
+            }
+          }
+          for (var c = 0; c <= n; c++) {
+            if (used[c]) {
+              u[p[c]] += delta;
+              v[c] -= delta;
+            } else {
+              minv[c] -= delta;
+            }
+          }
+          j0 = j1;
+        } while (p[j0] !== 0);
+        do {
+          var prev = way[j0];
+          p[j0] = p[prev];
+          j0 = prev;
+        } while (j0);
+      }
+      var slots = [];
+      for (var col = 1; col <= n; col++) {
+        if (p[col]) slots[p[col] - 1] = col - 1;
+      }
+      return slots;
     }
 
     /* The circle at both ends of the pull-back:
@@ -296,10 +331,9 @@
     function orbitLayout() {
       var list = visibleItems();
       var n = list.length;
-      if (!n) {
-        state.L = null;
-        return;
-      }
+      // Nothing to show (a filter left none): the last layout stays, so the
+      // camera, and the hand with it, holds where it is.
+      if (!n) return;
       var d = domain();
       var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
       var half = Math.max(1, Math.min(d.right - d.left, d.bottom - d.top) / 2 - MARGIN);
@@ -897,7 +931,7 @@
 
     var drag = null;
     stage.addEventListener("pointerdown", function (e) {
-      if (!landed || !state.L || ignoreTarget(e.target) || e.button > 0) return;
+      if (!landed || !state.L || !state.focus || ignoreTarget(e.target) || e.button > 0) return;
       if (!inBand(e.clientX, e.clientY)) return;
       var L = state.L;
       var angle = angleAbout(L.c1.x, L.c1.y, e.clientX, e.clientY);
@@ -1154,16 +1188,23 @@
       setStage(1);
     }
 
-    // The hero may land after mounting and, landed at its end, publishes nothing
-    // until scrolled: relayout as soon as it is in, unless the visitor already
-    // turned the plate.
-    var heroWaitUntil = Date.now() + 8000;
-    (function waitForHero() {
-      if (state.touched || Date.now() > heroWaitUntil) return;
+    // The hero may land after mounting and, landed at its end, publishes no
+    // stage until scrolled: re-measure when its layout changes
+    // (EmjiveHero.onLayout) or the domain's edges resize, unless the visitor
+    // already turned the plate. The hero's wait gives up at HERO_WAIT_MS.
+    function onLayoutChange() {
+      if (state.touched) return;
       if (layoutStale() || (state.active && layoutDrifted())) remeasure();
       else syncWaiting();
-      setTimeout(waitForHero, 100);
-    })();
+    }
+    if (window.EmjiveHero && window.EmjiveHero.onLayout) window.EmjiveHero.onLayout(onLayoutChange);
+    if (typeof ResizeObserver === "function") {
+      var edges = new ResizeObserver(onLayoutChange);
+      [header, viewToggle, vhProbe, document.querySelector(".selection-bar__summary")].forEach(function (node) {
+        if (node) edges.observe(node);
+      });
+    }
+    setTimeout(syncWaiting, Math.max(0, heroWaitEnds - Date.now()) + 50);
 
     if (state.active) whenPageRevealed(startScene);
 

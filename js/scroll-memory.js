@@ -198,6 +198,8 @@
     // A no-op for layout by now: settle() waits for the content to reach the height.
     html.classList.remove(RESTORING_CLASS);
     html.style.removeProperty(HEIGHT_VAR);
+    // "emjive:restore-end": js/loader.js and js/gallery.js wait on it.
+    window.dispatchEvent(new Event("emjive:restore-end"));
   }
 
   function takeOver() {

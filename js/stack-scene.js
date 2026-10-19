@@ -268,7 +268,7 @@ export function createStackScene(options) {
     camera.top = 0;
     camera.bottom = -h / PX;
     camera.updateProjectionMatrix();
-    dirty = true;
+    kick();
   }
 
   /* ---- placing a model ---- */
@@ -353,9 +353,28 @@ export function createStackScene(options) {
     return moved;
   }
 
-  /* ---- the loop: draws only when something moved ---- */
+  // Whether a spin needs the next frame: the focused one turning or about to,
+  // another still easing home.
+  function spinsMoving() {
+    return entries.some(function (entry) {
+      if (!entry.spin || !entry.visible) return false;
+      return entry.id === focusId ? entry.spin.wantsFrames() : entry.spin.isBusy();
+    });
+  }
+
+  /* ---- the loop: draws only when something moved ----
+     It runs from the handover, stops when nothing is dirty and no spin moves
+     (and while paused), and kick() restarts it: every change marks the scene
+     dirty through it. */
   var raf = 0;
   var lastFrame = null;
+  var running = false;
+
+  function kick() {
+    dirty = true;
+    if (!running || disposed || raf) return;
+    raf = requestAnimationFrame(frame);
+  }
 
   function draw() {
     if (contextLost) return;
@@ -364,14 +383,19 @@ export function createStackScene(options) {
   }
 
   function frame(now) {
-    raf = requestAnimationFrame(frame);
+    raf = 0;
     var dt = lastFrame === null ? 1 / 60 : Math.min((now - lastFrame) / 1000, MAX_DT);
     lastFrame = now;
-    if (paused || disposed) return;
+    if (paused || disposed) {
+      lastFrame = null;
+      return;
+    }
     var changed = dirty;
     dirty = false;
     if (stepSpins(Math.max(dt, 1e-3))) changed = true;
     if (changed) draw();
+    if (changed || spinsMoving()) raf = requestAnimationFrame(frame);
+    else lastFrame = null;
   }
 
   /* ---- teardown ---- */
@@ -390,7 +414,7 @@ export function createStackScene(options) {
   canvas.addEventListener("webglcontextlost", onContextLost, false);
 
   // The browser may discard a canvas's drawing (tab return, page restore).
-  function repaint() { dirty = true; }
+  function repaint() { kick(); }
   document.addEventListener("visibilitychange", repaint);
   window.addEventListener("pageshow", repaint);
 
@@ -444,7 +468,7 @@ export function createStackScene(options) {
       var pose = poses[entry.id];
       if (pose && entry.visible) placeFromPose(entry, pose);
     });
-    dirty = true;
+    kick();
   }
 
   return {
@@ -462,7 +486,8 @@ export function createStackScene(options) {
       });
       draw();
       dirty = false;
-      raf = requestAnimationFrame(frame);
+      running = true;
+      if (!raf) raf = requestAnimationFrame(frame);
     },
 
     setPoses: applyPoses,
@@ -474,7 +499,7 @@ export function createStackScene(options) {
         setSize(entry, px);
         if (entry.pose) placeFromPose(entry, entry.pose);
       });
-      dirty = true;
+      kick();
     },
 
     // Filter: unlisted models leave; relisted ones return at the next poses.
@@ -486,7 +511,7 @@ export function createStackScene(options) {
         entry.visible = show;
         entry.group.visible = show;
       });
-      dirty = true;
+      kick();
     },
 
     // The model that self-turns and that a drag on el turns (null: none); the
@@ -496,11 +521,13 @@ export function createStackScene(options) {
       focusEl = el || focusEl;
       entries.forEach(function (entry) {
         var focused = entry.id === focusId;
-        if (focused && !entry.spin && entry.model && focusEl) entry.spin = toolkit.spinFor(entry.product, focusEl);
+        if (focused && !entry.spin && entry.model && focusEl) entry.spin = toolkit.spinFor(entry.product, focusEl, kick);
         if (!entry.spin) return;
         entry.spin.setEnabled(focused);
         entry.spin.setIdle(focused);
       });
+      // The new focus idles, the old one eases home.
+      kick();
     },
 
     // The element a drag starts on moved or changed size.
@@ -511,7 +538,7 @@ export function createStackScene(options) {
 
     setPaused: function (on) {
       paused = !!on;
-      if (!paused) dirty = true;
+      if (!paused) kick();
     },
 
     resize: resize,

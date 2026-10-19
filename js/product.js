@@ -227,7 +227,7 @@
     document.title = (product.name || "Product") + " — em·ji·ve";
     updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
-    var sizes = window.EmjiveSelection.sizeRange(product);
+    var sizes = H.sizeRange(product);
     SIZE_MIN_MM = sizes.min;
     SIZE_MAX_MM = sizes.max;
     // Opens on the default design.
@@ -303,7 +303,7 @@
       xray.hidden = true;
       return;
     }
-    // The low-res version first (~25-50KB vs ~320KB); loadRemainingAssets swaps
+    // The low-res version first, a fraction of the size; loadRemainingAssets swaps
     // in the high-res once the model is up. Phone versions are cropped (hence the
     // narrower box in the phone CSS).
     var loader = window.EmjiveLoader;
@@ -344,7 +344,7 @@
   // Decode the other metals' icons ahead, so the label thumbnail swaps at once.
   function preloadIcons(view) {
     var icons = (view.assets && view.assets.icons) || {};
-    window.EmjiveOrderRows.preload(Object.keys(icons)
+    H.preload(Object.keys(icons)
       .filter(function (m) { return m !== state.selectedMetal; })
       .map(function (m) { return icons[m]; }));
   }
@@ -352,6 +352,11 @@
   var VIEWER_SETTLE_WAIT_MS = 20000;
 
   /* ---- 1. label ---- */
+
+  // The label's bar, an invert band re-sampled when its content changes in place (EmjiveHelpers.resampleBand).
+  function labelBar() {
+    return document.querySelector(".product-detail__label-bar");
+  }
 
   function renderLabel(product) {
     document.getElementById("productLabelName").textContent = product.name || "";
@@ -373,7 +378,7 @@
     }
     if (node.textContent === suffix) return;
     node.textContent = suffix;
-    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+    H.resampleBand(labelBar());
   }
 
   // ".category.metal", plus ".size" once the specs field holds one (appendSize, as in the rows).
@@ -393,7 +398,7 @@
       window.EmjiveSelection.appendSize(node, state.sizeText);
     }
     // Changed in place under the invert band.
-    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+    H.resampleBand(labelBar());
   }
 
   // Always the icon, for its consistent framing at this small size; hidden
@@ -404,7 +409,7 @@
     if (!thumb.dataset.resample) {
       thumb.dataset.resample = "1";
       thumb.addEventListener("load", function () {
-        window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+        H.resampleBand(labelBar());
       });
     }
     var view = state.view;
@@ -642,7 +647,7 @@
     return canvas;
   }
   function remPx() {
-    return parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+    return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   }
   function buildTrail(trail, img) {
     if (!trail || trail.firstChild || !img.naturalWidth) return;
@@ -1131,7 +1136,7 @@
     renderLabelType(product);
     renderLabelPrice(product);
     // Safari re-samples the label bar's invert band late otherwise.
-    window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
+    H.resampleBand(labelBar());
     // The label thumbnail and icon fallback are static images: swap them to the design's icon.
     var view = state.view;
     renderLabelThumb();
@@ -1351,7 +1356,7 @@
     if (!stageEl || !feed || !show) return;
     var room = 0;
     if (!state.flow) {
-      var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var rem = remPx();
       var showTop = show.getBoundingClientRect().top + browsePx();
       var bottom = showTop + feed.offsetTop + feed.offsetHeight;
       room = Math.max(0, bottom - (barsTopPx() - FEED_CLEAR_REM * rem));
@@ -1413,7 +1418,7 @@
       var last = options && !options.hidden && options.children.length ? options : document.querySelector(".product-material");
       room = 0;
       if (last) {
-        var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        var rem = remPx();
         var bottom = last.getBoundingClientRect().bottom + browsePx() + state.lift;
         room = Math.max(0, bottom - (barsTopPx() - DESIGN_CLEAR_REM * rem));
       }
@@ -1538,7 +1543,7 @@
       var titleBar = document.querySelector(".product-detail__label-bar");
       // The model's approximate half-height at its fitted size.
       var half = SPECS_HALF_HEIGHT * box.height;
-      var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      var rem = remPx();
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
       place = Math.max(0, box.top + box.height / 2 + browsed - middle);
       hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
@@ -1620,7 +1625,7 @@
     var blocks = stageEl.querySelectorAll(".product-logistics__block, .product-restart");
     var bar = document.getElementById("productSelectBar");
     if (!state.flow && blocks.length && bar) {
-      var clear = BROWSE_CLEAR_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+      var clear = BROWSE_CLEAR_REM * remPx();
       var bottom = blocks[blocks.length - 1].getBoundingClientRect().bottom + browsePx();
       room = Math.max(0, bottom - (bar.getBoundingClientRect().top - clear));
     }
@@ -1646,20 +1651,24 @@
   var SPECS_GAP_REM = 7.5;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize scales
-  // the model, specs, label and circle to a typed size (none: the base).
-  var SIZE_BASE_MM = 62;
+  // the model, specs and circle to a typed size (none: the base), clamped to
+  // the range; only a size within it goes on the label and prices it.
+  var SIZE_BASE_MM = H.REFERENCE_SIZE_MM;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 80;
   function setModelSize(raw) {
+    var sel = window.EmjiveSelection;
     var mm = parseFloat(raw);
-    var given = window.EmjiveSelection.isValidSize(raw) && isFinite(mm);
+    var given = sel.isValidSize(raw) && isFinite(mm);
     state.sizeFactor = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) / SIZE_BASE_MM : 1;
-    state.sizeText = given ? String(+mm.toFixed(2)) : "";
+    state.sizeText = state.product && sel.isOrderableSize(state.product, raw) ? String(+mm.toFixed(2)) : "";
     if (state.modelHandle) state.modelHandle.setSize(state.sizeFactor);
     if (state.product) {
       renderSpecs();
       renderLabelType(state.product);
       renderLabelPrice(state.product);
+      var field = document.getElementById("productSizeInput");
+      if (field) sel.syncSizeField(field, state.product);
     }
     syncSizeRing();
   }
@@ -1918,14 +1927,15 @@
     var specsFinderToggle = document.getElementById("productSizeFinderToggle");
     specsFinderToggle.hidden = !hasFinder;
     specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize); });
-    // The first time specs comes in, the field starts at the model's size (62).
+    // The first time specs comes in, the field starts at the model's size, within the range.
     state.seedSize = function () {
       state.sizeSeeded = true;
       state.seedSize = null;
       if (specsSize.value !== "") return;
-      specsSize.value = String(SIZE_BASE_MM);
+      specsSize.value = String(clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM));
       setModelSize(specsSize.value);
     };
+    window.EmjiveSelection.syncSizeField(specsSize, product);
     wireSizeRing(specsSize);
     specsSize.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
@@ -1951,13 +1961,19 @@
       }, 80);
     }
 
+    // A size within the product's range: what Add needs.
+    function orderable(input) {
+      return window.EmjiveSelection.isOrderableSize(product, input.value);
+    }
+
     function syncBar() {
       var isOpen = modal.classList.contains("is-open");
       setBarLabel(isOpen ? "Add" : "Select");
       // Add mode gives the bar its own ground (.product-select-bar.is-add).
       selectBar.classList.toggle("is-add", isOpen);
-      var canAct = !isOpen || window.EmjiveSelection.isValidSize(customInput.value);
+      var canAct = !isOpen || orderable(customInput);
       selectBtn.setAttribute("aria-disabled", String(!canAct));
+      window.EmjiveSelection.syncSizeField(customInput, product);
     }
 
     // Written back only when changed, so the caret doesn't jump.
@@ -1971,12 +1987,12 @@
     customInput.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
       e.preventDefault();
-      if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd(true);
+      if (orderable(customInput)) confirmAdd(true);
     });
 
     function openModal() {
-      // Pre-filled from the specs field when it holds a valid size.
-      customInput.value = window.EmjiveSelection.isValidSize(specsSize.value) ? specsSize.value : "";
+      // Pre-filled from the specs field when it holds an orderable size.
+      customInput.value = orderable(specsSize) ? specsSize.value : "";
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();
@@ -1996,9 +2012,9 @@
       window.EmjiveFocusTrap.release(undefined, quiet === true);
     }
 
-    // Reached via Add or Enter, both for a valid size; the guard covers stale callbacks.
+    // Reached via Add or Enter, both for an orderable size; the guard covers stale callbacks.
     function confirmAdd(quiet) {
-      if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
+      if (!orderable(customInput)) return;
       var view = state.view;
       var size = window.EmjiveSelection.normalizeSize(customInput.value);
       var item = {
@@ -2021,7 +2037,7 @@
 
     selectBtn.addEventListener("click", function () {
       if (!modal.classList.contains("is-open")) openModal();
-      else if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd();
+      else if (orderable(customInput)) confirmAdd();
     });
     document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
     // Escape is the focus trap's onEscape.

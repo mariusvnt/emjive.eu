@@ -44,7 +44,7 @@ const HERO = [
   { suffix: "m_lo", crop: PHONE_CROP.hero, height: 810, quality: 72 }
 ];
 // 1600 tall: ~1.9x a phone viewport, indistinguishable from 2160 on these soft
-// x-rays, and 7.3MB decoded instead of 12.7MB.
+// x-rays, and far less memory decoded.
 const HERO_LAYER = [{ suffix: "m", crop: PHONE_CROP.hero, height: 1600, quality: 80 }];
 
 const RULES = [

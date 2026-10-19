@@ -60,8 +60,8 @@ if (when === "eager") {
 
 /* ?mem=1: a memory read-out panel, for phones with no attachable inspector
    (iOS Safari reloads tabs that use too much memory).
-     3D viewers     live WebGL contexts (gallery max 3, product page 1)
-     model arrays   geometry still held as JS arrays; ~0 MB once drawn
+     3D viewers     live WebGL contexts
+     model arrays   geometry still held as JS arrays; near 0 once drawn
      GPU objects    geometries / textures held by live renderers
      Draco workers  0 a few seconds after the last load
      phone images   whether phone picture variants apply, and the window it judged

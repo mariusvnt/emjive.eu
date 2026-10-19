@@ -72,7 +72,7 @@ export { toolkit };
   };
 
   // ---- releasing the Draco workers ----
-  // A worker's WASM heap only grows (the biggest model: 3.9M vertices);
+  // A worker's WASM heap only grows with the models it decodes;
   // terminating an idle one frees it, and DRACOLoader starts a new one on the
   // next decode. Not DRACOLoader.dispose(), which revokes the worker source URL
   // the loader still uses. workerPool is a private field, hence the guard.
@@ -165,8 +165,16 @@ export { toolkit };
     "  gl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.0 ), bpCut * uScanOn );",
     "}"
   ].join("\n");
-  // The largest size the page scales the model to (80 over its base 62): the fit leaves room for it.
-  var BLUEPRINT_SIZE_MAX = 80 / 62;
+
+  // The size factors the page scales a model by: its "size-range" over the
+  // size it's drawn at, and 1 (no size given). The fit leaves room for the largest.
+  function sizeFactors(product) {
+    var range = H.sizeRange(product);
+    return {
+      min: Math.min(1, range.min / H.REFERENCE_SIZE_MM),
+      max: Math.max(1, range.max / H.REFERENCE_SIZE_MM)
+    };
+  }
 
   // { rotation, tilt, zoom, roll } -> radians and a zoom percent (100% exactly
   // frames the bounding sphere). rotation turns around, tilt is up/down (90 =
@@ -284,7 +292,7 @@ export { toolkit };
   var hdrLoadsInFlight = 0;
 
   // three's loaders take no AbortSignal: a stalled request is rejected after
-  // this (generous: a ~4MB model on a slow link) and abandoned.
+  // this (generous: a large model on a slow link) and abandoned.
   var LOAD_TIMEOUT_MS = 90000;
 
   // ---- decoding off the main thread ----
@@ -391,7 +399,7 @@ export { toolkit };
     return hdrSourceCache[src];
   }
 
-  // The decoded HDRI (~4.2MB for 1024x512 half-float RGBA) lives outside the JS
+  // The decoded HDRI (half-float RGBA, several times its file) lives outside the JS
   // heap for the document's life. Released when the page hides or is frozen,
   // when iOS wants the memory; the next viewer re-decodes. Not while loads are
   // in flight: clearing then would only trigger a second decode.
@@ -832,7 +840,7 @@ export { toolkit };
     // options.hitCircle: the margin share of the width around a circle that
     // alone takes drags (0.25: radius three quarters of the viewer's). An overlay
     // clipped to it carries the controls; clip-path clips hit-testing, so presses
-    // outside fall through (to the carousel).
+    // outside fall through (to the page's scrolling).
     var hitEl = null;
     if (typeof options.hitCircle === "number" && !isStatic) {
       hitEl = document.createElement("div");
@@ -879,7 +887,7 @@ export { toolkit };
       });
     }
 
-    // A Draco model decodes to large typed arrays (4MB file, ~120MB decoded) that
+    // A Draco model decodes to typed arrays many times its file's size, which
     // three.js keeps for the geometry's life, though the GPU has its own copy.
     function eachGeometryBuffer(root, visit) {
       root.traverse(function (node) {
@@ -943,6 +951,13 @@ export { toolkit };
     // Set by changes that need a repaint without camera motion (resize, metal
     // swap); consumed once per frame by the animate loop.
     var needsRender = false;
+    // The animate loop's pending frame (startLoop); 0 while stopped.
+    var loopRaf = 0;
+    // Every such change goes through here, which also restarts a stopped loop.
+    function invalidate() {
+      needsRender = true;
+      startLoop();
+    }
     // `controls` is hoisted and assigned before this runs again.
     function applySize(w, h) {
       w = Math.max(1, w);
@@ -954,7 +969,7 @@ export { toolkit };
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       // The render-on-demand loop only redraws on camera motion.
-      needsRender = true;
+      invalidate();
       // A static viewer has no loop, and setSize() just cleared the canvas: redraw,
       // or the harness can screenshot a blank one. Not after dispose or detachment
       // (auto-render clears the page between renders).
@@ -1015,7 +1030,7 @@ export { toolkit };
       var sphere = measureModel();
       frameSphere = sphere.clone();
       framedRadius = sphere.radius * (orbit.radiusPercent / 100);
-      if (fitGroup) needsRender = true;
+      if (fitGroup) invalidate();
       var target = orbit.target || explicitTarget || sphere.center;
       if (orbit.fov !== null && orbit.fov !== camera.fov) {
         camera.fov = orbit.fov;
@@ -1185,7 +1200,7 @@ export { toolkit };
         });
         window.EmjiveMem.cpuGeometryBytes += wireCpuBytes;
         fitGroup.add(wireRoot);
-        needsRender = true;
+        invalidate();
       }, function (err) {
         console.error("emjive: failed to load wireframe", src, err);
       });
@@ -1223,7 +1238,7 @@ export { toolkit };
       }
       fitReach = reach;
       var room = framedRadius * 0.95;
-      fitScale = Math.min(1, room / (reach * BLUEPRINT_SIZE_MAX));
+      fitScale = Math.min(1, room / (reach * sizeFactors(product).max));
     }
 
     var bpCenter = new THREE.Vector3();
@@ -1399,11 +1414,14 @@ export { toolkit };
         nudgePhase = 0;
         nudgePhaseStartTime = performance.now();
         nudgeActive = true;
+        startLoop();
       }, IDLE_NUDGE_DELAY);
     }
 
-    // The spin cancels its own ease back on drag start (createSpin).
+    // The spin cancels its own ease back on drag start (createSpin); the loop
+    // runs for the drag and whatever follows it.
     controls.addEventListener("start", cancelNudge);
+    controls.addEventListener("start", startLoop);
 
     // Our own pointer tracking, not TrackballControls' "start" (any pointerdown),
     // so only a real drag suppresses the nudge.
@@ -1503,7 +1521,7 @@ export { toolkit };
         }
         renderer.render(scene, camera);
         if (!isStatic && !isFreeOrbit) releaseGeometryArrays(modelRoot);
-        needsRender = true;
+        invalidate();
         // Its wireframe once the picks settle, or at once if the sweep is under way.
         if (blueprint) {
           if (blueprintSweep > 0) loadWireframe();
@@ -1528,7 +1546,7 @@ export { toolkit };
         currentMetal = newMetalKey;
         if (modelLoaded) applyMaterial();
         // The render-on-demand loop only redraws on camera motion.
-        needsRender = true;
+        invalidate();
       },
       setCameraOrbit: function (orbitConfig) {
         frameCamera(orbitConfig);
@@ -1547,15 +1565,16 @@ export { toolkit };
         blueprintFit = fit;
         // A swapped model's wireframe still waiting for picks to settle is wanted now.
         if (sweep > 0 && modelLoaded) loadWireframe();
-        needsRender = true;
+        invalidate();
       },
       // The chosen size over the base size; the model scales with it once fitted.
       setSize: function (factor) {
         if (!blueprint) return;
-        factor = Math.max(0.3, Math.min(1.5, Number(factor) || 1));
+        var bounds = sizeFactors(product);
+        factor = H.clamp(Number(factor) || 1, bounds.min, bounds.max);
         if (factor === sizeFactor) return;
         sizeFactor = factor;
-        needsRender = true;
+        invalidate();
       },
       // The cut's screen position (px from the viewer's top) at the model's bottom
       // and top, before the fit; it moves linearly between them with `sweep`. null
@@ -1586,7 +1605,7 @@ export { toolkit };
       returnHome: function () {
         cancelNudge();
         spin.goHome(true);
-        needsRender = true;
+        invalidate();
       },
       // For the page's size circle: the box's reach from the viewer's centre in px
       // at fit 0 and base size, and fitScale. The model's scale at fit f and size
@@ -1608,7 +1627,7 @@ export { toolkit };
         if (paused) {
           cancelNudge();
         } else {
-          needsRender = true;
+          invalidate();
           if (modelLoaded) scheduleIdleNudge();
         }
       },
@@ -1624,6 +1643,7 @@ export { toolkit };
       dispose: function () {
         if (isDisposed) return;
         isDisposed = true;
+        if (loopRaf) cancelAnimationFrame(loopRaf);
         clearTimeout(wireTimer);
         // A loader still waiting has nothing left to wait for.
         if (loadGate) loadGate.done();
@@ -1673,15 +1693,18 @@ export { toolkit };
     // ---- render-on-demand ----
     // The loop updates the camera every frame but draws only when the shown pose
     // differs by more than a sub-pixel angle, or needsRender is set: an idle
-    // viewer otherwise redraws identical pixels 60+ times a second.
+    // viewer otherwise redraws identical pixels 60+ times a second. It stops
+    // once nothing moves (no drag, coast, pause, ease back, nudge or draw) and
+    // while paused or still loading; startLoop() brings it back: invalidate(),
+    // a drag's start, the nudge's timer.
     //
-    // That is only safe while the canvas keeps its last frame. Without
-    // preserveDrawingBuffer the browser may discard it, and iOS Safari does
-    // (memory pressure, backgrounding, bfcache restore) with no context loss
-    // event, leaving a settled viewer blank. So each such occasion flags a
-    // repaint, through the loop (rAF is paused when these fire).
+    // Drawing on demand is only safe while the canvas keeps its last frame.
+    // Without preserveDrawingBuffer the browser may discard it, and iOS Safari
+    // does (memory pressure, backgrounding, bfcache restore) with no context
+    // loss event, leaving a settled viewer blank. So each such occasion flags a
+    // repaint.
     function requestRepaint() {
-      needsRender = true;
+      invalidate();
     }
     // Tab or app return (firing on the way out too is harmless).
     addGlobalListener(document, "visibilitychange", requestRepaint);
@@ -1700,13 +1723,14 @@ export { toolkit };
     // so a release registers as settled (arming the ease back) before drawing stops.
     var STILL_ANGLE_EPSILON = 1e-4;
 
+    // Returns whether it drew.
     function drawIfChanged() {
       currentEye.copy(camera.position).sub(controls.target).normalize();
       var changed = needsRender ||
                     !hasRenderedOnce ||
                     currentEye.angleTo(renderedEye) > STILL_ANGLE_EPSILON ||
                     camera.up.angleTo(renderedUp) > STILL_ANGLE_EPSILON;
-      if (!changed) return;
+      if (!changed) return false;
 
       needsRender = false;
       hasRenderedOnce = true;
@@ -1714,22 +1738,28 @@ export { toolkit };
       renderedUp.copy(camera.up);
       if (blueprint) updateBlueprint();
       renderer.render(scene, camera);
+      return true;
     }
 
     // Started by rAF, not called: every frame needs rAF's timestamp for its dt.
-    requestAnimationFrame(function animate(now) {
-      if (isDisposed) return; // torn down: stop for good
-      requestAnimationFrame(animate);
+    function startLoop() {
+      if (isStatic || isDisposed || loopRaf) return;
+      loopRaf = requestAnimationFrame(animate);
+    }
 
-      // Measured dt, clamped so a resumed tab doesn't apply minutes of decay at once.
+    function animate(now) {
+      loopRaf = 0;
+      if (isDisposed) return;
+
+      // Measured dt, clamped so a resumed tab doesn't apply minutes of decay at
+      // once; a restarted loop's first frame takes REF_DT.
       var dt = lastFrameTime === null ? REF_DT : Math.min((now - lastFrameTime) / 1000, 1 / 15);
       lastFrameTime = now;
 
-      // Paused (out of sight): nothing moves or draws.
-      if (viewerPaused) return;
-
-      if (!modelLoaded) {
-        return; // the poster is showing
+      // Paused (out of sight), or the poster still showing: stopped until invalidate().
+      if (viewerPaused || !modelLoaded) {
+        lastFrameTime = null;
+        return;
       }
 
       if (nudgeActive) {
@@ -1765,8 +1795,11 @@ export { toolkit };
         spin.step(dt);
       }
 
-      drawIfChanged();
-    });
+      var drew = drawIfChanged();
+      if (nudgeActive || spin.isBusy() || drew || needsRender) loopRaf = requestAnimationFrame(animate);
+      else lastFrameTime = null;
+    }
+    startLoop();
 
     return handle;
   }
@@ -1824,7 +1857,8 @@ export { toolkit };
   // stand-in camera on the product's default orbit, one unit out, driven by a
   // drag on hitEl through createSpin, and idling (setIdle) with a slow turn.
   // The model shows that camera's view when turned by the inverse of `quaternion`.
-  function spinFor(product, hitEl) {
+  // onActive(): a drag started, so the caller's stopped loop should run again.
+  function spinFor(product, hitEl, onActive) {
     var pose = defaultPose(product && product["3d-viewer-camera-default"]);
     var camera = new THREE.PerspectiveCamera();
     camera.position.copy(pose.eyeDir);
@@ -1845,7 +1879,10 @@ export { toolkit };
       home: function () { return home; },
       onHome: function () { if (idleOn) armIdle(); }
     });
-    function onDragStart() { idleAt = Infinity; }
+    function onDragStart() {
+      idleAt = Infinity;
+      if (onActive) onActive();
+    }
     controls.addEventListener("start", onDragStart);
 
     function step(dt) {
@@ -1868,6 +1905,10 @@ export { toolkit };
       step: step,
       // Not at rest: dragging, coasting, waiting or easing home.
       isBusy: spin.isBusy,
+      // Needs frames: busy, or idling (the turn, or its delay) outside reduced motion.
+      wantsFrames: function () {
+        return spin.isBusy() || (idleOn && !reducedMotion.matches);
+      },
       // Only the focused model answers drags on the shared hitEl.
       setEnabled: function (on) { controls.enabled = !!on; },
       // The focused model idles; one losing focus goes home.

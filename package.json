@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "validate-data": "node scripts/validate-data.js",
     "check-dist": "node scripts/check-dist.js",
     "verify": "npm run lint && npm run docs-index -- --check && npm run validate-data && npm run build && npm run check-dist",

@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
 
-const { ROOT, PHONE_QUERY, exitOnProblems } = require("./helpers");
+const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, exitOnProblems } = require("./helpers");
 
 const problems = [];
 
@@ -284,7 +284,7 @@ const productSchema = {
     category: str,
     description: str,
     "default-metal": str,
-    // Price at the reference size (62 mm), scaled linearly with size.
+    // Price at the reference size (REFERENCE_SIZE_MM), scaled linearly with size.
     "per-metal-specs": {
       type: "object",
       additionalProperties: {
@@ -627,6 +627,13 @@ if (index && existsExactCase("js/series.js")) {
       }
     }
   }
+}
+
+// The reference size prices are given at, in js/helpers.js and scripts/helpers.js.
+if (existsExactCase("js/helpers.js")) {
+  const match = /\bREFERENCE_SIZE_MM = (\d+(?:\.\d+)?);/.exec(fs.readFileSync(path.join(ROOT, "js/helpers.js"), "utf8"));
+  if (!match) fail("js/helpers.js", "no REFERENCE_SIZE_MM = <number>; found (validate-data compares it with scripts/helpers.js)");
+  else if (Number(match[1]) !== REFERENCE_SIZE_MM) fail("js/helpers.js", "REFERENCE_SIZE_MM is " + match[1] + " but scripts/helpers.js has " + REFERENCE_SIZE_MM);
 }
 
 checkPhoneConstants("css/style.css", { "xray-crop": PHONE_CROP.xray });

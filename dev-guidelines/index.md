@@ -9,40 +9,38 @@ The repo's structure, generated from the code. Each description is the first sen
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
 - [archives.html](../archives.html) — Archives (/archives): every series across the brand's lifetime.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [creation-process.html](../creation-process.html) — Creation process (/creation-process).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [index.html](../index.html) — The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the list.
-  - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #products
 - [json-tool.html](../json-tool.html) — Dev-only page (not built), served by scripts/json-tool-server.js (npm run json-tool): edit data/series.json's globals, series and products, with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray, photos).
   - scripts: js/helpers.js (blocking), inline (module)
   - landmarks: #panel-global, #panel-series, #panel-products
 - [launch-order.html](../launch-order.html) — The order page (/launch-order): the selection's checkout review, up to a "Proceed to checkout" stub.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
   - landmarks: #main
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product, and the landing for legacy ?id= links.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productPrinting
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the metal's shader live, then save the ticked parts (HDRI, camera, shader).
   - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
   - landmarks: #hdriSection, #cameraSection, #shaderSection, #saveSection
 - [series.html](../series.html) — A series' design manifest (/series?series=<slug>).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #seriesManifest
 - [terms.html](../terms.html) — Terms and conditions (/terms).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - **[css/](../css/)** — The site's one stylesheet.
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a series' hero.css is injected after it.
     - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Series hero slots · Section heads · Products · Content pages (archives, creation process, series manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
 - **[js/](../js/)** — Client scripts: classic scripts talking through window.Emjive* globals, and the ES modules of the 3D layer.
-  - [carousel.js](../js/carousel.js) — Drag carousel for product.html and the Modify sheet.
-    - sets `EmjiveCarousel`
   - [focus-trap.js](../js/focus-trap.js) — Modal focus trap and page lock for the bottom sheets (#sizeModal, #modifyModal, the size finder): window.EmjiveFocusTrap.
     - sets `EmjiveFocusTrap` { activate, release, isActive, focus }
   - [gallery-stack.js](../js/gallery-stack.js) — The homepage wheel (index.html, "stack" in code).
@@ -51,29 +49,28 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor }
+    - sets `EmjiveHelpers` { el, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, thumbSrc, setThumb, preload, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
-    - sets `EmjiveLoader` { mount, cover, coverWithin, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
+    - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
   - [metal-picker.js](../js/metal-picker.js) — Metal picker: one swatch square per metal, a dot on the selected one, its name beside it.
     - sets `EmjiveMetalPicker` { mount }
   - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by tapping a row in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
-    - sets `EmjiveModifyModal` { open, openSelect, isOpen, attach }
+    - sets `EmjiveModifyModal` { open, isOpen, attach }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
-    - sets `EmjiveOrderRows` { create, preload, resampleBand, notice }
+    - sets `EmjiveOrderRows` { create, notice }
   - [product-stages.js](../js/product-stages.js) — The product page's three-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (model, metal, design options) -> specs (blueprint model, size, dimensions, costs).
     - sets `EmjiveProductStages` { mount, screenPx, entry }
   - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, photo feed, model, metal picker, design options, specs and the selection flow across the three stages js/product-stages.js drives, handling what CSS can't (the model's blueprint sweep, its rise into specs, the feed's room).
   - [scroll-memory.js](../js/scroll-memory.js) — Homepage scroll memory (index.html only): Back returns to the exact offset on the first painted frame.
     - sets `EmjiveScrollMemory` { isRestoring, holdUntil, landing, remember, rememberWheel, wheel, contentReady }
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (or "No selected item") and "Order (N) ›".
-    - sets `EmjiveSelectionBar` { openSelect }
   - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js; a tap opens the Modify sheet), shipping pick, terms toggle, and a "Proceed to checkout" bar gated on both.
   - [selection.js](../js/selection.js) — The selection (cart), in localStorage: window.EmjiveSelection.
-    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, formatPriceFrom, formatPriceRange, REFERENCE_SIZE_MM, sizeRange, priceAt, priceRange, sanitizeSizeInput, normalizeSize, isValidSize, appendSize, itemKey, singleChange }
+    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, formatPriceFrom, formatPriceRange, priceAt, priceRange, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
   - [series-page.js](../js/series-page.js) — series.html: fills the requested series' title, year and subtitle from its manifest.
   - [series.js](../js/series.js) — Series resolution (window.EmjiveSeries), plus the page-wide helpers every page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage hero bundle loader.
-    - sets `EmjiveHero` { onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
+    - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
     - sets `EmjiveMenus` { opened, closed }
     - sets `EmjiveMessage` { show }
     - sets `EmjiveSeries` { index, metals, hdris, slug, series, ready, categories, categoryInfo, hdriPath, all, get, featuredSlug, isFeatured, loadProducts, loadManifest, mainHref, manifestHref, productHref, productSlug, resolveDesign, requestedSlug }
@@ -124,7 +121,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the series.json preload, noindex pages, link preview images, per-item pages, clean URLs and the sitemap.
   - [docs-index.js](../scripts/docs-index.js) — Generates dev-guidelines/index.md: the repo's tree down to each file's public surface, described by the code's own header comments.
   - [helpers.js](../scripts/helpers.js) — Shared helpers for the Node tooling (scripts/ and vite.config.js): the repo's paths and constants, file and argument plumbing, catalog lookups and drift checks, the glTF reader, and the dev tools' loopback server.
-    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
+    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
   - [json-tool-blocks.js](../scripts/json-tool-blocks.js) — Pure text helpers for the tools that edit the data files (no fs/http): inserting, patching and removing entries in hand-aligned JSON without re-serializing, and rendering whole product/series blocks in canonical formatting.
     - exports `esc`, `num`, `geometryLine`, `insertBeforeArrayClose`, `insertBeforeObjectClose`, `appendToInlineStringArray`, `updateTopLevelScalarInText`, `updateObjectEntryInText`, `removeObjectEntryInText`, `removeFromInlineStringArray`, `updateSeriesFieldInText`, `anchoredSpan`, `replaceInSpan`, `findBlockSpanByAnchor`, `findProductBlockSpan`, `replaceProductBlockInText`, `removeArrayEntryInText`, `removeProductBlockInText`, `removeSeriesBlockInText`, `renderProductBlock`, `renderSeriesBlock`
   - [json-tool-server.js](../scripts/json-tool-server.js) — Dev server for json-tool.html (npm run json-tool): edits data/series.json's globals, series and products, and files dropped hand-owned assets (model, x-ray, photos) into the right folders.
@@ -161,13 +158,12 @@ The `window.Emjive*` names the classic scripts publish to each other.
 
 | Global | Set by | Read by |
 | --- | --- | --- |
-| `EmjiveCarousel` | `js/carousel.js` | `js/modify-modal.js` |
 | `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
 | `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
-| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/carousel.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/metal-picker.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js` |
+| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/metal-picker.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js` |
 | `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/selection-bar.js`, `series/bones/hero.js` |
-| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/carousel.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
+| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |
 | `EmjiveLoadViewer` | `js/viewer-entry.js` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `EmjiveMem` | `js/stack-scene.js`, `js/three-viewer.js` | `js/viewer-entry.js` |
@@ -176,11 +172,10 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveMetalPicker` | `js/metal-picker.js` | `js/modify-modal.js`, `js/product.js` |
 | `EmjiveModelViewer` | `js/three-viewer.js` | `scene-tool.html`, `js/modify-modal.js`, `js/product.js`, `js/viewer-entry.js`, `scripts/auto-render.js` |
 | `EmjiveModifyModal` | `js/modify-modal.js` | `js/selection-bar.js`, `js/selection-page.js` |
-| `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js` |
+| `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `series/bones/hero.js` |
 | `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
-| `EmjiveSelectionBar` | `js/selection-bar.js` | — |
 | `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/three-viewer.js` |
 | `EmjiveSeriesHero` | `series/bones/hero.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/series.js` |
 | `EmjiveSizeFinder` | `js/size-finder.js` | `js/modify-modal.js`, `js/product.js` |
@@ -199,6 +194,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | `emjive:modify-close` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:modify-open` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:pageready` | `js/gallery-stack.js`, `js/loader.js`, `js/viewer-entry.js` |
+| `emjive:restore-end` | `js/gallery.js`, `js/loader.js`, `js/scroll-memory.js` |
 | `emjive:scroll:` | `js/scroll-memory.js` |
 | `emjive:selection-changed` | `js/selection-bar.js`, `js/selection-page.js`, `js/selection.js` |
 
@@ -209,7 +205,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | `dev` | `vite` |
 | `build` | `vite build` |
 | `preview` | `vite preview` |
-| `lint` | `eslint .` |
+| `lint` | `eslint . --max-warnings 0` |
 | `validate-data` | `node scripts/validate-data.js` |
 | `check-dist` | `node scripts/check-dist.js` |
 | `verify` | `npm run lint && npm run docs-index -- --check && npm run validate-data && npm run build && npm run check-dist` |

@@ -383,7 +383,7 @@ button, input, textarea {
 }
 /* With options.hitCircle only a centred circle takes drags (an overlay
    clipped to --hit-r; clip-path clips hit-testing); the rest belongs to the
-   carousel and the page's touch scrolling. */
+   page's touch scrolling. */
 .emjive-3d-viewer.has-hit-circle {
   touch-action: inherit;
   cursor: inherit;
@@ -2441,84 +2441,6 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   }
 }
 
-/* ---- the carousel (the Modify sheet's) ----
-   Built by js/modify-modal.js, paged by js/carousel.js: a free-drag strip of
-   --tile squares, resting on the first slide centred. */
-.product-carousel-frame {
-  position: relative;
-  width: 100vw;
-  container-type: inline-size;
-  --tile: min(560px, 100cqw - 4rem);
-}
-/* A single slide needs no room for a peek. */
-.product-carousel-frame.product-carousel--single {
-  --tile: min(560px, 100cqw);
-}
-.product-carousel {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-}
-.product-carousel__viewport {
-  position: relative;
-  z-index: 1;
-  overflow: hidden;
-  height: var(--tile);
-  width: 100%;
-  background: transparent;
-  cursor: grab;
-  touch-action: pan-y;
-}
-.product-carousel--single .product-carousel__viewport {
-  cursor: default;
-}
-.product-carousel__viewport:active { cursor: grabbing; }
-.product-carousel--single .product-carousel__viewport:active {
-  cursor: default;
-}
-/* Its real total width, which js/carousel.js measures. */
-.product-carousel__track {
-  display: flex;
-  height: 100%;
-  width: max-content;
-  /* Its own layer, so glides run on the compositor. */
-  will-change: transform;
-}
-.product-carousel__slide {
-  flex: 0 0 var(--tile);
-  width: var(--tile);
-  height: var(--tile);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-/* contain: photos uncropped. */
-.product-carousel__slide > img,
-.product-carousel__slide .emjive-3d-viewer {
-  width: 100%;
-  height: 100%;
-}
-.product-carousel__slide > img {
-  object-fit: contain;
-}
-/* Backs up js/carousel.js's native image-drag guard, and stops drag text selection. */
-.product-carousel__slide > img {
-  -webkit-user-drag: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-/* Smaller than the slide: a drag on the model turns it, elsewhere it pages. */
-.product-carousel__slide--model .emjive-3d-viewer {
-  width: 75%;
-  height: 75%;
-}
-@media (max-width: 640px) {
-  .product-carousel__slide--model .emjive-3d-viewer {
-    width: 66%;
-    height: 66%;
-  }
-}
 
 /* Under the model, one column of label | value tables (--label-col,
    --label-gap): the design options in design; size, picker, printing, costs,
@@ -3328,7 +3250,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal--drawer.is-open .size-modal__sheet {
   pointer-events: auto;
 }
-/* The panel and the Modify sheet's carousel slide as one unit on this wrapper. */
+/* The panel and the Modify sheet's model frame slide as one unit on this wrapper. */
 .size-modal__sheet { width: 100%; }
 .size-modal--drawer .size-modal__sheet {
   transform: translateY(100%);
@@ -3370,7 +3292,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin: 0 auto;
   padding: 2rem var(--edge-px) 0;
 }
-/* Double the sheet's other gaps, setting the carousel apart. */
+/* Double the sheet's other gaps, setting the model frame apart. */
 .size-modal--modify .size-modal__content {
   padding-top: 3rem;
 }
@@ -3898,22 +3820,56 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   pointer-events: none;
 }
 
-/* ---- the Modify sheet's carousel ----
-   product.html's carousel markup (js/modify-modal.js), so js/carousel.js and
-   the slide rules apply. --mini-tile is on the modal so the panel's height
-   budget can subtract it. */
+/* ---- the Modify sheet's model frame ----
+   A --mini-tile square slot centred in a full-width frame (js/modify-modal.js),
+   holding the model's slide. --mini-tile is on the modal so the panel's
+   height budget can subtract it. */
 .size-modal--modify {
   --mini-tile: min(240px, 50vw);
 }
 /* Its top half sticks out above the sheet: only the frame's lower half is
-   painted (::after, behind the slides). Doubled class to beat
-   .product-carousel--single's --tile; isolation keeps ::after's z-index in the frame. */
-.size-modal__carousel.size-modal__carousel {
+   painted (::after, behind the slot); isolation keeps ::after's z-index in the frame. */
+.size-modal__frame {
+  position: relative;
   width: 100%;
-  --tile: var(--mini-tile);
   isolation: isolate;
 }
-.size-modal__carousel::after {
+.size-modal__slot {
+  position: relative;
+  z-index: 1;
+  width: var(--mini-tile);
+  height: var(--mini-tile);
+  margin: 0 auto;
+}
+.size-modal__slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* contain: the icon uncropped; never dragged as an image or selected. */
+.size-modal__slide > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Smaller than the slot. */
+.size-modal__slide--model .emjive-3d-viewer {
+  width: 75%;
+  height: 75%;
+}
+@media (max-width: 640px) {
+  .size-modal__slide--model .emjive-3d-viewer {
+    width: 66%;
+    height: 66%;
+  }
+}
+.size-modal__frame::after {
   content: "";
   position: absolute;
   left: 0;
@@ -3923,21 +3879,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   z-index: -1;
   background: var(--bg);
 }
-/* The transparent band beside the slides must close the sheet like the
-   backdrop: the sheet and frame take no hits, only the track (exactly the
-   slides), the painted half and the panel do. Ties with
-   .size-modal--drawer.is-open's sheet rule, so it comes after.
-   js/carousel.js captures drags on the track for this reason. */
+/* The transparent band beside the slot must close the sheet like the
+   backdrop: the sheet and frame take no hits, only the slot, the painted
+   half and the panel do. Ties with .size-modal--drawer.is-open's sheet rule,
+   so it comes after. */
 .size-modal--modify.is-open .size-modal__sheet,
-.size-modal__carousel {
+.size-modal__frame {
   pointer-events: none;
 }
-.size-modal__carousel .product-carousel__track,
-.size-modal__carousel::after,
+.size-modal__slot,
+.size-modal__frame::after,
 .size-modal--modify.is-open .size-modal__panel {
   pointer-events: auto;
 }
-/* The carousel comes out of the panel's height budget, or it could leave the top of a short screen. */
+/* The frame comes out of the panel's height budget, or it could leave the top of a short screen. */
 .size-modal--modify .size-modal__panel {
   max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
 }
@@ -3977,15 +3932,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .size-modal__page-toggle:hover { opacity: 0.6; }
 }
 /* The model's stand-in during the slide-in: its poster, sized like the viewer
-   and placed like the viewer's poster, so the swap moves nothing. Not a
-   .emjive-3d-viewer, so a drag on it pages instead of turning nothing. */
-.product-carousel__slide--model .size-modal__model-poster {
+   and placed like the viewer's poster, so the swap moves nothing. */
+.size-modal__slide--model .size-modal__model-poster {
   position: relative;
   width: 75%;
   height: 75%;
 }
 @media (max-width: 640px) {
-  .product-carousel__slide--model .size-modal__model-poster {
+  .size-modal__slide--model .size-modal__model-poster {
     width: 66%;
     height: 66%;
   }
@@ -4213,15 +4167,6 @@ body.has-series-hero .selection-bar {
 }
 .selection-bar__rows { display: flex; flex-direction: column; padding-top: 1.5rem; }
 
-/* ---- the preview line ----
-   In the Modify sheet's Select mode, the row the item will be, following its
-   picks, opening on the drawer's transition (published in
-   --selection-bar-live-height). Visual only: inert and aria-hidden. */
-.selection-bar__preview {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-}
 /* The drawer's rows are .order-item.order-item--drawer, on the drawer's --black-bg. */
 
 /* ==== Modify strip ====
@@ -4277,7 +4222,6 @@ body.has-series-hero .selection-bar {
 }
 .modify-strip__save,
 .modify-strip__unselect,
-.modify-strip__select,
 .order-item__undo-button {
   position: absolute;
   top: 0;
@@ -4318,22 +4262,6 @@ body.has-series-hero .selection-bar {
   padding-left: var(--inset);
   color: var(--white);
 }
-/* Select mode (openSelect): one button and band across the strip, dimmed while the size isn't orderable. */
-.modify-strip__select {
-  left: 0;
-  right: 0;
-  color: var(--white);
-}
-.modify-strip__select:disabled { cursor: default; }
-.modify-strip__select:disabled .modify-strip__label { opacity: 0.35; }
-.modify-strip:not(.is-select) .modify-strip__select,
-.modify-strip.is-select .modify-strip__unselect,
-.modify-strip.is-select .modify-strip__save {
-  display: none;
-}
-.modify-strip.is-select .modify-strip__band {
-  width: 100%;
-}
 /* As .order-item::before: a 1.2rem invert band, centred, over Save's area,
    painted over the labels; takes no taps. */
 .modify-strip__band {
@@ -4357,26 +4285,22 @@ body.has-series-hero .selection-bar {
   transition: width var(--fade-standard) ease, opacity var(--fade-quick) ease var(--fade-standard);
 }
 .modify-strip.is-saved .modify-strip__unselect,
-.modify-strip.is-saved .modify-strip__save,
-.modify-strip.is-saved .modify-strip__select {
+.modify-strip.is-saved .modify-strip__save {
   pointer-events: none;
 }
 .modify-strip.is-saved .modify-strip__unselect .modify-strip__label,
-.modify-strip.is-saved .modify-strip__save .modify-strip__label,
-.modify-strip.is-saved .modify-strip__select .modify-strip__label {
+.modify-strip.is-saved .modify-strip__save .modify-strip__label {
   opacity: 0;
 }
 /* The buttons' half of the staggered show and hide: full shorthands, after
    the .is-saved rules, so they win whatever internal transition is running. */
 .modify-strip__unselect,
-.modify-strip__save,
-.modify-strip__select {
+.modify-strip__save {
   opacity: 1;
   transition: opacity var(--fade-fast) ease var(--fade-fast);
 }
 .modify-strip.is-hidden .modify-strip__unselect,
-.modify-strip.is-hidden .modify-strip__save,
-.modify-strip.is-hidden .modify-strip__select {
+.modify-strip.is-hidden .modify-strip__save {
   opacity: 0;
   transition: opacity var(--fade-fast) ease;
 }
@@ -4443,7 +4367,6 @@ input:focus-visible,
    outrank the lists above. */
 .modify-strip .modify-strip__save:focus-visible,
 .modify-strip .modify-strip__unselect:focus-visible,
-.modify-strip .modify-strip__select:focus-visible,
 .order-item .order-item__undo-button:focus-visible {
   position: absolute;
   outline: var(--focus-ring-inverted);

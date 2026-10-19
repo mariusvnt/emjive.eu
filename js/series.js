@@ -15,9 +15,20 @@
   var activeSlug = null;
   var activeSeries = null;
 
-  // Memoized per slug: the gallery and the hero share one request.
+  // Memoized per slug: the gallery and the hero share one request. A failure
+  // is evicted, so a later call retries.
   var productCache = {};
   var manifestCache = {};
+
+  function memoized(cache, slug, load) {
+    if (!cache[slug]) {
+      cache[slug] = load().catch(function (err) {
+        delete cache[slug];
+        throw err;
+      });
+    }
+    return cache[slug];
+  }
 
   function queryParam(name) {
     return new URLSearchParams(window.location.search).get(name);
@@ -78,19 +89,17 @@
   function loadProducts(slug) {
     var entry = get(slug);
     if (!entry) return Promise.reject(new Error("Unknown series: " + slug));
-    if (!productCache[slug]) {
-      productCache[slug] = fetchJson(entry.products).then(function (data) {
+    return memoized(productCache, slug, function () {
+      return fetchJson(entry.products).then(function (data) {
         return data.products || [];
       });
-    }
-    return productCache[slug];
+    });
   }
 
   function loadManifest(slug) {
     var entry = get(slug);
     if (!entry) return Promise.reject(new Error("Unknown series: " + slug));
-    if (!manifestCache[slug]) manifestCache[slug] = fetchJson(entry.manifest);
-    return manifestCache[slug];
+    return memoized(manifestCache, slug, function () { return fetchJson(entry.manifest); });
   }
 
   // Addresses: /gallery, /series?series=<slug>, and /<item slug> flat at the
@@ -170,8 +179,17 @@
   // How the wheel plays that progress (part of it may only turn the wheel), so
   // the hero keeps pace: mapStage(p), identity when unset.
   var heroStageMap = null;
+  // The hero's layout changed (its stylesheet landed, a resize, the rings
+  // placed), never per scroll: js/gallery-stack.js re-measures on it.
+  var heroLayoutSubscribers = [];
 
   window.EmjiveHero = {
+    onLayout: function (fn) {
+      if (typeof fn === "function") heroLayoutSubscribers.push(fn);
+    },
+    publishLayout: function () {
+      for (var i = 0; i < heroLayoutSubscribers.length; i++) heroLayoutSubscribers[i]();
+    },
     onScroll: function (fn) {
       if (typeof fn === "function") heroScrollSubscribers.push(fn);
     },

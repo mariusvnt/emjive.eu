@@ -3,5 +3,5 @@ dist/
 .DS_Store
 .claude/settings.local.json
 
-# Print models (~300MB, not served by the site)
+# Print models (large, not served by the site)
 *.stl

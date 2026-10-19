@@ -1,20 +1,21 @@
 // Vite config: a multi-page build made deployable on a plain static host. Adds
 // the verbatim copy of what the build can't trace, the <head> fixes, load hints,
-// the sitemap, one page and link preview per item, clean URLs in dev and
-// preview, and the dropped decoder copies.
+// the sitemap, one page, link preview and structured data per item, clean URLs
+// in dev and preview, and the dropped decoder copies.
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
 import sharp from "sharp";
 import { slugify } from "./scripts/slugs.js";
-import { SITE_ORIGIN, PHONE_QUERY, readJson } from "./scripts/helpers.js";
+import { SITE_ORIGIN, PHONE_QUERY, readJson, priceSpan } from "./scripts/helpers.js";
 
 // Vite only ships what it can trace, and most of this site's assets are named
 // in runtime data (products.json, series.json, hero bundles), while classic
 // <script>s aren't bundled or copied at all. So assets/, data/, js/ and
 // series/ are copied verbatim after the build (closeBundle), minus:
-//   assets/fonts/            Vite emits hashed copies from the @font-face and preload references
+//   assets/hdri/ unused      the HDRIs no series uses (unusedHdris)
+//   assets/fonts/           Vite emits hashed copies from the @font-face and preload references
 //   assets/hand_normal.webp  unused
 //   logos, the pointer SVG, metal-sample_*.webp
 //                            traced from HTML and CSS, so Vite emits hashed copies
@@ -37,8 +38,16 @@ const NEVER_COPY = [
   resolve(__dirname, "js", "stack-scene.js")
 ];
 
-// Print models (~300MB) are for the printer, not visitors; check-dist fails if one ships.
+// Print models are large and for the printer, not visitors; check-dist fails if one ships.
 const PRINT_MODEL = /\.stl$/i;
+
+// data/series.json "hdris" also lists the tools' alternatives: only the ones
+// a series uses ship.
+function unusedHdris() {
+  const index = readJson("data/series.json");
+  const used = new Set(index.series.map((s) => index.hdris[s.hdri]).filter(Boolean));
+  return Object.values(index.hdris).filter((p) => !used.has(p)).map((p) => resolve(__dirname, p));
+}
 
 // The verbatim-copied scripts and hero CSS in dist/ (not Vite's own bundles in dist/assets/).
 function* distFilesToMinify(distDir) {
@@ -77,12 +86,13 @@ function copyFilesVitesBuildCantTrace() {
   return {
     name: "copy-files-vites-build-cant-trace",
     async closeBundle() {
+      const skip = NEVER_COPY.concat(unusedHdris());
       for (const dir of ["assets", "data", "js", "series"]) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
           cpSync(src, resolve(__dirname, "dist", dir), {
             recursive: true,
-            filter: (from) => !NEVER_COPY.includes(from) && !PRINT_MODEL.test(from)
+            filter: (from) => !skip.includes(from) && !PRINT_MODEL.test(from)
           });
         }
       }
@@ -250,10 +260,32 @@ function previewCard(background, layer) {
 
 const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
+// The item as schema.org Product data, for search results: its offers are the
+// price span over metals and sizes (priceSpan), left out while it's TBD.
+function productStructuredData(product, url, image) {
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description || undefined,
+    url,
+    image,
+    category: product.category,
+    brand: { "@type": "Brand", name: "em·ji·ve" }
+  };
+  const span = priceSpan(product);
+  if (span) data.offers = { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: span.low, highPrice: span.high, url };
+  // "<" escaped, so no text in the data can close the <script>.
+  return '<script type="application/ld+json">' + JSON.stringify(data).replace(/</g, "\\u003c") + "</script>";
+}
+
+const escapeText = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
 // One real page per item, dist/<slug>.html: the built product.html with the
-// item's own title, description, canonical and social tags, so link previews
-// and non-JS crawlers see the item. js/product.js still finds the product
-// from the address. product.html stays as the template and the landing for
+// item's own title, description, canonical and social tags, its name and
+// description in the markup, and its structured data, so link previews and
+// non-JS crawlers see the item. js/product.js still finds the product from
+// the address. product.html stays as the template and the landing for
 // legacy ?id= links. After the bundle is written (closeBundle); every
 // rewritten tag must exist in the template, or the build throws.
 function emitItemPages() {
@@ -313,6 +345,14 @@ function emitItemPages() {
         if (featured && series.slug !== featured.slug) {
           html = html.split('href="' + featured.products + '"').join('href="' + series.products + '"');
         }
+        // The name and description js/product.js would write, already in the markup.
+        html = swap(html, /<span class="product-detail__label-name" id="productLabelName"><\/span>/, '<span class="product-detail__label-name" id="productLabelName">' + escapeText(name) + "</span>", "#productLabelName");
+        if (product.description) {
+          html = swap(html, /<p class="product-detail__description" id="productDescription" hidden><\/p>/, '<p class="product-detail__description" id="productDescription">' + escapeText(product.description) + "</p>", "#productDescription");
+        }
+        // At the body's end: check-dist wants js/helpers.js as the first classic <script>.
+        const previewImage = poster ? SITE_ORIGIN + "/assets/previews/" + slug + ".jpg" : SITE_ORIGIN + "/preview.jpg";
+        html = swap(html, /<\/body>/, productStructuredData(product, url, previewImage) + "\n</body>", "</body>");
         writeFileSync(join(distDir, slug + ".html"), html);
       }
     }
@@ -345,7 +385,7 @@ function cleanUrls() {
 }
 
 // three's DRACOLoader references its bundled decoder via new URL(...,
-// import.meta.url), so Vite emits ~1.26MB of decoder files the site never
+// import.meta.url), so Vite emits decoder files the site never
 // requests: js/three-viewer.js points setDecoderPath at assets/draco/. Dropped
 // from the bundle; if that decoder path ever goes, this must go too.
 function dropUnusedDracoDecoderCopies() {
@@ -374,7 +414,7 @@ export default defineConfig({
     emitItemPages()
   ],
   build: {
-    // Just above the lazy three.js chunk (~645kB, ~168kB gzipped), so the warning
+    // Just above the lazy three.js chunk, so the warning
     // still flags any other chunk growing that large.
     chunkSizeWarningLimit: 700,
     rollupOptions: {

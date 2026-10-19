@@ -21,6 +21,10 @@ const SITE_ORIGIN = "https://emjive.eu";
 // css/style.css and series/<slug>/hero.css (validate-data checks).
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
+// The size, in mm, per-metal prices are given for; must match js/helpers.js
+// (validate-data checks).
+const REFERENCE_SIZE_MM = 62;
+
 /* ---- files ---- */
 
 // A repo-relative path, or an absolute one.
@@ -75,6 +79,22 @@ function folderSlug(name) {
 // convention), not from wherever its files sit.
 function productFolder(seriesSlug, name, category) {
   return "assets/series/" + seriesSlug + "/products/" + folderSlug(name) + "_" + category;
+}
+
+// A product's lowest and highest price over its priced metals and its
+// "size-range", in whole euros, as js/selection.js priceAt() computes them;
+// null when no metal is priced (TBD).
+function priceSpan(product) {
+  const range = product["size-range"];
+  const at = (base, mm) => Math.round(base * mm / REFERENCE_SIZE_MM);
+  let low = Infinity;
+  let high = 0;
+  for (const specs of Object.values(product["per-metal-specs"] || {})) {
+    if (!(specs.price > 0)) continue;
+    low = Math.min(low, at(specs.price, range.min));
+    high = Math.max(high, at(specs.price, range.max));
+  }
+  return high > 0 ? { low, high } : null;
 }
 
 function isSwatchCamera(camera) {
@@ -249,6 +269,7 @@ module.exports = {
   SERIES_JSON_PATH,
   SITE_ORIGIN,
   PHONE_QUERY,
+  REFERENCE_SIZE_MM,
   readJson,
   repoPath,
   walk,
@@ -258,6 +279,7 @@ module.exports = {
   findSeriesEntry,
   folderSlug,
   productFolder,
+  priceSpan,
   isSwatchCamera,
   catalogDrift,
   gltfIO,

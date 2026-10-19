@@ -83,12 +83,19 @@
     window.EmjiveHero.publishScroll(1e6, true);
   }
 
+  // The next updateReveal() also tells the wheel the layout changed (EmjiveHero.publishLayout).
+  var layoutChanged = false;
+
   function updateReveal() {
     revealTicking = false;
     if (isSkipped() || awaitingEnd) {
       showEnd();
+      announceLayout();
       return;
     }
+    // Every layout and style read comes before the first write, so a frame
+    // costs one layout: the x-ray group's box (setZoom() reuses it), the
+    // section's shortfall and the rest opacity.
     var rect = revealSection.getBoundingClientRect();
     // Unclamped: keeps driving the selection bar past the pin's release.
     var rawScrolled = Math.max(0, -rect.top);
@@ -103,8 +110,12 @@
     // Phase 1: the band lifts by its own height to the pin's bottom edge.
     // Phase 2: the wipe, the band riding its boundary.
     var liftDistance = Math.min(revealFrontier.getBoundingClientRect().height, totalScroll);
-    // All layout reads before the first style write, to avoid a second layout per frame.
     var headerHeight = siteHeader ? siteHeader.getBoundingClientRect().height : 0;
+    // The page ends before the reveal by the phone's bar height (hero.css'
+    // negative margin); the entrance ends there so it always completes.
+    var shortfall = entrancePx > 0 ? Math.max(0, -(parseFloat(getComputedStyle(revealSection).marginBottom) || 0)) : 0;
+    var rest = entrancePx > 0 ? restOpacity() : 0;
+    if (entrancePx > 0) layoutBox();
     var wipeDistance = Math.max(totalScroll - liftDistance, 1);
 
     if (totalScroll <= 0 || scrolled <= liftDistance) {
@@ -136,9 +147,6 @@
     // Entrance progress (wheel view); without a stretch the reveal ends with the wipe.
     var entrance;
     if (entrancePx > 0) {
-      // The page ends before the reveal by the phone's bar height (hero.css'
-      // negative margin); end the entrance there so it always completes.
-      var shortfall = Math.max(0, -(parseFloat(getComputedStyle(revealSection).marginBottom) || 0));
       var entranceLength = Math.max(1, entrancePx - shortfall);
       entrance = Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entranceLength));
       if (entrance >= ENTRANCE_DONE) entrance = 1;
@@ -148,9 +156,16 @@
     // Fades at the wheel's pace (EmjiveHero.mapStage holds it while the wheel rolls back).
     var faded = window.EmjiveHero.mapStage ? window.EmjiveHero.mapStage(entrance) : entrance;
     revealXrayGroup.style.opacity = entrancePx > 0
-      ? String(1 - Math.min(1, faded / XRAY_FADE_END) * (1 - restOpacity()))
+      ? String(1 - Math.min(1, faded / XRAY_FADE_END) * (1 - rest))
       : "";
     window.EmjiveHero.publishStage(entrance);
+    announceLayout();
+  }
+
+  function announceLayout() {
+    if (!layoutChanged) return;
+    layoutChanged = false;
+    if (window.EmjiveHero.publishLayout) window.EmjiveHero.publishLayout();
   }
 
   function requestRevealUpdate() {
@@ -158,6 +173,13 @@
       revealTicking = true;
       requestAnimationFrame(updateReveal);
     }
+  }
+
+  function layoutDidChange() {
+    // Before init(), or without the fragment's elements, there is nothing to update.
+    if (!revealNormal || !revealFrontier) return;
+    layoutChanged = true;
+    requestRevealUpdate();
   }
 
   // One .reveal__ring per product with hero-hand-visibility.visible, inside
@@ -191,11 +213,19 @@
       ring.style.setProperty("--ring-rotation", onHand.rotation + "deg");
       revealXrayGroup.appendChild(ring);
     });
+    layoutDidChange();
   }
 
   // The x-ray group's laid-out box before any pull-back, plus the phone crop
-  // (hero.css --hero-crop, --hero-crop-left).
+  // (hero.css --hero-crop, --hero-crop-left). The last one measured is kept
+  // for setZoom(), which runs right after updateReveal()'s writes.
+  var lastBox = null;
   function layoutBox() {
+    lastBox = measureBox();
+    return lastBox;
+  }
+
+  function measureBox() {
     var pin = revealXrayGroup.offsetParent || revealXrayGroup.parentNode;
     var stage = pin.getBoundingClientRect();
     var w = revealXrayGroup.offsetWidth;
@@ -246,12 +276,13 @@
       if (!revealSection || !revealXrayGroup || !revealNormal || !revealFrontier) return;
 
       window.addEventListener("scroll", requestRevealUpdate, { passive: true });
-      window.addEventListener("resize", requestRevealUpdate);
+      window.addEventListener("resize", layoutDidChange);
       // Height changes without scroll or resize (hero.css landing late, the entrance
       // room), or a restored page keeps a stage measured on unstyled markup.
       if (typeof ResizeObserver === "function") {
-        new ResizeObserver(requestRevealUpdate).observe(revealSection);
+        new ResizeObserver(layoutDidChange).observe(revealSection);
       }
+      layoutChanged = true;
       var memory = window.EmjiveScrollMemory;
       var landed = memory && memory.landing && memory.landing();
       var root = document.documentElement;
@@ -310,7 +341,7 @@
         revealXrayGroup.style.removeProperty("transform-origin");
         return;
       }
-      var box = layoutBox();
+      var box = lastBox || layoutBox();
       // The wipe is over by now; a clip would cut off the arm below the group.
       revealXrayGroup.style.clipPath = "none";
       revealXrayGroup.style.transformOrigin = ((WRIST_X - box.cropLeft) / box.crop) + "% " + WRIST_Y + "%";

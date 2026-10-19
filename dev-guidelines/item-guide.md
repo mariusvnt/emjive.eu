@@ -36,7 +36,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | Series, products, prices, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
 | Default camera angle, a series' HDRI, the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
-| The rings' x-ray look on the hero's hand (`hand-shader`) | by hand |
+| The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
 | Icons, fallback images, wheel posters, hand posters (paths and files) | `auto-render` |
 
@@ -84,7 +84,7 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **fallback image** is the viewer's first frame, pixel for pixel, so the swap from poster to live model doesn't jump;
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
-   - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, cut where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
+   - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
    Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--image-variants`).

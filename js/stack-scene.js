@@ -26,6 +26,7 @@ var NO_CUT = 1e9;
 // The hand view's perspective, applied to a model lying on the hand
 // (placeOnHand()): a close camera straight above spreads nearer points outward.
 var HAND_VERTEX = [
+  "vHandFade = dot( uHandFadePlane.xyz, ( modelMatrix * vec4( transformed, 1.0 ) ).xyz ) + uHandFadePlane.w;",
   "if (uHand > 0.0) {",
   "  float handK = uHandDist / max(uHandDist - (mvPosition.z - uHandCenter.z), 1e-4);",
   "  mvPosition.xy = uHandCenter.xy + (mvPosition.xy - uHandCenter.xy) * mix(1.0, handK, uHand);",
@@ -37,8 +38,12 @@ var HAND_VERTEX = [
 // the surface turns away (a ray crosses more metal there), with the
 // environment's reflections as a faint grey sheen. Set by data/series.json's
 // "hand-shader" (handUniforms()). Appended after <colorspace_fragment>, so the
-// greys are sRGB values.
+// greys are sRGB values. The finger hides the ring's far side: it fades out
+// with depth over the band placeOnHand() sets (vHandFade, the distance above
+// the band's far end).
 var HAND_FRAGMENT = [
+  "gl_FragColor.a *= smoothstep( 0.0, 1.0, vHandFade / max( uHandFadeWidth, 1e-5 ) );",
+  "if ( gl_FragColor.a <= 0.0 ) discard;",
   "if (uHand > 0.0) {",
   "  float xrFacing = abs( dot( geometryNormal, geometryViewDir ) );",
   "  float xrGrey = mix( uHandTone.x, uHandTone.y, pow( xrFacing, uHandTone.z ) );",
@@ -51,7 +56,8 @@ var HAND_FRAGMENT = [
 ].join("\n");
 
 // The "hand-shader" settings as HAND_FRAGMENT's uniforms: uHandTone (edge,
-// face, falloff), uHandSheen (amount, from, to, roughness), greys 0-1.
+// face, falloff), uHandSheen (amount, from, to, roughness), greys 0-1. The
+// fade's band is read by placeOnHand().
 function handUniforms() {
   var s = toolkit.handShader();
   return {
@@ -74,8 +80,6 @@ export function createStackScene(options) {
     return null;
   }
   toolkit.configureRenderer(renderer, MAX_PIXEL_RATIO);
-  // For the finger a ring on the hand is cut by (placeOnHand()).
-  renderer.localClippingEnabled = true;
   // The hero's wipe (setWipe()): nothing above it is drawn. Always set, at
   // NO_CUT when idle, as adding or removing a plane recompiles every shader.
   var wipePlane = new T.Plane(new T.Vector3(0, -1, 0), NO_CUT);
@@ -110,6 +114,7 @@ export function createStackScene(options) {
   var tmpQ = new T.Quaternion();
   var yAxis = new T.Vector3(0, 1, 0);
   var tmpPlane = new T.Plane();
+  var tmpPlaneTop = new T.Plane();
 
   function rotZ(deg, out) {
     // Clockwise on screen is about -Z in a y-up world.
@@ -184,33 +189,36 @@ export function createStackScene(options) {
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
     entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
-    // On the hand, the finger hides the lower half of its box: where that cut
-    // sits and the plane that makes it.
+    // On the hand, the finger hides the far side of its box (its depth there
+    // is the box's y): where that box sits.
     entry.cutMin = box.min.y;
     entry.cutHeight = box.max.y - box.min.y;
-    entry.clip = new T.Plane(yAxis.clone(), NO_CUT);
-    entry.material.clippingPlanes = [entry.clip];
     // The hand view's camera distance from the model's middle (a viewer's
     // framing at its default zoom, straight down), in model units, and the
-    // uniforms: uHand is the hand view's share (perspective, x-ray look).
+    // uniforms: uHand is the hand view's share (perspective, x-ray look, fade);
+    // the fade's plane (world, at the band's far end) and width (world units).
     var framing = toolkit.defaultFraming(entry.product);
     entry.handDist = entry.radius * framing.zoom / Math.sin(framing.fovDeg * Math.PI / 360);
     entry.hand = {
       uHandCenter: { value: new T.Vector3() },
       uHandDist: { value: 1 },
-      uHand: { value: 0 }
+      uHand: { value: 0 },
+      uHandFadePlane: { value: new T.Vector4(0, 1, 0, NO_CUT) },
+      uHandFadeWidth: { value: 1 }
     };
     entry.material.onBeforeCompile = function (shader) {
       shader.uniforms.uHandCenter = entry.hand.uHandCenter;
       shader.uniforms.uHandDist = entry.hand.uHandDist;
       shader.uniforms.uHand = entry.hand.uHand;
+      shader.uniforms.uHandFadePlane = entry.hand.uHandFadePlane;
+      shader.uniforms.uHandFadeWidth = entry.hand.uHandFadeWidth;
       shader.uniforms.uHandTone = handLook.uHandTone;
       shader.uniforms.uHandSheen = handLook.uHandSheen;
       shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nuniform vec3 uHandCenter;\nuniform float uHandDist;\nuniform float uHand;")
+        .replace("#include <common>", "#include <common>\nuniform vec3 uHandCenter;\nuniform float uHandDist;\nuniform float uHand;\nuniform vec4 uHandFadePlane;\nvarying float vHandFade;")
         .replace("#include <project_vertex>", "#include <project_vertex>\n" + HAND_VERTEX);
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uHand;\nuniform vec3 uHandTone;\nuniform vec4 uHandSheen;")
+        .replace("#include <common>", "#include <common>\nuniform float uHand;\nuniform vec3 uHandTone;\nuniform vec4 uHandSheen;\nuniform float uHandFadeWidth;\nvarying float vHandFade;")
         .replace("#include <colorspace_fragment>", "#include <colorspace_fragment>\n" + HAND_FRAGMENT);
     };
     entry.material.customProgramCacheKey = function () { return "emjive-stack-hand"; };
@@ -312,13 +320,17 @@ export function createStackScene(options) {
 
   /* ---- placing a model ---- */
   function setOpacity(entry, opacity) {
-    if (!entry.material || Math.abs(opacity - entry.opacity) < 1e-3) return;
-    var wasTransparent = entry.material.transparent;
-    entry.opacity = opacity;
-    entry.material.opacity = opacity;
-    if (!entry.sprite) {
-      entry.material.transparent = opacity < 1;
-      if (wasTransparent !== entry.material.transparent) entry.material.needsUpdate = true;
+    if (!entry.material) return;
+    if (Math.abs(opacity - entry.opacity) >= 1e-3) {
+      entry.opacity = opacity;
+      entry.material.opacity = opacity;
+    }
+    if (entry.sprite) return;
+    // The hand's fade blends too.
+    var transparent = entry.opacity < 1 || entry.hand.uHand.value > 0;
+    if (transparent !== entry.material.transparent) {
+      entry.material.transparent = transparent;
+      entry.material.needsUpdate = true;
     }
   }
 
@@ -344,24 +356,28 @@ export function createStackScene(options) {
     setOpacity(entry, entry.model ? alpha : alpha * (1 - (pose.ring || 0)));
   }
 
-  // On the hand, a ring is drawn in the hand view: cut by the finger (below
-  // half its height), in a close perspective and the x-ray look. All three
-  // give way over u 0 to 0.5 as it swings off, as the hand poster's
+  // On the hand, a ring is drawn in the hand view: faded out with depth where
+  // the finger hides it ("hand-shader" fade-top to fade-bottom, fractions of
+  // its height from its far side), in a close perspective and the x-ray look.
+  // All three give way over u 0 to 0.5 as it swings off, as the hand poster's
   // crossfade does in the pictures.
   function placeOnHand(entry, pose) {
-    if (!entry.clip) return;
+    if (!entry.hand) return;
     var share = pose.fromRing && pose.u < 1 ? 1 - H.smoothstep(0, 0.5, pose.u) : 0;
     entry.hand.uHand.value = share;
     if (share <= 0) {
-      entry.clip.normal.copy(yAxis);
-      entry.clip.constant = NO_CUT;
+      entry.hand.uHandFadePlane.value.set(0, 1, 0, NO_CUT);
       return;
     }
-    tmpPlane.normal.copy(yAxis);
-    tmpPlane.constant = -(entry.cutMin + entry.cutHeight * 0.5 * share);
+    var look = toolkit.handShader();
+    tmpPlane.set(yAxis, -(entry.cutMin + entry.cutHeight * look["fade-bottom"] * share));
+    tmpPlaneTop.set(yAxis, -(entry.cutMin + entry.cutHeight * look["fade-top"] * share));
     entry.group.updateMatrixWorld(true);
     // The box was measured in the holder's frame.
-    entry.clip.copy(tmpPlane).applyMatrix4(entry.holder.matrixWorld);
+    tmpPlane.applyMatrix4(entry.holder.matrixWorld);
+    tmpPlaneTop.applyMatrix4(entry.holder.matrixWorld);
+    entry.hand.uHandFadePlane.value.set(tmpPlane.normal.x, tmpPlane.normal.y, tmpPlane.normal.z, tmpPlane.constant);
+    entry.hand.uHandFadeWidth.value = tmpPlane.constant - tmpPlaneTop.constant;
     // The model's middle in view space, and the camera distance at its drawn size.
     camera.updateMatrixWorld();
     entry.hand.uHandCenter.value.setFromMatrixPosition(entry.group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);

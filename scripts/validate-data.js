@@ -127,10 +127,12 @@ const indexSchema = {
     // greys 0-255 (edge where the surface turns away, face where it faces the
     // camera, falloff the curve between), plus sheen grey added where the
     // environment's reflection (at sheen-roughness) is bright, ramping in over
-    // sheen-from to sheen-to of its compressed brightness (0-1).
+    // sheen-from to sheen-to of its compressed brightness (0-1); the ring fades
+    // out with depth from fade-top down to fade-bottom (fractions of its height
+    // from its far side), where the finger hides it.
     "hand-shader": {
       type: "object",
-      required: ["edge", "face", "falloff", "sheen", "sheen-from", "sheen-to", "sheen-roughness"],
+      required: ["edge", "face", "falloff", "sheen", "sheen-from", "sheen-to", "sheen-roughness", "fade-top", "fade-bottom"],
       additionalProperties: false,
       properties: {
         edge: { type: "number", minimum: 0, maximum: 255 },
@@ -139,7 +141,9 @@ const indexSchema = {
         sheen: { type: "number", minimum: 0, maximum: 255 },
         "sheen-from": { type: "number", minimum: 0, maximum: 1 },
         "sheen-to": { type: "number", minimum: 0, maximum: 1 },
-        "sheen-roughness": { type: "number", minimum: 0, maximum: 1 }
+        "sheen-roughness": { type: "number", minimum: 0, maximum: 1 },
+        "fade-top": { type: "number", minimum: 0, maximum: 1 },
+        "fade-bottom": { type: "number", minimum: 0, maximum: 1 }
       }
     },
     "printing-technologies": {

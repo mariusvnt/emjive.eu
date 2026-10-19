@@ -133,7 +133,7 @@ export { toolkit };
   // The rings' x-ray look on the hero's hand (js/stack-scene.js): data/series.json's
   // "hand-shader", read like "metal-shaders" (the tools use setHandShader()).
   var handShader = null;
-  var FALLBACK_HAND_SHADER = { edge: 10, face: 41, falloff: 0.7, sheen: 56, "sheen-from": 0.4, "sheen-to": 0.9, "sheen-roughness": 0.3 };
+  var FALLBACK_HAND_SHADER = { edge: 10, face: 41, falloff: 0.7, sheen: 56, "sheen-from": 0.4, "sheen-to": 0.9, "sheen-roughness": 0.3, "fade-top": 0.65, "fade-bottom": 0.3 };
 
   function handShaderSettings() {
     var series = window.EmjiveSeries;

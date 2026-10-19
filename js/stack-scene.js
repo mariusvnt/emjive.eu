@@ -23,15 +23,42 @@ var MAX_PIXEL_RATIO = 1.5;
 var MAX_DT = 1 / 15;
 // A clipping plane's constant that cuts nothing.
 var NO_CUT = 1e9;
-// The top shot's perspective, applied to a model lying on the hand
-// (placeOnHand()): its close camera spreads nearer points outward.
-var SHOT_VERTEX = [
-  "if (uShotAmount > 0.0) {",
-  "  float shotK = uShotDist / max(uShotDist - (mvPosition.z - uShotCenter.z), 1e-4);",
-  "  mvPosition.xy = uShotCenter.xy + (mvPosition.xy - uShotCenter.xy) * mix(1.0, shotK, uShotAmount);",
+// The hand view's perspective, applied to a model lying on the hand
+// (placeOnHand()): a close camera straight above spreads nearer points outward.
+var HAND_VERTEX = [
+  "if (uHand > 0.0) {",
+  "  float handK = uHandDist / max(uHandDist - (mvPosition.z - uHandCenter.z), 1e-4);",
+  "  mvPosition.xy = uHandCenter.xy + (mvPosition.xy - uHandCenter.xy) * mix(1.0, handK, uHand);",
   "  gl_Position = projectionMatrix * mvPosition;",
   "}"
 ].join("\n");
+// The hand view's x-ray look, mixed over the metal by uHand: metal is the
+// densest thing on a radiograph, so near-black on this negative, darkest where
+// the surface turns away (a ray crosses more metal there), with the
+// environment's reflections as a faint grey sheen. Set by data/series.json's
+// "hand-shader" (handUniforms()). Appended after <colorspace_fragment>, so the
+// greys are sRGB values.
+var HAND_FRAGMENT = [
+  "if (uHand > 0.0) {",
+  "  float xrFacing = abs( dot( geometryNormal, geometryViewDir ) );",
+  "  float xrGrey = mix( uHandTone.x, uHandTone.y, pow( xrFacing, uHandTone.z ) );",
+  "  #ifdef USE_ENVMAP",
+  "  float xrLum = dot( getIBLRadiance( geometryViewDir, geometryNormal, uHandSheen.w ), vec3( 0.2126, 0.7152, 0.0722 ) );",
+  "  xrGrey += uHandSheen.x * smoothstep( uHandSheen.y, uHandSheen.z, xrLum / ( 1.0 + xrLum ) );",
+  "  #endif",
+  "  gl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( xrGrey ), uHand );",
+  "}"
+].join("\n");
+
+// The "hand-shader" settings as HAND_FRAGMENT's uniforms: uHandTone (edge,
+// face, falloff), uHandSheen (amount, from, to, roughness), greys 0-1.
+function handUniforms() {
+  var s = toolkit.handShader();
+  return {
+    uHandTone: { value: new T.Vector3(s.edge / 255, s.face / 255, s.falloff) },
+    uHandSheen: { value: new T.Vector4(s.sheen / 255, s["sheen-from"], s["sheen-to"], s["sheen-roughness"]) }
+  };
+}
 
 var H = window.EmjiveHelpers;
 
@@ -49,6 +76,10 @@ export function createStackScene(options) {
   toolkit.configureRenderer(renderer, MAX_PIXEL_RATIO);
   // For the finger a ring on the hand is cut by (placeOnHand()).
   renderer.localClippingEnabled = true;
+  // The hero's wipe (setWipe()): nothing above it is drawn. Always set, at
+  // NO_CUT when idle, as adding or removing a plane recompiles every shader.
+  var wipePlane = new T.Plane(new T.Vector3(0, -1, 0), NO_CUT);
+  renderer.clippingPlanes = [wipePlane];
   toolkit.trackRenderer(renderer);
   var canvas = renderer.domElement;
   canvas.className = "stack-canvas";
@@ -70,8 +101,10 @@ export function createStackScene(options) {
   var heldCpuBytes = 0;
   var focusId = null;
   var focusEl = null;
+  // Shared by every model's material.
+  var handLook = handUniforms();
 
-  // A top shot's view, as a rotation of the model.
+  // The hand view (straight down), as a rotation of the model.
   var qTop = toolkit.orbitOrientation({ "3d-viewer-camera-default": { rotation: 0, tilt: 0, zoom: 100 } }).invert();
   var zAxis = new T.Vector3(0, 0, 1);
   var tmpQ = new T.Quaternion();
@@ -151,30 +184,36 @@ export function createStackScene(options) {
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
     entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
-    // Where the top shot's finger occluder cuts it (half its box height,
-    // scripts/auto-render.js) and the plane that reproduces it.
+    // On the hand, the finger hides the lower half of its box: where that cut
+    // sits and the plane that makes it.
     entry.cutMin = box.min.y;
     entry.cutHeight = box.max.y - box.min.y;
     entry.clip = new T.Plane(yAxis.clone(), NO_CUT);
     entry.material.clippingPlanes = [entry.clip];
-    // The top shot camera's distance from the model's middle (frameCamera:
-    // default zoom, straight down), in model units, and its uniforms.
+    // The hand view's camera distance from the model's middle (a viewer's
+    // framing at its default zoom, straight down), in model units, and the
+    // uniforms: uHand is the hand view's share (perspective, x-ray look).
     var framing = toolkit.defaultFraming(entry.product);
-    entry.shotDist = entry.radius * framing.zoom / Math.sin(framing.fovDeg * Math.PI / 360);
-    entry.shot = {
-      uShotCenter: { value: new T.Vector3() },
-      uShotDist: { value: 1 },
-      uShotAmount: { value: 0 }
+    entry.handDist = entry.radius * framing.zoom / Math.sin(framing.fovDeg * Math.PI / 360);
+    entry.hand = {
+      uHandCenter: { value: new T.Vector3() },
+      uHandDist: { value: 1 },
+      uHand: { value: 0 }
     };
     entry.material.onBeforeCompile = function (shader) {
-      shader.uniforms.uShotCenter = entry.shot.uShotCenter;
-      shader.uniforms.uShotDist = entry.shot.uShotDist;
-      shader.uniforms.uShotAmount = entry.shot.uShotAmount;
+      shader.uniforms.uHandCenter = entry.hand.uHandCenter;
+      shader.uniforms.uHandDist = entry.hand.uHandDist;
+      shader.uniforms.uHand = entry.hand.uHand;
+      shader.uniforms.uHandTone = handLook.uHandTone;
+      shader.uniforms.uHandSheen = handLook.uHandSheen;
       shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nuniform vec3 uShotCenter;\nuniform float uShotDist;\nuniform float uShotAmount;")
-        .replace("#include <project_vertex>", "#include <project_vertex>\n" + SHOT_VERTEX);
+        .replace("#include <common>", "#include <common>\nuniform vec3 uHandCenter;\nuniform float uHandDist;\nuniform float uHand;")
+        .replace("#include <project_vertex>", "#include <project_vertex>\n" + HAND_VERTEX);
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uHand;\nuniform vec3 uHandTone;\nuniform vec4 uHandSheen;")
+        .replace("#include <colorspace_fragment>", "#include <colorspace_fragment>\n" + HAND_FRAGMENT);
     };
-    entry.material.customProgramCacheKey = function () { return "emjive-stack-shot"; };
+    entry.material.customProgramCacheKey = function () { return "emjive-stack-hand"; };
     root.traverse(function (node) {
       if (!node.isMesh) return;
       toolkit.disposeMaterial(node.material);
@@ -285,7 +324,7 @@ export function createStackScene(options) {
 
   // A pose (js/gallery-stack.js): centre (x, y) and size in screen px, rot
   // (degrees clockwise); fromRing/ringRot/u for a ring's flight off the hand
-  // (top view swinging to rest as u goes 0 -> 1); ring: the top shot's
+  // (hand view swinging to rest as u goes 0 -> 1); ring: the hand look's
   // remaining share; alpha.
   function placeFromPose(entry, pose) {
     entry.pose = pose;
@@ -300,17 +339,19 @@ export function createStackScene(options) {
     placeOnHand(entry, pose);
     twistSprite(entry);
     var alpha = pose.alpha === undefined ? 1 : pose.alpha;
-    setOpacity(entry, alpha * (1 - (pose.ring || 0)));
+    // A model carries the hand look itself; a sprite (its picture) fades in
+    // as the page's hand poster fades out.
+    setOpacity(entry, entry.model ? alpha : alpha * (1 - (pose.ring || 0)));
   }
 
-  // On the hand, a ring is drawn as its top shot shows it so the crossfade
-  // lands exactly: cut by the same finger (below half its height), sliding out
-  // as it swings off, and in the shot's close perspective. Both fade out over
-  // u 0 to 0.5, as the top shot does.
+  // On the hand, a ring is drawn in the hand view: cut by the finger (below
+  // half its height), in a close perspective and the x-ray look. All three
+  // give way over u 0 to 0.5 as it swings off, as the hand poster's
+  // crossfade does in the pictures.
   function placeOnHand(entry, pose) {
     if (!entry.clip) return;
     var share = pose.fromRing && pose.u < 1 ? 1 - H.smoothstep(0, 0.5, pose.u) : 0;
-    entry.shot.uShotAmount.value = share;
+    entry.hand.uHand.value = share;
     if (share <= 0) {
       entry.clip.normal.copy(yAxis);
       entry.clip.constant = NO_CUT;
@@ -321,10 +362,10 @@ export function createStackScene(options) {
     entry.group.updateMatrixWorld(true);
     // The box was measured in the holder's frame.
     entry.clip.copy(tmpPlane).applyMatrix4(entry.holder.matrixWorld);
-    // The model's middle in view space, and the shot distance at its drawn size.
+    // The model's middle in view space, and the camera distance at its drawn size.
     camera.updateMatrixWorld();
-    entry.shot.uShotCenter.value.setFromMatrixPosition(entry.group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
-    entry.shot.uShotDist.value = entry.shotDist * entry.holder.scale.x * entry.group.scale.x;
+    entry.hand.uHandCenter.value.setFromMatrixPosition(entry.group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+    entry.hand.uHandDist.value = entry.handDist * entry.holder.scale.x * entry.group.scale.x;
   }
 
   // A sprite always faces the camera; it only turns about the view axis.
@@ -491,6 +532,21 @@ export function createStackScene(options) {
     },
 
     setPoses: applyPoses,
+
+    // The hero's wipe: the screen y (px) above which nothing is drawn, or null
+    // for no cut. Only rings on the hand are visible while it runs.
+    setWipe: function (topPx) {
+      var constant = topPx === null || topPx === undefined ? NO_CUT : -topPx / PX;
+      if (constant === wipePlane.constant) return;
+      wipePlane.constant = constant;
+      kick();
+    },
+
+    // Whether this product is drawn as its model (else as a sprite of its picture, or not at all).
+    drawsModel: function (id) {
+      var entry = byId[String(id)];
+      return !!(entry && entry.model);
+    },
 
     // The size poses are measured against (layout change).
     setBaseSize: function (px) {

@@ -81,7 +81,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - exports `createStackScene`
   - [three-viewer.js](../js/three-viewer.js) — The 3D viewer (three.js + TrackballControls): free pole-crossing rotation, release inertia, a leveling drift, an idle nudge hint and an ease back to the default pose.
     - sets `EmjiveMem` { cpuGeometryBytes, dracoWorkers, liveRenderers, gpuObjects }
-    - sets `EmjiveModelViewer` { setMetalShaders, swatchOrbit }
+    - sets `EmjiveModelViewer` { setMetalShaders, setHandShader, swatchOrbit }
     - exports `toolkit`
   - [viewer-entry.js](../js/viewer-entry.js) — Lazy 3D viewer loader: the only 3D code pages load up front.
     - sets `EmjiveLoadStack`
@@ -93,10 +93,10 @@ The repo's structure, generated from the code. Each description is the first sen
       - landmarks: #revealSection
       - slots: #seriesHero, #seriesBackdrop
     - [hero.js](../series/bones/hero.js) — Bones hero: the scan band lifts, the x-ray wipes open on scroll, then (wheel view) the entrance: more pinned scroll over which the camera pulls back from the hand to the wheel round the wrist.
-      - sets `EmjiveSeriesHero` { init, onProducts, isStyled, refresh, rings, orbit, setZoom, setEntranceRoom, setMode }
+      - sets `EmjiveSeriesHero` { init, onProducts, isStyled, refresh, wipeTop, rings, orbit, setZoom, setEntranceRoom, setMode }
 - **[data/](../data/)** — The catalog, fetched client-side: the series index and one folder per series.
   - [series.json](../data/series.json)
-    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `printing-technologies`, `categories`, `hdris`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
+    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `hand-shader`, `printing-technologies`, `categories`, `hdris`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
   - **[data/series/](../data/series/)** — One folder per series: its products and its design manifest.
     - **[data/series/bones/](../data/series/bones/)**
       - [manifest.json](../data/series/bones/manifest.json)

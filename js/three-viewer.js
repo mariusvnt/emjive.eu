@@ -130,6 +130,16 @@ export { toolkit };
   var metalShaders = null;
   var FALLBACK_SHADER = { color: [128, 128, 128], metalness: 1, roughness: 0.2 };
 
+  // The rings' x-ray look on the hero's hand (js/stack-scene.js): data/series.json's
+  // "hand-shader", read like "metal-shaders" (the tools use setHandShader()).
+  var handShader = null;
+  var FALLBACK_HAND_SHADER = { edge: 10, face: 41, falloff: 0.7, sheen: 56, "sheen-from": 0.4, "sheen-to": 0.9, "sheen-roughness": 0.3 };
+
+  function handShaderSettings() {
+    var series = window.EmjiveSeries;
+    return handShader || (series && series.index && series.index["hand-shader"]) || FALLBACK_HAND_SHADER;
+  }
+
   function shaderFor(metalKey) {
     var series = window.EmjiveSeries;
     var all = metalShaders || (series && series.index && series.index["metal-shaders"]) || {};
@@ -1054,10 +1064,10 @@ export { toolkit };
       // roll included, is a fixed point of the ease back, the drift and the nudge.
       var eyeDir = offset.clone().normalize();
       restUpRaw(camera.up, eyeDir, orbit.rollRad);
-      // At the poles (tilt 0, the top shots) restUpRaw() degenerates: use level-up's
+      // At the poles (tilt 0, the wheel's hand view) restUpRaw() degenerates: use level-up's
       // limit along this meridian, (-cos(tilt) sin(rotation), 0, -cos(tilt) cos(rotation)),
       // the orientation the hero rings' rotations were tuned against. Another axis
-      // turns every top shot 180 degrees.
+      // turns every ring on the hand 180 degrees.
       if (camera.up.lengthSq() < 1e-8) {
         var cosTilt = Math.cos(orbit.phiRad);
         camera.up
@@ -1631,7 +1641,7 @@ export { toolkit };
           if (modelLoaded) scheduleIdleNudge();
         }
       },
-      // For scripts/auto-render.js (top-shot lighting) and scene-tool.html
+      // For scripts/auto-render.js (renderer) and scene-tool.html
       // (`target`, the live controls.target, mutated in place).
       scene: scene,
       camera: camera,
@@ -1811,6 +1821,10 @@ export { toolkit };
   window.EmjiveModelViewer.setMetalShaders = function (shaders) {
     metalShaders = shaders || null;
   };
+  // The tools' "hand-shader" (the render harness).
+  window.EmjiveModelViewer.setHandShader = function (settings) {
+    handShader = settings || null;
+  };
   // The swatch camera for { rotation, tilt, roll } (tools and the render harness).
   window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
 
@@ -1954,6 +1968,7 @@ export { toolkit };
     },
     loadEnvironment: loadEnvironment,
     metalMaterial: metalMaterial,
+    handShader: handShaderSettings,
     // The viewers' renderer settings, so models look the same in the wheel.
     configureRenderer: function (renderer, maxPixelRatio) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio || 2));

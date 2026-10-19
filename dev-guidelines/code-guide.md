@@ -39,7 +39,7 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 **The gallery has two views of the same products** (the code calls them `stack` and `grid`):
 
-- **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. The circle is then a plate the visitor turns to bring an item to the top.
+- **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. Those rings are the wheel's own models, drawn in an x-ray look so they read as part of the radiograph, and they turn to metal as they leave the hand. The circle is then a plate the visitor turns to bring an item to the top.
 - **The list.** One row per item, no 3D: for a quick pick.
 
 Filtering hides what is already built and never rebuilds it (see rules.md).
@@ -90,7 +90,7 @@ The index lists the event names and storage keys.
 
 **Lazy.** The pages load only `viewer-entry.js` up front, and three.js plus the viewer (by far the largest download) come after the first paint. A page that never draws a model never fetches it unless a Modify sheet opens. The item page starts its model, HDRI and chunk itself once its first paint is in: hinting them in the `<head>` was measured to delay the largest picture.
 
-**The wheel draws every model in one canvas.** `js/stack-scene.js` gives the wheel one WebGL context and one environment map for all the models, and the Modify sheet has the only other renderer on the homepage. There are at most two at a time, and the wheel holds still while the sheet is open. Its drawing (a flat camera, the HDRI fixed on the screen) differs from a viewer's, which is why the wheel has posters rendered its own way.
+**The wheel draws every model in one canvas.** `js/stack-scene.js` gives the wheel one WebGL context and one environment map for all the models, and the Modify sheet has the only other renderer on the homepage. There are at most two at a time, and the wheel holds still while the sheet is open. Its drawing (a flat camera, the HDRI fixed on the screen) differs from a viewer's, which is why the wheel, and the rings on the hand it draws, have posters rendered its own way.
 
 **iOS Safari's memory limit shapes the whole layer.** Safari ends a tab that uses too much memory, and the designs below follow from that:
 

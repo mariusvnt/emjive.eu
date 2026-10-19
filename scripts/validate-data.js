@@ -90,7 +90,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "printing-technologies", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -121,6 +121,25 @@ const indexSchema = {
           metalness: { type: "number", minimum: 0, maximum: 1 },
           roughness: { type: "number", minimum: 0, maximum: 1 }
         }
+      }
+    },
+    // js/stack-scene.js HAND_FRAGMENT, the rings' x-ray look on the hero's hand:
+    // greys 0-255 (edge where the surface turns away, face where it faces the
+    // camera, falloff the curve between), plus sheen grey added where the
+    // environment's reflection (at sheen-roughness) is bright, ramping in over
+    // sheen-from to sheen-to of its compressed brightness (0-1).
+    "hand-shader": {
+      type: "object",
+      required: ["edge", "face", "falloff", "sheen", "sheen-from", "sheen-to", "sheen-roughness"],
+      additionalProperties: false,
+      properties: {
+        edge: { type: "number", minimum: 0, maximum: 255 },
+        face: { type: "number", minimum: 0, maximum: 255 },
+        falloff: { type: "number", exclusiveMinimum: 0 },
+        sheen: { type: "number", minimum: 0, maximum: 255 },
+        "sheen-from": { type: "number", minimum: 0, maximum: 1 },
+        "sheen-to": { type: "number", minimum: 0, maximum: 1 },
+        "sheen-roughness": { type: "number", minimum: 0, maximum: 1 }
       }
     },
     "printing-technologies": {
@@ -311,7 +330,7 @@ const productSchema = {
     },
     assets: {
       type: "object",
-      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "top-shot", "photos"],
+      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "photos"],
       properties: {
         model: str,
         // Optional, hand-added: drawn over the model in the specs stage.
@@ -323,7 +342,7 @@ const productSchema = {
         "fallback-img": metalMap,
         "wheel-poster": metalMap,
         xray: str,
-        "top-shot": metalMap,
+        "hand-poster": str,
         photos: {
           type: "array",
           items: { type: "object", required: ["src", "description"], properties: { src: str, description: str } }
@@ -584,7 +603,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         for (const field of ["per-metal-specs"]) {
           for (const key of Object.keys(product[field])) if (!metals.has(key)) fail(label, field + ' has unknown metal "' + key + '"');
         }
-        for (const field of ["icons", "fallback-img", "wheel-poster", "top-shot"]) {
+        for (const field of ["icons", "fallback-img", "wheel-poster"]) {
           for (const [metal, rel] of Object.entries(product.assets[field])) {
             if (!metals.has(metal)) fail(label, "assets." + field + ' has unknown metal "' + metal + '"');
             checkPath(label + " assets." + field + "." + metal, rel);
@@ -598,6 +617,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         checkGeometry(label, product.assets.model, product.geometry, product.assets.stl);
         if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
+        checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));
       }

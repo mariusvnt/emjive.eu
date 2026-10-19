@@ -3,7 +3,7 @@
   (npm run json-tool): edit data/series.json's globals, series and products,
   with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray,
   photos). No 3D preview or swatch fields: that is scene-tool.html's job. The
-  auto-render-owned images (icons, fallback-img, wheel-poster, top-shot) are
+  auto-render-owned images (icons, fallback-img, wheel-poster, hand-poster) are
   not editable here.
 -->
 <!doctype html>
@@ -212,7 +212,7 @@
     <input type="file" id="photosFileInput" accept="image/*" multiple hidden>
     <input type="file" id="photoReplaceInput" accept="image/*" hidden>
 
-    <p class="note">Icons, fallback images, and top shots are generated automatically. Run <code>npm run auto-render</code> after saving to (re)generate them for this product.</p>
+    <p class="note">Icons, fallback images, wheel posters and hand posters are generated automatically. Run <code>npm run auto-render</code> after saving to (re)generate them for this product.</p>
 
     <div class="row">
       <button type="button" id="productSaveBtn">Save</button>

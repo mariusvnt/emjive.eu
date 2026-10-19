@@ -14,7 +14,7 @@
       },
       "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "print": { "volume-cm3": 1.677, "dimensions-mm": [28.8, 25.7, 17.1], "stl-sha1": "018fa2ecc74cfc6b5ed7e1b958ed0aa203d6a13b" }, "model-sha1": "85ab6b8a7b0fbe73d6ba858c527fddb66fc12f21" },
-      "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 9, "rotation": -93 },
+      "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {
         "model": "assets/series/bones/products/furcula_ring/furcula_gltf.glb",
@@ -36,14 +36,10 @@
           "bronze": "assets/series/bones/products/furcula_ring/furcula_wheel-poster_bronze.webp"
         },
         "xray": "assets/series/bones/products/furcula_ring/furcula_xray.webp",
-        "top-shot": {
-          "steel":  "assets/series/bones/products/furcula_ring/furcula_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/furcula_ring/furcula_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/furcula_ring/furcula_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/furcula_ring/furcula_hand-poster.webp",
         "photos": [
-          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "Furcula.ring.steel.62" },
-          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "Furcula.ring.steel.62" }
+          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "furcula.ring.steel.62" },
+          { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "furcula.ring.steel.62" }
         ]
       }
     },
@@ -60,7 +56,7 @@
       },
       "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 1.213, "dimensions-mm": [30.2, 24.7, 20.8], "min-box": { "center": [-2.321, 0.782, -1.769], "axes": [[0.52294, -0.31149, 0.79342], [0.64819, 0.7498, -0.13285], [-0.55353, 0.58375, 0.59401]] }, "print": { "volume-cm3": 1.214, "dimensions-mm": [30.2, 24.7, 20.8], "stl-sha1": "7ac8e23efcded13c2264f7c0e5732c9200e73466" }, "model-sha1": "28867d2703c7871fa10132746f9f76f0a36045b7" },
-      "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 9, "rotation": 5 },
+      "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
@@ -82,11 +78,7 @@
           "bronze": "assets/series/bones/products/foramen_ring/foramen_wheel-poster_bronze.webp"
         },
         "xray": "assets/series/bones/products/foramen_ring/foramen_xray.webp",
-        "top-shot": {
-          "steel":  "assets/series/bones/products/foramen_ring/foramen_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/foramen_ring/foramen_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/foramen_ring/foramen_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/foramen_ring/foramen_hand-poster.webp",
         "photos": []
       },
       "designs": {
@@ -153,11 +145,7 @@
           "bronze": "assets/series/bones/products/disc_ring/disc_wheel-poster_bronze.webp"
         },
         "xray": "assets/series/bones/products/disc_ring/disc_xray.webp",
-        "top-shot": {
-          "steel":  "assets/series/bones/products/disc_ring/disc_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/disc_ring/disc_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/disc_ring/disc_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/disc_ring/disc_hand-poster.webp",
         "photos": []
       }
     },
@@ -196,7 +184,7 @@
           "bronze": "assets/series/bones/products/marrow_ring/marrow_wheel-poster_bronze.webp"
         },
         "xray": "assets/series/bones/products/marrow_ring/marrow_xray.webp",
-        "top-shot": { "steel": "assets/series/bones/products/marrow_ring/marrow_top-shot_steel.webp", "silver": "assets/series/bones/products/marrow_ring/marrow_top-shot_silver.webp", "bronze": "assets/series/bones/products/marrow_ring/marrow_top-shot_bronze.webp" },
+        "hand-poster": "assets/series/bones/products/marrow_ring/marrow_hand-poster.webp",
         "photos": []
       }
     },
@@ -235,11 +223,7 @@
           "bronze": "assets/series/bones/products/suture_ring/suture_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": {
-          "steel": "assets/series/bones/products/suture_ring/suture_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/suture_ring/suture_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/suture_ring/suture_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/suture_ring/suture_hand-poster.webp",
         "photos": []
       }
     },
@@ -278,11 +262,7 @@
           "bronze": "assets/series/bones/products/cartilage_ring/cartilage_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": {
-          "steel": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/cartilage_ring/cartilage_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/cartilage_ring/cartilage_hand-poster.webp",
         "photos": []
       }
     },
@@ -321,11 +301,7 @@
           "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": {
-          "steel": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_steel.webp",
-          "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_silver.webp",
-          "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_top-shot_bronze.webp"
-        },
+        "hand-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_hand-poster.webp",
         "photos": []
       },
       "designs": {
@@ -451,7 +427,7 @@
       },
       "size-range": { "min": 40, "max": 80 },
       "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "print": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "stl-sha1": "cb46095f71fbb626ffb2122957838a08891f5a57" }, "model-sha1": "f60960e08e9f5966017ab32e2f928aaa6e8a19b5" },
-      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 7, "rotation": 20 },
+      "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 5.5, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
       "assets": {
         "model": "assets/series/bones/products/joint_ring/joint_gltf.glb",
@@ -469,7 +445,7 @@
           "bronze": "assets/series/bones/products/joint_ring/joint_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": { "steel": "assets/series/bones/products/joint_ring/joint_top-shot_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint_top-shot_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint_top-shot_bronze.webp" },
+        "hand-poster": "assets/series/bones/products/joint_ring/joint_hand-poster.webp",
         "photos": []
       }
     },
@@ -500,7 +476,7 @@
           "bronze": "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_top-shot_bronze.webp" },
+        "hand-poster": "assets/series/bones/products/omoplates_ring/omoplates_hand-poster.webp",
         "photos": []
       },
       "designs": {
@@ -551,7 +527,7 @@
           "bronze": "assets/series/bones/products/jaw_ring/jaw_wheel-poster_bronze.webp"
         },
         "xray": "",
-        "top-shot": { "steel": "assets/series/bones/products/jaw_ring/jaw_top-shot_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw_top-shot_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw_top-shot_bronze.webp" },
+        "hand-poster": "assets/series/bones/products/jaw_ring/jaw_hand-poster.webp",
         "photos": []
       },
       "designs": {

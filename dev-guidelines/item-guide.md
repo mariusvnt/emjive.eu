@@ -36,8 +36,9 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | Series, products, prices, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
 | Default camera angle, a series' HDRI, the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
+| The rings' x-ray look on the hero's hand (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
-| Icons, fallback images, wheel posters, top shots (paths and files) | `auto-render` |
+| Icons, fallback images, wheel posters, hand posters (paths and files) | `auto-render` |
 
 The files are hand-aligned, and every tool writes them by text surgery, never by re-serializing (rules.md).
 
@@ -50,7 +51,8 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 - `<name>_gltf.glb`, the model: what the site draws;
 - `<name>_wireframe.glb`, its wireframe: drawn over it in the specs stage, as thin solid bars;
 - `<name>_stl.stl`, the print model: what is printed, weighed and priced;
-- `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`, `top-shot`;
+- `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`;
+- `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
 - `<name>_xray.webp`, the design stage's backdrop;
 - `<Name>_photo<N>.webp`, photography.
 
@@ -82,14 +84,14 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **fallback image** is the viewer's first frame, pixel for pixel, so the swap from poster to live model doesn't jump;
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
-   - the **top shot** is a straight-down view with an invisible "finger" hiding what a finger would, so it can lie on the hero's hand;
+   - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, cut where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
-   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--image-variants`).
+   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--image-variants`).
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
-Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, an HDRI or the wheel's drawing, re-render what used it.
+Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI or the wheel's drawing, re-render what used it.
 
 ## 5. Tools
 

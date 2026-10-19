@@ -4,30 +4,34 @@
 // a real GPU (for MSAA; the startup log names the WebGL renderer). Set
 // CHROME_PATH to override the Chrome location.
 //
-//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only]
+//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only]
 //   node scripts/auto-render.js --image-variants [--series=<slug>]
 //
 // Defaults: every metal in data/series.json, every series.
 //   --product             only those products (designs included); swatches untouched
 //   --swatches-only       only the metal squares
 //   --wheel-posters-only  only the wheel posters
+//   --hand-posters-only   only the hand posters
 //   --image-variants      no render: rewrites the size variants (make-image-variants.js)
 //
+// Once per product:
+//   hand-poster   512px, the ring as the wheel's own scene draws it on the hero's
+//                 hand (straight down, lower half cut, x-ray look, no metal), so
+//                 the swap to the live model changes nothing
 // Per metal, for every product (the picker shows any metal):
 //   fallback-img  512px default-orbit capture: the viewer's pre-load poster, so it
 //                 must match the live framing exactly
 //   icon          the same capture, trimmed and re-centred (normalizeIconFraming)
 //   wheel-poster  512px, drawn by the wheel's own scene (orthographic camera,
 //                 fixed environment), so the swap to the live model changes nothing
-//   top-shot      1024px straight down, with a contact shadow and a "finger"
-//                 occluder hiding the ring's inner geometry
 // Each non-default design gets its own icon and fallback-img. Then one 72px
 // square per metal, assets/metal-sample_<metal>.webp: one sphere under the
 // "swatch-hdri", blurred by "swatch-blur", from "swatch-camera" (set in
 // scene-tool.html's swatch mode). products.json paths are patched in place;
 // replaced files are deleted. Afterwards the icons' 128px thumbnails are rewritten.
 //
-// Re-run for every metal after changing "metal-shaders", the swatch camera or an HDRI.
+// Re-run for every metal after changing "metal-shaders", the swatch camera or an
+// HDRI, and with --hand-posters-only after changing "hand-shader".
 
 "use strict";
 
@@ -48,11 +52,10 @@ const PORT = 5199;
 const ICON_SIZE = 512;
 // The pre-load poster's box (js/three-viewer.js), so it is never scaled.
 const FALLBACK_IMG_SIZE = ICON_SIZE;
-const TOP_SHOT_SIZE = 1024;
-// The model's box in the wheel's maths (js/stack-scene.js), at the wheel
-// renderer's MAX_PIXEL_RATIO.
-const WHEEL_POSTER_SIZE = ICON_SIZE;
-const WHEEL_POSTER_SCALE = 1.5;
+// The wheel and hand posters: the model's box in the wheel's maths
+// (js/stack-scene.js), at the wheel renderer's MAX_PIXEL_RATIO.
+const STACK_POSTER_SIZE = ICON_SIZE;
+const STACK_POSTER_SCALE = 1.5;
 // Captured through the biggest square inside the sphere's disc (swatchOrbit
 // in js/three-viewer.js); saved at 3x the picker's 1.5rem squares
 // (--metal-square), sharp on a 3x screen.
@@ -111,7 +114,6 @@ const HARNESS_HTML = `<!doctype html>
 </style>
 </head><body>
 <script type="module">
-  import * as THREE from "three";
   import { createStackScene } from "/js/stack-scene.js";
 
   window.__renderReady = false;
@@ -166,8 +168,8 @@ const HARNESS_HTML = `<!doctype html>
   };
 
   // The model as the wheel draws it: the wheel's own scene with this one
-  // product, at rest in the middle of the box.
-  window.__renderWheelPoster = function (product, metalKey, sizePx, hdriRelPath) {
+  // product, in the middle of the box at the given pose (at rest by default).
+  function renderStackPoster(product, sizePx, hdriRelPath, pose, what) {
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
@@ -178,14 +180,18 @@ const HARNESS_HTML = `<!doctype html>
     var stack = createStackScene({
       host: host,
       hdri: hdriRelPath,
-      items: [{ id: "0", product: Object.assign({}, product, { "default-metal": metalKey }), size: sizePx }]
+      items: [{ id: "0", product: product, size: sizePx }]
     });
     if (!stack) {
-      throw new Error("could not create a WebGL context while rendering the wheel poster for " + product.name + " (" + metalKey + ")");
+      throw new Error("could not create a WebGL context while rendering the " + what + " for " + product.name);
     }
     currentStack = stack;
     return stack.ready.then(function () {
-      stack.handOver({ "0": { x: sizePx / 2, y: sizePx / 2, size: sizePx, rot: 0, alpha: 1 } });
+      // A model that failed to load leaves a sprite stand-in, which would be saved as the poster.
+      if (product.assets && product.assets.model && !stack.drawsModel("0")) {
+        throw new Error("the model failed to load while rendering the " + what + " for " + product.name);
+      }
+      stack.handOver({ "0": Object.assign({ x: sizePx / 2, y: sizePx / 2, size: sizePx, rot: 0, alpha: 1 }, pose) });
       return new Promise(function (resolve) {
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
@@ -195,109 +201,16 @@ const HARNESS_HTML = `<!doctype html>
         });
       });
     });
+  }
+
+  window.__renderWheelPoster = function (product, metalKey, sizePx, hdriRelPath) {
+    return renderStackPoster(Object.assign({}, product, { "default-metal": metalKey }), sizePx, hdriRelPath, {}, "wheel poster (" + metalKey + ")");
   };
 
-  // Soft contact shadow for top shots.
-  function makeShadowTexture() {
-    var c = document.createElement("canvas");
-    c.width = 256;
-    c.height = 256;
-    var ctx = c.getContext("2d");
-    var gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    gradient.addColorStop(0, "rgba(0,0,0,0.45)");
-    gradient.addColorStop(0.7, "rgba(0,0,0,0.18)");
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256, 256);
-    return new THREE.CanvasTexture(c);
-  }
-
-  function addShadowPlane(scene, box) {
-    var sphere = box.getBoundingSphere(new THREE.Sphere());
-    // Small enough that the gradient reaches zero well inside the frame: faint
-    // edge alpha shows as a translucent rectangle when the top shot is composited
-    // small onto the hero's hand.
-    var size = sphere.radius * 1.4;
-    var plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(size, size),
-      new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false })
-    );
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.set(sphere.center.x, sphere.center.y - sphere.radius, sphere.center.z);
-    scene.add(plane);
-    return plane;
-  }
-
-  // An invisible depth-only plane standing in for a finger: a top shot of an
-  // empty ring otherwise shows its inner wall, or through gaps in the shank.
-  // Cuts every model at 50% of its bounding-box height, a deliberate trade-off
-  // (radius-fitted or raycast cutoffs clipped visible geometry on some models).
-  // renderOrder -1 so it claims the depth buffer before the model draws.
-  function addFingerOccluder(scene, box) {
-    var size = new THREE.Vector3();
-    box.getSize(size);
-    var center = new THREE.Vector3();
-    box.getCenter(center);
-    var cutY = box.min.y + size.y * 0.5;
-    // Oversized so the cut covers any footprint.
-    var planeSize = Math.max(size.x, size.z) * 4;
-    var mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(planeSize, planeSize),
-      new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: true, depthTest: true, side: THREE.DoubleSide })
-    );
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(center.x, cutY, center.z);
-    mesh.renderOrder = -1;
-    scene.add(mesh);
-  }
-
-  // The site's viewer, but straight down and with a contact shadow.
-  window.__renderTopShot = function (product, metalKey, sizePx, hdriRelPath) {
-    window.__renderReady = false;
-    disposeCurrentHandle();
-    var wrap = mountTargetWrap(sizePx);
-    // The product's zoom, but rotation 0 and no roll: top shots composited on
-    // the hand need one canonical orientation.
-    var defaultOrbit = product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
-    var zoom = typeof defaultOrbit.zoom === "number" ? defaultOrbit.zoom : 105;
-    var handle = window.EmjiveModelViewer(product, metalKey, {
-      transparentBackground: true,
-      static: true,
-      hdri: hdriRelPath,
-      onReady: function () {
-        // The model's own box, measured before the occluder and shadow are added.
-        var modelBox = new THREE.Box3().setFromObject(handle.scene);
-
-        // Two passes: in one pass the occluder's depth would cut a hole in the
-        // shadow, and drawing the shadow in both would double-darken it. Pass 1 draws
-        // the shadow alone (model on layer 1); pass 2 draws model and occluder over
-        // it without clearing, the shadow hidden.
-        handle.scene.traverse(function (obj) { obj.layers.set(1); });
-        var shadowMesh = addShadowPlane(handle.scene, modelBox);
-        handle.setCameraOrbit({ rotation: 0, tilt: 0, zoom: zoom }); // pass 1: shadow alone
-
-        handle.scene.traverse(function (obj) { obj.layers.set(0); });
-        shadowMesh.layers.set(1); // hide it again — only the model + occluder render this pass
-        addFingerOccluder(handle.scene, modelBox);
-        handle.renderer.autoClear = false;
-        handle.renderer.render(handle.scene, handle.camera); // pass 2: model + occluder, over the shadow
-        handle.renderer.autoClear = true;
-
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () {
-            window.__renderReady = true;
-          });
-        });
-      }
-    });
-    if (!handle) {
-      throw new Error("could not create a WebGL context while rendering the top shot for " + product.name + " (" + metalKey + ")");
-    }
-    handle.el.id = "target";
-    handle.el.style.width = "100%";
-    handle.el.style.height = "100%";
-    wrap.appendChild(handle.el);
-    currentHandle = handle;
+  // On the hand: unturned, as a ring starting its slide off (u 0) is posed
+  // (js/gallery-stack.js poseAt()). The x-ray look hides the metal.
+  window.__renderHandPoster = function (product, sizePx, hdriRelPath) {
+    return renderStackPoster(product, sizePx, hdriRelPath, { ring: 1, fromRing: true, ringRot: 0, u: 0 }, "hand poster");
   };
 
   // One sphere under the swatch HDRI, built once through the site's viewer
@@ -393,25 +306,21 @@ async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, i
 }
 
 async function renderWheelPoster(page, product, metalKey, outPath, hdriRelPath) {
-  await page.setViewport({ width: WHEEL_POSTER_SIZE, height: WHEEL_POSTER_SIZE, deviceScaleFactor: WHEEL_POSTER_SCALE });
-  await page.evaluate((p, m, s, h) => window.__renderWheelPoster(p, m, s, h), product, metalKey, WHEEL_POSTER_SIZE, hdriRelPath);
+  await page.setViewport({ width: STACK_POSTER_SIZE, height: STACK_POSTER_SIZE, deviceScaleFactor: STACK_POSTER_SCALE });
+  await page.evaluate((p, m, s, h) => window.__renderWheelPoster(p, m, s, h), product, metalKey, STACK_POSTER_SIZE, hdriRelPath);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
   const buffer = await handle.screenshot({ omitBackground: true });
-  await writeWebp(sharp(buffer).resize(WHEEL_POSTER_SIZE, WHEEL_POSTER_SIZE), outPath);
+  await writeWebp(sharp(buffer).resize(STACK_POSTER_SIZE, STACK_POSTER_SIZE), outPath);
 }
 
-async function captureTopShotTarget(page, cssSizePx, product, metalKey, hdriRelPath) {
-  await page.setViewport({ width: cssSizePx, height: cssSizePx, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((p, m, s, h) => window.__renderTopShot(p, m, s, h), product, metalKey, cssSizePx, hdriRelPath);
+async function renderHandPoster(page, product, outPath, hdriRelPath) {
+  await page.setViewport({ width: STACK_POSTER_SIZE, height: STACK_POSTER_SIZE, deviceScaleFactor: STACK_POSTER_SCALE });
+  await page.evaluate((p, s, h) => window.__renderHandPoster(p, s, h), product, STACK_POSTER_SIZE, hdriRelPath);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
-  return handle.screenshot({ omitBackground: true });
-}
-
-async function renderTopShot(page, product, metalKey, outPath, hdriRelPath) {
-  const buffer = await captureTopShotTarget(page, TOP_SHOT_SIZE, product, metalKey, hdriRelPath);
-  await writeWebp(sharp(buffer).resize(TOP_SHOT_SIZE, TOP_SHOT_SIZE), outPath);
+  const buffer = await handle.screenshot({ omitBackground: true });
+  await writeWebp(sharp(buffer).resize(STACK_POSTER_SIZE, STACK_POSTER_SIZE), outPath);
 }
 
 // One scene; only the sphere's metal changes between captures.
@@ -455,6 +364,12 @@ function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPat
   return updateMetalFieldInSpan(text, blocks.anchoredSpan(text, "id", product.id), blockKey, metal, newRelPath);
 }
 
+// A product's single path field ("hand-poster"); null if not found.
+function updateProductPathFieldInText(text, product, field, newRelPath) {
+  const span = blocks.anchoredSpan(text, "id", product.id);
+  return span && blocks.replaceInSpan(text, span, new RegExp(`("${field}":\\s*)"[^"]*"`), `$1"${newRelPath}"`);
+}
+
 // A non-default design's map, found by its "key" inside the product's "designs" list.
 function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal, newRelPath) {
   const productSpan = blocks.anchoredSpan(text, "id", product.id);
@@ -488,6 +403,7 @@ async function main() {
   const onlyProducts = productArg ? productArg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null;
   const swatchesOnly = args.includes("--swatches-only");
   const wheelPostersOnly = args.includes("--wheel-posters-only");
+  const handPostersOnly = args.includes("--hand-posters-only");
   // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
     if (seriesArg) {
@@ -569,6 +485,7 @@ async function main() {
     });
     // The harness loads no js/series.js, so the viewer is handed the shaders.
     await page.evaluate((shaders) => window.EmjiveModelViewer.setMetalShaders(shaders), seriesIndex["metal-shaders"]);
+    await page.evaluate((settings) => window.EmjiveModelViewer.setHandShader(settings), seriesIndex["hand-shader"]);
 
     // Flags a software rasterizer (no real MSAA).
     const renderer = await page.evaluate(() => {
@@ -587,7 +504,37 @@ async function main() {
       );
     }
 
-    for (const metal of metals) {
+    if (!wheelPostersOnly) {
+      console.log("\n--- hand posters ---");
+      for (const target of targets) {
+        for (const product of target.data.products) {
+          if (onlyProducts && !onlyProducts.includes(folderSlug(product.name))) continue;
+          if (!(product.assets && product.assets.model)) continue;
+          const folder = productFolder(target.slug, product.name, product.category);
+          const handRelPath = folder + "/" + folderSlug(product.name) + "_hand-poster.webp";
+          const handAbsPath = path.join(ROOT, handRelPath);
+          console.log("  hand poster: [" + target.slug + "] " + product.name + " -> " + handRelPath);
+          await renderHandPoster(page, product, handAbsPath, target.hdri);
+          const oldHandRelPath = product.assets["hand-poster"];
+          if (oldHandRelPath !== handRelPath) {
+            const patched = updateProductPathFieldInText(target.text, product, "hand-poster", handRelPath);
+            if (patched) {
+              target.text = patched;
+              if (oldHandRelPath && path.resolve(path.join(ROOT, oldHandRelPath)) !== path.resolve(handAbsPath)) {
+                deleteIfExists(path.join(ROOT, oldHandRelPath));
+              }
+            } else {
+              console.warn(
+                "  could not find the assets.hand-poster line to update in " + repoPath(target.absPath) +
+                " for " + product.name + " — set it by hand: " + handRelPath
+              );
+            }
+          }
+        }
+      }
+    }
+
+    for (const metal of handPostersOnly ? [] : metals) {
       console.log("\n--- " + metal + " ---");
 
       for (const target of targets) {
@@ -674,31 +621,8 @@ async function main() {
             }
           }
 
-          const topShotRelPath = folder + "/" + folderSlug(product.name) + "_top-shot_" + metal + ".webp";
-          const topShotAbsPath = path.join(ROOT, topShotRelPath);
-
-          console.log("  top shot: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + topShotRelPath);
-          await renderTopShot(page, product, metal, topShotAbsPath, target.hdri);
-
-          const oldTopShotRelPath = product.assets && product.assets["top-shot"] && product.assets["top-shot"][metal];
-          if (oldTopShotRelPath !== topShotRelPath) {
-            const patched = updateProductMetalFieldInText(target.text, product, "top-shot", metal, topShotRelPath);
-            if (patched) {
-              target.text = patched;
-              if (oldTopShotRelPath) {
-                const oldAbs = path.join(ROOT, oldTopShotRelPath);
-                if (path.resolve(oldAbs) !== path.resolve(topShotAbsPath)) deleteIfExists(oldAbs);
-              }
-            } else {
-              console.warn(
-                "  could not find the assets.top-shot." + metal + " line to update in " + rel +
-                " for " + product.name + " — set it by hand: " + topShotRelPath
-              );
-            }
-          }
-
           // Non-default designs: icon and fallback-img from the product's camera, as
-          // <product>-<design key>_... No top shot: only the default design is shown on the hand.
+          // <product>-<design key>_... No hand poster: only the default design is shown on the hand.
           const designs = product.designs;
           for (const design of (designs && designs.list) || []) {
             if (design.key === designs.default) continue;
@@ -728,7 +652,7 @@ async function main() {
 
     }
 
-    if (!onlyProducts && !wheelPostersOnly) {
+    if (!onlyProducts && !wheelPostersOnly && !handPostersOnly) {
       console.log("\n--- swatches ---");
       await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
     }
@@ -741,7 +665,7 @@ async function main() {
     }
 
     // The new icons are the source of the 128px thumbnails.
-    if (!swatchesOnly && !wheelPostersOnly) {
+    if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly) {
       console.log("\n--- icon thumbnails ---");
       await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
     }

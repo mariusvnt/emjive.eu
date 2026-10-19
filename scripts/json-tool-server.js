@@ -5,7 +5,7 @@
 // scripts/json-tool-blocks.js.
 //
 // Never: runs auto-render; writes the auto-render-owned maps (icons,
-// fallback-img, wheel-poster, top-shot); touches js/three-viewer.js or
+// fallback-img, wheel-poster, hand-poster); touches js/three-viewer.js or
 // css/style.css for metals; edits "geometry" (measure-models.js's); writes
 // the swatch scene (scene-tool's).
 
@@ -70,7 +70,7 @@ const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+
 // A product folder, checked before a recursive delete.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
-const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|top-shot)_/;
+const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster)[_.]/;
 
 function isAllowedAssetDestPath(destPath) {
   if (typeof destPath !== "string" || !destPath) return false;
@@ -295,7 +295,7 @@ async function handleGlobalMetal(req, res) {
       ok: true,
       reminder:
         'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s per-metal-specs/icons/' +
-        "fallback-img/top-shot, and its metal-costs, metal-composition and metal-shaders entries. Still worth doing " +
+        "fallback-img/wheel-poster, and its metal-costs, metal-composition and metal-shaders entries. Still worth doing " +
         "by hand if you want a full cleanup (harmless if left, just dead code): remove the " +
         '.product-metals__option[data-metal="' + metal + '"] rule from css/style.css.'
     });
@@ -507,12 +507,11 @@ async function handleProductAdd(req, res) {
     return sendJson(res, 409, { error: 'a product already uses folder ' + folder + ' ("' + collision.name + '") — pick a different name/category' });
   }
 
-  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "top-shot": {}, photos: [] };
+  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "hand-poster": "", photos: [] };
   metals.forEach((m) => {
     assets.icons[m] = "";
     assets["fallback-img"][m] = "";
     assets["wheel-poster"][m] = "";
-    assets["top-shot"][m] = "";
   });
 
   const written = [];
@@ -569,7 +568,7 @@ async function handleProductAdd(req, res) {
     folder,
     written,
     reminder:
-      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/top-shots for this product, and " +
+      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/hand-posters for this product, and " +
       "`npm run measure-models` to measure its weight, size and cost (`npm run validate-data` fails until you do)."
   });
 }
@@ -648,7 +647,7 @@ async function handleProductEdit(req, res) {
     }
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
-      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/top-shots there; stale renders were left behind in the old folder."
+      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/hand-posters there; stale renders were left behind in the old folder."
     );
   }
 

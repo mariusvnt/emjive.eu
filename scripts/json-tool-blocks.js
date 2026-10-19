@@ -3,7 +3,7 @@
 // inserting, patching and removing entries in hand-aligned JSON without
 // re-serializing, and rendering whole product/series blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
-// wheel-poster, top-shot) from the on-disk product, never from form input.
+// wheel-poster, hand-poster) from the on-disk product, never from form input.
 
 "use strict";
 
@@ -377,9 +377,7 @@ function renderProductBlock(p, metals) {
     renderMetalPathMap(assets["wheel-poster"], metals, "          "),
     "        },",
     '        "xray": "' + esc(assets.xray) + '",',
-    '        "top-shot": {',
-    renderMetalPathMap(assets["top-shot"], metals, "          "),
-    "        },",
+    '        "hand-poster": "' + esc(assets["hand-poster"]) + '",',
     '        "photos": ' + photos,
     p.designs ? "      }," : "      }",
     ...(p.designs ? [renderDesignsBlock(p.designs, metals)] : []),

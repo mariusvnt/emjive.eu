@@ -260,7 +260,7 @@
   /* ---- catalog ---- */
 
   // A product's (or design view's) picture of one kind ("icons", "fallback-img",
-  // "wheel-poster", "top-shot") in one metal; "" without one.
+  // "wheel-poster") in one metal; "" without one.
   function assetFor(product, kind, metal) {
     var assets = product && product.assets;
     return (assets && assets[kind] && assets[kind][metal]) || "";

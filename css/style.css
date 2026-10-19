@@ -884,7 +884,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 /* Placed by the script (size, then one transform, and opacity). The picture is
    the wheel-poster, which the 3D model replaces seamlessly; a ring off the hand
-   also carries its top shot, fading as it slides. */
+   also carries its hand poster, fading as it slides. */
 .stack-item {
   position: absolute;
   left: 0;
@@ -911,12 +911,13 @@ body:has(.site-header__menu.is-open) .gallery-control {
   user-select: none;
 }
 .stack-item__ring { opacity: 0; }
-/* Once 3D takes over the pictures go, except a ring's top shot still crossing into its model. */
+/* Once 3D takes over the pictures go (the models carry the hand look too),
+   except the hand poster of a ring drawn as a sprite (.is-sprite). */
 .gallery-stage.is-3d .stack-item {
   visibility: hidden;
   pointer-events: none;
 }
-.gallery-stage.is-3d .stack-item__ring {
+.gallery-stage.is-3d .stack-item.is-sprite .stack-item__ring {
   visibility: visible;
 }
 

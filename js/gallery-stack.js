@@ -9,11 +9,13 @@
 // plate, which coasts and settles on a product.
 //
 // Two renderings of the same layout:
-//   3D     js/stack-scene.js (lazy, three.js), taking over once loaded
-//   images each product's wheel-poster (drawn like the 3D scene, so the
-//          handover changes nothing; fallback-img without one): the first
-//          paint, and all of it without WebGL, under reduced motion, or if
-//          the chunk fails (the focused model can't turn then)
+//   3D     js/stack-scene.js (lazy, three.js), taking over once loaded, the
+//          rings on the hand included (the hero's pictures of them hide)
+//   images each product's wheel-poster, and a ring's hand-poster on the hand
+//          (both drawn by the 3D scene, so the handover changes nothing;
+//          fallback-img without one): the first paint, and all of it without
+//          WebGL, under reduced motion, or if the chunk fails (the focused
+//          model can't turn then)
 //
 // window.EmjiveGalleryStack = { mount(stage, { products, slug, active }) }
 //   -> { settleLayout(), setFilter(ids), setActive(on) }, mounted by js/gallery.js.
@@ -171,12 +173,12 @@
       img.draggable = false;
       itemEl.appendChild(img);
       var onHand = product["hero-hand-visibility"];
-      var topShot = onHand && onHand.visible && H.assetFor(product, "top-shot", metal);
+      var handPoster = onHand && onHand.visible && assets["hand-poster"];
       var ringImg = null;
-      if (topShot) {
+      if (handPoster) {
         ringImg = el("img", "stack-item__ring");
         ringImg.alt = "";
-        ringImg.src = topShot;
+        ringImg.src = handPoster;
         ringImg.decoding = "async";
         ringImg.draggable = false;
         itemEl.appendChild(ringImg);
@@ -511,9 +513,9 @@
     }
 
     /* An item's pose at entrance p and plate turn theta, in screen px: centre
-       (x, y), rot (degrees clockwise), size, ring (top shot's remaining share),
-       alpha. A ring leaving the hand also carries fromRing, ringRot and u for
-       the 3D scene's swing from top view to rest. */
+       (x, y), rot (degrees clockwise), size, ring (the hand look's remaining
+       share), alpha. A ring leaving the hand also carries fromRing, ringRot and
+       u for the 3D scene's swing from the hand view to rest. */
     function poseAt(item, p, theta) {
       var L = state.L;
       var cam = cameraAt(p);
@@ -692,17 +694,24 @@
 
     /* ---- the hand's rings ---- */
 
-    // During the entrance the wheel draws the rings; the hero's are hidden
-    // (hero.css hides them for a skipped hero, so they're shown explicitly).
-    function showHeroRings(show) {
+    // Whether the 3D scene draws this ring on the hand, as its model.
+    function ringIn3d(id, waiting) {
+      var item = state.byId[String(id)];
+      return !!(state.scene && !waiting && item && item.visible && item.hand && state.scene.drawsModel(item.id));
+    }
+
+    // The hero's pictures of the rings show only before the entrance, and
+    // only those the 3D scene doesn't draw (hero.css hides them for a skipped
+    // hero, so they're shown explicitly).
+    function showHeroRings(started, waiting) {
       heroRings().forEach(function (ring) {
-        ring.el.style.visibility = show ? "visible" : "hidden";
+        ring.el.style.visibility = !started && !ringIn3d(ring.id, waiting) ? "visible" : "hidden";
       });
     }
 
     /* ---- drawing ---- */
 
-    // The image rendering: one transform and opacity per picture, plus its top shot's.
+    // The image rendering: one transform and opacity per picture, plus its hand poster's.
     function place(item, pose) {
       var size = state.L.s;
       item.el.style.transform = "translate3d(" + (pose.x - size / 2).toFixed(2) + "px," + (pose.y - size / 2).toFixed(2) + "px,0) " +
@@ -748,8 +757,8 @@
       var h = hero();
       var p = state.p === null ? 0 : state.p;
       var started = p > 0;
-      showHeroRings(!started);
       syncWaiting();
+      showHeroRings(started, stage.classList.contains("is-waiting"));
       if (!L || !state.active) {
         if (h && h.setZoom) h.setZoom(1, 0, 0);
         return;
@@ -757,6 +766,8 @@
       var at = stageAt(p);
       var cam = cameraAt(at.p);
       if (h && h.setZoom) h.setZoom(cam.scale, cam.x - L.c0.x, cam.y - L.c0.y + cam.handDrop);
+      // Before the entrance the 3D rings on the hand reveal with the x-ray.
+      if (state.scene) state.scene.setWipe(!started && h && h.wipeTop ? h.wipeTop() : null);
 
       var poses = {};
       var slot = focusedSlot(at.theta);
@@ -767,11 +778,11 @@
         item.pose = pose;
         poses[item.id] = pose;
         if (item.slot === slot) focus = item;
-        // Before the entrance the ring is the hero's; its item stays hidden.
+        // Before the entrance a ring's picture is the hero's; its item stays hidden.
         var waiting = !started && item.hand;
         item.el.style.visibility = waiting ? "hidden" : "";
         if (item.ringImg) item.ringImg.style.visibility = waiting ? "hidden" : "";
-        // The pictures follow in 3D too: a ring's top shot shows over its model until it slides off.
+        // The pictures follow in 3D too, for a sprite's hand poster (.is-sprite).
         place(item, pose);
       });
       if (state.scene) state.scene.setPoses(poses);
@@ -1059,6 +1070,10 @@
       });
       scene.handOver(poses);
       state.scene = scene;
+      // A ring without its model keeps its hand poster, crossing into the sprite.
+      state.items.forEach(function (item) {
+        item.el.classList.toggle("is-sprite", !!item.ringImg && !scene.drawsModel(item.id));
+      });
       syncSceneFocus();
       stage.classList.add("is-3d");
       render();
@@ -1117,6 +1132,7 @@
       state.scene.dispose();
       state.scene = null;
       stage.classList.remove("is-3d");
+      state.items.forEach(function (item) { item.el.classList.remove("is-sprite"); });
       render();
     }
 

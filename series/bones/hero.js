@@ -1,8 +1,9 @@
 // Bones hero: the scan band lifts, the x-ray wipes open on scroll, then (wheel
 // view) the entrance: more pinned scroll over which the camera pulls back from
 // the hand to the wheel round the wrist. Feeds js/gallery-stack.js through
-// window.EmjiveHero.publishStage, rings(), orbit() and setZoom(). A skipped
-// hero (data-hero="skip") lands at its end; the list view doesn't show it.
+// window.EmjiveHero.publishStage, rings(), orbit(), wipeTop() and setZoom().
+// A skipped hero (data-hero="skip") lands at its end; the list view doesn't
+// show it.
 //
 // Loaded by js/series.js from a runtime path, so:
 //   1. No side effects on execution: it only sets window.EmjiveSeriesHero,
@@ -73,7 +74,12 @@
     return isFinite(value) ? value : 0.3;
   }
 
+  // The screen y (px) above which the x-ray is still hidden, for the wheel's
+  // 3D rings on the hand (wipeTop()); null once fully open or out of the wheel view.
+  var wipeTopPx = null;
+
   function showEnd() {
+    wipeTopPx = null;
     revealFrontier.style.bottom = "";
     revealXrayGroup.style.clipPath = "inset(0 0 0 0)";
     revealXrayGroup.style.opacity = String(restOpacity());
@@ -115,7 +121,7 @@
     // negative margin); the entrance ends there so it always completes.
     var shortfall = entrancePx > 0 ? Math.max(0, -(parseFloat(getComputedStyle(revealSection).marginBottom) || 0)) : 0;
     var rest = entrancePx > 0 ? restOpacity() : 0;
-    if (entrancePx > 0) layoutBox();
+    var box = entrancePx > 0 ? layoutBox() : null;
     var wipeDistance = Math.max(totalScroll - liftDistance, 1);
 
     if (totalScroll <= 0 || scrolled <= liftDistance) {
@@ -123,6 +129,7 @@
       revealFrontier.style.bottom = "calc(" + (-(1 - liftFraction)) + " * var(--reveal-frontier-height))";
       revealXrayGroup.style.clipPath = "inset(100% 0 0 0)";
       revealNormal.style.clipPath = "inset(0 0 0 0)";
+      wipeTopPx = box ? box.top + box.height : null;
     } else {
       var wipeProgress = Math.min(1, (scrolled - liftDistance) / wipeDistance);
       var revealedPct = wipeProgress * 100;
@@ -131,6 +138,7 @@
       // photo is clipped away by the same amount.
       revealXrayGroup.style.clipPath = "inset(" + (100 - revealedPct) + "% 0 0 0)";
       revealNormal.style.clipPath = "inset(0 0 " + revealedPct + "% 0)";
+      wipeTopPx = box && wipeProgress < 1 ? box.top + box.height * (1 - wipeProgress) : null;
     }
 
     // The selection bar enters from where the band passes behind the fixed
@@ -182,10 +190,11 @@
     requestRevealUpdate();
   }
 
-  // One .reveal__ring per product with hero-hand-visibility.visible, inside
-  // the x-ray group so it reveals with the wipe, placed by inline --ring-*
-  // from that product. Always the full product list: the rings are hero art,
-  // not a filtered listing.
+  // One .reveal__ring (its hand poster) per product with
+  // hero-hand-visibility.visible, inside the x-ray group so it reveals with
+  // the wipe, placed by inline --ring-* from that product. The wheel's 3D
+  // scene draws over it once loaded and hides it. Always the full product
+  // list: the rings are hero art, not a filtered listing.
   function updateHeroRings(products) {
     if (!revealXrayGroup) return;
     revealXrayGroup.querySelectorAll(".reveal__ring").forEach(function (existing) {
@@ -194,13 +203,13 @@
     products.forEach(function (product) {
       var onHand = product["hero-hand-visibility"];
       if (!onHand || !onHand.visible) return;
-      var topShot = product.assets && product.assets["top-shot"] && product.assets["top-shot"][product["default-metal"]];
-      if (!topShot) return;
+      var handPoster = product.assets && product.assets["hand-poster"];
+      if (!handPoster) return;
       var ring = document.createElement("img");
       ring.className = "reveal__ring";
       ring.alt = "";
       ring.decoding = "async";
-      ring.src = topShot;
+      ring.src = handPoster;
       // Read back by rings() for the wheel.
       ring.setAttribute("data-product-id", product.id);
       ring.setAttribute("data-rotation", String(onHand.rotation || 0));
@@ -297,6 +306,7 @@
     // For js/gallery-stack.js, which holds the arrival cover until the hero is laid out.
     isStyled: function () { return !revealSection || styled(); },
     refresh: function () { if (revealSection) updateReveal(); },
+    wipeTop: function () { return wipeTopPx; },
 
     // The hand's rings for the wheel: [{ id, el, rotation, x, y, size }],
     // rotation in degrees, centre and unrotated width in screen px before any pull-back.

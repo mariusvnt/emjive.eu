@@ -1,18 +1,9 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   validate-data — checks data/series.json and every series' products.json
-   and manifest.json against the schema in dev-guidelines/data.md, then checks
-   the things a schema can't: that every path they (and each series' hero
-   fragment) point at exists, spelled with EXACTLY the case on disk.
-
-   The case check is the one that matters for hosting. Development is on
-   Windows/macOS, where assets/foo.WEBP and assets/foo.webp are the same file;
-   the OVH server is Linux, where they are not — a path that works on the dev
-   machine and 404s in production is exactly the bug this exists to catch.
-
-   Run:  npm run validate-data      (also the first step of `npm run verify`)
-   Exits 1 with a list of every problem found, not just the first.
-   ========================================================================== */
+// Validates data/series.json and every series' products.json and manifest.json
+// against their schemas, then what a schema can't: every referenced path
+// exists with its exact case (the Linux host is case-sensitive), image
+// variants, measured geometry, designs, slugs and the shared phone constants.
+// Reports every problem, exits 1 if any.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -61,14 +52,11 @@ function checkPath(where, rel) {
   if (!existsExactCase(rel)) fail(where, "file not found (case-sensitive): " + rel);
 }
 
-// The other versions of a picture the site loads in more than one size must be
-// on disk (name + _<suffix> before the extension — see "responsive images" in
-// js/loader.js), or the page quietly falls back to downloading the original.
-// Run `npm run image-variants` to write them.
-//   suffixes: ["lo", "m", "m_lo"]  the four-version pictures (desktop low,
-//             smartphone high, smartphone low; the original is desktop high)
-//             ["m"]                 a layer with the smartphone version only
-//             ["128"]               an icon's thumbnail
+// The size variants of a picture (name_<suffix>.ext, see js/loader.js) must
+// exist, or the page silently downloads the original.
+//   ["lo", "m", "m_lo"]  four-version pictures
+//   ["m"]                phone version only
+//   ["128"]              icon thumbnail
 function checkVariants(where, rel, suffixes) {
   if (typeof rel !== "string" || rel === "") return;
   for (const suffix of suffixes) {
@@ -77,12 +65,9 @@ function checkVariants(where, rel, suffixes) {
   }
 }
 
-// What a "smartphone" is, and how much of a picture its versions keep, must be
-// the same number everywhere it is written: the generator that crops the
-// files, the CSS that lays the cropped picture out, js/loader.js that picks
-// the files, and the build's preload hints. A mismatch is a layout that is
-// quietly off (or a hero whose layers no longer line up) with no error to
-// point at it, so it is checked here.
+// The phone query and crops must match across make-image-variants.js, the
+// CSS, js/loader.js and vite.config.js; a mismatch only shows as a quietly
+// misaligned layout.
 const { PHONE_CROP } = require("./make-image-variants");
 const { slugify, reservedNames } = require("./slugs");
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
@@ -97,7 +82,7 @@ function checkPhoneConstants(file, expectedCrops) {
   }
 }
 
-/* ---- schemas ----------------------------------------------------------- */
+/* ---- schemas ---- */
 
 const str = { type: "string" };
 const num = { type: "number" };
@@ -140,9 +125,7 @@ const indexSchema = {
         properties: {
           sizes: { type: "array", items: str },
           unit: str,
-          // The size guide the product page and the two size sheets show: a
-          // few paragraphs on how to measure, and a table (js/selection.js's
-          // fillSizeGuide).
+          // The size guide (js/selection.js fillSizeGuide).
           "size-guide": {
             type: "object",
             required: ["how", "head", "rows"],
@@ -196,16 +179,14 @@ const indexSchema = {
 
 const metalMap = { type: "object", additionalProperties: str };
 
-// Written by `npm run measure-models`, never by hand — on a product, and on
-// each of its designs but the default (whose model is the product's).
+// Written by `npm run measure-models`; on a product and on each non-default design.
 const geometrySchema = {
   type: "object",
   required: ["volume-cm3", "dimensions-mm", "min-box", "model-sha1"],
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
-    // The minimum-volume box's pose, in the model's frame: the homepage
-    // stack's hit boxes are made of it (js/stack-scene.js).
+    // The wheel's hit boxes (js/stack-scene.js).
     "min-box": {
       type: "object",
       required: ["center", "axes"],
@@ -219,8 +200,7 @@ const geometrySchema = {
         }
       }
     },
-    // The same piece as it is printed (measured on its STL): what the product
-    // page shows as its dimensions and weight and prices.
+    // Measured on the STL: the dimensions, weight and price shown.
     print: {
       type: "object",
       required: ["volume-cm3", "dimensions-mm", "stl-sha1"],
@@ -234,11 +214,9 @@ const geometrySchema = {
   }
 };
 
-// A product's designs (the product page's design stage): the options a
-// visitor picks from, and every design those picks can land on. The
-// product's own fields are its default design; the other designs carry their
-// own model, wireframe, renders and geometry. Entries are keyed "key", never
-// "id" — scripts/auto-render.js slices product blocks on "id".
+// Product designs: the options and every design the picks can land on. The
+// product's own fields are the default design. Keyed "key", never "id":
+// scripts/auto-render.js slices product blocks on "id".
 const designsSchema = {
   type: "object",
   additionalProperties: false,
@@ -292,8 +270,7 @@ const productSchema = {
     category: str,
     description: str,
     "default-metal": str,
-    // Each metal's price at the reference size (62 mm); it scales linearly
-    // with the size, and "size-range" is the sizes the product is made in.
+    // Price at the reference size (62 mm), scaled linearly with size.
     "per-metal-specs": {
       type: "object",
       additionalProperties: {
@@ -323,12 +300,10 @@ const productSchema = {
       required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "top-shot", "photos"],
       properties: {
         model: str,
-        // Optional: the specs stage draws it over the model (hand-added; no
-        // upload slot in json-tool).
+        // Optional, hand-added: drawn over the model in the specs stage.
         wireframe: str,
-        // Optional: the print model (an STL, see scripts/split-models.js);
-        // its measurements are geometry.print. Never served: it is kept out
-        // of the build (vite.config.js).
+        // Optional print model (scripts/split-models.js), measured into geometry.print;
+        // kept out of the build.
         stl: str,
         icons: metalMap,
         "fallback-img": metalMap,
@@ -376,15 +351,9 @@ function validate(where, schema, data) {
   return false;
 }
 
-// A measured model's "geometry" against its file: model-sha1 pins the
-// measurements to the exact model they were taken from
-// (scripts/measure-models.js), and the stack's hit boxes are built on min-box
-// as a box — three unit axes at right angles. Anything else (a hand edit, a bad
-// merge) makes a skewed box out of numbers it doesn't measure. A model with a
-// print model (stlRel) has its measurements, too, pinned to that file the
-// same way, and one without has none. The print models are not in git (about
-// 300MB, for the printer and not the site: .gitignore), so a checkout that
-// lacks them can't check their hashes: that is counted and said, not failed.
+// model-sha1 / stl-sha1 must match the files, and min-box must be three
+// orthonormal axes. Print models aren't in git, so missing ones are counted,
+// not failed.
 let missingPrintModels = 0;
 function checkGeometry(label, modelRel, geometry, stlRel) {
   if (modelRel && existsExactCase(modelRel)) {
@@ -415,12 +384,9 @@ function checkGeometry(label, modelRel, geometry, stlRel) {
   if (skew > 1e-3) fail(label, "geometry.min-box axes are not three unit vectors at right angles (run `npm run measure-models`)");
 }
 
-// A product's designs, beyond their shape (designsSchema): the default is
-// one of them and is the product's own (no files of its own); every other
-// one has its model, renders and measurements; each design's picks name one
-// choice of every option (a non-empty set of them for a "multiple" one),
-// and no two designs share them — or a visitor's picks couldn't tell which
-// model to show.
+// Designs beyond their shape: the default exists and has no files of its own,
+// every other one has its model, renders and geometry, and each design's picks
+// name valid choices for every option, unique across designs.
 function checkDesigns(label, product, metals) {
   const designs = product.designs;
   const options = new Map(designs.options.map((o) => [o.key, o]));
@@ -483,7 +449,7 @@ function checkDesigns(label, product, metals) {
   if (!keys.has(designs.default)) fail(label, 'designs.default "' + designs.default + '" is not one of its designs');
 }
 
-/* ---- run --------------------------------------------------------------- */
+/* ---- run ---- */
 
 const index = readJson("data/series.json");
 if (index && validate("data/series.json", indexSchema, index)) {
@@ -493,9 +459,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
 
   if (!slugs.includes(index.featured)) fail("data/series.json", 'featured "' + index.featured + '" is not a series slug');
   if (new Set(slugs).size !== slugs.length) fail("data/series.json", "duplicate series slug");
-  // The product page derives weight and cost from these (js/product.js's
-  // computeCosts): one entry per metal, and manufacturing (production minus
-  // raw material) must not come out negative.
+  // js/product.js computeCosts: one entry per metal; manufacturing must not be negative.
   const costs = index["metal-costs"];
   for (const metal of metals) {
     if (!costs[metal]) fail("data/series.json", 'metal-costs has no "' + metal + '"');
@@ -506,7 +470,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
       fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
     }
   }
-  // A size guide's rows are as wide as its head.
   for (const [cat, info] of Object.entries(index.categories)) {
     const guide = info["size-guide"];
     if (!guide) continue;
@@ -515,8 +478,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
     }
   }
 
-  // The printing technology of each metal (the specs stage's section under
-  // the model): every metal names one, and it has to be described.
   const technologies = index["printing-technologies"];
   for (const metal of metals) {
     const id = index["metal-technology"][metal];
@@ -527,8 +488,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
     if (!metals.has(metal)) fail("data/series.json", 'metal-technology has unknown metal "' + metal + '"');
   }
 
-  // What each metal is made of (the line under the picker in the specs stage):
-  // every metal has one, and nothing else does.
   for (const metal of metals) {
     if (!index["metal-composition"][metal]) fail("data/series.json", 'metal-composition has no "' + metal + '"');
   }
@@ -538,9 +497,8 @@ if (index && validate("data/series.json", indexSchema, index)) {
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
 
-  // An item is addressed by emjive.eu/<slug> (scripts/slugs.js), flat at the
-  // root, so slugs are unique across ALL series and may not shadow a page or
-  // a top-level file/folder.
+  // Item slugs are flat at the root (emjive.eu/<slug>): unique across all series
+  // and not shadowing a page or top-level entry.
   const reserved = reservedNames(ROOT);
   const itemSlugs = new Map();
 
@@ -555,17 +513,12 @@ if (index && validate("data/series.json", indexSchema, index)) {
     checkPath(where + " manifest", series.manifest);
     if (series.hero) {
       for (const key of ["fragment", "css", "js"]) checkPath(where + " hero." + key, series.hero[key]);
-      // hero.preload names originals; js/series.js and the build derive the
-      // low-res versions for the first entry and the smartphone one for the
-      // rest.
+      // Originals; low-res variants are derived for the first, phone ones for the rest.
       (series.hero.preload || []).forEach((rel, i) => {
         checkPath(where + " hero.preload", rel);
         checkVariants(where + " hero.preload", rel, i === 0 ? ["lo", "m", "m_lo"] : ["m"]);
       });
-      // The fragment's own images resolve against the page, so their paths are
-      // repo-root-relative like everything else in data/. Each carries
-      // data-full (the original, which js/series.js turns into a src for the
-      // viewport) and, if it has the low-res pair, data-lo.
+      // Fragment images carry data-full (the original) and data-lo when there is a low-res pair.
       if (series.hero.fragment && existsExactCase(series.hero.fragment)) {
         const html = fs.readFileSync(path.join(ROOT, series.hero.fragment), "utf8");
         for (const match of html.matchAll(/<img\b[^>]*>/g)) {
@@ -602,8 +555,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
 
         if (product["size-range"].min > product["size-range"].max) fail(label, "size-range min is above its max");
 
-        // Every metal needs a spec (the picker reads each) and an icon and
-        // fallback image (the picker swaps them live).
         for (const metal of metals) {
           if (!product["per-metal-specs"][metal]) fail(label, 'per-metal-specs has no "' + metal + '"');
           if (product.assets.model || Object.keys(product.assets.icons).length) {
@@ -619,8 +570,6 @@ if (index && validate("data/series.json", indexSchema, index)) {
             checkPath(label + " assets." + field + "." + metal, rel);
           }
         }
-        // The small siblings of the images the site loads in two sizes (see
-        // js/loader.js, scripts/make-image-variants.js).
         for (const [metal, rel] of Object.entries(product.assets.icons)) {
           checkVariants(label + " assets.icons." + metal, rel, ["128"]);
         }
@@ -641,8 +590,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
   }
 }
 
-// js/series.js carries the browser copy of slugify() as productSlug(); both
-// must give every product the same address.
+// productSlug() in js/series.js must agree with scripts/slugs.js.
 if (index && existsExactCase("js/series.js")) {
   const src = fs.readFileSync(path.join(ROOT, "js/series.js"), "utf8").replace(/\r\n/g, "\n");
   const body = /\n {2}function productSlug\(product\) \{[\s\S]*?\n {2}\}/.exec(src);

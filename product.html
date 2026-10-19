@@ -25,44 +25,23 @@
 <meta name="twitter:description" content="Item detail" />
 <meta name="twitter:image" content="https://emjive.eu/preview.jpg" />
 
-<!-- Both typefaces are self-hosted (see the @font-face blocks in
-     css/style.css) — this used to be a render-blocking Google Fonts
-     stylesheet on a third-party origin. Preloaded rather than left for the
-     CSS parser to discover: a webfont is otherwise found only once
-     style.css has downloaded AND parsed, which puts it a full round trip
-     behind everything else in the head.
-     crossorigin is mandatory on a font preload even same-origin — fonts
-     are always fetched in CORS mode, and a preload whose mode doesn't
-     match the real request is simply downloaded twice. -->
+<!-- crossorigin is required even same-origin, or the font is fetched twice. -->
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
 
-<!-- data/series.json gates EVERYTHING on every page: which series is
-     shown, its products, and (on the homepage) the hero bundle, which
-     can't even start until this resolves. js/series.js below fetches it,
-     but only once the browser has downloaded and executed that script —
-     so without this the request sits a round trip behind where it could.
-     The preload scanner sees this while still parsing the head and starts
-     it in parallel with series.js itself. -->
+<!-- Every page waits on data/series.json; preloading starts it in parallel with series.js. -->
 <link rel="preload" as="fetch" href="data/series.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
-<!-- Loader (see js/loader.js). Blocking, and ahead of series.js: pages that
-     wait on something opt into an arrival loader with data-page-loader on
-     <html>, and that cover has to be up before <body> is parsed; every
-     page's scripts also use window.EmjiveLoader for their own assets. -->
+<!-- Blocking: the arrival cover (data-page-loader) must be up before <body> parses. -->
 <script src="js/loader.js"></script>
 
-<!-- Series resolution (which series this page shows, and its data).
-     Blocking on purpose — see the header comment in js/series.js. -->
+<!-- Blocking on purpose; see js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- Lazy 3D viewer loader (see js/viewer-entry.js). No data-viewer on <html>
-     here on purpose: the three.js chunk (and the HDRI and model) are the
-     heaviest things on the page and none of them is part of its first
-     paint, so js/product.js asks for them only once what is (the
-     description and the feed's first photo) has arrived. -->
+<!-- Lazy 3D viewer. No data-viewer here: js/product.js requests it once the
+     first paint (description, first photo) has arrived. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body>
@@ -82,12 +61,7 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav" aria-label="Site">
-        <!-- Filter row: the buttons are rendered by js/main.js from the
-             ACTIVE series' own category list (data/series.json) — don't
-             hand-write them, and don't assume three: each series declares
-             its own subset of the global vocabulary. On every page but
-             the grid this becomes a plain "Gallery" link instead — see
-             js/main.js's renderHeaderFilter(). -->
+        <!-- Filled by js/main.js from the active series' categories. -->
         <div class="site-header__filter" id="siteHeaderFilter">
           <span class="site-header__filter-label">Filter gallery by</span>
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
@@ -96,8 +70,7 @@
         <a href="/creation-process" class="is-info">Creation process</a>
       </nav>
     </div>
-    <!-- Under the header, going down with its menu: the title bar's blur
-         and chromatic aberration (css/style.css .site-header__veil). -->
+    <!-- Header blur and chromatic aberration (.site-header__veil). -->
     <span class="site-header__veil" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
     </span>
@@ -111,29 +84,20 @@
   </div>
 </noscript>
 
-  <!-- Only ever holds the not-found message now (js/product.js showNotFound);
-       the wait itself is the page's arrival loader (js/loader.js). -->
+  <!-- Holds only the not-found message. -->
   <div class="page-message page-message--screen" id="productDetailLoading" role="status" hidden></div>
 
   <div class="product-detail__content" id="productDetailContent" hidden>
 
-    <!-- The show: a tall track (.product-stage) holding one sticky stage.
-         Scrolling down the track doesn't move the page, it moves the show
-         on, inspiration -> design -> specs (js/product-stages.js, which
-         publishes --to-design and --to-specs for css/style.css to fade
-         everything from). The title bar stays at the top throughout. -->
+    <!-- The show: a tall track holding one sticky stage; scrolling it steps
+         inspiration -> design -> specs (js/product-stages.js publishes
+         --to-design and --to-specs). -->
     <div class="product-stage" id="productStage" data-stage="inspiration">
       <div class="product-stage__pin">
 
-        <!-- 1. Product label -->
+        <!-- Title bar -->
         <div class="product-detail__label-bar">
-          <!-- Behind the bar's own elements, over everything else: a panel in
-               the page's background above the bar, and under it a blur made of
-               three stacked layers (softer going down) and a fourth that
-               splits the colour channels apart a little (chromatic
-               aberration, an SVG filter on the backdrop: Chromium only, see
-               js/main.js), so what slides up under the bar doesn't clash
-               with it (css/style.css .product-detail__label-veil). -->
+          <!-- Backdrop panel, blur and chromatic aberration under the bar (.product-detail__label-veil). -->
           <span class="product-detail__label-veil" aria-hidden="true">
             <span></span><span></span><span></span><span></span>
           </span>
@@ -144,41 +108,28 @@
           <span class="product-detail__label-price" id="productLabelPrice" aria-live="polite" aria-atomic="true"></span>
         </div>
 
-        <!-- 2. The show area -->
+        <!-- Show area -->
         <div class="product-stage__show">
 
-          <!-- Inspiration, the first stage: the description, then the photos
-               one under the other with no gap (the full width of a phone's
-               screen, flush left on a wide one), each with the name of what
-               it shows in its bottom right corner, and under the last one its
-               trail into the page's colour. The stage's scrolling takes the
-               column up under the title bar, as a feed (js/product.js renders
-               it). -->
+          <!-- Inspiration stage: description and photo feed (js/product.js). -->
           <div class="product-feed" id="productFeedColumn">
             <p class="product-detail__description" id="productDescription" hidden></p>
             <div class="product-feed__photos" id="productFeed"></div>
           </div>
 
-          <!-- Design, then specs: the model (its poster until the 3D viewer is
-               built, js/product.js), over its x-ray. Everything else of the
-               show that is placed against the model lives in this frame too (it
-               shares the frame's --tile): the metal picker and the design
-               options under it, and the specs stage's column. -->
+          <!-- Design and specs stages: the model over its x-ray. Everything placed
+               against the model lives in this frame and shares its --tile. -->
           <div class="product-design-frame" id="productDesignFrame">
             <img class="product-design__xray" id="productDesignXray" alt="" decoding="async" hidden />
             <div class="product-model" id="productModel"></div>
 
-            <!-- Design: once the model has been turned off its pose, a small
-                 button centred above it fades in to take it back
-                 (js/product.js setModelAway, the viewer's returnHome). -->
+            <!-- Design: brings the model back to its pose once turned away. -->
             <button class="product-reset" id="productModelReset" type="button" data-stage-owner="design" aria-label="Reset position" title="Reset position">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12 A8 8 0 1 1 15.5 4.8 M13 1.6 L15.5 4.8 L12 6.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
 
-            <!-- Specs: a circle round the model, as big as the model is at the
-                 size the field holds — draggable, to scale it up and down
-                 (js/product.js syncSizeRing). Hidden for a category with no
-                 unit, and when there is no live model to measure. -->
+            <!-- Specs: a draggable circle the size of the model, to scale it
+                 (js/product.js syncSizeRing). Hidden for unitless categories or with no live model. -->
             <div class="product-size-ring" id="productSizeRing" data-stage-owner="specs" hidden>
               <span class="product-size-ring__line" aria-hidden="true"></span>
               <span class="product-size-ring__dot" aria-hidden="true"></span>
@@ -186,26 +137,13 @@
               <span class="product-size-ring__ruler" aria-hidden="true"></span>
             </div>
 
-            <!-- Under the model, everything that goes with it, in one column
-                 (css/style.css .product-below), each a table of two columns —
-                 a label and its value: in design, the metal picker and then
-                 the options of a product with several designs; in specs, the
-                 size, the dimensions and weight, the metal picker and the
-                 printing technology, and so on down. -->
+            <!-- Under the model: label | value rows for the current stage. -->
             <div class="product-below">
 
-              <!-- Design: one row per option of the product's designs (its
-                   "designs" in products.json) — a label and its choices
-                   (js/product.js renderDesigns). Hidden for a product with one
-                   design. -->
+              <!-- Design: one row per design option (js/product.js renderDesigns). Hidden with a single design. -->
               <div class="product-options" id="productOptions" data-stage-owner="design" hidden></div>
 
-              <!-- The size, from specs on — the field to type an exact size in,
-                   centred under the circle round the model (above), which is
-                   the other way to give one, with the "Find my size" button
-                   (the size finder, js/size-finder.js) centred under it
-                   (js/product.js). The Select sheet opens with it. Hidden for
-                   a category with no unit. -->
+              <!-- Specs: the size field and the "Find my size" button. Hidden for unitless categories. -->
               <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
                 <div class="product-size__controls">
                   <span class="product-size__field">
@@ -218,49 +156,30 @@
                 <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
               </div>
 
-              <!-- Specs: the dimensions of the piece at the chosen size, in
-                   centimetres, and its weight, in grams (js/product.js
-                   renderSpecs) — a cluster of two rows, as measured on the
-                   piece as it is printed, first under the size. -->
+              <!-- Specs: dimensions (cm) and weight (g) at the chosen size (js/product.js renderSpecs). -->
               <section class="product-specs" aria-labelledby="productSpecsHeading">
                 <h2 class="visually-hidden" id="productSpecsHeading">Characteristics</h2>
                 <dl class="product-specs__list" id="productSpecs"></dl>
               </section>
 
-              <!-- Metal selection: a row of squares, built by
-                   js/metal-picker.js, in the second column of a table like the
-                   design options' — its label ("Material") in the first. Under
-                   the model in design; in specs it is in the column, with what
-                   the chosen metal is made of under it (it fades out and in
-                   between, js/product.js). -->
+              <!-- Metal picker (js/metal-picker.js), in design and specs. -->
               <div class="product-material" data-stage-owner="design specs">
                 <span class="product-material__label" aria-hidden="true">Material</span>
                 <div class="product-metals" id="productMetals"></div>
-                <!-- Specs only: the composition of the chosen metal
-                     (data/series.json's "metal-composition", one per metal). -->
+                <!-- Specs only: the chosen metal's composition. -->
                 <p class="product-material__composition" id="productComposition" hidden></p>
               </div>
 
-              <!-- What stands under the picker, in order: the printing
-                   technology, then the cost, shipping and returns. -->
               <div class="product-below__stage">
-                <!-- Specs: how the chosen metal is made, under the model — its
-                     printing technology and what that is (data/series.json's
-                     "printing-technologies", one per metal). -->
+                <!-- Specs: the chosen metal's printing technology. -->
                 <section class="product-printing" id="productPrinting" aria-labelledby="productPrintingLabel" hidden>
                   <h2 class="product-printing__label" id="productPrintingLabel">Printing technology</h2>
                   <p class="product-printing__name" id="productPrintingName"></p>
                   <p class="product-printing__text" id="productPrintingText"></p>
                 </section>
 
-                <!-- Cost, shipping and returns, last in the column: the cost of
-                     the piece at the chosen size (a
-                     cascading chart of horizontal bars, js/product.js renderSpecs —
-                     the raw materials, the manufacturing that follows them, and,
-                     under a short line, the production cost they make together;
-                     three columns: labels, bars, amounts; it builds once the stage
-                     has arrived, .is-built), then shipping and returns (static,
-                     the same on every product). Each a label and its text. -->
+                <!-- Production cost chart (js/product.js renderSpecs; animates in on .is-built),
+                     then static shipping and returns. -->
                 <section class="product-logistics" aria-labelledby="productLogisticsHeading">
                   <h2 class="visually-hidden" id="productLogisticsHeading">Shipping &amp; Returns</h2>
                   <div class="product-logistics__block product-costs" id="productCosts">
@@ -276,7 +195,6 @@
                         <dd class="product-costs__bar" aria-hidden="true"></dd>
                         <dd class="product-costs__amount" id="productCostManufacturing">—</dd>
                       </div>
-                      <!-- The total: its amount alone (no label, no bar). -->
                       <div class="product-costs__row product-costs__row--production">
                         <dt class="visually-hidden">Total</dt>
                         <dd class="product-costs__amount" id="productCostProduction">—</dd>
@@ -293,8 +211,7 @@
                   </div>
                 </section>
 
-                <!-- The end of the page: back to the first stage, the photos
-                     (js/product-stages.js restart()). -->
+                <!-- Back to the first stage (js/product-stages.js restart()). -->
                 <button class="product-restart" id="productRestart" type="button" data-stage-owner="specs">Back to photos</button>
               </div>
 
@@ -302,9 +219,7 @@
           </div>
         </div>
 
-        <!-- The scan band: a full-screen-width inversion band riding the cut
-             of the model's metal -> wireframe sweep, as the homepage hero's
-             does for its x-ray wipe (js/product.js onScan places it). -->
+        <!-- Inversion band riding the model's metal -> blueprint sweep (js/product.js onScan). -->
         <div class="product-stage__scan" id="productScan" aria-hidden="true"></div>
 
       </div>
@@ -313,19 +228,13 @@
   </div>
 </main>
 
-<!-- Just above the bottom bars, across the screen: the title bar's blur and
-     chromatic aberration again, faint at its top and full where it meets the
-     bars, so what slides down under them (the feed, the specs column) goes
-     soft on its way (css/style.css .product-bottom-veil). Rides the bars. -->
+<!-- Blur and chromatic aberration fading in above the bottom bars (.product-bottom-veil). -->
 <span class="product-bottom-veil" aria-hidden="true">
   <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
 </span>
 
-<!-- Select / Add bar: a blurred strip (two opposed sets of layered blurs,
-     css/style.css .glass__blur) floating on top of the selection
-     bar (css/style.css, .product-select-bar), shown by js/product.js once
-     the product has rendered. It says "Select" and opens the size sheet
-     below; while the sheet is up it says "Add" instead. -->
+<!-- Select bar: "Select" opens the size sheet, "Add" while it is open
+     (js/product.js). -->
 <div class="product-select-bar glass" id="productSelectBar" hidden>
   <span class="glass__blur" aria-hidden="true">
     <span class="glass__blur-set glass__blur-set--top"><span></span><span></span><span></span></span>
@@ -334,30 +243,16 @@
   <button class="product-select-bar__button" id="selectButton" type="button"><span class="product-select-bar__label">Select</span></button>
 </div>
 
-<!-- Size-selection modal, opened by the Select bar — slides up from
-     behind the floating bars as a bottom sheet resting right above the
-     Select bar (see .size-modal--drawer and .size-modal--select-bar in
-     css/style.css), the same component as the Modify sheet (#modifyModal,
-     built by js/modify-modal.js). Confirming a size is done from the
-     Select bar's own "Add" button (js/product.js), not from a button in
-     here — this panel is a pure picker, and the "Size" field is the only
-     way to give a size.
-
-     role/aria-modal/aria-label sit on THIS element rather than on
-     .size-modal__panel, because js/focus-trap.js traps the whole modal —
-     see its header comment. tabindex="-1" is what lets the trap focus this
-     element on open so the aria-label is read before the first control. -->
+<!-- Size sheet, opened by the Select bar; a pure picker, confirmed by the
+     bar's "Add". role/aria-* sit here, not on the panel, because
+     js/focus-trap.js traps the whole modal; tabindex="-1" lets it take focus. -->
 <div class="size-modal size-modal--drawer size-modal--select-bar" id="sizeModal" aria-hidden="true"
      role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
-  <!-- .size-modal__sheet carries the slide transform (see
-       .size-modal--drawer .size-modal__sheet in css/style.css). The size
-       finder's "Find my size" button stands to the right of the size field. -->
   <div class="size-modal__sheet">
     <div class="size-modal__panel">
       <div class="size-modal__content">
-        <!-- The material, first: the page's own picker (js/product.js keeps
-             the two in step), side by side as in the Modify sheet. -->
+        <!-- The page's own metal picker, mirrored by js/product.js. -->
         <div class="size-modal__custom-row size-modal__custom-row--material">
           <span class="size-modal__custom-label" aria-hidden="true">Material</span>
           <div class="size-modal__custom-field">
@@ -379,24 +274,10 @@
   </div>
 </div>
 
-<!-- Every script below is deferred. They used to be plain parser-blocking
-     scripts, which made the parser wait on each file in turn — a staggered
-     chain of round trips that held product.js, the 3D module and the
-     arrival loader back by about a second on a slow link. Deferred
-     scripts download in parallel with the parser and run in document order
-     once it is done.
-
-     That order is the contract. js/viewer-entry.js (a module, in <head>) is
-     first on the deferred queue, so window.EmjiveLoadViewer exists before
-     any of these run. The helpers come before the scripts that use them:
-     focus-trap.js and product-stages.js (window.EmjiveFocusTrap/
-     EmjiveProductStages) before product.js;
-     carousel.js/order-rows.js/modify-modal.js are the
-     Modify sheet and its parts (its small carousel is carousel.js's; the
-     page itself has none), reachable from the bar's drawer on every
-     page, and order-rows.js has to precede selection-bar.js, which builds
-     its drawer rows with it at load. main.js and product.js run last, the
-     same order they ran in when only those two were deferred. -->
+<!-- Deferred, run in document order after the viewer-entry.js module (so
+     window.EmjiveLoadViewer exists). Helpers precede their users:
+     focus-trap.js and product-stages.js before product.js, order-rows.js
+     before selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/carousel.js" defer></script>

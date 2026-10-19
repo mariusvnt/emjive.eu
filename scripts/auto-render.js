@@ -1,113 +1,33 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   auto-render — re-renders product icons and metal sample bars using the
-   exact same rendering path as the live site (window.EmjiveModelViewer in
-   js/three-viewer.js: same three.js/TrackballControls construction, same
-   studio HDRI, same METAL_PRESETS material application), but through a
-   real GPU-accelerated WebGL context instead of the browser a visitor
-   sees it in — so the output gets proper MSAA instead of relying on
-   supersample-then-downscale tricks.
-
-   Usage:
-     node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only]
-     node scripts/auto-render.js --image-variants [--series=<slug>]
-     npm run auto-render -- steel bronze
-     npm run auto-render -- --series=bones
-     npm run auto-render -- --product=rib-cage,foramen
-     npm run auto-render -- --image-variants
-     npm run auto-render -- --wheel-posters-only
-
-   --product limits a run to those products (their designs included) and
-   leaves the metal squares alone. A product with several designs gets, for
-   each design but its default, an icon and a fallback image of its own
-   (from the product's camera; no top shot — only the default design is
-   ever shown on the hero), written into that design's entry.
-
-   With no metal names given, renders every metal in data/series.json's
-   top-level "metals" list. With no --series, walks every series listed
-   there, patching each one's own products.json.
-
-   --image-variants renders nothing: it only rewrites the small sibling of
-   every image the site loads in two sizes (the x-ray backdrops, the product
-   icons, the hero) from the full-size files already on disk, by running
-   scripts/make-image-variants.js's makeVariants() with force on — so no
-   Chrome, no GPU, no products.json writes. A full render does the icon part
-   of that itself at the end (see the end of main()): the icons it just wrote
-   would otherwise have stale 128px siblings, and those are what the
-   selection bar and order rows show.
-
-   Requires a local Chrome install (set CHROME_PATH
-   to override the auto-detected path) with a real GPU available — see the
-   WebGL renderer string this script logs on startup; if it says
-   "SwiftShader" or similar, output will still be produced but without real
-   MSAA.
-
-   For each requested metal:
-   - Product icons + fallback images: EVERY product gets both rendered in
-     this metal, not just the ones that default to it — the product page's
-     metal picker swaps the icon (label thumbnail) to match whichever metal
-     is currently selected, so every product needs one for every metal it
-     could be shown in, not only its default. Both come from the exact same
-     screenshot (captureTarget's raw, transparent, default-orbit capture) —
-     "fallback-img" is that capture saved as-is (just resized), "icon" is
-     the same capture trimmed/re-centered/padded (see normalizeIconFraming).
-     fallback-img exists specifically so js/three-viewer.js's pre-load poster
-     can match the live model's actual default framing pixel-for-pixel
-     (icon's crop/pad treatment doesn't) — icon stays the tight, flat
-     thumbnail used everywhere else (label chips, cart line items, a
-     model-less product's fallback slide). Saved as 512x512 transparent
-     WebP at assets/series/<slug>/products/<folder>/<name>_{icon,fallback-img}_<metal>.webp
-     (the folder is built from the series layout, not read off
-     product.assets.model), and that series' products.json
-     "assets.icons"/"assets.fallback-img" objects (keyed by metal, alongside
-     "per-metal-specs") are updated in place to point at them — the old
-     file, if the path changed, is deleted.
-   - One wheel poster per product: the model as the homepage wheel draws it
-     (js/stack-scene.js, the very code the page runs, so the swap from the
-     poster to the live model moves and recolours nothing): a flat
-     (orthographic) camera, the model turned to its default view, the
-     environment fixed in the scene rather than turning with a viewer's
-     camera, and the model sized as the wheel sizes it. It is therefore NOT
-     the fallback-img, which is what a viewer's perspective camera sees.
-     Saved as a 512x512 transparent WebP beside the icon, indexed under
-     "assets.wheel-poster" (keyed by metal), shown by the wheel's pictures
-     (js/gallery-stack.js). --wheel-posters-only renders just these (and
-     patches products.json), leaving every other render as it is.
-   - One top shot per product: a straight-down (camera-orbit phi: 0deg)
-     view lit by the same studio HDRI every other render here uses (set by
-     window.EmjiveModelViewer itself before onReady fires — this harness
-     doesn't touch scene.environment for top shots) plus a soft contact
-     shadow, rather than the flat/shadowless cutout look of the icons.
-     Also includes an invisible "finger" occluder (see scanFingerHole/
-     addFingerOccluder below) — with no hand model in these renders, a
-     straight-down shot of a ring's hole would otherwise show whatever
-     real geometry sits under the visible top surface (the band's own
-     inner wall, or worse, a glimpse through a gap in the shank); this
-     hides that the same way a real finger would once the shot is
-     composited onto a hand image. Saved as 1024x1024 WebP alongside the
-     icon, indexed in the same products.json under that product's
-     "assets.top-shot" object (keyed by metal), mirroring "icons".
-   - One metal square per metal for the metal picker, saved as a 72x72 WebP
-     at assets/metal-sample_<metal>.webp (see SWATCH_SIZE), so
-     .product-metals__option in css/style.css shows the file as it is, at the
-     square's size, with nothing to crop or scale. All the squares come from
-     ONE scene: a single sphere in the middle, lit by an HDRI only, with the
-     sphere's material changed between renders (applyMetal, as for any other
-     viewer). The frame is the biggest square that fits in the disc the sphere
-     shows (see swatchOrbit in js/three-viewer.js), so the square IS the
-     render: nothing is cropped. Three things are chosen, all in
-     data/series.json: "swatch-hdri" (which HDRI), "swatch-blur" (a gaussian
-     blur of it, in the HDRI's own pixels) and "swatch-camera" (where the
-     camera stands round the sphere: rotation, tilt, roll) -
-     scene-tool.html's swatch mode is how you preview and set them; the rest
-     is solved. The swatches render after every product, once, rather than
-     once per metal.
-
-   Whenever METAL_PRESETS (js/three-viewer.js), the swatch camera or the
-   environment HDRI changes, re-run this for every metal so the icons/swatches stay
-   accurate — see "Re-rendering icons and metal swatches after a shader
-   change" in dev-guidelines/procedures.md.
-   ========================================================================== */
+// Re-renders the product images and metal swatches through the site's own
+// viewer code (js/three-viewer.js, js/stack-scene.js) in headless Chrome with
+// a real GPU (for MSAA; the startup log names the WebGL renderer). Set
+// CHROME_PATH to override the Chrome location.
+//
+//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only]
+//   node scripts/auto-render.js --image-variants [--series=<slug>]
+//
+// Defaults: every metal in data/series.json, every series.
+//   --product             only those products (designs included); swatches untouched
+//   --swatches-only       only the metal squares
+//   --wheel-posters-only  only the wheel posters
+//   --image-variants      no render: rewrites the size variants (make-image-variants.js)
+//
+// Per metal, for every product (the picker shows any metal):
+//   fallback-img  512px default-orbit capture: the viewer's pre-load poster, so it
+//                 must match the live framing exactly
+//   icon          the same capture, trimmed and re-centred (normalizeIconFraming)
+//   wheel-poster  512px, drawn by the wheel's own scene (orthographic camera,
+//                 fixed environment), so the swap to the live model changes nothing
+//   top-shot      1024px straight down, with a contact shadow and a "finger"
+//                 occluder hiding the ring's inner geometry
+// Each non-default design gets its own icon and fallback-img. Then one 72px
+// square per metal, assets/metal-sample_<metal>.webp: one sphere under the
+// "swatch-hdri", blurred by "swatch-blur", from "swatch-camera" (set in
+// scene-tool.html's swatch mode). products.json paths are patched in place;
+// replaced files are deleted. Afterwards the icons' 128px thumbnails are rewritten.
+//
+// Re-run for every metal after changing METAL_PRESETS, the swatch camera or an HDRI.
 
 "use strict";
 
@@ -123,28 +43,20 @@ const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const PORT = 5199;
 
 const ICON_SIZE = 512;
-// Same box the pre-load poster fills (see js/three-viewer.js), so a
-// fallback-img saved at this size never needs to be scaled by the browser.
+// The pre-load poster's box (js/three-viewer.js), so it is never scaled.
 const FALLBACK_IMG_SIZE = ICON_SIZE;
 const TOP_SHOT_SIZE = 1024;
-// The wheel's picture of a model: the size of its box in the wheel's own
-// maths (js/stack-scene.js), captured at the pixel ratio the wheel's renderer
-// draws at (its MAX_PIXEL_RATIO) so what is saved is what the wheel shows.
+// The model's box in the wheel's maths (js/stack-scene.js), at the wheel
+// renderer's MAX_PIXEL_RATIO.
 const WHEEL_POSTER_SIZE = ICON_SIZE;
 const WHEEL_POSTER_SCALE = 1.5;
-// The swatch is captured through a square frame of SWATCH_CAPTURE css px -
-// the biggest square inside the sphere's disc (the camera's fov is solved for
-// that, see swatchOrbit in js/three-viewer.js) - at CAPTURE_SCALE, and saved
-// as a SWATCH_SIZE square: 3x the picker's 1.5rem squares (--metal-square in
-// css/style.css) so it is sharp on a 3x screen and never scaled up.
+// Captured through the biggest square inside the sphere's disc (swatchOrbit
+// in js/three-viewer.js); saved at 3x the picker's 1.5rem squares
+// (--metal-square), sharp on a 3x screen.
 const SWATCH_CAPTURE = 72;
 const SWATCH_SIZE = 72;
-// Where the swatch camera stands if data/series.json has no "swatch-camera":
-// straight in front of the sphere, at eye level.
 const SWATCH_CAMERA_DEFAULT = { rotation: 0, tilt: 90, roll: 0 };
-// Captured at 2x the final pixel size (real GPU MSAA already handles edge
-// aliasing — this is purely for retina-sharp source pixels before the
-// final downscale) then resized down with sharp.
+// Supersampling for sharp source pixels before the final downscale.
 const CAPTURE_SCALE = 2;
 
 
@@ -184,20 +96,11 @@ const MIME = {
   ".css": "text/css"
 };
 
-// A minimal page loading the exact same js/three-viewer.js the live site
-// uses, so every render goes through window.EmjiveModelViewer — the SAME
-// construction code (renderer/material/camera setup, HDRI, METAL_PRESETS
-// application) as index.html/product.html — instead of a hand-duplicated
-// approximation that could quietly drift from what the site actually
-// shows. The import map resolves "three"/"three/addons/*" straight from
-// node_modules, the same package the real site's Vite build bundles —
-// this bare http server has no bundler of its own to do that resolution
-// for us. Two harness-only viewer options exist purely for this file (see
-// js/three-viewer.js): `transparentBackground` (the interactive site's
-// renderer is deliberately opaque; a screenshot needs real alpha to crop
-// against) and `static` (skips the idle-nudge hint and the continuous
-// animate loop entirely, so nothing can shift the framing between
-// onReady firing and the screenshot actually being taken a few ms later).
+// A minimal page loading the site's own js/three-viewer.js and
+// js/stack-scene.js, with an import map onto node_modules (no bundler here).
+// Harness-only viewer options: `transparentBackground` (alpha to crop
+// against) and `static` (no idle animation shifting the framing before the
+// screenshot).
 const HARNESS_HTML = `<!doctype html>
 <html><head><meta charset="UTF-8" />
 <script type="importmap">
@@ -212,15 +115,9 @@ const HARNESS_HTML = `<!doctype html>
 <style>
   html, body { margin: 0; background: transparent; }
   #target-wrap { display: block; background: transparent; }
-  /* js/three-viewer.js's renderer.setSize(w, h, false) deliberately
-     leaves the canvas's CSS-rendered size to the stylesheet (so it
-     doesn't fight the live site's percentage sizing) — this harness
-     doesn't load css/style.css at all, so without this rule the canvas
-     falls back to its raw pixel-buffer size as its CSS box (2x too big,
-     from CAPTURE_SCALE), and the screenshot captures a zoomed-in crop
-     instead of the full frame. */
+  /* The viewer leaves the canvas's CSS size to the stylesheet, which isn't
+     loaded here: without this the canvas takes its 2x buffer size. */
   .emjive-3d-viewer, .emjive-3d-viewer__canvas { width: 100%; height: 100%; display: block; }
-  /* Same for the wheel's canvas (css/style.css gives it its place on the page). */
   .stack-canvas { width: 100%; height: 100%; display: block; }
 </style>
 </head><body>
@@ -230,17 +127,8 @@ const HARNESS_HTML = `<!doctype html>
 
   window.__renderReady = false;
 
-  // Each render call builds a brand new viewer (a fresh WebGLRenderer,
-  // i.e. a fresh WebGL context) — disposing the previous one first is
-  // required, not just tidy: a full run renders many products x metals x
-  // (icon + top shot) + swatches in this one page session, and undisposed
-  // contexts accumulate until the browser refuses to grant new ones.
-  // js/three-viewer.js loads its HDRI environment fresh for every
-  // buildThreeViewer() call (not cached across instances — a PMREM
-  // texture is tied to the renderer/context that built it, and a shared
-  // cache handed later instances an invalid cross-context handle, which
-  // silently rendered them solid black), so it needs no help from this
-  // harness to stay correctly scoped to whichever renderer is current.
+  // Each render builds a new viewer (a new WebGL context); dispose the previous
+  // one or contexts accumulate until the browser refuses new ones.
   var currentHandle = null;
   var currentStack = null;
   function disposeCurrentHandle() {
@@ -250,7 +138,6 @@ const HARNESS_HTML = `<!doctype html>
     currentStack = null;
   }
 
-  // Square unless a height is given.
   function mountTargetWrap(widthPx, heightPx) {
     document.body.innerHTML = "";
     var wrap = document.createElement("div");
@@ -270,9 +157,7 @@ const HARNESS_HTML = `<!doctype html>
       static: true,
       hdri: hdriRelPath,
       onReady: function () {
-        // Two rAFs: one to let the just-framed camera actually paint, one
-        // more so it's that settled frame (not a stale one) that gets
-        // screenshotted.
+        // Two rAFs: the settled frame is the one screenshotted.
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             window.__renderReady = true;
@@ -281,13 +166,7 @@ const HARNESS_HTML = `<!doctype html>
       }
     });
     if (!handle) {
-      // window.EmjiveModelViewer returns null (rather than throwing) if
-      // the browser couldn't grant a WebGL context — see its own comment.
-      // There's no icon fallback to fall back to here, unlike the live
-      // site: this whole run's job IS to produce that fallback image, so
-      // failing loudly with a clear message beats either a cryptic
-      // "Cannot set properties of null" crash or silently skipping a
-      // product/metal and shipping an incomplete set of renders.
+      // Fail loudly: this run exists to produce the fallback images.
       throw new Error("could not create a WebGL context while rendering the icon for " + product.name + " (" + metalKey + ")");
     }
     handle.el.id = "target";
@@ -297,12 +176,8 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // The model as the homepage wheel draws it: the wheel's own scene
-  // (js/stack-scene.js) with this one product in it, in this metal, at rest
-  // in the middle of a sizePx box at the size it takes there (a pose of
-  // sizePx in a base size of sizePx). Everything that makes it look the way
-  // it does in the wheel - the flat camera, the fixed environment, the
-  // framing - is the wheel's code, not a copy of it.
+  // The model as the wheel draws it: the wheel's own scene with this one
+  // product, at rest in the middle of the box.
   window.__renderWheelPoster = function (product, metalKey, sizePx, hdriRelPath) {
     window.__renderReady = false;
     disposeCurrentHandle();
@@ -322,8 +197,6 @@ const HARNESS_HTML = `<!doctype html>
     currentStack = stack;
     return stack.ready.then(function () {
       stack.handOver({ "0": { x: sizePx / 2, y: sizePx / 2, size: sizePx, rot: 0, alpha: 1 } });
-      // Two rAFs, as for every other render: the settled frame is the one
-      // screenshotted.
       return new Promise(function (resolve) {
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
@@ -335,10 +208,7 @@ const HARNESS_HTML = `<!doctype html>
     });
   };
 
-  // A soft radial-gradient contact shadow under the model, generated
-  // on the fly (a plain 2D canvas gradient) rather than a static asset —
-  // used only here, in the top-shot path; the live interactive site never
-  // renders a shadow at all.
+  // Soft contact shadow for top shots.
   function makeShadowTexture() {
     var c = document.createElement("canvas");
     c.width = 256;
@@ -355,19 +225,9 @@ const HARNESS_HTML = `<!doctype html>
 
   function addShadowPlane(scene, box) {
     var sphere = box.getBoundingSphere(new THREE.Sphere());
-    // The gradient's own fade-to-transparent completes exactly at this
-    // plane's edge (makeShadowTexture's canvas maps its whole 0-1 UV range
-    // to the gradient's r=0..128, i.e. center to canvas edge) — too large
-    // a multiplier here means the captured frame's OWN edge (bounded by
-    // the camera framing, not this plane) falls well short of that, so
-    // real but faint non-zero alpha (confirmed directly: ~40/255 at a
-    // frame edge midpoint, ~10/255 near a corner) still reaches all the
-    // way to the image's own border. Invisible at native size against a
-    // plain background, but this render now also gets composited small
-    // (the hero's ring-on-hand overlay) — at that scale a resurviving
-    // haze across the whole frame reads as a visible translucent
-    // rectangle instead of a soft circular vignette. Small enough that
-    // the gradient is fully zero well inside the captured frame.
+    // Small enough that the gradient reaches zero well inside the frame: faint
+    // edge alpha shows as a translucent rectangle when the top shot is composited
+    // small onto the hero's hand.
     var size = sphere.radius * 1.4;
     var plane = new THREE.Mesh(
       new THREE.PlaneGeometry(size, size),
@@ -379,55 +239,18 @@ const HARNESS_HTML = `<!doctype html>
     return plane;
   }
 
-  // Every product here is a ring, always shot with nothing actually
-  // inside it (no hand/finger model exists) — so looking straight down
-  // shows whatever real geometry lies under the visible top surface: the
-  // band's own inner wall descending into the hole, or, worse, a glimpse
-  // of the far side entirely (e.g. Furcula's split shank, whose two
-  // halves don't fully close, opens a sightline straight through to
-  // geometry that should read as "under the finger"). A real finger
-  // would hide all of that; since none is modeled, this fakes the same
-  // occlusion with an invisible flat plane standing in for one, cutting
-  // the model at the vertical midpoint of its own bounding box — only
-  // the top half ever renders. Its material writes depth but not color
-  // (colorWrite false) — it can never leave a visible trace in the
-  // screenshot no matter how far it overlaps the model's own geometry.
-  //
-  // Tried confining this to a radius-fitted cylinder first (so untouched
-  // geometry outside the "hole" would be provably safe from clipping
-  // regardless of cutoff height): a shared circle left Furcula's
-  // elongated shank only partly hidden, and letting each angle keep its
-  // own detected radius (to hug the shank more closely) clipped a
-  // visible chunk out of Foramen's genuinely decorative loop instead.
-  // Settled on a plain global half — no radius fit at all, every product
-  // cut at exactly the same 50% of its own bounding-box height — as a
-  // deliberate simplicity trade-off: it fully hides Furcula's shank (the
-  // one product with an actual reported defect) and leaves Foramen
-  // untouched, but does cut into Disc's own lower, genuinely-visible
-  // band surface, since Disc's decorative material happens to start
-  // lower (relative to its own bounding box) than the other two. Accepted
-  // rather than chasing a per-product height, which is its own can of
-  // worms — an earlier, fancier version of this that derived a cutoff
-  // straight from the model's geometry (raycasting for the nearest real
-  // surface) failed in a different way, since the first surface found
-  // outward from the center isn't reliably "the rim" at all — for
-  // Furcula specifically, it's the shank itself, i.e. exactly the thing
-  // meant to be hidden.
-  //
-  // renderOrder -1 forces this to draw before the model regardless of
-  // THREE's own distance-sorted opaque render order — without that
-  // guarantee, a farther-side fragment could render (and win the depth
-  // test) before the occluder ever got a chance to stake its claim on
-  // the depth buffer.
+  // An invisible depth-only plane standing in for a finger: a top shot of an
+  // empty ring otherwise shows its inner wall, or through gaps in the shank.
+  // Cuts every model at 50% of its bounding-box height, a deliberate trade-off
+  // (radius-fitted or raycast cutoffs clipped visible geometry on some models).
+  // renderOrder -1 so it claims the depth buffer before the model draws.
   function addFingerOccluder(scene, box) {
     var size = new THREE.Vector3();
     box.getSize(size);
     var center = new THREE.Vector3();
     box.getCenter(center);
     var cutY = box.min.y + size.y * 0.5;
-    // Generously oversized — harmless given colorWrite is off, and
-    // guarantees the cut reaches every corner of the model regardless of
-    // its footprint shape.
+    // Oversized so the cut covers any footprint.
     var planeSize = Math.max(size.x, size.z) * 4;
     var mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(planeSize, planeSize),
@@ -439,26 +262,13 @@ const HARNESS_HTML = `<!doctype html>
     scene.add(mesh);
   }
 
-  // Still built via window.EmjiveModelViewer first — same METAL_PRESETS
-  // material application AND same studio HDRI as every other render — then
-  // deliberately diverges on exactly two things: camera angle (straight
-  // down) and the added soft contact shadow below, so "light from above"
-  // actually reads in a still image.
+  // The site's viewer, but straight down and with a contact shadow.
   window.__renderTopShot = function (product, metalKey, sizePx, hdriRelPath) {
     window.__renderReady = false;
     disposeCurrentHandle();
     var wrap = mountTargetWrap(sizePx);
-    // Reuses the product's own default zoom (falls back to 105) so top
-    // shots stay consistently framed with the product's other renders —
-    // rotation is fixed at 0 rather than the product's own default, for a
-    // canonical, camera-north-up top-down shot regardless of how each
-    // model's default 3/4 view happens to be rotated. roll is omitted
-    // below for the identical reason (parseOrbitConfig defaults it to 0)
-    // — an authored roll is exactly as much a "how this model's default
-    // view happens to be oriented" choice as rotation is, and a top shot
-    // composited onto the homepage hero's hand needs the same canonical,
-    // unrolled framing every other product's top shot has, independent of
-    // whatever any one product's 3/4 view was rolled to.
+    // The product's zoom, but rotation 0 and no roll: top shots composited on
+    // the hand need one canonical orientation.
     var defaultOrbit = product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
     var zoom = typeof defaultOrbit.zoom === "number" ? defaultOrbit.zoom : 105;
     var handle = window.EmjiveModelViewer(product, metalKey, {
@@ -466,34 +276,13 @@ const HARNESS_HTML = `<!doctype html>
       static: true,
       hdri: hdriRelPath,
       onReady: function () {
-        // handle.scene.environment is already whichever HDRI this series
-        // resolved to here — window.EmjiveModelViewer sets it itself
-        // before onReady fires (see js/three-viewer.js's
-        // environmentPromise), so no override needed.
-        // Measured before anything else is added to the scene — both
-        // addFingerOccluder and addShadowPlane need the model's own
-        // bounding box, not one inflated by each other.
+        // The model's own box, measured before the occluder and shadow are added.
         var modelBox = new THREE.Box3().setFromObject(handle.scene);
 
-        // The finger occluder has to draw before the model within a
-        // single, ordinary opaque render pass (see addFingerOccluder's
-        // comment) — but the shadow plane can't share that same pass:
-        // tried directly, the occluder winning the depth test against
-        // the shadow (drawn later, in the transparent pass) erased the
-        // shadow's own color wherever it did, punching a visible hole in
-        // the gradient at exactly the "finger" location. So this renders
-        // in two passes instead — the model hidden on its own layer for
-        // the first, so the shadow plane (still transparent, blending
-        // normally) draws alone against a genuinely empty canvas. Then,
-        // for the second pass, the shadow plane specifically is hidden
-        // right back again (tried leaving it visible for both passes: it
-        // redrew a second time everywhere the occluder wasn't there to
-        // block its depth test, double-blending that whole area a shade
-        // darker than the occluder-covered patch and leaving an equally
-        // visible — just lower-contrast — disc behind) while the model
-        // and the new occluder render on top without clearing: wherever
-        // the occluder wins the depth test, colorWrite:false leaves the
-        // first pass's shadow color untouched instead of erasing it.
+        // Two passes: in one pass the occluder's depth would cut a hole in the
+        // shadow, and drawing the shadow in both would double-darken it. Pass 1 draws
+        // the shadow alone (model on layer 1); pass 2 draws model and occluder over
+        // it without clearing, the shadow hidden.
         handle.scene.traverse(function (obj) { obj.layers.set(1); });
         var shadowMesh = addShadowPlane(handle.scene, modelBox);
         handle.setCameraOrbit({ rotation: 0, tilt: 0, zoom: zoom }); // pass 1: shadow alone
@@ -513,9 +302,6 @@ const HARNESS_HTML = `<!doctype html>
       }
     });
     if (!handle) {
-      // See the matching check in window.__renderTarget above for why
-      // this throws instead of silently skipping or crashing on a null
-      // dereference.
       throw new Error("could not create a WebGL context while rendering the top shot for " + product.name + " (" + metalKey + ")");
     }
     handle.el.id = "target";
@@ -525,18 +311,9 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // The swatch scene: one sphere under an HDRI, rather than a close-up of an
-  // actual product. Goes through the same
-  // window.EmjiveModelViewer(product, metalKey, options) every other render
-  // here uses (options.swatch swaps the loaded GLTF for the sphere - see
-  // js/three-viewer.js's buildSwatchStack), not a separate
-  // buildMaterialSwatch - so a swatch can't drift from the site's real
-  // material construction any more than an icon or top shot can. Built ONCE;
-  // __aimSwatch then changes the sphere's metal and draws it, the camera being
-  // fixed (swatchOrbit(camera): "camera" is data/series.json's "swatch-camera",
-  // { rotation, tilt, roll }; the frame is the biggest square in the sphere's
-  // disc), threaded through on a minimal stub "product" object since this
-  // render has no real product/model.
+  // One sphere under the swatch HDRI, built once through the site's viewer
+  // (options.swatch); __aimSwatch changes its metal. The camera is
+  // swatchOrbit("swatch-camera").
   window.__buildSwatchScene = function (sizePx, metalKey, hdriRelPath, blurPx, camera) {
     window.__renderReady = false;
     disposeCurrentHandle();
@@ -556,9 +333,6 @@ const HARNESS_HTML = `<!doctype html>
       }
     });
     if (!handle) {
-      // See the matching check in window.__renderTarget above for why
-      // this throws instead of silently skipping or crashing on a null
-      // dereference.
       throw new Error("could not create a WebGL context while rendering the swatches");
     }
     handle.el.id = "target";
@@ -568,10 +342,7 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // A static viewer draws only on explicit calls: setCameraOrbit() renders
-  // synchronously, so putting the camera back where it is draws the sphere in
-  // its new metal. The two rAFs are the same "let that frame actually paint"
-  // wait every other render here does before its screenshot.
+  // setCameraOrbit() renders synchronously on a static viewer, drawing the new metal.
   window.__aimSwatch = function (metalKey, camera) {
     currentHandle.applyMetal(metalKey);
     currentHandle.setCameraOrbit(window.EmjiveModelViewer.swatchOrbit(camera));
@@ -626,23 +397,9 @@ async function writeWebp(sharpInstance, outPath) {
   await sharpInstance.webp({ quality: 92, alphaQuality: 100 }).toFile(outPath);
 }
 
-// How much of the final square an icon's actual rendered content (its
-// trimmed alpha bbox) occupies along its longer edge, once centered.
-// frameCamera() in js/three-viewer.js sizes the camera off each model's
-// bounding-SPHERE (a crude, shape-agnostic stand-in for its true 2D
-// silhouette), at that product's own 3d-viewer-camera-default angle — so the same
-// nominal radius-% lands at very different actual on-screen fill per
-// product (an anisotropic/thin ring viewed at a shallow angle produces a
-// far more lopsided bounding sphere than a stockier one viewed near
-// level). Trimming to the real rendered content and re-centering it at a
-// fixed fraction of its LONGER edge normalizes that scale inconsistency
-// away, and guarantees left/right margins symmetric WITHIN each single
-// icon (fit: "contain" centers on both axes) — but two products with
-// different width/height proportions still end up with different margin
-// WIDTHS from one another (a squatter ring's trimmed content is wider
-// relative to its own height than a slender one's), which this alone
-// can't fix without either distorting the ring or leaving inconsistent
-// top/bottom margins instead.
+// Share of the square an icon's trimmed content fills along its longer edge.
+// frameCamera() frames by bounding sphere, so on-screen fill varies per
+// product; trimming and re-centring normalizes it.
 const ICON_CONTENT_FRACTION = 0.8;
 
 function normalizeIconFraming(sharpPipeline, sizePx) {
@@ -656,12 +413,7 @@ function normalizeIconFraming(sharpPipeline, sizePx) {
     .extend({ top: padLeft, bottom: padRight, left: padLeft, right: padRight, background: transparent });
 }
 
-// Captures the model's default-orbit pose ONCE, then saves it twice: first
-// as-is (just resized, no crop/pad) for fallback-img — the pre-load poster
-// needs this to match the live viewer's own default framing exactly — then
-// through normalizeIconFraming for the icon, which every other UI spot
-// (label chips, cart line items, model-less fallback slides) wants as a
-// tightly-cropped, re-centered thumbnail instead.
+// One capture, saved as-is for fallback-img and re-framed for the icon.
 async function renderIconAndFallback(page, product, metalKey, fallbackOutPath, iconOutPath, hdriRelPath) {
   const buffer = await captureTarget(page, ICON_SIZE, product, metalKey, hdriRelPath);
   await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), fallbackOutPath);
@@ -690,9 +442,7 @@ async function renderTopShot(page, product, metalKey, outPath, hdriRelPath) {
   await writeWebp(sharp(buffer).resize(TOP_SHOT_SIZE, TOP_SHOT_SIZE), outPath);
 }
 
-// Builds the scene once (one sphere under the swatch HDRI), then, for each
-// wanted metal, gives the sphere that metal and captures it. Every swatch has
-// the same camera, sphere and HDRI: only the shader differs.
+// One scene; only the sphere's metal changes between captures.
 async function renderSwatches(page, wantedMetals, hdriRelPath, blurPx, camera) {
   await page.setViewport({ width: SWATCH_CAPTURE, height: SWATCH_CAPTURE, deviceScaleFactor: CAPTURE_SCALE });
   await page.evaluate(
@@ -708,8 +458,7 @@ async function renderSwatches(page, wantedMetals, hdriRelPath, blurPx, camera) {
     const handle = await page.$("#target");
     const buffer = await handle.screenshot({ omitBackground: true });
     await writeWebp(sharp(buffer).resize(SWATCH_SIZE, SWATCH_SIZE), path.join(ROOT, relPath));
-    // Superseded by the naming/format above, if a product ever gets
-    // re-rendered under this tool for the first time.
+    // Legacy filename.
     deleteIfExists(path.join(ROOT, "assets", "metal-swatch-" + metal + ".png"));
   }
 }
@@ -722,20 +471,9 @@ function deleteIfExists(absPath) {
   if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
 }
 
-// Patches a single product's "<blockKey>": {...} sub-object (a per-metal
-// map of paths — "assets.icons", "assets.fallback-img", or
-// "assets.top-shot") in the raw products.json TEXT (not a re-serialize of
-// the parsed object, so hand-aligned formatting elsewhere in the file
-// survives untouched). Scoped to the one product via its unique "id"
-// field, then directly to the "<blockKey>": {...} block within that
-// product's own text — blockKey only needs to be unique *within a single
-// product's block*, not top-level, which is why this works for all three
-// without first needing to isolate "assets" itself (that object also holds
-// plain-string/array fields like "model"/"xray"/"photos", so it can't be
-// matched with the same non-nested-braces regex this uses for its
-// per-metal child blocks).
-// Returns the updated text, or null if the expected shape wasn't found
-// (caller falls back to warning the user to fix it by hand).
+// Replaces one metal's path in a product's "<blockKey>": {...} map, in the raw
+// text (hand alignment survives). The product is found by "id", the map within
+// its block. null if not found (the caller warns).
 function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPath) {
   const idAnchor = `"id": "${product.id}"`;
   const startIdx = text.indexOf(idAnchor);
@@ -755,12 +493,8 @@ function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPat
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// The same per-metal patch for one of a product's other designs: an entry of
-// its "designs" list, found by its unique "key" (never "id" — that would end
-// the product's slice above early) inside the product's own text, then its
-// own "<blockKey>": {...} map ("icons" or "fallback-img"; a design has no
-// top shot). The product's own maps come before "designs" in the block, so
-// updateProductMetalFieldInText never reaches a design's.
+// The same for a non-default design's map, found by its "key" inside the
+// product's "designs" list.
 function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal, newRelPath) {
   const idAnchor = `"id": "${product.id}"`;
   const productStart = text.indexOf(idAnchor);
@@ -785,10 +519,8 @@ function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal,
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// A product as one of its other designs would show it: the design's model
-// and renders in place of the product's, the product's camera kept (every
-// design of a product is framed by the same camera, js/series.js
-// resolveDesign).
+// A product shown as one of its designs: the design's model and renders, the
+// product's camera (js/series.js resolveDesign).
 function designView(product, design) {
   return Object.assign({}, product, {
     assets: Object.assign({}, product.assets, {
@@ -801,21 +533,15 @@ function designView(product, design) {
   });
 }
 
-// Repo-root-relative output folder for one product's renders, built from
-// the series layout rather than inferred from wherever product.assets.model
-// happens to sit. Deriving it from path.dirname(product.assets.model) —
-// what this used to do — silently wrote to the repo root for any product without a model yet
-// (path.dirname("") is "."), and couldn't tell one series' tree from
-// another's. Encodes assets.md's <slug>_<category> folder convention.
+// A product's render folder, from the series layout (assets.md's
+// <slug>_<category> convention), not from wherever its model sits.
 function productFolder(seriesSlug, product) {
   return "assets/series/" + seriesSlug + "/products/" + slug(product.name) + "_" + product.category;
 }
 
-// Neither invariant is enforced anywhere else, and both fail quietly: a
-// series category outside the global vocabulary renders a filter button
-// that can never match, and a product whose category isn't in its own
-// series' subset disappears the moment any filter is on. This is the only
-// place that has the index and every series' products parsed at once.
+// Both drifts fail silently on the site: a series category outside the global
+// vocabulary gives a dead filter button, a product outside its series'
+// categories vanishes under any filter.
 function warnCategoryDrift(seriesIndex, targets) {
   const vocabulary = Object.keys(seriesIndex.categories || {});
   for (const entry of seriesIndex.series) {
@@ -841,9 +567,7 @@ function warnCategoryDrift(seriesIndex, targets) {
   }
 }
 
-// Same "warn but don't crash on data-integrity drift" shape as
-// warnCategoryDrift above — checks every series regardless of --series, not
-// just the ones this run is actually rendering.
+// Checks every series, regardless of --series.
 function warnHdriDrift(seriesIndex) {
   const vocabulary = Object.keys(seriesIndex.hdris || {});
   for (const entry of seriesIndex.series) {
@@ -856,9 +580,7 @@ function warnHdriDrift(seriesIndex) {
   }
 }
 
-// Same shape again, for the swatch-scene fields scene-tool.html writes (see
-// dev-guidelines/procedures.md): "swatch-hdri" against the same "hdris"
-// vocabulary warnHdriDrift checks, "swatch-camera" for being three numbers.
+// The swatch fields scene-tool.html writes.
 function warnSwatchSceneDrift(seriesIndex) {
   const hdriVocabulary = Object.keys(seriesIndex.hdris || {});
   const swatchHdri = seriesIndex["swatch-hdri"];
@@ -893,22 +615,12 @@ async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
   const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
-  // Only these products (their names as slugs, comma-separated), designs
-  // included — a model replaced or added without re-rendering the whole
-  // catalog. The swatches aren't redone on such a run.
+  // Product slugs, comma-separated.
   const productArg = (args.find((a) => a.startsWith("--product=")) || "").split("=")[1];
   const onlyProducts = productArg ? productArg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null;
-  // Just the metal-sample squares — no product icons/top shots, no
-  // products.json writes. The loop for tuning the swatch scene
-  // (scene-tool.html's swatch mode) without re-rendering the catalog.
   const swatchesOnly = args.includes("--swatches-only");
-  // Just the wheel posters (and their products.json paths): the loop for
-  // re-rendering them after a change to the wheel's drawing, without
-  // touching the icons, fallback images, top shots or swatches.
   const wheelPostersOnly = args.includes("--wheel-posters-only");
-  // Just the other versions of the big images (see make-image-variants.js) —
-  // no browser, no render.
-  // Handled before anything else so it needs neither Chrome nor a valid metal.
+  // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
     if (seriesArg) {
       const known = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8")).series.map((s) => s.slug);
@@ -926,9 +638,7 @@ async function main() {
   const allHdris = seriesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
 
-  // Swatch-scene config (scene-tool.html's HDRI and Camera tick boxes in swatch
-  // mode write it) - a missing or malformed field falls back to the default, so
-  // a swatch always renders.
+  // Missing or malformed fields fall back to the defaults, so a swatch always renders.
   const swatchHdriPath = allHdris[seriesIndex["swatch-hdri"]];
   const swatchBlur = typeof seriesIndex["swatch-blur"] === "number" && seriesIndex["swatch-blur"] > 0 ? seriesIndex["swatch-blur"] : 0;
   const swatchCamera = isSwatchCamera(seriesIndex["swatch-camera"]) ? seriesIndex["swatch-camera"] : SWATCH_CAMERA_DEFAULT;
@@ -940,10 +650,7 @@ async function main() {
     );
   }
 
-  // One target per series product file. raw/text/data stay bundled together
-  // deliberately: ids are only unique *within* a file now, so a shared
-  // top-level `productsText` could have file A's text patched using file B's
-  // product and still satisfy updateProductMetalFieldInText's "id" anchor.
+  // raw/text/data stay per file: ids are only unique within one file.
   const selected = swatchesOnly ? [] : seriesIndex.series.filter((s) => !seriesArg || s.slug === seriesArg);
   if (seriesArg && !swatchesOnly && !selected.length) {
     throw new Error(
@@ -983,9 +690,6 @@ async function main() {
     args: gpuArgs
   });
 
-  // Each target tracks in-place edits to its own raw products.json TEXT (not
-  // a re-serialize of the parsed object) so hand-aligned formatting elsewhere
-  // in the file survives untouched — see `targets` above.
 
   try {
     const page = await browser.newPage();
@@ -996,8 +700,7 @@ async function main() {
       timeout: 30000
     });
 
-    // Confirms this run actually used real GPU-accelerated WebGL (proper
-    // MSAA) rather than silently falling back to a software rasterizer.
+    // Flags a software rasterizer (no real MSAA).
     const renderer = await page.evaluate(() => {
       var c = document.createElement("canvas");
       var gl = c.getContext("webgl2") || c.getContext("webgl");
@@ -1024,10 +727,8 @@ async function main() {
           if (onlyProducts && !onlyProducts.includes(slug(product.name))) continue;
           const folder = productFolder(target.slug, product);
 
-          // The model is the one asset this tool doesn't write, so a model
-          // sitting outside the folder the convention predicts means either
-          // a hand-renamed directory or a file missed by a move — either way
-          // the renders below are about to land somewhere unexpected.
+          // The model is the one asset this tool doesn't write; outside the predicted
+          // folder means a renamed directory or a missed move.
           const productModel = product.assets && product.assets.model;
           if (productModel && path.dirname(productModel) !== folder) {
             console.warn(
@@ -1126,11 +827,8 @@ async function main() {
             }
           }
 
-          // Its other designs (the default is the product itself, done
-          // above): an icon and a fallback-img each, from the product's
-          // camera, named <product>-<design key>_... in the product's folder.
-          // No top shot: the hero and the homepage stack only ever show the
-          // default design.
+          // Non-default designs: icon and fallback-img from the product's camera, as
+          // <product>-<design key>_... No top shot: only the default design is shown on the hand.
           const designs = product.designs;
           for (const design of (designs && designs.list) || []) {
             if (design.key === designs.default) continue;
@@ -1160,7 +858,6 @@ async function main() {
 
     }
 
-    // A run limited to some products leaves the metal squares as they are.
     if (!onlyProducts && !wheelPostersOnly) {
       console.log("\n--- swatches ---");
       await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
@@ -1174,10 +871,7 @@ async function main() {
       }
     }
 
-    // The icons just written are the source of the bar's and the order
-    // rows' 128px thumbnails: rewrite those so they match (and so a metal
-    // that has just been added gets its siblings at all). A swatches-only
-    // run wrote no icons.
+    // The new icons are the source of the 128px thumbnails.
     if (!swatchesOnly && !wheelPostersOnly) {
       console.log("\n--- icon thumbnails ---");
       await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });

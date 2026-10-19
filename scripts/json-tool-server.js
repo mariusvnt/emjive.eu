@@ -1,52 +1,13 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   json-tool-server — bare static/API server for json-tool.html, a
-   standalone dev page for editing global catalog parameters
-   (data/series.json's featured/categories/hdris/metals), editing or adding
-   a series, and editing or adding a series' products — including
-   drag-and-drop for the hand-owned asset files (3D model, x-ray, extra
-   photos) — writing the right JSON fields and dispatching dropped files
-   into the right folders automatically.
-
-   Deliberately has no swatch-scene editing at all (swatch-hdri, swatch-blur, swatch-camera) —
-   scripts/scene-tool-server.js already owns
-   that, with a live preview this file has no equivalent for. This file's
-   GET /api/data still surfaces a read-only drift warning if the existing
-   swatch-scene data looks broken, but nothing here can write to it.
-
-   Usage:
-     node scripts/json-tool-server.js
-     npm run json-tool
-
-   Modeled directly on scripts/scene-tool-server.js's own shape (ROUTES
-   map, readJsonBody/sendJson, path-traversal-guarded serveStatic) and
-   scripts/auto-render.js's slug()/productFolder()/drift-warning logic —
-   duplicated rather than imported, consistent with this repo's own
-   tolerance for that trade-off (see scene-tool-server.js's own header
-   comment). The JSON-text-surgery primitives this tool specifically needs
-   beyond what those two files already have (inserting a whole new product/
-   series/category/hdri/metal, not just patching a field that already
-   exists) live in scripts/json-tool-blocks.js, a plain sibling module.
-
-   Four scope decisions this file deliberately never crosses:
-   1. No auto-render integration — never shells out to `npm run
-      auto-render`/Puppeteer/sharp. Only writes JSON + hand-owned asset
-      files; regenerating icons stays a manual terminal step afterward.
-   2. No writes to assets.icons/assets.fallback-img/assets.top-shot, ever,
-      for any metal — renderProductBlock always copies those three per-
-      metal maps straight from the current on-disk product, never from
-      form input, so there is no code path here that could touch them.
-   3. New metals only ever touch data/series.json's "metals" array (and a
-      removal also drops that metal's "metal-costs" entry) —
-      js/three-viewer.js and css/style.css are never opened by this file.
-   4. "geometry" on a product is never edited here — measure-models.js
-      owns it; renderProductBlock just carries it through from the
-      current on-disk product.
-
-   Deliberately outside Vite entirely (not in vite.config.js's
-   rollupOptions.input, same as scene-tool.html/auto-render.js) — this is
-   an authoring tool, not a page the live site ever serves.
-   ========================================================================== */
+// Dev server for json-tool.html (npm run json-tool): edits data/series.json's
+// globals, series and products, and files dropped hand-owned assets (model,
+// x-ray, photos) into the right folders. Text surgery lives in
+// scripts/json-tool-blocks.js.
+//
+// Never: runs auto-render; writes the auto-render-owned maps (icons,
+// fallback-img, wheel-poster, top-shot); touches js/three-viewer.js or
+// css/style.css for metals; edits "geometry" (measure-models.js's); writes
+// the swatch scene (scene-tool's).
 
 "use strict";
 
@@ -78,12 +39,9 @@ const MIME = {
 const MODEL_EXTS = [".glb", ".gltf"];
 const IMAGE_EXTS = [".png", ".webp", ".jpg", ".jpeg"];
 
-// ---- small shared helpers ----
+// ---- helpers ----
 
-// Base64 inflates ~33% over raw bytes, and model files run "a few MB" per
-// dev-guidelines/procedures.md — generous enough for that plus a batch of
-// photos in one request, small enough to fail loudly on anything absurd
-// rather than hang reading forever.
+// Base64 inflates ~33%: room for a model plus a batch of photos.
 const MAX_BODY_BYTES = 60 * 1024 * 1024;
 
 function readJsonBody(req) {
@@ -129,21 +87,13 @@ function findSeriesEntry(seriesIndex, seriesSlug) {
   return (seriesIndex.series || []).find((s) => s.slug === seriesSlug) || null;
 }
 
-// Defensive check before any recursive folder delete below — every folder
-// this file ever removes is built by joining trusted path segments onto
-// ROOT, but segments derived from a stored series slug or a product's own
-// (hand-editable) name/category are one hop removed from raw JSON content,
-// not the same validated-at-write-time strings isAllowedAssetDestPath
-// already guards for writes. A slug/category containing "/" or ".." here
-// would otherwise let a stale or hand-corrupted data/series.json escape
-// ROOT on delete even though it never could have on write.
+// Guards recursive deletes: slugs and categories come from hand-editable JSON,
+// so "/" or ".." could otherwise escape ROOT.
 function isSafeSlugSegment(s) {
   return typeof s === "string" && /^[a-z0-9-]+$/.test(s);
 }
 
-// Every product's own products.json file, parsed, keyed by series slug —
-// used by the various "is this still in use elsewhere" checks below
-// (category/hdri/metal removal, and computing metal-cascade rewrites).
+// Every series' parsed products.json, keyed by series slug.
 function loadAllProductsData(seriesIndex) {
   const bySlug = {};
   for (const s of seriesIndex.series || []) {
@@ -153,18 +103,12 @@ function loadAllProductsData(seriesIndex) {
   return bySlug;
 }
 
-// Repo-root-relative output folder for one product's hand-owned assets,
-// built from the series layout the same way scripts/auto-render.js's own
-// productFolder() does — from the product's current name+category, not
-// from wherever assets.model happens to already point.
+// A product's asset folder, from its current name and category (as in scripts/auto-render.js).
 function productFolder(seriesSlug, name, category) {
   return "assets/series/" + seriesSlug + "/products/" + blocks.slug(name) + "_" + category;
 }
 
-// Next sequential id within one series' products.json — ids are only
-// unique *within* a single series' file (see dev-guidelines/data.md), so
-// every series restarts at "01". Preserves the existing ids' zero-padding
-// width rather than hardcoding 2 digits.
+// Next id within one series (ids restart per series), keeping the existing zero-padding.
 function nextProductId(productsData) {
   const ids = (productsData.products || []).map((p) => String(p.id));
   const numeric = ids.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n));
@@ -173,9 +117,7 @@ function nextProductId(productsData) {
   return String(max + 1).padStart(width, "0");
 }
 
-// Read-only, non-blocking — ports scripts/auto-render.js's own
-// warnCategoryDrift/warnHdriDrift/warnSwatchSceneDrift (console.warn there)
-// into plain strings collected for GET /api/data's response instead.
+// Read-only drift warnings for GET /api/data (as auto-render.js warns).
 function collectDriftWarnings(seriesIndex, seriesData) {
   const warnings = [];
   const categoryVocabulary = Object.keys(seriesIndex.categories || {});
@@ -217,20 +159,12 @@ function collectDriftWarnings(seriesIndex, seriesData) {
   return warnings;
 }
 
-// ---- asset-path safety — defense in depth beyond serveStatic's own
-// root-containment check below. Every write/delete destination must match
-// one of these two shapes AND must never look like an auto-render-owned
-// filename (belt-and-suspenders: renderProductBlock never even accepts
-// icons/fallback-img/wheel-poster/top-shot from form input, so no caller in this file
-// ever builds such a path — but a bad destPath reaching here at all should
-// still be rejected outright, not just produce a wrong-looking file). ----
+// ---- asset path safety ----
+// Every write/delete must match one of these shapes and never an
+// auto-render-owned filename.
 
 const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+\/[^/]+$/;
-// Same shape as PRODUCT_ASSET_PATH_RE minus the trailing filename — used to
-// validate a product's whole FOLDER (not one file in it) before a
-// recursive delete; see isSafeSlugSegment's comment for why this can't
-// just trust productFolder()'s output the way a single-file write already
-// gets to via isAllowedAssetDestPath.
+// A product folder, checked before a recursive delete.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
 const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|top-shot)_/;
@@ -266,10 +200,8 @@ function moveAssetFile(oldRel, newRel, moved, warnings) {
   }
 }
 
-// ---- GET /api/data — one merged blob the front-end renders its whole
-// form from: the parsed series index, every series' parsed products +
-// manifest plus a server-computed next product id, and read-only drift
-// warnings. ----
+// ---- GET /api/data: the series index, every series' products and manifest
+// with its next product id, and drift warnings ----
 
 async function handleGetData(req, res) {
   const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
@@ -286,7 +218,7 @@ async function handleGetData(req, res) {
   sendJson(res, 200, { seriesIndex, seriesData, driftWarnings });
 }
 
-// ---- global-parameter writes ----
+// ---- global parameters ----
 
 async function handleGlobalFeatured(req, res) {
   const body = await readJsonBody(req);
@@ -303,11 +235,7 @@ async function handleGlobalFeatured(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Where a category key is still relied on: any series declaring it in its
-// own "categories" list, or any product (in any series) whose "category"
-// field is this key. Both would break — a series filter button that can
-// never match, or a product that vanishes from every filtered view —
-// which is why removal below blocks rather than warns.
+// Series declaring the category and products using it; removal is blocked while any exist.
 function findCategoryUsages(seriesIndex, key) {
   const usages = [];
   const productsBySlug = loadAllProductsData(seriesIndex);
@@ -359,7 +287,6 @@ async function handleGlobalCategory(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Where an hdri key is still relied on: any series' own "hdri" field.
 function findHdriUsages(seriesIndex, key) {
   const usages = [];
   for (const s of seriesIndex.series || []) {
@@ -439,18 +366,13 @@ async function handleGlobalMetal(req, res) {
 
     let patched = blocks.removeFromInlineStringArray(text, '"metals": [', metal);
     if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
-    // Its metal-costs entry goes with it (validate-data rejects a cost entry
-    // for a metal that isn't in the list).
+    // validate-data rejects entries for metals not in the list.
     patched = blocks.removeObjectEntryInText(patched, '"metal-costs": {', metal) || patched;
-    // ...and its metal-composition one (the same check).
     patched = blocks.removeObjectEntryInText(patched, '"metal-composition": {', metal) || patched;
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
-    // Cascade cleanup: strip the removed metal's key from every product's
-    // per-metal-specs/icons/fallback-img/wheel-poster/top-shot, in every series, by
-    // re-rendering each product block against the NEW metals list —
-    // renderProductBlock only ever emits keys for the metals it's given,
-    // so this alone is enough; no separate per-object key-deletion needed.
+    // Re-render every product block against the new metals list, which drops the
+    // removed metal's keys everywhere.
     for (const s of seriesIndex.series || []) {
       const entry = productsBySlug[s.slug];
       let pText = fs.readFileSync(entry.absPath, "utf8");
@@ -495,7 +417,7 @@ async function handleGlobalMetal(req, res) {
   });
 }
 
-// ---- series writes ----
+// ---- series ----
 
 async function handleSeriesEdit(req, res) {
   const body = await readJsonBody(req);
@@ -567,8 +489,7 @@ async function handleSeriesAdd(req, res) {
 
   const productsRelPath = "data/series/" + slugValue + "/products.json";
   const manifestRelPath = "data/series/" + slugValue + "/manifest.json";
-  // Brand-new files, nothing hand-formatted here yet to preserve — a plain
-  // JSON.stringify is fine (unlike every edit-in-place path above).
+  // New files: plain JSON.stringify is fine.
   fs.writeFileSync(path.join(ROOT, productsRelPath), JSON.stringify({ series: slugValue, products: [] }, null, 2) + "\n", "utf8");
   fs.writeFileSync(
     path.join(ROOT, manifestRelPath),
@@ -617,13 +538,8 @@ async function handleSeriesAdd(req, res) {
   });
 }
 
-// Deletes an entire series: its data/series/<slug>/ folder, its
-// series/<slug>/ hero bundle, its assets/series/<slug>/ tree (every
-// product's assets, including anything auto-render already generated
-// there), and its block in data/series.json. Blocked outright rather than
-// warn-and-proceed when the series is still load-bearing (currently
-// featured, or the last one left) — either would leave the live site with
-// no homepage series to show at all.
+// Deletes a series' data, hero bundle and assets, and its block. Refused for
+// the featured or last series.
 async function handleSeriesRemove(req, res) {
   const body = await readJsonBody(req);
   const slugValue = body.slug;
@@ -660,7 +576,7 @@ async function handleSeriesRemove(req, res) {
   sendJson(res, 200, { ok: true, deleted });
 }
 
-// ---- product writes ----
+// ---- products ----
 
 async function handleProductAdd(req, res) {
   const body = await readJsonBody(req);
@@ -783,10 +699,8 @@ async function handleProductEdit(req, res) {
     return sendJson(res, 409, { error: 'a different product already uses folder ' + newFolder + ' ("' + collision.name + '")' });
   }
 
-  // Never renders from `fields` alone — merge onto the CURRENT parsed
-  // product first, so any field the form didn't touch (most importantly
-  // assets.icons/fallback-img/wheel-poster/top-shot, which this tool never edits at
-  // all) survives untouched into the re-rendered block.
+  // Merge onto the on-disk product so untouched fields (the auto-render-owned
+  // maps above all) survive the re-render.
   const merged = Object.assign({}, current, { name: nextName, category: nextCategory });
   if (fields.description !== undefined) merged.description = fields.description;
   if (fields.defaultMetal !== undefined) merged["default-metal"] = fields.defaultMetal;
@@ -811,8 +725,7 @@ async function handleProductEdit(req, res) {
       moveAssetFile(p.src, newRel, moved, warnings);
       return { src: newRel, description: p.description };
     });
-    // The other designs' models, wireframes and print models go with the product's (their
-    // renders, like the product's own, are auto-render's to redo).
+    // The other designs' files move too; their renders are auto-render's to redo.
     if (merged.designs) {
       merged.designs = Object.assign({}, merged.designs, {
         list: (merged.designs.list || []).map((d) => {
@@ -874,11 +787,7 @@ async function handleProductEdit(req, res) {
   sendJson(res, 200, { ok: true, folder: newFolder, moved, written, warnings });
 }
 
-// Deletes one product entirely: its whole asset folder (model, xray,
-// photos, and anything auto-render already generated there) and its block
-// in that series' products.json. Nothing else in the data model points AT
-// a product (unlike a series, which "featured" can point to), so there's
-// no analogous blocking check here beyond the product existing at all.
+// Deletes a product's asset folder and its block.
 async function handleProductRemove(req, res) {
   const body = await readJsonBody(req);
   const seriesSlug = body.seriesSlug;
@@ -951,10 +860,7 @@ async function handleProductRemovePhoto(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Updates one existing photo's caption text (assets.photos[i].description
-// — shown on the product page under that photo as "On display: ..."), by
-// src match against the CURRENT saved list, same re-read/re-render/write
-// pattern every other single-field photo mutation above uses.
+// A photo's caption (assets.photos[i].description), matched by src.
 async function handleProductUpdatePhotoDescription(req, res) {
   const body = await readJsonBody(req);
   const seriesSlug = body.seriesSlug;
@@ -992,12 +898,8 @@ async function handleProductUpdatePhotoDescription(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Immediate (not deferred to the big Save button) replace/remove for the
-// two single-file hand-owned assets (model, xray) — the UI only ever shows
-// these next to an ALREADY-SAVED file, unlike the dropzones (which stage a
-// pending upload for Save, used when the slot is still empty/in Add mode).
-// Both re-read+re-render the whole product block, same pattern as
-// handleProductRemovePhoto above.
+// Immediate replace/remove of the saved model or x-ray (dropzones instead
+// stage uploads for Save).
 
 async function handleProductReplaceAsset(req, res) {
   const body = await readJsonBody(req);
@@ -1087,9 +989,7 @@ async function handleProductRemoveAsset(req, res) {
   sendJson(res, 200, { ok: true });
 }
 
-// Immediate positional replace for one already-existing photo — keeps the
-// same array index (so it isn't just "remove + append", which would
-// reorder the carousel), renaming to match the new file's own extension.
+// Replaces a photo at the same index, so the carousel order holds.
 async function handleProductReplacePhoto(req, res) {
   const body = await readJsonBody(req);
   const seriesSlug = body.seriesSlug;
@@ -1144,7 +1044,7 @@ async function handleProductReplacePhoto(req, res) {
   sendJson(res, 200, { ok: true, path: dest });
 }
 
-// ---- generic file primitives ----
+// ---- file primitives ----
 
 async function handleSaveFile(req, res) {
   const body = await readJsonBody(req);
@@ -1185,8 +1085,7 @@ const ROUTES = {
   "POST /api/delete-file": handleDeleteFile
 };
 
-// ---- static file serving — same shape as scripts/scene-tool-server.js's
-// own serveStatic. ----
+// ---- static files ----
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/json-tool.html";
@@ -1209,12 +1108,9 @@ function serveStatic(req, res) {
   });
 }
 
-// These servers can write to and delete files in the repo, so they must only
-// ever answer this machine: bound to the loopback interface (not the LAN),
-// and — because a web page the developer happens to have open could still
-// aim a request at localhost — only for requests whose Host is a loopback
-// name (stops DNS rebinding) and, for anything that isn't a plain read, whose
-// Origin is this server itself (stops cross-site writes).
+// These servers write and delete repo files: loopback only, Host must be a
+// loopback name (DNS rebinding), and non-GET requests must come from this
+// origin (cross-site writes).
 const LOOPBACK = "127.0.0.1";
 function isLocalRequest(req) {
   const host = String(req.headers.host || "");

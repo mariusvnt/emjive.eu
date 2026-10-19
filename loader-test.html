@@ -1,21 +1,6 @@
-<!--
-  loader-test.html — standalone dev page: the logo loader running on an
-  endless loop, for reviewing its timing, easing and size. Open it under
-  `npm run dev` at /loader-test.html (boxes, one loader per container) or
-  /loader-test.html?page (the full-page arrival loader).
-
-  Each loader is mounted and not released until you ask, so the loop is the
-  point. A box's outline is the container: parts enter from its right border
-  and leave through its left. Each box also has a "Finish" button, which
-  releases the loader the way a real asset does: it waits for the cycle in
-  progress to finish (the guardrail in js/loader.js) before the loader goes,
-  then the box shows its "loaded" content.
-
-  Not part of the built site — never added to vite.config.js's
-  rollupOptions.input, so `npm run build` never ships it. The loader's
-  styles live in css/style.css (Loader section); the behaviour is
-  js/loader.js.
--->
+<!-- Dev-only page (not built): the logo loader on an endless loop.
+     /loader-test.html shows one loader per box, released by its "Finish"
+     button; /loader-test.html?page shows the full-page loader. -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -58,8 +43,7 @@
     window.EmjiveLoader.mount(document.body, { page: true, watchdog: false });
     return;
   }
-  // Container sizes the real site uses: a phone grid card, a desktop grid
-  // card, a product carousel tile, a Modify-sheet poster on a phone.
+  // Container sizes used on the site.
   var sizes = [
     ["phone card", 170, 170],
     ["desktop card", 460, 460],

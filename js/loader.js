@@ -1,102 +1,38 @@
-/* ==========================================================================
-   em·ji·ve — loader
-
-   The logo loader as a shared component (.loader in css/style.css). Each of
-   the mark's three parts crosses its CONTAINER from the right border to the
-   left border, fading in on the way in and out on the way out, with a slow
-   stretch as it passes the middle. Exposes window.EmjiveLoader:
-
-     mount(host, { page })  -> hold   put a loader inside `host` (one per
-                                      host; more mounts on the same host add
-                                      holds to it). hold.done() releases it.
-     mount(host, { target }) -> hold  a SHARED loader: many assets, one loader.
-                                      Each hold names the element its asset
-                                      is shown in (`target`) and only counts
-                                      while that element is on screen — see
-                                      "a loader shared by several assets".
-     coverWithin(host, target, ready) -> Promise
-                                      cover()'s counterpart for a shared loader:
-                                      `target` fades in as soon as `ready`
-                                      settles; `host`'s loader is held until then.
-     cover(host, ready)     -> Promise  hide host's <img> children, show a
-                                      loader, and reveal them (a quick fade)
-                                      once `ready` settles and the loader has
-                                      left. Resolves when revealed.
-     imageReady(img)        -> Promise  loaded (or failed) and decoded.
-     isPhone / versions / variant / setSrc / upgradeImage    responsive images:
-                                      four versions of each big picture, a low
-                                      one for the first paint and a high one
-                                      swapped in afterwards (see "responsive
-                                      images").
-     pageReady()                      the page's arrival loader may go.
-
-   THE GUARDRAILS, which every path below goes through:
-   - The loader never disappears while a part is visible. hold.done() resolves
-     only inside the cycle's SAFE WINDOW: after the last (staggered) part has
-     fully left and before the first one re-enters. Called mid-crossing, it
-     waits for the crossing to finish; called in the blank gap, it is
-     immediate.
-   - A loader only SHOWS if its asset is still loading after --loader-delay
-     (a :root token), counted from the moment its container first comes on
-     screen — a lazy image far down a page, or a slide that hasn't been
-     scrolled to, costs nothing until someone can see it. A hold released
-     before that never creates anything visible, so a cached asset costs
-     nothing either.
-   - Every hold has a watchdog (WATCHDOG_MS) so a load that never reports
-     can't keep a loader up forever.
-   - Under prefers-reduced-motion nothing is mounted at all: every hold is
-     an already-released no-op and nothing is hidden.
-
-   Timing is read from the CSS custom properties on .loader, so everything is
-   tuned in the stylesheet: --loader-cycle in seconds, and every phase
-   (--loader-in, --loader-slow, --loader-out, --loader-gap, --loader-stagger)
-   as a percentage of it. The gap is the blank time before the loop restarts;
-   it is held exactly, and the other three phases are scaled together to
-   fill whatever it leaves.
-
-   Why JS and not @keyframes: keyframe percentages cannot be computed from
-   custom properties, and the easing curves below are solved from the phase
-   lengths. The offsets are derived here instead, as Web Animations.
-
-   One keyframe set drives both transform and opacity, so the movement and
-   the fade cannot drift out of sync — they share every offset and every
-   easing curve:
-
-     offset 0              container's right border, opacity 0   eased in
-     offset in             just right of centre, 1                 (already
-     offset in+slow        just left of centre, 1                  moving, slows
-     offset in+slow+out    container's left border, opacity 0      to drift speed)
-     offset 1              same: the rest of the cycle, blank    linear drift
-                                                                  eased out
-
-   Each eased leg is a quadratic curve — constant deceleration into the slow
-   stretch, constant acceleration out of it — whose end next to the slow
-   stretch has exactly the drift's own speed, so there is no jolt where a
-   leg meets it. CSS only takes cubic Béziers, so each quadratic is written
-   as the cubic that traces the same curve (degree elevation: handles a
-   third and two thirds of the way along).
-
-   The drift's speed is set as a share of the crossing's average speed
-   (--loader-slow-speed), which makes the stretch's length follow from it
-   (speed x --loader-slow) as a fraction of the travel distance. All of that
-   is ratios, so the curves do not depend on the container's size; only the
-   pixel distances do (half the container + half the mark), which is why the
-   keyframes are rebuilt whenever the loader is resized — a ResizeObserver,
-   not a window listener, because hosts can be zero-sized when the loader is
-   mounted (the product page builds while its content is [hidden]; the
-   Modify sheet before it has slid in).
-
-   The parts are plain boxes (css/style.css shapes each with a mask and
-   inverts whatever is underneath it), not SVG children: iOS Safari handles
-   CSS/Web Animations on SVG child elements unreliably, and the invert needs
-   a backdrop-filter, which only exists on boxes.
-
-   mount(host, { bleed: true }) is for a container whose own edges are not
-   visible — a 3D viewer's box in a carousel slide, which is deliberately
-   smaller than its slide. The parts are not clipped at that box; they travel
-   all the way to the edges of the nearest clipping ancestor (the carousel's
-   viewport), which are the edges a visitor can actually see.
-   ========================================================================== */
+// The logo loader (.loader in css/style.css): the mark's three parts cross
+// their container right to left, fading in and out, slowing past the middle.
+// window.EmjiveLoader:
+//   mount(host, { page, bleed, target, watchdog }) -> hold   hold.done() releases it;
+//                        more mounts on a host add holds. `target`: a shared loader
+//                        (see below). `bleed`: parts travel to the nearest clipping
+//                        ancestor instead of the host's edges.
+//   cover(host, ready)              hide host's <img>s behind a loader until `ready`
+//                                   settles and the loader has left
+//   coverWithin(host, target, ready)  the same with a shared loader on host
+//   imageReady(img)                 loaded (or failed) and decoded
+//   isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage   responsive images
+//   pageReady(), holdPage(), isPageReady()   the page's arrival loader
+//
+// Guardrails:
+//   - It never disappears with a part visible: done() resolves only in the
+//     cycle's safe window, after the last part left and before the first re-enters.
+//   - It only shows if still loading --loader-delay after its host comes on screen.
+//   - A watchdog (WATCHDOG_MS) ends every hold.
+//   - Nothing mounts under prefers-reduced-motion.
+//
+// Timing comes from .loader's custom properties (--loader-cycle, and the
+// in/slow/out/gap/stagger phases as shares of it), hence Web Animations rather
+// than @keyframes, whose offsets can't be computed. One keyframe set drives
+// transform and opacity together:
+//   0              right border, opacity 0    eased in
+//   in             just right of centre, 1    linear drift
+//   in+slow        just left of centre, 1     eased out
+//   in+slow+out    left border, opacity 0
+//   1              same (blank until the next cycle)
+// Each eased leg is a quadratic (as a degree-elevated cubic-bezier) meeting the
+// drift at the drift's speed, so there is no jolt. Only the pixel distances
+// depend on size, so keyframes rebuild on resize (ResizeObserver: hosts can be
+// zero-sized at mount). Parts are plain boxes, not SVG children: iOS animates
+// SVG children unreliably, and their invert needs a backdrop-filter.
 (function () {
   "use strict";
 
@@ -106,17 +42,12 @@
   var DEFAULT_DELAY_MS = 150;
   var WATCHDOG_MS = 15000;
   var SAFE_POLL_MS = 25;
-  // How much of a target must be on screen for its asset's wait to count in a
-  // shared loader (see "a loader shared by several assets"). Not "any": a slide
-  // with a sliver showing at the edge of the carousel is not something anyone
-  // is waiting on.
+  // Share of a target that must be visible for its wait to count (not a sliver at a carousel edge).
   var VISIBLE_RATIO = 0.2;
-  // Margin past the last part's own exit, so a removal never lands on its
-  // final sub-pixel of opacity.
+  // Past the last part's exit, so removal never lands on its last sub-pixel of opacity.
   var SAFE_MARGIN = 0.004;
 
-  // The logo's dot, dot and V, in left-to-right order, which is also the
-  // cascade order. Their shapes are masks in css/style.css.
+  // Dot, dot and V, left to right (masks in css/style.css).
   var PART_COUNT = 3;
 
   var NOOP_HOLD = { done: function () { return Promise.resolve(); } };
@@ -138,7 +69,7 @@
     return Math.min(1, Math.max(0, n));
   }
 
-  /* ---- timing, solved from the tokens ----------------------------------- */
+  /* ---- timing, solved from the tokens ---- */
 
   function compute(el, partCount) {
     var styles = getComputedStyle(el);
@@ -150,9 +81,7 @@
     var staggerShare = share(styles, "--loader-stagger");
     var slowSpeed = share(styles, "--loader-slow-speed");
 
-    /* The gap is authoritative: in / slow / out are scaled together so
-       they fill exactly what it leaves (a no-op when the four already add
-       up to 100%). A gap of 100% would leave them nothing, so it's capped. */
+    /* The gap is held exactly; in/slow/out scale to fill the rest (gap capped at 95%). */
     var scale = (1 - Math.min(fGap, 0.95)) / (fIn + fSlow + fOut);
     fIn *= scale;
     fSlow *= scale;
@@ -161,30 +90,20 @@
     var offSlow = fIn + fSlow;
     var offOut = fIn + fSlow + fOut;
 
-    /* The crossing covers 2 travels (border to border) in offOut of the
-       cycle, so its average speed is 2 / offOut. The slow stretch moves at
-       slowSpeed times that for fSlow of the cycle, covering 2 * drift
-       travels in all (drift on each side of the middle). Capped so the legs
-       keep some distance to cover: a stretch as long as the whole crossing
-       would leave them nothing. */
+    /* Border to border is 2 travels in offOut, so average speed 2 / offOut; the
+       drift runs at slowSpeed times that for fSlow, covering 2 * drift travels.
+       Capped so the legs keep distance to cover. */
     var drift = Math.min((slowSpeed * fSlow) / offOut, 0.9);
 
-    /* Drift speed in travel-lengths per unit of cycle: 2 * drift across
-       fSlow. A leg covers (1 - drift) of the travel in its own share, so
-       its speed at the end next to the drift, as a multiple of the leg's
-       average speed, is  k = driftSpeed / (legDistance / legShare). */
+    /* Drift speed in travels per cycle; k is the leg's end speed over its average. */
     var driftSpeed = (2 * drift) / fSlow;
     var kIn = (driftSpeed * fIn) / (1 - drift);
     var kOut = (driftSpeed * fOut) / (1 - drift);
 
-    /* A quadratic leg covering 1 in unit time, starting at slope s0 and
-       ending at slope s1, needs (s0 + s1) / 2 = 1. In: s1 = k (the drift's
-       speed), so it starts at s0 = 2 - k. No rest at the border — the part
-       is invisible there, and a standing start would only spend the leg's
-       time crawling out of sight. As a cubic: handles (1/3, s0/3),
-       (2/3, 1 - s1/3). Out is the mirror image: starts at k, ends at 2 - k.
-       Clamped at 0 so the curve never runs backwards, which only happens
-       when the slow stretch is faster than twice the leg's average speed. */
+    /* A unit quadratic leg from slope s0 to s1 needs (s0 + s1) / 2 = 1. In ends
+       at the drift's speed k, so starts at 2 - k (no rest at the border, where
+       the part is invisible); out mirrors it. As a cubic: handles (1/3, s0/3),
+       (2/3, 1 - s1/3), clamped so it never runs backwards. */
     function quadratic(startSlope, endSlope) {
       return "cubic-bezier(0.3333, " + clamp01(startSlope / 3).toFixed(4) +
         ", 0.6667, " + clamp01(1 - endSlope / 3).toFixed(4) + ")";
@@ -214,7 +133,7 @@
     return f;
   }
 
-  /* ---- one loader per host ----------------------------------------------- */
+  /* ---- one loader per host ---- */
 
   var states = typeof WeakMap === "function" ? new WeakMap() : null;
 
@@ -238,10 +157,8 @@
     for (var i = 0; i < PART_COUNT; i++) markHtml += '<div class="loader__part"></div>';
     el.innerHTML = '<div class="loader__mark">' + markHtml + "</div>";
 
-    // The loader is absolutely positioned in its host, so the host has to be
-    // a containing block. Every host in the site already is; this covers a
-    // static one without disturbing it (and is undone on removal). A host
-    // that isn't attached yet reports "" and is left alone.
+    // The host must be a containing block: a static one is made relative (undone
+    // on removal). Unattached hosts report "" and are left alone.
     var forcedPosition = false;
     if (!page && getComputedStyle(host).position === "static") {
       host.style.position = "relative";
@@ -267,8 +184,7 @@
       bleed: !!bleed,
       clipAncestor: null,
       visibility: null,
-      // A shared loader (mount's opts.target): the holds taken on it, and
-      // whether a crossing is being finished off before it goes quiet.
+      // Shared loader (opts.target): its holds, and whether it is finishing a crossing to go quiet.
       targeted: !!targeted,
       holdList: [],
       parking: false
@@ -277,13 +193,10 @@
     function startTimer() {
       s.timer = setTimeout(function () { show(s); }, showDelayMs());
     }
-    // A shared loader has no host-level "on screen" test: whether it should be
-    // up is decided by its holds' targets (reevaluate), as they come and go.
+    // A shared loader's visibility follows its holds' targets (reevaluate).
     if (s.targeted) return s;
-    // The show-delay starts once the host is actually on screen (the page
-    // loader's host, <body>, always is). IntersectionObserver respects
-    // overflow clipping, so a slide scrolled out of its carousel counts as
-    // off screen too.
+    // The show-delay starts once the host is on screen (IntersectionObserver
+    // respects overflow clipping, so an off-screen slide counts as hidden).
     if (page || typeof IntersectionObserver !== "function") {
       startTimer();
     } else {
@@ -302,8 +215,7 @@
     return s;
   }
 
-  /* The nearest ancestor that clips its overflow — what a bleeding loader's
-     parts actually disappear behind. */
+  /* The nearest ancestor clipping its overflow: where a bleeding loader's parts vanish. */
   function findClipAncestor(el) {
     for (var n = el.parentElement; n && n !== root; n = n.parentElement) {
       if (/hidden|clip|auto|scroll/.test(getComputedStyle(n).overflowX)) return n;
@@ -311,11 +223,8 @@
     return null;
   }
 
-  /* Distance from rest to fully out of sight. Normally the container's
-     borders: half its width plus half the mark (all three parts share the
-     mark's box). For a bleeding loader, the clipping ancestor's borders
-     instead, measured from where the loader sits right now (a symmetric
-     travel, so the wider of the two sides decides). */
+  /* Rest to out of sight: half the container plus half the mark, or for a
+     bleeding loader the farther side of the clipping ancestor. */
   function travelDistance(s) {
     var markWidth = s.mark.getBoundingClientRect().width;
     if (!s.bleed) return s.el.clientWidth / 2 + markWidth / 2;
@@ -348,8 +257,7 @@
         fill: "backwards"
       });
       if (saved[i] != null) a.currentTime = saved[i];
-      // A rebuild (the loader's box was resized) must not snap a released
-      // loader back to its loading pace.
+      // Keep a released loader's faster pace across rebuilds.
       if (s.rate !== 1) a.playbackRate = s.rate;
       return a;
     });
@@ -372,8 +280,7 @@
         });
       });
       s.observer.observe(s.el);
-      // A bleeding loader's travel also depends on the clipping ancestor's
-      // size, which can change without the loader's own box moving.
+      // A bleeding loader's travel also depends on the clipping ancestor's size.
       if (s.clipAncestor) s.observer.observe(s.clipAncestor);
     }
   }
@@ -392,8 +299,7 @@
     if (s.forcedPosition) s.host.style.position = "";
   }
 
-  /* Where the cycle is, read off the first part (no delay, so its
-     currentTime IS the cycle's clock). */
+  /* The first part has no delay, so its currentTime is the cycle's clock. */
   function inSafeWindow(s) {
     var a = s.anims[0];
     if (!a || a.currentTime == null) return true;
@@ -415,56 +321,36 @@
       hold.released = true;
       if (hold.io) { hold.io.disconnect(); hold.io = null; }
     }
-    // Never shown (still inside the show-delay): nothing to wait out.
+    // Never shown: nothing to wait out.
     if (!s.shown) {
       if (s.holds <= 0) destroy(s);
-      // A shared loader with other holds left: this one may have been the
-      // only visible wait, in which case the pending show-delay is void.
+      // Other holds remain: this may have been the only visible wait.
       else if (s.targeted) reevaluate(s);
       return Promise.resolve();
     }
-    // A shared loader that still has holds is not finished with: whether it
-    // carries on or finishes its crossing and goes quiet depends on whether
-    // any of the waits left are on screen.
+    // Holds remain: carry on or go quiet depending on what's on screen.
     if (s.holds > 0 && s.targeted) {
       reevaluate(s);
       return Promise.resolve();
     }
-    // Nothing left to wait for but the crossing in progress: let it finish
-    // faster instead of at its leisurely loading pace. The guardrail is
-    // unchanged — the loader still goes only inside the safe window, and
-    // never with a part visible — it just gets there sooner (without this,
-    // content that was ready could sit behind the cover for most of a cycle).
+    // Only the crossing left: speed it up, still leaving only in the safe window,
+    // so ready content doesn't sit behind it for most of a cycle.
     if (s.holds <= 0) finishCrossing(s);
     return whenSafe(s).then(function () {
-      // Re-checked here, not above: a hold taken while this one was waiting
-      // for the safe window keeps the loader alive.
+      // Re-checked: a hold taken meanwhile keeps the loader.
       if (s.holds <= 0) destroy(s);
     });
   }
 
-  /* ---- a loader shared by several assets -------------------------------------
-     The product page's carousel holds a 3D model and some photos, which load
-     independently. Each used to have a loader of its own, so a visitor could
-     watch two or three of them cross at once; now they share one, mounted on
-     the carousel, and each asset just takes a hold on it (mount's opts.target).
-
-     A hold only counts while its target — the slide the asset appears in — is
-     on screen (IntersectionObserver, which respects the carousel's own
-     clipping, so a slide scrolled out of the strip is off screen). The loader
-     is "active" while at least one unreleased hold is visible, and:
-
-       - the show-delay (--loader-delay) is counted from the moment it becomes
-         active, and abandoned if it stops being so first. A wait nobody can
-         see never shows anything.
-       - once shown, it carries on for as long as it stays active. When the
-         last visible wait is over — released, or scrolled out of view — it
-         finishes the crossing it is in (the same speed-up and safe window as a
-         release) and goes quiet, with the holds that remain still counted.
-       - when a pending asset comes into view later, it starts again, after
-         the delay, as a new cycle.
-       - when the last hold is released it is removed, as ever.
-     ----------------------------------------------------------------------- */
+  /* ---- a loader shared by several assets ----
+     One loader for a carousel's model and photos; each asset takes a hold
+     naming its slide (opts.target). A hold counts only while its target is on
+     screen, and the loader is active while any unreleased hold is visible:
+       - the show-delay runs from becoming active, and is dropped if it stops;
+       - when no visible wait remains, it finishes its crossing and goes quiet,
+         remaining holds still counted;
+       - a pending asset scrolling into view starts it again after the delay;
+       - the last release removes it. */
 
   function isActive(s) {
     for (var i = 0; i < s.holdList.length; i++) {
@@ -478,8 +364,7 @@
     if (states.get(s.host) !== s) return;
     if (isActive(s)) {
       if (s.shown) {
-        // Something visible is waiting again while the crossing was being
-        // finished off: back to the loading pace.
+        // A visible wait again while finishing: back to the loading pace.
         if (s.rate !== 1) {
           cancelAnimationFrame(s.rampRaf);
           s.rampRaf = 0;
@@ -498,9 +383,7 @@
     }
   }
 
-  // Finishes the crossing in progress, then puts the loader away (not
-  // destroyed: holds remain) — unless something visible is waiting again by
-  // the time it is safe to.
+  // Finish the crossing, then hide (not destroy: holds remain) unless something visible waits again.
   function park(s) {
     if (s.parking) return;
     s.parking = true;
@@ -540,20 +423,15 @@
     hold.io.observe(hold.target);
   }
 
-  // How much faster a released loader's crossing runs, and how long the speed-up
-  // takes to build. The rate is eased in (smoothstep) rather than switched: a
-  // step from 1x to 2.5x is a visible jolt in the parts' motion, a ramp reads
-  // as the loader simply deciding to finish. The Web Animations playbackRate
-  // setter keeps the current time, so the parts carry on from where they are
-  // and only their speed changes (the stagger between them keeps its shape,
-  // scaled).
+  // Released crossings speed up to FINISH_RATE, eased in (smoothstep) to avoid a
+  // visible jolt; playbackRate keeps currentTime, so parts carry on from where they are.
   var FINISH_RATE = 2.5;
   var FINISH_RAMP_MS = 700;
 
   function setRate(s, rate) {
     s.rate = rate;
     s.anims.forEach(function (a) {
-      try { a.playbackRate = rate; } catch (err) { /* no-op: keep the pace */ }
+      try { a.playbackRate = rate; } catch (err) { /* keep the pace */ }
     });
   }
 
@@ -564,8 +442,7 @@
     (function step(now) {
       var p = Math.min(1, (now - start) / FINISH_RAMP_MS);
       setRate(s, from + (FINISH_RATE - from) * p * p * (3 - 2 * p));
-      // Until it is at full speed — or the loader is gone (destroy() cancels
-      // the pending frame).
+      // Until full speed, or until destroy() cancels it.
       s.rampRaf = p < 1 ? requestAnimationFrame(step) : 0;
     })(start);
   }
@@ -576,14 +453,13 @@
     var s = states.get(host) || createState(host, !!(opts && opts.page), !!(opts && opts.bleed), !!target);
     s.holds++;
     var promise = null;
-    // opts.watchdog === false is for loader-test.html, whose loaders are
-    // meant to loop for as long as you care to watch.
+    // false for loader-test.html, whose loaders loop indefinitely.
     var watchdog = opts && opts.watchdog === false
       ? 0
       : setTimeout(function () { hold.done(); }, WATCHDOG_MS);
     var hold = {
       target: s.targeted ? target : null,
-      // A hold with no target on a shared loader is always "in view".
+      // A shared loader's hold without a target always counts as in view.
       visible: !(s.targeted && target),
       released: false,
       io: null,
@@ -603,14 +479,12 @@
     return hold;
   }
 
-  /* ---- helpers for callers ------------------------------------------------ */
+  /* ---- helpers ---- */
 
   function imageReady(img) {
     return new Promise(function (resolve) {
       function settle() {
-        // Decoded before the reveal, so the fade-in never starts on a
-        // frame that is still decoding. Raced: a decode that never settles
-        // must not hold the loader up.
+        // Decoded before the reveal, raced so a hung decode can't hold the loader.
         if (img.decode) {
           var timer = setTimeout(resolve, 1000);
           img.decode().then(function () { clearTimeout(timer); resolve(); },
@@ -619,8 +493,7 @@
           resolve();
         }
       }
-      // complete is true for a loaded image AND a broken one; a lazy image
-      // that hasn't started fetching is not complete.
+      // complete is true for loaded and broken images, false for an unstarted lazy one.
       if (img.complete) settle();
       else {
         img.addEventListener("load", settle, { once: true });
@@ -629,37 +502,25 @@
     });
   }
 
-  /* ---- responsive images ---------------------------------------------------
-     The big pictures ship in four versions (scripts/make-image-variants.js
-     writes them, scripts/validate-data.js insists they exist):
-
-                      desktop                 smartphone
+  /* ---- responsive images ----
+     Big pictures ship in four versions (scripts/make-image-variants.js):
+                      desktop                 smartphone (cropped to the centre)
        low res        <name>_lo.webp          <name>_m_lo.webp
        high res       <name>.webp             <name>_m.webp
+     The low one is the first paint; the high one swaps in once the page is
+     idle. Pictures hidden or far down have no low version (hasLow false).
 
-     The smartphone ones are cropped to the middle of the picture, which is
-     all a phone ever shows, and so are smaller than the desktop ones. The low
-     one is what a page's first paint is made of; the high one is fetched
-     afterwards, once the page is loaded and idle, and swapped in without
-     anyone noticing. A picture that is hidden or far down the page has no low
-     version (hasLow false): it just gets the right high one.
+     PHONE_QUERY defines a smartphone: narrow and tall (a square 640px window
+     wouldn't be filled by the cropped hero). The CSS for cropped pictures uses
+     the same query; validate-data checks they match.
 
-     PHONE_QUERY is what "smartphone" means: a narrow window that is also tall
-     and thin. The aspect clause is what the hero's crop is sized for (see
-     PHONE_CROP in scripts/make-image-variants.js) — a square 640px window is
-     not a phone, and a cropped picture would not fill it. The CSS rules that
-     lay a cropped picture out use this exact query; keep them in step.
-
-     isPhone()                      does the viewport match PHONE_QUERY?
-     onPhoneChange(fn)              fn() when it starts or stops matching
-     versions(src, hasLow)          -> { first, hi }: what to show first and what
-                                    to swap in, for the viewport right now
-     variant(src, suffix)           "a/b.webp", "m" -> "a/b_m.webp"
-     setSrc(img, first, src)        point img at first (src, the full file, if
-                                    that 404s)
-     upgradeImage(img, hiSrc)       -> Promise<boolean>  swap in hiSrc once the
-                                    img has loaded and the browser is idle;
-                                    false when it chose not to */
+     isPhone()                 does the viewport match PHONE_QUERY
+     onPhoneChange(fn)         fn() when that changes
+     versions(src, hasLow)     -> { first, hi } for the current viewport
+     variant(src, suffix)      "a/b.webp", "m" -> "a/b_m.webp"
+     setSrc(img, first, src)   img -> first, falling back to src on error
+     upgradeImage(img, hiSrc)  -> Promise<boolean>: swap in hiSrc once loaded and
+                               idle; false when skipped */
 
   var PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
   var phoneMedia = window.matchMedia(PHONE_QUERY);
@@ -696,9 +557,7 @@
     img.src = first;
   }
 
-  // Saving data, or a slow link: the small one stays. Costing a visitor on 3G
-  // the second download for a sharpness they would wait seconds for is the
-  // wrong trade.
+  // Save-data or a slow link: keep the low version.
   function lowBandwidth() {
     var conn = navigator.connection;
     return !!conn && (!!conn.saveData || /(^|-)(2g|3g)$/.test(conn.effectiveType || ""));
@@ -715,17 +574,14 @@
       return new Promise(function (resolve) { whenIdle(resolve); });
     }).then(function () {
       if (!img.isConnected || img.getAttribute("src") === hiSrc) return false;
-      // Already sharp enough for the size it is shown at (and the screen's
-      // density)? Then there is nothing to gain. A box with no size yet
-      // (hidden) can't be judged, so it upgrades.
+      // Already sharp enough at its displayed size? A box without a size yet upgrades.
       var needed = img.clientWidth * (window.devicePixelRatio || 1);
       if (needed > 0 && img.naturalWidth >= needed) return false;
       var hi = new Image();
       hi.decoding = "async";
       hi.fetchPriority = "low";
       hi.src = hiSrc;
-      // Decoded off-screen first, so the swap is one frame with nothing to
-      // wait for; the box doesn't change size (same aspect ratio).
+      // Decoded first, so the swap is one frame; same aspect ratio, so no layout change.
       return hi.decode().then(function () {
         if (!img.isConnected) return false;
         img.src = hiSrc;
@@ -744,10 +600,8 @@
       .then(function () { host.classList.remove("is-loader-pending"); });
   }
 
-  // cover() for a shared loader: `target` (a slide) is hidden until `ready`
-  // settles and then fades in AT ONCE — it does not wait for the loader to
-  // leave, because the loader is not its own: it belongs to the whole strip
-  // and goes when nothing visible is still loading.
+  // The target fades in as soon as `ready` settles, without waiting for the
+  // shared loader, which goes when nothing visible is loading.
   function coverWithin(host, target, ready) {
     if (!host || !target || reduceQuery.matches) return Promise.resolve();
     target.classList.add("loader-host", "is-loader-pending");
@@ -760,24 +614,18 @@
       });
   }
 
-  /* ---- the page's arrival loader ------------------------------------------
-     Pages that wait on something (index, product, series) opt in with
-     data-page-loader on <html>. This script runs in <head>, before <body>
-     exists, so the cover is a pseudo-element on <html> (an opaque --bg layer
-     one step under the loader, set right now so half-built content never
-     flashes) and the loader itself is mounted on <body> as soon as it can be.
-     Not up on the homepage restoring a back-navigation scroll
-     (js/scroll-memory.js owns that and keeps the page hidden itself) unless
-     that runs long. A page can hold the cover
-     down past pageReady() with holdPage() (the homepage's wheel until it is
-     laid out: js/gallery.js). Skipped, because scripts don't rerun, on a
-     bfcache restore. */
+  /* ---- the page's arrival loader ----
+     Opted into with data-page-loader on <html>. This runs in <head>, so the
+     cover is a pseudo-element on <html> (set now, so half-built content never
+     flashes) and the loader mounts on <body> once it exists. On a homepage
+     scroll restore, js/scroll-memory.js hides the page itself and the cover
+     only rises if that runs long. holdPage() keeps the cover down past
+     pageReady(). Skipped on bfcache restores. */
 
   var pageHold = null;
   var pageActive = false;
   var pageIsReady = false;
-  // pageReady() has been called, and what else must be in before the cover
-  // lifts (holdPage()).
+  // pageReady() has been called, and the holds still pending (holdPage()).
   var pageWanted = false;
   var pageHolds = 0;
 
@@ -790,21 +638,17 @@
       root.removeEventListener("transitionend", onEnd);
       root.classList.remove("emjive-page-loading", "emjive-page-revealing");
     }
-    // transitionend bubbles up from every descendant too; only the cover's
-    // own (a pseudo-element, reported on <html>) ends the reveal.
+    // transitionend bubbles; only the cover's own (::before on <html>) ends the reveal.
     function onEnd(e) {
       if (e.target === root && e.pseudoElement === "::before") cleanup();
     }
     root.addEventListener("transitionend", onEnd);
-    // Backstop for a transitionend that never comes (hidden tab, or the
-    // reduced-motion 0.01ms transition collapsing to nothing).
+    // In case transitionend never comes (hidden tab, reduced-motion 0.01ms transition).
     setTimeout(cleanup, 600);
   }
 
-  // Announced once, on every page and whether or not it has an arrival loader
-  // (reduced motion, a scroll restore): "the page's first paint is in". What
-  // js/viewer-entry.js waits for before it starts the heavy 3D download on
-  // the homepage.
+  // "emjive:pageready", fired once on every page, loader or not: the first
+  // paint is in. js/viewer-entry.js waits on it.
   var pageReadyAnnounced = false;
 
   function pageReady() {
@@ -815,15 +659,13 @@
     pageWanted = true;
     if (!pageActive || pageIsReady || pageHolds > 0) return;
     pageIsReady = true;
-    if (!pageHold) return; // body not parsed yet; the mount below sees the flag
+    if (!pageHold) return; // body not parsed yet; startPage() sees the flag
     pageHold.done().then(revealPage);
   }
 
-  // The cover stays down past pageReady() until every hold taken here is
-  // released: for what the first paint's pictures don't tell, like a page
-  // whose layout is measured from other things still arriving (the
-  // homepage's wheel: js/gallery.js). Returns the release, safe to call more
-  // than once. The watchdog lifts the cover whatever is still held.
+  // Keeps the cover down past pageReady() until released (layouts measured
+  // from late arrivals, like the wheel). The returned release is idempotent;
+  // the watchdog lifts the cover regardless.
   function holdPage() {
     if (!pageActive || pageIsReady) return noop;
     var released = false;
@@ -849,8 +691,7 @@
     } else {
       startPage();
     }
-    // A page script that fails before calling pageReady() must not leave the
-    // cover up for good.
+    // A page script failing before pageReady() must not leave the cover up.
     setTimeout(function () {
       pageHolds = 0;
       pageReady();
@@ -865,11 +706,8 @@
 
   var pageLoaderWanted = root.hasAttribute("data-page-loader") && !reduceQuery.matches;
 
-  // Up from the first paint — except on a homepage restoring a scroll
-  // (js/scroll-memory.js hides the page itself until it is laid out, which
-  // from the cache is a few frames): the cover is raised, with the loader,
-  // only if the restore is still going on RESTORE_COVER_MS in, and lifts
-  // with it.
+  // Raised at first paint, except during a homepage scroll restore, where it
+  // rises only if the restore is still running RESTORE_COVER_MS in.
   var RESTORE_COVER_MS = 400;
 
   if (pageLoaderWanted) {
@@ -902,8 +740,7 @@
     upgradeImage: upgradeImage,
     pageReady: pageReady,
     holdPage: holdPage,
-    // Has pageReady() been called yet? (For a script that starts after the
-    // event it announces has already fired.)
+    // For scripts starting after the event has fired.
     isPageReady: function () { return pageReadyAnnounced; }
   };
 })();

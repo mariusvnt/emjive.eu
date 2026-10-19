@@ -1,48 +1,19 @@
-/* ==========================================================================
-   em·ji·ve — landing-page scroll memory.
-
-   Makes the browser's Back button return to the gallery EXACTLY where the
-   visitor left it: right offset on the very first painted frame, no jump,
-   no smooth-scroll travel, no blank hold.
-
-   Why the browser can't do this itself. At first paint index.html is
-   almost empty — #seriesHero is an empty div held open at 100svh by
-   css/style.css, and #productGrid is empty. The
-   real height only arrives after three async hops: data/series.json, then
-   the hero bundle (whose hero.css sets .reveal { height: 200vh }), then
-   that series' products.json rendered by js/gallery.js. Native scroll
-   restoration runs long before any of that, against a document a fraction
-   of its final height, so the offset clamps to near zero and the visitor is
-   dumped at the top.
-
-   The fix is to reserve the document's old height BEFORE the first paint,
-   so the saved offset is reachable immediately, and to scroll to it inside
-   a requestAnimationFrame callback — which runs before the frame it
-   belongs to is painted. The visitor never sees a frame at the wrong
-   position; they see the page background at the right offset, and the hero
-   and grid materialise around them.
-
-   Loaded BLOCKING from <head> (no defer, no type="module") for the same
-   reason js/series.js is, plus one of its own: the height reservation has
-   to be in place before <body> is parsed, which rules out defer.
-
-   index.html ONLY. Every other page builds its height synchronously from
-   markup, so the browser already restores those correctly and this would
-   just be a second opinion fighting a working one.
-
-   It also decides what the visitor lands on — whether the hero plays
-   (data-hero="play"|"skip" on <html>) and which view the gallery shows
-   (data-gallery-view="stack"|"grid") — for the same two reasons it owns the
-   scroll: both have to be set before <body> is parsed (the page's height and
-   first paint depend on them), and Back has to find the same ones the
-   visitor left, which is this file's per-entry record.
-   ========================================================================== */
+// Homepage scroll memory (index.html only): Back returns to the exact offset
+// on the first painted frame. Native restoration can't: the page reaches its
+// height only after series.json, the hero bundle and products.json, so it
+// clamps to the top. This reserves the previous height before first paint and
+// scrolls inside a rAF, before that frame paints.
+//
+// Blocking in <head>: the reservation must exist before <body> is parsed.
+// Also decides the landing (data-hero="play"|"skip", data-gallery-view=
+// "stack"|"grid" on <html>) for the same reason, and stores both per history
+// entry so Back gets them back.
 
 (function () {
   "use strict";
 
   var STORAGE_PREFIX = "emjive:scroll:";
-  // The view the visitor last chose, this visit (cleared by a landing).
+  // The last chosen view this visit (cleared on a landing).
   var VIEW_KEY = "emjive_gallery_view";
 
   var html = document.documentElement;
@@ -51,17 +22,12 @@
     try { return window.localStorage.getItem(name); } catch (e) { return null; }
   }
 
-  /* ---- what the visitor lands on ----------------------------------------
-     In order: the entry's own saved state (Back, or a reload of the same
-     entry, rebuilds exactly the layout that was left — mid-hero included);
-     an address carrying #products (the header's "Gallery" link) skips the
-     hero; otherwise whether the visitor is navigating inside the site (the
-     page they came from is one of ours) — the hero plays on every landing
-     (typed address, bookmark, a link from elsewhere, a new tab) and never
-     again within a visit. The view resets with it: a landing starts on the
-     wheel and forgets the last choice; inside the visit it is the visitor's
-     choice, stack unless they picked the grid. Storage that throws (Safari
-     with site data blocked) leaves the defaults: in the stack. */
+  /* ---- the landing ----
+     1. The entry's saved state (Back, reload): the exact layout left.
+     2. #products in the address: skip the hero.
+     3. Otherwise the hero plays when arriving from outside the site, and is
+        skipped within a visit. A landing resets the view to the wheel; within a
+        visit it is the visitor's last choice. Blocked storage keeps the defaults. */
   function cameFromThisSite() {
     try {
       return !!document.referrer && new URL(document.referrer).origin === window.location.origin;
@@ -84,16 +50,12 @@
     if (hero !== "skip") hero = "play";
     html.setAttribute("data-gallery-view", view);
     html.setAttribute("data-hero", hero);
-    // fresh: a history entry nothing was saved for yet — a visitor arriving,
-    // not coming Back. A skipped hero in the stack view is then landed at its
-    // end (series/<slug>/hero.js), the whole of it still above.
+    // fresh: nothing saved yet for this entry (an arrival, not Back). A skipped
+    // hero in the wheel view is then landed at its end (series/<slug>/hero.js).
     return { view: view, hero: hero, fresh: !saved };
   }
 
-  // Ancient browser with no history.scrollRestoration: leave the whole
-  // thing to the UA rather than half-owning it (we'd suppress nothing and
-  // it would still do its own clamped restore on top of ours). It still
-  // gets a landing, just not a remembered one.
+  // No history.scrollRestoration: leave restoration to the browser; still decide the landing.
   if (!("scrollRestoration" in window.history)) {
     decideLanding(null);
     return;
@@ -101,38 +63,23 @@
   var RESTORING_CLASS = "emjive-restoring-scroll";
   var HEIGHT_VAR = "--emjive-restore-height";
 
-  // Hard cap on the whole restore window. Everything inside it is a
-  // best-effort race against this: whatever hasn't landed by now, the page
-  // is released as-is. On a real back-navigation every asset is already in
-  // the HTTP cache and this finishes in a fraction of it.
+  // Hard cap on the restore; whatever hasn't landed is released as-is.
   var DEADLINE_MS = 1200;
-  // Grace period for the on-screen cards' placeholder images to decode
-  // before the grid is revealed — see settle().
+  // Grace for the visible pictures to decode before the gallery is revealed (settle()).
   var SETTLE_MS = 250;
   var SAVE_THROTTLE_MS = 300;
 
-  // Stopping the re-assert loop, NOT ending the restore window — see
-  // userTookOver's own comment.
+  // Stop the re-assert loop, not the restore window (see userTookOver).
   var TAKEOVER_EVENTS = ["wheel", "touchstart", "pointerdown", "keydown"];
 
   function now() {
     return Date.now();
   }
 
-  /* ---- per-history-entry key ---------------------------------------------
-     Keyed off the history ENTRY, not the URL: a visitor can have two
-     index.html entries in one session sitting at completely different
-     offsets (scroll, open a product, back, scroll elsewhere, open another),
-     and a URL key would let the second one overwrite the first. A token
-     minted into history.state is per-entry by construction, and survives a
-     traversal that re-fetches the document — session history keeps the
-     state object even when the page itself is reloaded.
-
-     Only the token lives in history.state. The position itself goes to
-     sessionStorage, because saving it means writing on every scroll and
-     Safari rate-limits replaceState (~100 calls / 30s) hard enough to start
-     throwing.
-     ----------------------------------------------------------------------- */
+  /* ---- per-history-entry key ----
+     A token in history.state, not the URL: two homepage entries can sit at
+     different offsets. The position itself goes to sessionStorage, since
+     Safari rate-limits replaceState too hard to write on every scroll. */
   var key = (function () {
     var state;
     try { state = window.history.state; } catch (e) { state = null; }
@@ -147,13 +94,10 @@
     }
     next.emjiveScrollKey = minted;
     try {
-      // No third argument: the URL (including ?series=/?cat=/#products) is
-      // left exactly as it is.
+      // No URL argument: the address stays as is.
       window.history.replaceState(next, "");
     } catch (e) {
-      // Can't persist the token, so a later traversal would mint a fresh
-      // one and find nothing under it. Degrade to the browser's own
-      // behaviour rather than pretending to remember.
+      // Can't persist the token: leave it to the browser.
       return null;
     }
     return minted;
@@ -164,7 +108,7 @@
     return;
   }
 
-  // The whole record for this entry: { y, h, hero, view, wheel }.
+  // This entry's record: { y, h, hero, view, wheel }.
   function readEntry() {
     try {
       var raw = window.sessionStorage.getItem(STORAGE_PREFIX + key);
@@ -172,35 +116,31 @@
       var parsed = JSON.parse(raw);
       return parsed && typeof parsed === "object" ? parsed : null;
     } catch (e) {
-      // sessionStorage throws outright in Safari private mode.
+      // Throws in Safari private mode.
       return null;
     }
   }
 
-  // Only an entry with somewhere to scroll back to is a restore.
+  // Only an entry with an offset to return to is a restore.
   function readSaved() {
     var entry = readEntry();
     return entry && entry.y > 0 ? entry : null;
   }
 
-  // The landing this entry has now: what the head decided, then whatever
-  // js/gallery.js reports as the visitor changes it (remember() below).
+  // What the head decided, then updated by js/gallery.js (remember()).
   var landing = decideLanding(readEntry());
 
-  // The product the visitor left at the top of the gallery's wheel
-  // (js/gallery-stack.js), so Back finds the wheel turned the same way.
+  // The product left at the top of the wheel (js/gallery-stack.js).
   var wheel = (function () {
     var entry = readEntry();
     return entry && entry.wheel ? String(entry.wheel) : null;
   })();
 
-  /* ---- saving ------------------------------------------------------------ */
+  /* ---- saving ---- */
 
-  // The height is stored alongside the offset because that's what makes the
-  // offset reachable again on the next load (see beginRestore) — without it
-  // there's nothing to scroll within until the hero and grid have landed.
+  // The height makes the offset reachable on the next load (beginRestore).
   function save() {
-    if (restoring) return; // scrollY is mid-restore, not the visitor's
+    if (restoring) return; // mid-restore: not the visitor's position
     try {
       window.sessionStorage.setItem(STORAGE_PREFIX + key, JSON.stringify({
         y: Math.round(window.pageYOffset || window.scrollY || 0),
@@ -209,7 +149,7 @@
         view: landing.view,
         wheel: wheel
       }));
-    } catch (e) { /* private mode / quota — nothing to do */ }
+    } catch (e) { /* private mode / quota */ }
   }
 
   var saveTimer = 0;
@@ -221,26 +161,18 @@
     }, SAVE_THROTTLE_MS);
   }
 
-  // pagehide is the one that matters and the only one iOS Safari fires
-  // reliably on a real navigation away (beforeunload/unload are both
-  // unreliable there, and an unload listener would additionally disqualify
-  // the page from bfcache). visibilitychange covers app-switching, and the
-  // throttled scroll listener is the safety net for a tab the OS kills
-  // outright without either firing.
+  // pagehide is the one iOS fires reliably (and unload would block bfcache);
+  // visibilitychange covers app switches, the throttled scroll a killed tab.
   window.addEventListener("pagehide", save);
   window.addEventListener("scroll", throttledSave, { passive: true });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") save();
   });
 
-  /* ---- scrolling --------------------------------------------------------- */
+  /* ---- scrolling ---- */
 
-  // css/style.css sets html { scroll-behavior: smooth }, which would make
-  // this ANIMATE — i.e. exactly the visible "scrolling back to where you
-  // were" this whole file exists to avoid. The inline override is the part
-  // that actually guarantees it; behavior: "instant" is belt-and-braces for
-  // anything that reads the argument instead of the computed style, and is
-  // wrapped because a browser predating that enum value throws on it.
+  // Override html's smooth scroll-behavior inline, or the restore animates.
+  // behavior: "instant" is wrapped as older browsers throw on it.
   function applyScroll(y) {
     var previous = html.style.scrollBehavior;
     html.style.scrollBehavior = "auto";
@@ -253,14 +185,12 @@
     else html.style.removeProperty("scroll-behavior");
   }
 
-  /* ---- the restore window ------------------------------------------------ */
+  /* ---- the restore window ---- */
 
   var restoring = false;
-  // Set once the visitor touches the page. Stops the re-assert loop, but
-  // deliberately does NOT end the restore window: the height reservation
-  // has to stay until the real content has grown past it, or removing it
-  // would collapse the document under them and yank the scroll — the exact
-  // jerk this is meant to prevent, just triggered by their own input.
+  // Set on the visitor's first input: stops re-asserting the offset, but keeps
+  // the height reservation until the content outgrows it, or the page would
+  // collapse under them.
   var userTookOver = false;
   var contentReadyCalled = false;
   var targetY = 0;
@@ -279,9 +209,7 @@
   function tick() {
     rafId = 0;
     if (!restoring) return;
-    // document.body can still be null on the first frame or two — the head
-    // script runs before the parser has reached <body>, and there's nothing
-    // to scroll until there is.
+    // document.body can still be null on the first frames.
     if (document.body && !userTookOver) applyScroll(targetY);
     if (expired()) {
       endRestore();
@@ -298,9 +226,7 @@
     TAKEOVER_EVENTS.forEach(function (type) {
       window.removeEventListener(type, takeOver, true);
     });
-    // Dropping the reservation is a no-op for layout by this point — the
-    // real content has already met or exceeded it (settle() waits for
-    // exactly that before getting here).
+    // A no-op for layout by now: settle() waits for the content to reach the height.
     html.classList.remove(RESTORING_CLASS);
     html.style.removeProperty(HEIGHT_VAR);
   }
@@ -318,41 +244,26 @@
     html.style.setProperty(HEIGHT_VAR, reservedHeight + "px");
     html.classList.add(RESTORING_CLASS);
 
-    // Capture phase so a listener that stops propagation (the viewer's own
-    // TrackballControls bind pointer events on the canvas) can't hide the
-    // visitor's input from us.
+    // Capture phase, so handlers that stop propagation (TrackballControls) can't hide input.
     TAKEOVER_EVENTS.forEach(function (type) {
       window.addEventListener(type, takeOver, { passive: true, capture: true });
     });
 
-    // Armed here rather than only inside tick(), so a JS error anywhere
-    // else on the page can never leave the grid hidden behind a phantom
-    // height forever.
+    // Armed here too, so an error elsewhere can't leave the gallery hidden.
     setTimeout(endRestore, DEADLINE_MS);
 
     tick();
   }
 
-  /* ---- settling before the grid is revealed ------------------------------
-     css/style.css keeps the gallery (grid or stack) visibility: hidden for the duration
-     of the restore window. That's not a paint hold on the page — the
-     background, the reserved height and (once it lands) the hero are all
-     painted at the restored offset the whole time — it's just the grid
-     waiting so its cards arrive complete rather than as a row of empty
-     boxes that fill in a frame later.
-
-     Everything here is a race against the deadline, so none of it can
-     stall the page.
-     ----------------------------------------------------------------------- */
+  /* ---- settling before the gallery is revealed ----
+     The gallery stays visibility: hidden during the restore (css/style.css), so
+     its pictures appear complete. Everything races the deadline. */
 
   function timeout(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
-  // Polls rather than hooking the hero stylesheet's load event: the height
-  // that matters is the document's, which is the sum of the injected hero
-  // fragment, its stylesheet and the rendered grid all landing — one
-  // measurable outcome instead of three separate signals to coordinate.
+  // Polls the document height: one outcome instead of three load signals.
   function heightReady() {
     return new Promise(function (resolve) {
       (function check() {
@@ -365,7 +276,7 @@
   function decoded(img) {
     if (img.complete && img.naturalWidth > 0) return Promise.resolve();
     if (typeof img.decode === "function") {
-      return img.decode().catch(function () { /* broken src is not our problem */ });
+      return img.decode().catch(function () { /* a broken src isn't ours to handle */ });
     }
     return new Promise(function (resolve) {
       img.addEventListener("load", resolve, { once: true });
@@ -373,12 +284,7 @@
     });
   }
 
-  // The gallery's pictures actually on screen at the restored offset, and
-  // only those: the grid's tiles, or the stack's items (both "fallback-img"
-  // captures — see js/gallery.js), so a gallery revealed with these decoded
-  // reads as the settled page rather than as something still loading. If the
-  // restored offset is still up in the hero this finds nothing and resolves
-  // immediately.
+  // The gallery pictures on screen at the restored offset (none in the hero).
   function visibleFigureImages() {
     var viewportHeight = window.innerHeight || 0;
     var all = document.querySelectorAll(".grid-tile__card:first-child, .stack-item__img");
@@ -391,8 +297,7 @@
     return out;
   }
 
-  // The page's own say in when it is done (holdUntil()): polled each frame,
-  // within the deadline like everything else here.
+  // The page's own "done" check (holdUntil()), polled each frame.
   var layoutCheck = null;
 
   function layoutReady() {
@@ -419,11 +324,8 @@
       })
       .then(function () {
         if (!restoring) return;
-        // Two frames, not one: the first lets the hero's own scroll handler
-        // (series/<slug>/hero.js, which schedules its clip-path update in a
-        // rAF of its own) and js/selection-bar.js react to the restored
-        // offset, so the x-ray wipe and the floating bar are already in the
-        // right state on the frame the grid becomes visible.
+        // Two frames: hero.js and js/selection-bar.js react to the restored offset
+        // before the gallery shows.
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             if (!userTookOver) applyScroll(targetY);
@@ -434,43 +336,34 @@
       .catch(endRestore);
   }
 
-  /* ---- bfcache ------------------------------------------------------------
-     A back-navigation that hits the back/forward cache never re-runs any of
-     the above: the document, its layout and its height come back intact. It
-     still needs the scroll applied, because scrollRestoration = "manual"
-     opts out of the UA's traversal restore too. pageshow fires before the
-     restored page's first frame, so setting it here is enough — there is
-     nothing async to wait for.
-     ----------------------------------------------------------------------- */
+  /* ---- bfcache ----
+     A bfcache restore keeps the layout but still needs the scroll, since
+     scrollRestoration is "manual"; pageshow precedes its first frame. */
   window.addEventListener("pageshow", function (event) {
     if (!event.persisted) return;
     var entry = readSaved();
     if (entry) applyScroll(entry.y);
   });
 
-  /* ---- go ----------------------------------------------------------------- */
+  /* ---- go ---- */
 
-  // Taken before anything is read, so the browser's own early (and
-  // necessarily clamped — see this file's header) restore never fights
-  // ours. Per-history-entry, so it doesn't leak to product.html et al.
+  // Before anything is read, so the browser's clamped restore never runs.
+  // Per history entry, so other pages are unaffected.
   window.history.scrollRestoration = "manual";
 
   window.EmjiveScrollMemory = {
     isRestoring: function () { return restoring; },
 
-    // js/gallery.js: the restore is not over, and the page not shown, until
-    // fn() says the gallery is laid out for good (or the deadline passes) —
-    // the hero, hidden meanwhile like the gallery, would otherwise show up
-    // drawn for another layout and jump into place.
+    // js/gallery.js: hold the restore until fn() reports the gallery laid out
+    // (or the deadline), or the hero would show drawn for another layout.
     holdUntil: function (fn) {
       if (typeof fn === "function") layoutCheck = fn;
     },
 
-    // What this entry landed on, as decided above: { hero, view, fresh }.
+    // { hero, view, fresh }, as decided above.
     landing: function () { return landing; },
 
-    // js/gallery.js, whenever the visitor changes either (a view switch):
-    // kept for this entry, so Back comes back to it. Written at once.
+    // js/gallery.js: record a view or hero change for this entry, at once.
     remember: function (patch) {
       if (!patch) return;
       if (patch.hero === "play" || patch.hero === "skip") landing.hero = patch.hero;
@@ -478,17 +371,14 @@
       save();
     },
 
-    // js/gallery-stack.js: the product at the top of the wheel, once the
-    // visitor has turned it (an id), and the one this entry left there (null:
-    // none — the wheel as it lands). Kept with the rest of the entry.
+    // js/gallery-stack.js: the product at the top of the wheel once turned (null: as landed).
     rememberWheel: function (id) {
       wheel = id === null || id === undefined ? null : String(id);
       save();
     },
     wheel: function () { return wheel; },
 
-    // Called by js/gallery.js the moment the gallery has been rendered and
-    // filtered — the last thing that changes the document's height.
+    // js/gallery.js, once the gallery is rendered and filtered: the last height change.
     contentReady: function () {
       if (contentReadyCalled) return;
       contentReadyCalled = true;

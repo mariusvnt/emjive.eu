@@ -1,22 +1,11 @@
-// Lint for the site's own code. What it is for is catching the mistakes a
-// build never will in a codebase of plain classic scripts sharing window
-// globals: a typo'd identifier (no-undef), a variable that is assigned and
-// never read, an unreachable branch. It is not a style gate — formatting is
-// the author's and the surrounding code's call.
-//
-// Three kinds of file, three environments:
-//   js/*.js, series/<slug>/hero.js   classic <script>s: browser globals, NOT
-//                                    modules (no import/export, top-level `var`
-//                                    stays global-scoped like the browser does)
-//   js/three-viewer.js, viewer-entry.js, hdr-worker.js, stack-scene.js
-//                                    ES modules, bundled by Vite
+// Lint for typos and dead code in classic scripts sharing window globals; not a style gate.
+//   js/*.js, series/<slug>/hero.js   classic scripts (browser globals, not modules)
+//   js/three-viewer.js, viewer-entry.js, hdr-worker.js, stack-scene.js   ES modules (Vite)
 //   scripts/, vite.config.js         Node tooling
 import js from "@eslint/js";
 import globals from "globals";
 
-// The cross-script API: each classic script publishes one of these on window,
-// and the others read it as window.EmjiveX. Listed so a bare reference to one
-// is not flagged — and so a typo in a new bare identifier still is.
+// The window.EmjiveX globals the classic scripts publish to each other.
 const EMJIVE = [
   "EmjiveCarousel", "EmjiveFocusTrap", "EmjiveHero", "EmjiveLoadViewer",
   "EmjiveLoader", "EmjiveMenus", "EmjiveMessage", "EmjiveMetalPicker", "EmjiveModelViewer", "EmjiveModifyModal",
@@ -26,11 +15,8 @@ const EMJIVE = [
 const emjiveGlobals = Object.fromEntries(EMJIVE.map((name) => [name, "readonly"]));
 
 const rules = {
-  // Unused function arguments are conventional (callbacks with a fixed
-  // signature); unused variables and imports are not.
+  // Unused arguments are fine (fixed callback signatures).
   "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
-  // `catch (e) {}` with a comment is how this codebase says "deliberately
-  // ignored"; an empty block with no comment is still reported.
   "no-empty": ["error", { allowEmptyCatch: true }],
   "no-console": "off"
 };

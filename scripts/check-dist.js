@@ -1,33 +1,8 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   check-dist — assertions about the BUILT site in dist/, run after
-   `npm run build` and before anything is deployed. The deploy mirrors dist/
-   over the live site with --delete, so a build that silently lost a folder or
-   regressed one of the build fixes in vite.config.js would otherwise go
-   straight to production. Everything here is something that has actually
-   gone wrong, or that the deploy's own `test -f dist/index.html` can't see.
-
-   What it checks:
-     - the files the host needs are present (.htaccess, robots.txt, 404.html,
-       sitemap.xml, the icons)
-     - nothing that must not be public is in there (dev tool pages, the
-       unbundled three-viewer source, HDR sources, sourcemaps, docs)
-     - every local href/src in every page resolves to a real file
-     - <head> order: the stylesheet comes before the first script, and the
-       series.json preload was not inlined into a data: URL (both undone
-       by Vite unless vite.config.js's post plugin restores them)
-     - indexing: the empty shell pages and the order page are noindex, the
-       pages that should be found are not
-     - link previews: every page's og:image / twitter:image is an address on
-       this site that names a file in dist/ (preview.jpg, or an item's own
-       assets/previews/<slug>.jpg, both drawn by vite.config.js)
-     - clean URLs: every item has its own page (dist/<slug>.html) carrying its
-       own canonical/title, the links use extension-less addresses that map
-       onto real files, the sitemap lists those addresses, and .htaccess has
-       the rewrite rules that serve them
-
-   Run:  npm run check-dist
-   ========================================================================== */
+// Assertions about the built site in dist/, before deploy (which mirrors dist/
+// with --delete): required host files, nothing private, every local href/src
+// resolves, <head> order and the series.json preload, noindex pages, link
+// preview images, per-item pages, clean URLs and the sitemap.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -79,13 +54,11 @@ for (const file of files) {
 
 /* ---- pages ------------------------------------------------------------- */
 
-// Root-level pages only. The hero fragments under series/<slug>/ are .html
-// too, but they are not documents: they are cloned into index.html at runtime,
-// so their paths resolve against THAT page, not against where the file sits.
+// Root-level pages only: series/<slug>/ hero fragments are cloned into
+// index.html, so their paths resolve against it.
 const pages = files.filter((f) => f.endsWith(".html") && !f.includes("/"));
 
-// Comments are blanked (same length) so a tag mentioned inside one of the
-// pages' long explanatory comments is never mistaken for a real one.
+// Blanked to the same length so tags mentioned in comments aren't matched.
 const stripComments = (html) => html.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
 
 function resolvesLocally(ref, fromPage) {
@@ -96,8 +69,7 @@ function resolvesLocally(ref, fromPage) {
     : path.posix.normalize(path.posix.join(path.posix.dirname(fromPage), clean));
   if (target === "" || target === ".") return fileSet.has("index.html");
   if (fileSet.has(target)) return true;
-  // A clean address (/archives, /gallery, /furcula): what public/.htaccess
-  // serves as <name>.html, with /gallery being index.html.
+  // A clean address (/archives, /gallery, /furcula), served by public/.htaccess as <name>.html.
   if (clean.startsWith("/") && !target.includes("/") && !target.includes(".")) {
     return target === "gallery" ? fileSet.has("index.html") : fileSet.has(target + ".html");
   }
@@ -120,9 +92,8 @@ for (const page of pages) {
   if (sheet === -1) fail(page + ": no stylesheet link in <head>");
   else if (firstScript !== -1 && sheet > firstScript) fail(page + ": the stylesheet comes after the first <script> in <head>");
 
-  // The early-discovery hints injectLoadHints() adds (vite.config.js): a page
-  // that opts in with data-products="eager" has to carry the products.json
-  // preload (the generic href check below then confirms it points at a file).
+  // A page with data-products="eager" must carry the products.json preload
+  // (injectLoadHints in vite.config.js).
   const htmlTag = (html.match(/<html\b[^>]*>/) || [""])[0];
   if (htmlTag.includes('data-products="eager"') &&
       !/<link\b[^>]*\brel="preload"[^>]*\bas="fetch"[^>]*\bhref="data\/series\/[^"]+\/products\.json"/.test(head)) {
@@ -133,9 +104,8 @@ for (const page of pages) {
   if (NOINDEX.has(page) && !noindex) fail(page + ": should be noindex");
   if (!NOINDEX.has(page) && noindex) fail(page + ": should not be noindex");
 
-  // The link-preview pictures: absolute (crawlers do not resolve relative
-  // ones), on this site, and really in dist/.
-  // (404.html is the server's error page and has no social tags.)
+  // Absolute (crawlers don't resolve relative ones) and present in dist/.
+  // 404.html has no social tags.
   if (page !== "404.html") {
     for (const attr of ['property="og:image"', 'name="twitter:image"']) {
       const tag = head.match(new RegExp("<meta " + attr + ' content="([^"]*)"'));
@@ -174,7 +144,7 @@ for (const { product, series, slug } of items) {
   if (!head.includes('href="' + series.products + '"')) fail(file + ": no products.json hint for its series (" + series.products + ")");
 }
 
-// Pages that are not items name their own canonical form too: no .html.
+// Non-item pages' canonical form has no .html.
 for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
   if (!fileSet.has(page)) continue;
   const head = fs.readFileSync(path.join(DIST, page), "utf8").split("</head>")[0];

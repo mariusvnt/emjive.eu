@@ -1,44 +1,10 @@
-/* ==========================================================================
-   em·ji·ve — modal focus trap
-
-   Shared by the site's two dialogs, which are the same bottom-sheet
-   component twice: #sizeModal (product.html, opened by the Select button)
-   and #modifyModal (built by js/modify-modal.js on every page, opened by
-   tapping a row — in launch-order.html's order list or the floating bar's
-   drawer). Loaded on all seven pages now that the Modify sheet is, and
-   still not folded into js/series.js (the obvious alternative home): that
-   one is a blocking <head> script, and nothing here needs to be.
-
-   What was missing before this: both dialogs were already marked up
-   correctly and already closed on Escape and on a backdrop click, but focus
-   never entered them, Tab walked straight out into the page behind, and
-   closing left focus wherever it had drifted to. A keyboard visitor opening
-   the size picker had to tab through the whole page to reach the size
-   buttons, and could tab back out of an "aria-modal" dialog while it was
-   still open.
-
-   THE TRAP ROOT IS .size-modal, NEVER .size-modal__panel. The panel is only
-   part of the dialog: on #modifyModal the carousel (a draggable 3D model and
-   its photos) is a SIBLING of the panel, not a child, and a trap scoped to
-   the panel would leave part of the dialog outside itself. Both dialogs
-   carry role="dialog"/aria-modal/aria-label on .size-modal for the same
-   reason: a screen reader honouring aria-modal hides everything outside the
-   declared dialog.
-
-   The Modify sheet's own buttons live outside it altogether: Unselect and
-   Save are the page's bar (js/modify-modal.js's strip), so that sheet
-   passes the strip as `include` — its buttons join the Tab cycle after the
-   sheet's own controls, and focus landing on them isn't pulled back.
-
-   A modal also freezes the page behind it, so that's done here too, on
-   activate() and release(): every dialog on the site goes through both —
-   see lockPage() below.
-
-   A closed modal needs no handling here: .size-modal is visibility: hidden
-   when closed (css/style.css), visibility inherits, and an element whose
-   computed visibility isn't `visible` is excluded from sequential focus
-   navigation outright. Nothing inside either modal redeclares it.
-   ========================================================================== */
+// Modal focus trap and page lock for the bottom sheets (#sizeModal,
+// #modifyModal, the size finder): window.EmjiveFocusTrap.
+//
+// The trap root is .size-modal, never .size-modal__panel: on #modifyModal
+// the carousel is a sibling of the panel. Controls outside the root (the
+// Modify sheet's bar strip) join via `include`. A closed modal needs nothing
+// here: visibility: hidden already removes it from the Tab order.
 
 (function (global) {
   "use strict";
@@ -57,27 +23,14 @@
   var returnFocusTo = null;
   var fallbackFocusTo = null;
   var onEscape = null;
-  // The traps underneath the active one: a dialog opened with `nested` (the
-  // size finder, over a sheet) puts the sheet's state here and gets it back
-  // on release().
+  // Traps underneath the active one, restored on release() (`nested` dialogs).
   var stack = [];
 
-  /* ---- focus handed back after a tap ----------------------------------------
-     Closing a sheet hands focus back to whatever opened it — a row, the
-     Select button, the bar's Undo — which is right for a keyboard, but a
-     ring appearing there after a tap reads as a glitch. And browsers do draw
-     one: programmatic focus inherits :focus-visible from the element focus
-     came from, and the size field (a text input) always matches it — on
-     iOS especially, where tapping the bar's Save doesn't move focus off the
-     field first. So the last input is tracked (capture phase, so nothing
-     that stops propagation can hide an event from it), and focus handed
-     back right after a pointer input carries .is-focus-quiet — which
-     css/style.css uses to drop the ring — until that element loses focus or
-     the next key is pressed, when the ring is right again.
-     A caller can also ask for it outright (release()'s `quiet`): the size
-     sheet's Enter confirms an Add from the keyboard, and the Select button
-     it hands focus back to showing a ring right after that reads as just as
-     much of a glitch as after a tap. */
+  /* ---- quiet focus return ----
+     Focus handed back right after a pointer input gets .is-focus-quiet (no
+     ring) until blur or the next key: programmatic focus inherits
+     :focus-visible, so a ring would otherwise appear after a tap (notably on
+     iOS). release()'s `quiet` forces it. */
   var lastInputWasPointer = false;
   document.addEventListener("pointerdown", function () { lastInputWasPointer = true; }, true);
   document.addEventListener("keydown", function () { lastInputWasPointer = false; }, true);
@@ -95,28 +48,16 @@
       document.addEventListener("keydown", clear, true);
     }
     el.focus(options);
-    // The element couldn't take focus after all (hidden, inert): nothing to
-    // be quiet about, and a class left behind would silence a later,
-    // genuinely keyboard-driven focus.
+    // Focus didn't take (hidden, inert): don't leave the class for a later keyboard focus.
     if (document.activeElement !== el) el.classList.remove("is-focus-quiet");
   }
 
-  /* ---- the page behind a modal stays put ------------------------------------
-     On <html>, not <body>: html carries overflow-x: hidden (css/style.css),
-     and once html's overflow isn't `visible`, body's own overflow stops
-     applying to the viewport — a body-level overflow: hidden then only
-     clips body's own box, and the page behind the sheet went on scrolling
-     exactly as before. html.is-modal-open (css/style.css) stops the viewport
-     itself. Its scroll position doesn't move, so nothing driven by it (the
-     homepage bar's scroll-linked reveal) does either.
-     Where scrollbars take up room (Windows, mostly), hiding the page's would
-     widen everything behind the backdrop by its width for as long as the
-     sheet is up. So its width is published as --page-scrollbar, which
-     css/style.css gives back as padding — on <html> for the page, and on the
-     fixed bars and header, which size themselves to the viewport rather
-     than to the page. (scrollbar-gutter: stable would be the tidy way, but
-     Chrome doesn't keep the root's gutter once its overflow is hidden.)
-     Zero wherever scrollbars float over the page instead (phones, macOS). */
+  /* ---- page lock ----
+     On <html>: with html's overflow-x: hidden, body's overflow no longer
+     controls the viewport. The scrollbar's width is published as
+     --page-scrollbar so CSS can pad it back and nothing shifts
+     (scrollbar-gutter: stable doesn't hold once the root's overflow is hidden
+     in Chrome). */
   function lockPage() {
     var root = document.documentElement;
     var scrollbar = Math.max(0, global.innerWidth - root.clientWidth);
@@ -130,23 +71,16 @@
     root.style.removeProperty("--page-scrollbar");
   }
 
-  // Recomputed on every Tab rather than cached at activate() time, because
-  // the dialogs change shape: the Modify sheet rebuilds its metal buttons
-  // and carousel slides for every item it opens on, and either sheet's
-  // contents can change under an open trap. A cached list goes stale.
+  // Recomputed on every Tab: the sheets' contents change while open.
   function focusable(root) {
     var all = root.querySelectorAll(FOCUSABLE);
     var out = [];
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
-      // The same mechanism that already keeps a closed modal untabbable, so
-      // one check covers the modal itself and anything inside it that hides
-      // the same way later. getClientRects() catches display: none.
+      // getClientRects() catches display: none.
       if (global.getComputedStyle(el).visibility === "hidden") continue;
       if (!el.getClientRects().length) continue;
-      // The strip's inactive buttons (Undo while modifying, Unselect/Save
-      // while offering Undo) are inert, and so is the whole strip while
-      // it's hidden.
+      // Inactive strip buttons, and the hidden strip, are inert.
       if (el.closest("[inert]")) continue;
       out.push(el);
     }
@@ -165,8 +99,7 @@
     return includeEls.some(function (el) { return el.contains(node); });
   }
 
-  // A target may be given as an element or as a function returning one. The
-  // function form is what makes a stale trigger survivable — see release().
+  // An element, or a function returning one (resolved late, see release()).
   function resolveTarget(want) {
     var el = typeof want === "function" ? want() : want;
     return el && global.document.contains(el) ? el : null;
@@ -177,8 +110,7 @@
 
     if (e.key === "Escape") {
       if (onEscape) {
-        // preventDefault so the same keypress can't also reach something
-        // behind the dialog — a native picker on the size input, say.
+        // So the key doesn't also reach something behind the dialog.
         e.preventDefault();
         onEscape();
       }
@@ -187,15 +119,11 @@
 
     if (e.key !== "Tab") return;
 
-    // Every Tab is moved by hand, wrapping at both ends, rather than only
-    // the two edges: an included element (the Modify sheet's strip) sits
-    // somewhere else in the document entirely, so the browser's own Tab
-    // order would never step between it and the dialog. From the dialog
-    // root itself (where focus starts), Tab goes to the first control and
-    // Shift+Tab to the last.
+    // Every Tab is moved by hand: included elements sit elsewhere in the
+    // document, outside the browser's own Tab order.
     e.preventDefault();
     var items = trapItems();
-    // Nothing to move to, but focus still must not leave.
+    // Nothing to move to, but focus must not leave.
     if (!items.length) return;
     var at = items.indexOf(document.activeElement);
     var next = at === -1
@@ -204,10 +132,7 @@
     next.focus();
   }
 
-  // Focus can leave without a Tab keypress at all — a click on page chrome
-  // behind the backdrop, a screen reader's own navigation commands, a
-  // browser autofill dropdown handing focus back somewhere unexpected.
-  // focusin bubbles, so one document-level listener covers every route.
+  // Focus can leave without Tab (clicks, screen readers, autofill).
   function onFocusIn(e) {
     if (!activeRoot || inTrap(e.target)) return;
     var items = focusable(activeRoot);
@@ -215,23 +140,15 @@
   }
 
   global.EmjiveFocusTrap = {
-    /* root    — the element focus is confined to (.size-modal; see header).
-       options — all optional:
-         include       an element (or array of them) outside root whose
-                       controls count as inside the trap — the Modify
-                       sheet's bar strip. Tabbed to after root's own.
-         returnFocus   Element, or a function returning one, resolved at
-                       release() time rather than here.
-         fallbackFocus same, used when returnFocus resolves to nothing still
-                       in the document.
-         initialFocus  defaults to root itself, so the dialog's own
-                       aria-label is announced before its first control.
-         onEscape      called on Escape. Omit to keep your own handler.
-         nested        true when this dialog opens over another one that
-                       stays open (the size finder, over a sheet): the
-                       trap underneath is kept, not released, and comes
-                       back — with the page still locked — when this one
-                       releases. */
+    /* root    the element focus is confined to (.size-modal)
+       options (all optional):
+         include       element(s) outside root whose controls join the trap, after root's
+         returnFocus   element or function, resolved at release()
+         fallbackFocus used when returnFocus is no longer in the document
+         initialFocus  defaults to root, so its aria-label is announced first
+         onEscape      called on Escape
+         nested        opens over another open dialog, whose trap is restored on release
+       Call after adding .is-open: focus() is a no-op on a hidden element. */
     activate: function (root, options) {
       if (!root) return;
       options = options || {};
@@ -243,7 +160,7 @@
           fallback: fallbackFocusTo,
           onEscape: onEscape
         });
-        // The page is already locked, and the listeners already on.
+        // The page is already locked and the listeners on.
         activeRoot = root;
         includeEls = [].concat(options.include || []).filter(Boolean);
         returnFocusTo = options.returnFocus || document.activeElement;
@@ -253,10 +170,7 @@
         (options.initialFocus || root).focus({ preventScroll: true });
         return;
       }
-      // Defensive: two modals are never open at once (product.html's size
-      // sheet closes itself when the Modify sheet opens — the
-      // "emjive:modify-open" event), but a stacked activate() would
-      // otherwise silently orphan the first trap's listeners.
+      // Two modals are never open at once, but don't orphan a trap's listeners.
       if (activeRoot) this.release();
 
       activeRoot = root;
@@ -269,25 +183,15 @@
       document.addEventListener("focusin", onFocusIn);
       lockPage();
 
-      // Belt and braces — both modals carry tabindex="-1", but a root
-      // without it would silently swallow focus() and leave the trap
-      // anchored on <body>, where onFocusIn would then fight every move.
+      // Without tabindex, focus() would fail and leave the trap anchored on <body>.
       if (!root.hasAttribute("tabindex")) root.setAttribute("tabindex", "-1");
 
-      // preventScroll: the sheet is a fixed overlay over a page just locked
-      // above, so any scrolling this provoked could only shift
-      // .size-modal__panel's own overflow-y box off its top for no reason.
-      //
-      // Callers MUST call this AFTER adding .is-open — focus() on a
-      // visibility: hidden element is a no-op, and the modal is hidden
-      // until that class lands.
+      // preventScroll: the sheet is a fixed overlay over a locked page.
       (options.initialFocus || root).focus({ preventScroll: true });
     },
 
-    /* focusTarget — optional: where focus goes instead of returnFocus (the
-       Modify sheet sends it to the bar's Undo after an Unselect).
-       quiet       — optional: true hands focus back without a ring even
-                     though the last input was a key (see above). */
+    /* focusTarget  optional: where focus goes instead of returnFocus
+       quiet        optional: no ring even after a key (see above) */
     release: function (focusTarget, quiet) {
       if (!activeRoot) return;
       if (stack.length) {
@@ -306,35 +210,24 @@
       document.removeEventListener("focusin", onFocusIn);
       activeRoot = null;
       includeEls = [];
-      // Before focus moves below, so a target that's off-screen can still be
-      // scrolled into view.
+      // Before focus moves, so an off-screen target can scroll into view.
       unlockPage();
 
-      // Resolved HERE, not at activate() time, and that is the whole reason
-      // returnFocus accepts a function: the element that opened a sheet can
-      // be gone by the time it closes (a row whose item was just
-      // unselected, a list that emptied), and a lookup run now finds
-      // whatever occupies that slot today.
+      // Resolved now: the opener may be gone (an unselected row, an emptied list).
       var target = resolveTarget(focusTarget) || resolveTarget(returnFocusTo) || resolveTarget(fallbackFocusTo);
       returnFocusTo = null;
       fallbackFocusTo = null;
       onEscape = null;
 
-      // No preventScroll this time: the trigger may legitimately be
-      // off-screen now, and scrolling it back into view is exactly right.
       focusElement(target, undefined, quiet === true);
     },
 
-    // Whether a dialog currently holds the trap — for the Escape handling
-    // outside it (js/series.js's EmjiveMenus), which must leave a keypress to
-    // the dialog while one is open.
+    // For outside Escape handling (EmjiveMenus in js/series.js).
     isActive: function () {
       return !!activeRoot;
     },
 
-    // Moves focus the way release() hands it back — quietly after a tap —
-    // for focus moves that aren't a trap release: the bar's Undo resolving.
-    // Same element-or-function target.
+    // A non-release focus move, quiet after a tap like release().
     focus: function (target) {
       focusElement(resolveTarget(target));
     }

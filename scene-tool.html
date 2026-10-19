@@ -1,24 +1,10 @@
 <!--
-  scene-tool.html — standalone dev page: preview a product (or the metal
-  swatch scene) under a chosen HDRI/metal, set a camera angle (drag the
-  model, or type exact rotation/tilt/roll/zoom values directly), tweak that
-  metal's shader live, then tick which of {HDRI, camera, metal shader} to
-  save and click Save. The swatch scene works the same way: one sphere under
-  an HDRI, no light but that. Its settings are the HDRI, a gaussian blur of it and the camera's
-  rotation, tilt and roll round the sphere (each a slider and a field); the
-  distance and the frame (the biggest square inside the sphere's disc) are
-  solved. The metal buttons change the sphere's metal, as every swatch render
-  does.
-
-  Not part of the built site — never added to vite.config.js's
-  rollupOptions.input, so `npm run build` never ships it. Served (and
-  saved through) by scripts/scene-tool-server.js:
-
-    npm run scene-tool
-
-  See dev-guidelines/procedures.md for the full workflow this replaces
-  (manual drag-then-hand-edit-products.json) and dev-guidelines/tooling.md
-  for the server's own notes.
+  Dev-only page (not built), served by scripts/scene-tool-server.js
+  (npm run scene-tool): preview a product or the swatch scene under a chosen
+  HDRI and metal, set the camera by dragging or typing, tune the metal's
+  shader live, then save the ticked parts (HDRI, camera, shader). The swatch
+  scene's settings are its HDRI, blur and camera angles; distance and frame
+  are solved.
 -->
 <!doctype html>
 <html lang="en">
@@ -58,7 +44,7 @@
   }
   .controls section { display: flex; flex-direction: column; gap: 6px; }
   .controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-  /* [hidden] loses to the display rules above, which set it themselves. */
+  /* [hidden] loses to the display rules above. */
   .controls section[hidden], .controls label[hidden] { display: none; }
   select, input[type="number"], input[type="color"] { font: inherit; padding: 4px 6px; }
   .metal-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -111,11 +97,9 @@
     padding: 16px;
   }
   #viewerContainer .emjive-3d-viewer { width: 100%; height: 100%; }
-  /* Swatch mode: the box is the swatch's own frame — a square, the biggest
-     one inside the sphere's disc (what scripts/auto-render.js saves), 360px
-     here. The viewer is absolutely placed because a percentage height won't
-     resolve against a box whose height comes from aspect-ratio. Not
-     draggable: the camera is set by the sliders and fields. */
+  /* Swatch mode: the swatch's own square frame (what auto-render saves), 360px.
+     The viewer is absolutely placed since a percentage height won't resolve
+     against an aspect-ratio box. Not draggable: the fields set the camera. */
   #viewerContainer.is-swatch {
     display: block;
     position: relative;
@@ -128,8 +112,7 @@
   #viewerContainer.is-swatch .emjive-3d-viewer { position: absolute; inset: 0; pointer-events: none; }
   #statusMessage { font-size: 13px; opacity: 0.75; min-height: 1.2em; }
 
-  /* Minimal subset of css/style.css's own .emjive-3d-viewer rules — this
-     page doesn't load the site stylesheet at all. */
+  /* The .emjive-3d-viewer rules this page needs (it doesn't load css/style.css). */
   .emjive-3d-viewer { position: relative; touch-action: none; cursor: grab; }
   .emjive-3d-viewer__canvas { display: block; width: 100%; height: 100%; }
   .emjive-3d-viewer__poster {
@@ -231,18 +214,17 @@
 <script type="module">
 import * as THREE from "three";
 
-// Mirrors js/three-viewer.js's own module-scope WORLD_UP — readCurrentOrbit()
-// below needs it for the same "level up" projection frameCamera() uses.
+// As in js/three-viewer.js, for readCurrentOrbit().
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 const state = {
   seriesIndex: null,
   productsBySeriesSlug: {},
-  mode: null,       // "product" | "swatch"
+  mode: null, // "product" | "swatch"
   seriesSlug: null,
   product: null,
-  swatchCamera: null, // swatch mode's camera angles: { rotation, tilt, roll }
-  swatchBlur: null,   // swatch mode's HDRI blur, in px of the HDRI image
+  swatchCamera: null, // swatch camera angles: { rotation, tilt, roll }
+  swatchBlur: null, // swatch HDRI blur, px of the HDRI image
   metal: null,
   handle: null,
   lastOrbit: null,
@@ -369,15 +351,14 @@ function wireEvents() {
   els.tiltInput.addEventListener("change", onOrbitInputChange);
   els.zoomInput.addEventListener("change", onOrbitInputChange);
   els.rollInput.addEventListener("change", onOrbitInputChange);
-  // The blur needs a new environment, so it rebuilds the viewer once a value is
-  // settled (slider released, field committed), not on every step.
+  // The blur needs a new environment: rebuild once the value settles, not per step.
   els.blurSlider.addEventListener("input", () => { els.blurInput.value = els.blurSlider.value; });
   els.blurSlider.addEventListener("change", onBlurChange);
   els.blurInput.addEventListener("change", () => {
     els.blurSlider.value = els.blurInput.value;
     onBlurChange();
   });
-  // A slider sets its field, then goes the same way a typed value does.
+  // A slider sets its field, then follows the typed-value path.
   [["rotationSlider", "rotationInput"], ["tiltSlider", "tiltInput"], ["rollSlider", "rollInput"]].forEach(([slider, field]) => {
     els[slider].addEventListener("input", () => {
       els[field].value = els[slider].value;
@@ -389,9 +370,7 @@ function wireEvents() {
   els.copyJsonBtn.addEventListener("click", onCopyJsonClick);
 }
 
-// The swatch camera — see swatchOrbit in js/three-viewer.js: the saved
-// angles (or straight in front, at eye level, if none are saved), as a fresh
-// object the fields can edit.
+// The saved swatch angles (default: straight in front, eye level), as an editable copy.
 function savedSwatchCamera() {
   const saved = state.seriesIndex["swatch-camera"];
   const ok = saved && ["rotation", "tilt", "roll"].every((k) => typeof saved[k] === "number");
@@ -418,7 +397,7 @@ function fillSwatchCameraInputs() {
   syncSliders();
 }
 
-// The sliders show whatever their fields say (and clamp to their own range).
+// Sliders mirror their fields (clamped to their own range).
 function syncSliders() {
   if (document.activeElement !== els.rotationSlider) els.rotationSlider.value = els.rotationInput.value;
   if (document.activeElement !== els.tiltSlider) els.tiltSlider.value = els.tiltInput.value;
@@ -430,8 +409,7 @@ function onMetalButtonClick(metal) {
   updateMetalButtonStates();
   populateShaderControls();
   if (!state.handle) return;
-  // Re-tint the one model (the swatch's sphere, too) in place — fast path,
-  // no rebuild. A static render would also need a redraw; this viewer is live.
+  // Re-tint in place, no rebuild.
   state.handle.applyMetal(metal);
 }
 
@@ -464,10 +442,7 @@ function onShaderInputChange() {
   preset.roughnessFactor = parseFloat(els.roughnessInput.value);
   els.metalnessReadout.textContent = preset.metallicFactor.toFixed(2);
   els.roughnessReadout.textContent = preset.roughnessFactor.toFixed(2);
-  // METAL_PRESETS is mutated in place (a live reference — see
-  // js/three-viewer.js's window.EmjiveModelViewer.METAL_PRESETS export) so
-  // re-invoking applyMetal() with the SAME key re-reads it fresh and
-  // re-tints instantly, no rebuild needed, either mode.
+  // METAL_PRESETS is the viewer's live object, so applyMetal() with the same key re-reads it.
   if (state.handle) state.handle.applyMetal(state.metal);
 }
 
@@ -492,8 +467,7 @@ async function rebuildViewer() {
   state.product = sel.product || null;
   if (sel.mode === "swatch" && !state.swatchCamera) state.swatchCamera = savedSwatchCamera();
   if (sel.mode === "swatch" && state.swatchBlur === null) state.swatchBlur = savedSwatchBlur();
-  // The HDRI select follows the mode: the swatch's own HDRI in swatch mode,
-  // the series' in product mode (changing it while staying put is the user's).
+  // The HDRI select follows the mode on a mode change: the swatch's, or the series'.
   const hdris = state.seriesIndex.hdris || {};
   if (sel.mode !== previousMode) {
     const seriesEntry = sel.mode === "product" ? findSeries(sel.seriesSlug) : null;
@@ -512,7 +486,7 @@ async function rebuildViewer() {
   els.statusMessage.textContent = "";
   const swatch = sel.mode === "swatch";
   els.viewerContainer.classList.toggle("is-swatch", swatch);
-  // The swatch's zoom is solved (the frame is the biggest square in the disc).
+  // The swatch's zoom is solved.
   els.zoomRow.hidden = swatch;
   els.blurRow.hidden = !swatch;
   if (swatch) {
@@ -589,11 +563,7 @@ function setCameraControlsEnabled(enabled) {
   if (!enabled) els.saveCamera.checked = false;
 }
 
-// Reads {rotation, tilt, zoom, roll} back from the live camera — the
-// exact inverse of js/three-viewer.js's frameCamera()'s forward transform.
-// Runs off the handle's own camera/target/scene (no state kept here
-// beyond what's read each frame), so whatever's on screen is always
-// exactly what gets displayed and (if saved) posted.
+// {rotation, tilt, zoom, roll} read back from the live camera: the inverse of frameCamera().
 function readCurrentOrbit(handle) {
   const target = handle.target;
   const camera = handle.camera;
@@ -605,14 +575,8 @@ function readCurrentOrbit(handle) {
   const phiRad = Math.acos(THREE.MathUtils.clamp(offset.y / radius, -1, 1));
   const thetaRad = Math.atan2(offset.x, offset.z);
 
-  // Roll: the signed angle, around eyeDir, from "level" (WORLD_UP's own
-  // component perpendicular to eyeDir — what frameCamera() uses for roll 0
-  // at this exact position) to the camera's actual .up — the exact inverse
-  // of frameCamera()'s levelUp.applyAxisAngle(eyeDir, rollRad). A free-drag
-  // (TrackballControls' own rotate step spins .up right along with the eye)
-  // is the only way .up ends up anywhere but level; typing exact values or
-  // Reset always lands back on frameCamera()'s own canonical roll. Same
-  // pole degeneracy as the forward transform — falls back to 0 there.
+  // Roll: the signed angle about eyeDir from the level up (WORLD_UP's component
+  // perpendicular to eyeDir) to the camera's up, inverting frameCamera(). 0 at the poles.
   const levelUp = WORLD_UP.clone().addScaledVector(eyeDir, -WORLD_UP.dot(eyeDir));
   let rollRad = 0;
   if (levelUp.lengthSq() > 1e-8) {
@@ -642,14 +606,12 @@ function readCurrentOrbit(handle) {
 
 function readoutLoop() {
   requestAnimationFrame(readoutLoop);
-  // The swatch scene's camera is the fields' own (it isn't draggable): nothing
-  // to read back.
+  // The swatch camera comes from the fields: nothing to read back.
   if (!state.handle || state.mode === "swatch") return;
   const orbit = readCurrentOrbit(state.handle);
   if (!orbit) return;
   state.lastOrbit = orbit;
-  // Skip whichever field the user is actively typing into, so the live
-  // drag-driven readout doesn't fight their keystrokes.
+  // Skip the field being typed into.
   if (document.activeElement !== els.rotationInput) els.rotationInput.value = orbit.rotation;
   if (document.activeElement !== els.tiltInput) els.tiltInput.value = orbit.tilt;
   if (document.activeElement !== els.zoomInput) els.zoomInput.value = orbit.zoom;
@@ -657,11 +619,8 @@ function readoutLoop() {
   syncSliders();
 }
 
-// Fires on any of the four fields committing a value (blur/Enter), or a slider
-// moving — reads the current field values together and jumps the camera
-// straight there via handle.setCameraOrbit(), the same primitive
-// scripts/auto-render.js's top-shot render already uses. The swatch has three
-// (its zoom is solved) and goes through swatchOrbit().
+// On a field commit or slider move: jump the camera to the fields' values
+// (handle.setCameraOrbit). The swatch takes three, through swatchOrbit().
 function onOrbitInputChange() {
   if (!state.handle) return;
   const rotation = parseFloat(els.rotationInput.value);
@@ -735,8 +694,7 @@ async function onSaveClick() {
   } else {
     if (els.saveCamera.checked) {
       await attempt("Swatch camera", "/api/save-swatch-camera", state.swatchCamera);
-      // So "Reset to saved default" means what was just saved, not what the
-      // page loaded with.
+      // So "Reset to saved default" means what was just saved.
       if (results[results.length - 1].ok) state.seriesIndex["swatch-camera"] = { ...state.swatchCamera };
     }
     if (els.saveHdri.checked) {

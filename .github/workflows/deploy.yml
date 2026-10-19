@@ -1,12 +1,8 @@
 name: Deploy to OVH (SFTP)
 
-# Runs verify.yml (lint, data schema, build, built-output checks, audit) and
-# only then makes www/ on the OVH hosting a mirror of the dist/ it produced,
-# over SFTP, on every push to main. See the "Deploying" section in README.md
-# for the one-time secrets setup this needs.
-#
-# Run it by hand from the Actions tab with "dry_run" ticked to see what it
-# would upload and delete without touching the server.
+# On every push to main: runs verify.yml, then mirrors its dist/ to www/ on the
+# OVH hosting over SFTP. Secrets setup: README.md, "Deploying".
+# Run by hand with "dry_run" to list changes without touching the server.
 
 on:
   push:
@@ -25,8 +21,7 @@ on:
 permissions:
   contents: read
 
-# Two overlapping uploads to the same folder can leave a half-mixed site, so
-# a newer push waits for the running deploy instead of racing it.
+# Overlapping uploads could leave a half-mixed site.
 concurrency:
   group: ovh-sftp-deploy
   cancel-in-progress: false
@@ -39,7 +34,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      # The dist/ that verify just built and checked — not a second build.
+      # The dist/ verify built and checked, not a second build.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: dist
@@ -53,54 +48,34 @@ jobs:
           SFTP_PASS: ${{ secrets.FTP_PASSWORD }}
           DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
           PRUNE_OLD_ASSETS: ${{ inputs.prune_old_assets && 'yes' || 'no' }}
-          # The server's SSH host keys, pinned so the password is only ever
-          # sent to the real OVH server. Scanned with
+          # Pinned so the password only goes to the real server. If OVH rotates them
+          # ("Host key verification failed"), re-scan and replace:
           #   ssh-keyscan -p 22 -t rsa,ecdsa,ed25519 <FTP_SERVER>
-          # If OVH ever rotates them, the deploy stops with "Host key
-          # verification failed" — re-scan and replace these two lines.
           SFTP_HOST_KEYS: |
             ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDNRHIUr16MAqfE7FCijkY+M0PJYmgtjuraB2qE4F1f3SVcTuJyB/4YZpkX6CN0vl8rzP5Mo+c2/jT33afewvhqkgZgGR5J1FwU+yJXqR8CKLO0BW++3Av4azcc0a/5E6H/eXu6dJga1Suw9FF0/K7Wa2ENxMjvKKj0OnXgmwxt/N2jHldZslg2srYYQ14roO0Kyy72nJ84mBnocHBxY/xxch7zERQY8su3YH9YclmS3bCWnr8e+rCZSLRGuu29CeqeOLdd0cWq5GimMTWUv7SxJ5Mrrf7bzKM9VgnF5h9hLxKZZxRSP0H7iHUCFo35TtROjMvADjuxOyzgiOX8xuXrUrDCd4Air+D/AG0+xdRUF1P2x2Tt1pgMooPGqETCzLV/RXIKanCDhaFqPp9OnjneIq7GNKh0qiWXK0OxLu30p0DZWluk4kLOVCv8vMmFRv7e3uBCB/w13l7eloTnbY1qZHkOTym30BbN5HHXovl31aLqMB5fUSXdDvEx6g9cPH9ofAx/DY6EJ3i8xa7lSnu27zzWh9RNc1cKBEs4QldzH9ZGn2yHrY3DL1ZDqSG9+4sMoaStKC/cJyWjivyQJoXUMznndkRCdFXTx6WdaqzHVwWpqIqQXNDv3fcIZCf3hWH+3gTOkF3SoCoWGZY1vmihVRRh3ob5dSyPTeP1sdfEoQ==
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPHzGPnvg+XUpaMELjQ4AIj/6pkjvvHYCUxDVpcdaC8T
         run: |
-          # mirror --delete removes everything in www/ that isn't in dist/, so
-          # never run it against an empty or failed build.
+          # mirror --delete would wipe www/ for an empty or failed build.
           test -f dist/index.html || { echo "dist/index.html is missing; refusing to mirror"; exit 1; }
-          # A dotfile, so it is the one thing an artifact round-trip can lose
-          # without anyone noticing (see include-hidden-files in verify.yml);
-          # --delete would then remove the live copy from the server.
+          # A dotfile, easily lost in the artifact; --delete would then remove the live one.
           test -f dist/.htaccess || { echo "dist/.htaccess is missing; refusing to mirror"; exit 1; }
 
-          # Pinned host keys go in a known_hosts file under the real hostname;
-          # ssh below refuses to connect to anything that doesn't match.
           known_hosts="$RUNNER_TEMP/known_hosts"
           : > "$known_hosts"
           while read -r key; do
             [ -n "$key" ] && printf '%s %s\n' "$SFTP_HOST" "$key" >> "$known_hosts"
           done <<< "$SFTP_HOST_KEYS"
 
-          # lftp parses its script, so a backslash or double quote in the
-          # password has to be escaped before it goes inside "...".
+          # lftp parses its script: escape backslashes and double quotes.
           pass=$(printf '%s' "$SFTP_PASS" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
-          # The contents of dist/ land directly in www/, so index.html sits at
-          # its root. Two passes, so the site is never missing anything
-          # mid-deploy and an open tab never loses a file it still needs:
-          #
+          # Two passes so the site is never missing a file mid-deploy:
           #   1. upload everything, delete nothing;
-          #   2. delete whatever is on the server but not in dist/ — EXCEPT the
-          #      content-hashed bundles directly under assets/ (Vite's
-          #      three-viewer-<hash>.js, style-<hash>.css, hashed fonts and
-          #      SVGs). A visitor whose browser still holds the previous
-          #      release's HTML would otherwise 404 on a bundle this deploy had
-          #      just deleted. They are cheap (about 0.8MB a release) and are
-          #      cleared by running this workflow by hand with
-          #      "prune_old_assets" ticked, e.g. once a month.
-          #
-          # Excluded paths are ignored on both sides by lftp, so pass 2 never
-          # re-uploads or deletes them; pass 1 already put the new ones up.
-          # If the exclude regex ever stops matching (lftp matches on the path
-          # relative to the mirror root), the effect is only the old behaviour
-          # — everything stale is deleted — so check a dry run first.
+          #   2. delete what dist/ lacks, except the content-hashed bundles under
+          #      assets/, which tabs still holding the previous HTML need. Prune them
+          #      by hand with "prune_old_assets" (e.g. monthly).
+          # If the exclude regex stops matching, stale bundles are simply deleted; check
+          # with a dry run.
           hashed='^assets/[^/]+-[A-Za-z0-9_-]{8}\.(js|css|woff2|svg|webp)$'
           if [ "$PRUNE_OLD_ASSETS" = "yes" ]; then
             hashed='^$'

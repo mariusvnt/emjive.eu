@@ -1,63 +1,24 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   measure-models — measures every product's .glb (and its print model, the
-   .stl) and writes the result into that product's "geometry" key in its
-   series' products.json:
-
-     "geometry": { "volume-cm3": 1.683, "dimensions-mm": [28.1, 25.3, 20.2],
-                   "min-box": { "center": [x, y, z], "axes": [[…], […], […]] },
-                   "print": { "volume-cm3": 1.681, "dimensions-mm": [28.1, 25.3, 20.2], "stl-sha1": "…" },
-                   "model-sha1": "…" }
-
-   What the product page does with it (js/product.js's renderSpecs): the
-   dimensions and the weight it shows, and the raw-material and manufacturing
-   cost, are all derived from the volume (and the dimensions) and the
-   per-metal constants in data/series.json's "metal-costs", so only the
-   metal-independent geometry is stored here — the PRINT model's ("print", the
-   .stl a product names in assets.stl) where it has one, since that is the
-   piece that is made and priced, else the .glb's own. "min-box" is the .glb's
-   box in its own frame: the homepage stack's hit boxes (js/stack-scene.js) are
-   made of it.
-
-   - volume-cm3: the enclosed volume of the mesh. Models are authored in
-     millimetres (1 unit = 1 mm — the GLBs carry no scale, and a ring is
-     ~25 units across), so cm3 = mm3 / 1000. Computed per connected shell as
-     |sum of signed tetrahedra|: several exports have inverted winding (a
-     negative signed volume), which says nothing about the real size.
-   - dimensions-mm: the extents of the MINIMUM-VOLUME bounding box, sorted
-     longest first — pose-independent, so a model's baked-in rotation
-     doesn't change them. The min box has no natural axis order, hence the
-     sort. Found by trying a box flush with every face of the convex hull
-     (with its best in-plane rotation, a 2D rotating-calipers search) and
-     then polishing the winner numerically; the rare "three mutually
-     orthogonal edges" optimum is covered by that polish.
-   - min-box: where that box is — its centre (mm) and its three unit axes,
-     axes[k] being the direction dimensions-mm[k] runs along. Both in the
-     glTF scene's own space (node transforms applied), which is the space
-     the viewer's model sits in, untransformed.
-   - model-sha1: hash of the .glb's bytes. scripts/validate-data.js compares
-     it with the file on disk, so a model that changed (or was re-optimized)
-     without being re-measured fails `npm run verify` instead of silently
-     shipping stale numbers.
-   - print: the same volume and dimensions, measured on the .stl the same way
-     (an STL carries no units: like the models, one unit is one millimetre),
-     and stl-sha1, the hash of its bytes, checked likewise.
-
-   Meshes that aren't watertight (open or non-manifold edges) still get a
-   volume — it's just approximate — and are flagged in the summary table.
-
-   A product with several designs (its "designs" list) has one model per
-   design: the default design's is the product's own, measured as above;
-   each other design's gets its own "geometry" line inside its entry of the
-   list, right after its "picks".
-
-   Only the "geometry" lines (the product's and its designs') are touched;
-   the rest of products.json is left byte-for-byte alone.
-
-   Usage:
-     npm run measure-models                 measure every product, write products.json
-     npm run measure-models -- --dry-run    report only, write nothing
-   ========================================================================== */
+// Measures every product's .glb (and .stl print model) into its "geometry"
+// line in products.json, touching nothing else:
+//
+//   "geometry": { "volume-cm3", "dimensions-mm", "min-box": { center, axes },
+//                 "print": { "volume-cm3", "dimensions-mm", "stl-sha1" }, "model-sha1" }
+//
+//   volume-cm3     enclosed volume; models are in mm. Summed per shell as
+//                  |signed volume|, since some exports have inverted winding.
+//   dimensions-mm  minimum-volume bounding box extents, longest first (pose-independent)
+//   min-box        that box's centre and unit axes in scene space (axes[k] runs
+//                  along dimensions-mm[k]); the wheel's hit boxes (js/stack-scene.js)
+//   model-sha1, stl-sha1   checked by validate-data.js against the files, so a
+//                  changed model must be re-measured
+//   print          the same, on the .stl: what is made and priced
+//
+// Non-watertight meshes get an approximate volume and are flagged. Each
+// non-default design gets its own "geometry" line after its "picks".
+//
+//   npm run measure-models                 measure and write
+//   npm run measure-models -- --dry-run    report only
 
 "use strict";
 
@@ -70,16 +31,12 @@ const stlFile = require("./stl");
 const REPO_ROOT = resolve(__dirname, "..");
 const SERIES_JSON_PATH = join(REPO_ROOT, "data", "series.json");
 
-// Vertices closer than this (mm) are the same vertex — used to find shared
-// edges and connected shells, since a Draco decode can split a vertex that
-// the source had welded.
+// Vertices closer than this (mm) are one: Draco decoding can split welded vertices.
 const WELD_EPSILON = 1e-4;
 
-// ---- geometry extraction ----------------------------------------------------
+// ---- geometry extraction ----
 
-// Every triangle of every mesh, in world space (node transforms applied —
-// rotations don't change volume, but a mesh instanced by several nodes must
-// count once per instance). Returns flat Float64Array of 9 numbers/triangle.
+// Every triangle in world space (an instanced mesh counts per instance), 9 numbers each.
 function collectTriangles(document) {
   const tris = [];
   for (const node of document.getRoot().listNodes()) {
@@ -173,7 +130,7 @@ function measureVolume(welded) {
   return { mm3, shells: shell.size, openEdges };
 }
 
-// ---- minimum-volume bounding box ---------------------------------------------
+// ---- minimum-volume bounding box ----
 
 function normalize(v) {
   const l = Math.hypot(v[0], v[1], v[2]);
@@ -206,9 +163,8 @@ function hull2d(pts) {
   return lower.concat(upper);
 }
 
-// Volume and extents of the box with axes (u, v, w) around `points`, and
-// the middle of each extent along its own axis (what the box's centre is
-// rebuilt from — see minimumBox).
+// Volume and extents of the box with axes (u, v, w) around `points`, plus each
+// extent's midpoint along its axis (to rebuild the centre).
 function boxFor(points, u, v, w) {
   let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, w0 = Infinity, w1 = -Infinity;
   for (const p of points) {
@@ -228,8 +184,7 @@ function bestBoxAlong(points, n) {
   const u0 = normalize(cross(n, helper));
   const v0 = cross(n, u0);
   const rim = hull2d(points.map((p) => [dot(p, u0), dot(p, v0)]));
-  // The projection's own hull is all the in-plane extents ever need, so the
-  // inner loop runs over the rim only; the height along n is per-face.
+  // In-plane extents only need the projected hull; the height uses every point.
   let h0 = Infinity, h1 = -Infinity;
   for (const p of points) {
     const h = dot(p, n);
@@ -262,8 +217,7 @@ function bestBoxAlong(points, n) {
   return { volume: bestArea * height, axes: [u, cross(n, u), n] };
 }
 
-// Rotates axes by small angles about each of its own axes, keeping any
-// improvement; shrinks the step until it stops mattering.
+// Small rotations about each axis, keeping improvements, halving the step until negligible.
 function polishBox(points, found) {
   let best = { ...boxFor(points, found.axes[0], found.axes[1], found.axes[2]), axes: found.axes };
   let step = 0.02;
@@ -298,8 +252,7 @@ async function minimumBox(positions) {
   const cloud = [];
   for (let i = 0; i < positions.length; i += 3) cloud.push(new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]));
   const hull = new ConvexHull().setFromPoints(cloud);
-  // hull.vertices is every INPUT point; the hull's own vertices are the
-  // ones its faces actually use.
+  // hull.vertices holds every input point; keep those its faces use.
   const onHull = new Set();
   for (const face of hull.faces) {
     let edge = face.edge;
@@ -310,13 +263,9 @@ async function minimumBox(positions) {
   }
   const hullPoints = [...onHull].map((vn) => [vn.point.x, vn.point.y, vn.point.z]);
 
-  // One candidate per distinct hull-face normal. A finely tessellated curved
-  // surface has thousands of near-identical normals, so they're bucketed at
-  // ~0.3 degrees; polishBox closes whatever gap that leaves.
-  // Scoring thousands of candidates against thousands of hull vertices is
-  // slow, so every candidate is scored on a thinned copy first — the
-  // farthest hull vertex in each of ~800 evenly spread directions — and
-  // only the best few are re-scored on the full hull.
+  // One candidate per distinct hull-face normal, bucketed at ~0.3 degrees
+  // (polishBox closes the gap). Candidates are scored on a thinned hull (the
+  // farthest vertex in ~800 directions); the best 12 are re-scored on the full one.
   const thin = new Set();
   const directions = 800;
   for (let d = 0; d < directions; d++) {
@@ -350,11 +299,8 @@ async function minimumBox(positions) {
     if (box && (!best || box.volume < best.volume)) best = box;
   }
   best = polishBox(hullPoints, best);
-  // Longest first, and each axis kept with its own extent, so axes[k] is
-  // the direction dimensions[k] was measured along — the product page
-  // labels its brackets that way. An axis' sign is arbitrary; it's flipped
-  // so its largest component is positive, which keeps a re-run's output
-  // identical rather than flipping at random.
+  // Longest first, axes kept with their extents. Each axis' sign is flipped so
+  // its largest component is positive, keeping re-runs stable.
   const order = [0, 1, 2].sort((a, b) => best.extents[b] - best.extents[a]);
   const axes = order.map((k) => {
     const a = best.axes[k];
@@ -371,16 +317,13 @@ async function minimumBox(positions) {
   };
 }
 
-// ---- products.json patching ---------------------------------------------------
+// ---- products.json patching ----
 
-// The line itself is json-tool-blocks.js's geometryLine(), which the JSON
-// tool also writes through, so neither can drop a field the other knows.
+// Shared with the JSON tool, so neither drops a field the other writes.
 const geometryLine = blocks.geometryLine;
 
-// Drops any existing "geometry" line from a product block, then inserts the
-// new one straight after its "per-metal-specs" object, in the file's own
-// line-ending style (products.json is CRLF on Windows checkouts). Returns
-// null if the block has no per-metal-specs to anchor on.
+// Replaces the product block's "geometry" line, placed after "per-metal-specs",
+// in the file's line endings. null without per-metal-specs.
 function withGeometry(blockText, g, eol) {
   const cleaned = blockText.replace(/\r?\n {6}"geometry": \{[^\r\n]*\},(?=\r?\n)/, "");
   const anchor = /("per-metal-specs": \{[\s\S]*?\r?\n {6}\},)(?=\r?\n)/;
@@ -388,9 +331,7 @@ function withGeometry(blockText, g, eol) {
   return cleaned.replace(anchor, (m) => m + eol + geometryLine(g));
 }
 
-// The same for one design of a product (an entry of its "designs" list,
-// itself a block of its own lines): its "geometry" line goes straight after
-// its one-line "picks". Returns null if the entry has no picks line.
+// Same for one entry of "designs": the line goes after its "picks".
 const DESIGN_INDENT = "            ";
 function withDesignGeometry(entryText, g, eol) {
   const cleaned = entryText.replace(/\r?\n {12}"geometry": \{[^\r\n]*\},(?=\r?\n)/, "");
@@ -399,8 +340,7 @@ function withDesignGeometry(entryText, g, eol) {
   return cleaned.replace(anchor, (m) => m + eol + geometryLine(g, DESIGN_INDENT));
 }
 
-// A triangle soup (9 numbers a triangle, mm) measured: the volume and the
-// minimum box. The one measuring path behind a model file and a print model.
+// Volume and minimum box of a triangle soup (mm); shared by models and print models.
 async function measureTriangles(tris) {
   const welded = weldTriangles(tris);
   if (!welded.corners.length) return null;
@@ -409,9 +349,8 @@ async function measureTriangles(tris) {
   return { volume, box };
 }
 
-// One model file measured (and its print model, if it names one): what goes
-// in a "geometry" line, plus the figures the summary table shows. null (and a
-// message) when it can't be.
+// One model (and its print model): the "geometry" object and a summary row,
+// or null after an error message.
 async function measureFile(io, label, modelRel, stlRel) {
   const modelPath = modelRel && join(REPO_ROOT, modelRel);
   if (!modelPath || !existsSync(modelPath)) {
@@ -467,7 +406,7 @@ async function measureFile(io, label, modelRel, stlRel) {
   return { geometry, row };
 }
 
-// ---- main -----------------------------------------------------------------------
+// ---- main ----
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
@@ -506,9 +445,7 @@ async function main() {
       }
       rows.push(measured.row);
 
-      // Its other designs (the default one is the product's own model, just
-      // measured): each its own model and its own "geometry" line, inside
-      // its entry of the product's "designs" list.
+      // The non-default designs, each with its own model and "geometry" line.
       const designs = product.designs;
       for (const design of (designs && designs.list) || []) {
         if (design.key === designs.default) continue;

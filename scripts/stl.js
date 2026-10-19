@@ -1,14 +1,7 @@
-/* ==========================================================================
-   stl — reading, cutting up and writing binary STL files, for the print models
-   (scripts/split-models.js cuts a combined export into one file per model,
-   scripts/measure-models.js measures them).
-
-   A binary STL is an 80-byte header, a uint32 triangle count and 50 bytes a
-   triangle (a normal, three corners as float32, and two bytes of attributes).
-   It carries no object names, no units and no vertex ids. A Blender export of
-   many objects is those objects' triangles one after the other, each a closed
-   surface — which is all segmentStl() relies on.
-   ========================================================================== */
+// Binary STL reading, splitting and writing for the print models
+// (scripts/split-models.js, scripts/measure-models.js).
+// Format: 80-byte header, uint32 triangle count, 50 bytes per triangle
+// (normal, three float32 corners, two attribute bytes). No names, units or vertex ids.
 
 "use strict";
 
@@ -17,9 +10,7 @@ const { readFileSync, writeFileSync } = require("node:fs");
 const HEADER_BYTES = 80;
 const RECORD_BYTES = 50;
 
-// The file's bytes, checked to be a binary STL of the size its own triangle
-// count says. (An ASCII STL starts with "solid" and has no count; Blender's
-// exporter, and every slicer's, writes binary.)
+// The file's bytes, checked to be a binary STL of the size its count implies.
 function readStl(path) {
   const buffer = readFileSync(path);
   if (buffer.length < HEADER_BYTES + 4) throw new Error(path + ": too short to be an STL");
@@ -31,8 +22,7 @@ function readStl(path) {
   return { buffer, count };
 }
 
-// Triangles [from, to) as a Float64Array of 9 numbers each (millimetres, as
-// authored).
+// Triangles [from, to) as 9 numbers each (millimetres).
 function trianglesOf(stl, from, to) {
   const out = new Float64Array((to - from) * 9);
   for (let t = from; t < to; t++) {
@@ -43,8 +33,7 @@ function trianglesOf(stl, from, to) {
   return out;
 }
 
-// Triangles [from, to) as a file of their own, their records copied as they
-// are (normals and all).
+// Triangles [from, to) as a standalone STL, records copied unchanged.
 function sliceStl(stl, from, to, label) {
   const count = to - from;
   const out = Buffer.alloc(HEADER_BYTES + 4 + count * RECORD_BYTES);
@@ -58,7 +47,7 @@ function writeStl(path, bytes) {
   writeFileSync(path, bytes);
 }
 
-// ---- cutting a combined export into its objects ------------------------------
+// ---- splitting a combined export into its objects ----
 
 // A corner's position as two 32-bit hashes (float32 bit patterns, -0 as 0).
 function cornerHash(a, b, c, seed) {
@@ -81,16 +70,11 @@ function edgeHash(hu, hv, salt) {
   return x >>> 0;
 }
 
-// Where each object of a combined export ends, as triangle counts: the
-// triangles so far form closed surfaces exactly when every edge has been used
-// an even number of times, i.e. when the XOR of all their edges' hashes is
-// back to zero (a 64-bit hash: a false zero is not a thing to worry about).
-// So each position where it is zero ends a closed object — whatever the order
-// or the connectivity of their triangles, which a Blender export scatters and
-// whose objects (the designs of one product) share corners exactly, so that
-// welding them tells nothing. [{ from, to }], covering the file. null if the
-// surface never closes by the end (an open mesh, or not an export of closed
-// objects at all).
+// Where each object of a combined export ends: the triangles so far form closed
+// surfaces exactly when every edge has been used an even number of times, i.e.
+// when the XOR of all edge hashes (64-bit) returns to zero. Independent of
+// triangle order, and of shared corners between objects, which rule out
+// welding. [{ from, to }] covering the file, or null if it never closes.
 function segmentStl(stl) {
   const w = new Uint32Array(9);
   const ends = [];

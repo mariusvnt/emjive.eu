@@ -1,101 +1,71 @@
-/* ==========================================================================
-   em·ji·ve — the gallery's stack (index.html only)
-
-   The camera pulls back from the hand. Once the hero's x-ray wipe is over,
-   the page stays pinned on the hand and the scrolling carries on into the
-   entrance (series/<slug>/hero.js publishes its progress, 0 to 1, through
-   window.EmjiveHero.onStage): the hand and its rings shrink, as if the
-   camera were zooming out, and the x-ray fades back, showing that the other
-   products were there all along — on a big circle round the wrist, which the
-   rings on the hand were already almost on. Those slide along it to their
-   own places as the camera pulls back.
-
-   Then the circle is a plate to turn. The product at its top (noon) is
-   focused: bigger, its model turning slowly on its own and turned by a drag
-   on it (the viewers' own spin, coasting and easing back home, then turning
-   on its own again after a pause), its name in the middle of the circle as
-   a button to its page. A tap on another product turns the plate to bring
-   it to the top; a drag round the circle turns the plate with the pointer,
-   coasts, and settles with a product at the top. Each product stays upright
-   wherever it is on the circle.
-
-   Two ways of drawing the stack, the same circle and the same pull-back:
-     - the 3D stack (js/stack-scene.js, a lazy chunk with three.js): every
-       model in one shared canvas. It takes over from the pictures once it
-       has loaded;
-     - the image stack: each product's wheel poster (wheel-poster, scripts/
-       auto-render.js: the model drawn the way the 3D stack draws it, so the
-       one hands over to the other without a pixel changing; the fallback-img
-       where a product has none) — the first paint, and all of
-       the stack where the 3D one can't run (no WebGL, reduced motion, the
-       chunk failing). The focused one can't be turned.
-
-   window.EmjiveGalleryStack = { mount(stage, options) } -> {
-     setFilter(ids), setActive(on)
-   } — mounted by js/gallery.js. options: products, slug, active.
-   ========================================================================== */
+// The homepage wheel (index.html, "stack" in code). After the hero's wipe,
+// the entrance (progress 0..1 via window.EmjiveHero.onStage) pulls the camera
+// back from the hand: the hand shrinks, the x-ray fades, and the products
+// appear on a circle round the wrist, the hand's rings sliding to their places.
+//
+// Landed, the circle is a plate to turn: the product at the top is focused
+// (larger, its model self-turning and draggable like a viewer's, its name a
+// button to its page). A tap on another turns it to the top; a drag turns the
+// plate, which coasts and settles on a product.
+//
+// Two renderings of the same layout:
+//   3D     js/stack-scene.js (lazy, three.js), taking over once loaded
+//   images each product's wheel-poster (drawn like the 3D scene, so the
+//          handover changes nothing; fallback-img without one): the first
+//          paint, and all of it without WebGL, under reduced motion, or if
+//          the chunk fails (the focused model can't turn then)
+//
+// window.EmjiveGalleryStack = { mount(stage, { products, slug, active }) }
+//   -> { settleLayout(), setFilter(ids), setActive(on) }, mounted by js/gallery.js.
 
 (function () {
   "use strict";
 
-  // ---- the entrance ---------------------------------------------------------
-  // The rings on the hand slide along the circle to their own places over
-  // this part of the entrance.
+  // ---- the entrance ----
+  // The hand's rings slide to their places over this part of it.
   var SLIDE_START = 0.15;
   var SLIDE_END = 0.85;
-  // The other products come into sight over this part of it, as the x-ray
-  // fades back (series/<slug>/hero.js).
+  // The other products appear over this part, as the x-ray fades (hero.js).
   var APPEAR_START = 0.1;
   var APPEAR_END = 0.7;
-  // The wheel counts as landed — the button in its middle there, the plate
-  // and the focused model answering — from this point of the entrance, a bit
-  // before its very end: the camera is 99.6% of the way back by then (its
-  // ease is all but flat), and a page coming Back a little short of its old
-  // offset (a phone's toolbar back, the screen shorter) still lands on it.
+  // Landed from here: the camera is 99.6% back (its ease nearly flat), and a
+  // Back landing slightly short (a phone's toolbar returning) still counts.
   var LAND_AT = 0.9;
   // A plate left turned rolls back to the hand before the camera moves in
-  // (stageAt()): the first scrolling up from the landing only turns it, over
-  // room added to the entrance — this share of its length for every place
-  // it has to turn by, up to ROLL_MAX.
+  // (stageAt()), over room added to the entrance: this share per slot turned, up to ROLL_MAX.
   var ROLL_PER_STEP = 0.1;
   var ROLL_MAX = 0.5;
-  // The plate follows the scroll through its roll back on a spring (rad/s,
-  // critically damped): whatever the scrolling — a wheel's notches, a flick
-  // — it eases into each move and out of it.
+  // The roll follows the scroll on a critically damped spring (rad/s), easing
+  // any input (wheel notches, flicks).
   var ROLL_SPRING = 9;
 
-  // ---- the circle -------------------------------------------------------------
-  // A product's size, as a share of the arc of the circle each one has.
+  // ---- the circle ----
+  // A product's size, as a share of its arc.
   var SPACING_FILL = 0.6;
-  // The focused one's size, as a multiple of the others'.
+  // The focused product's size, as a multiple of the others'.
   var FOCUS_SCALE = 2;
-  // Sizes' bounds, in px.
+  // Size bounds, px.
   var SIZE_MIN = 40;
   var SIZE_MAX = 200;
-  // The room kept between the circle (its focused product included) and the
-  // edges of the space it lives in, in px.
+  // Margin between the circle (focused product included) and its domain's edges, px.
   var MARGIN = 12;
-  // Once the camera has pulled back on a landscape screen, the hand's
-  // fingertips stay at least this far (px) under the header: there the circle
-  // is sized by the screen's height and the hand is big, so it is lowered
-  // under the circle by as much as that takes (handDrop). On a portrait
-  // screen the wrist always stays on the circle's middle.
+  // Landscape, pulled back: the fingertips stay at least this far (px) under the
+  // header, lowering the hand under the circle (handDrop). Portrait keeps the
+  // wrist on the circle's centre.
   var HAND_TOP_GAP = 24;
 
-  // ---- turning ----------------------------------------------------------------
-  // A press that moves further than this is a drag, not a tap.
+  // ---- turning ----
+  // Movement beyond this is a drag, not a tap.
   var TAP_SLOP = 6;
-  // The share of the pointer's turn round the circle the plate follows: it
-  // turns half as far, which reads as a heavier plate.
+  // The plate turns at half the pointer's angle: a heavier feel.
   var DRAG_GAIN = 0.5;
-  // A plate let go coasts, slowing by this rate (1/s), until it is slow
-  // enough (rad/s) to settle on the nearest place.
+  // A released plate coasts, decaying at this rate (1/s), until slow enough (rad/s) to settle.
   var COAST_DECAY = 3.5;
   var SETTLE_SPEED = 0.8;
-  // How long settling, and a turn to a tapped product, take.
+  // Settle and tap-to-turn durations.
   var SETTLE_MS = 450;
   var TURN_MS = 700;
-  // The products finding their new places (the filter changed, the screen).
+  // Glide to a new layout (filter, resize).
   var FLY_MS = 550;
 
   var reducedMotion = window.matchMedia
@@ -113,7 +83,7 @@
     var t = clamp01((x - a) / (b - a));
     return t * t * (3 - 2 * t);
   }
-  // An angle brought into (-PI, PI].
+  // An angle wrapped into (-PI, PI].
   function wrap(a) {
     a = (a + Math.PI) % TAU;
     if (a < 0) a += TAU;
@@ -139,41 +109,36 @@
 
     var state = {
       active: options.active !== false,
-      // The entrance's progress (null: nothing published yet).
+      // Entrance progress (null: not published yet).
       p: null,
-      // The plate's turn (radians, clockwise): slot k is at k * step + theta.
+      // The plate's turn (radians, clockwise): slot k sits at k * step + theta.
       theta: 0,
       items: [],
       byId: {},
-      // The circle and the camera (orbitLayout()).
+      // Circle and camera (orbitLayout()).
       L: null,
-      // The focused item.
       focus: null,
-      // The 3D stack, once it has taken over; and its build in flight.
+      // The 3D scene once it has taken over, and its build in flight.
       scene: null,
       sceneToken: 0,
       sceneLoading: false,
-      // The Modify sheet is up: the stack holds still behind it.
+      // The Modify sheet is open: hold still.
       suspended: false,
-      // The visitor has turned the plate (or tapped it).
+      // The visitor has turned or tapped the plate.
       touched: false,
-      // The room the entrance has been given for the plate's roll back to
-      // the hand (syncRoom()), as a share of its length.
+      // Entrance room given to the roll back (syncRoom()), as a share of its length.
       room: 0,
-      // How far the plate has rolled back as drawn (x, 0 to 1, and its
-      // speed v): following the scroll's own (rollTarget()) on a spring.
+      // The roll as drawn (x 0..1, speed v), springing toward rollTarget().
       roll: { x: 0, v: 0 },
-      // The turn a plate kept rolled back (keepRolledBack()) is still on its
-      // way from, until the spring has brought it home; null otherwise.
+      // The turn a kept roll-back (keepRolledBack()) is still springing from; null otherwise.
       rollFrom: null,
-      // The product this history entry left at the top (Back to the page:
-      // js/scroll-memory.js), to turn the plate back to.
+      // The product this history entry left on top (js/scroll-memory.js).
       restoreId: window.EmjiveScrollMemory && window.EmjiveScrollMemory.wheel
         ? window.EmjiveScrollMemory.wheel()
         : null
     };
 
-    /* ---- the DOM ------------------------------------------------------------ */
+    /* ---- the DOM ---- */
 
     var lightEl = el("div", "stack-light");
     stage.appendChild(lightEl);
@@ -183,12 +148,9 @@
     spinEl.setAttribute("aria-hidden", "true");
     stage.appendChild(spinEl);
 
-    // In the middle of the circle, one button to the focused product's page:
-    // an arrow, then its name. Every product's name is in it, one on top of
-    // another (buildItem), the focused one showing: the names' cell is as wide
-    // as the longest, so neither the arrow nor the names' right edge ever
-    // moves, and a name fades out as the next fades in however fast the plate
-    // goes past them.
+    // One button in the circle's middle to the focused product's page: an arrow,
+    // then every product's name stacked (buildItem), the focused one shown. The
+    // cell is as wide as the longest name, so nothing shifts as names crossfade.
     var orbitEl = el("div", "stack-orbit");
     var goEl = el("button", "stack-orbit__go");
     goEl.type = "button";
@@ -198,8 +160,7 @@
     orbitEl.appendChild(goEl);
     stage.appendChild(orbitEl);
 
-    // For the keyboard and screen readers: one link per product, to its page
-    // (the stack itself is a picture).
+    // One link per product for keyboard and screen readers (the wheel is a picture).
     var listEl = el("ul", "visually-hidden");
     listEl.setAttribute("aria-label", "Products");
     stage.appendChild(listEl);
@@ -255,12 +216,11 @@
         listItem: li,
         nameEl: nameEl,
         visible: true,
-        // Its place on the circle (orbitLayout()).
+        // Its slot on the circle (orbitLayout()).
         slot: 0,
-        // Where it lies on the hand, if it does: { angle, dist, size, rot },
-        // about the wrist, at the hero's own scale.
+        // Its place on the hand, if any: { angle, dist, size, rot } about the wrist, at hero scale.
         hand: null,
-        // Its pose as last drawn.
+        // Its last drawn pose.
         pose: null
       };
     }
@@ -275,16 +235,11 @@
       return state.items.filter(function (item) { return item.visible; });
     }
 
-    /* ---- geometry -------------------------------------------------------------
-       The domain the circle lives in: under the header and the controls,
-       over the selection bar's summary row, the screen's full width.
-
-       Its height is the screen's with a phone's browser bars showing (100svh,
-       viewHeight()), not window.innerHeight: the bars come and go as the
-       page is scrolled — a fast scroll down to the wheel hides them — and
-       the circle laid out again for each would jump. Laid out once for the
-       smaller screen, it fits whichever way the bars are, and a resize that
-       only moves them changes nothing (the resize handler, below). */
+    /* ---- geometry ----
+       The domain: under the header and the view toggle, above the selection
+       bar's summary, full width. Its height uses 100svh (viewHeight()), not
+       innerHeight, so the circle doesn't jump as the phone's browser bars come
+       and go; resizes that only move them change nothing. */
     var vhProbe = document.createElement("div");
     vhProbe.setAttribute("aria-hidden", "true");
     vhProbe.style.cssText = "position:absolute;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:100vh";
@@ -315,9 +270,8 @@
       return h && h.rings ? h.rings() : [];
     }
 
-    // The slots the rings on the hand take: the ones that make them slide
-    // the least along the circle, over every way of giving them out
-    // (hand: [{ item, angle }], n slots).
+    // The slots for the hand's rings that minimize their total slide along the
+    // circle, over every assignment (hand: [{ item, angle }], n slots).
     function assignHandSlots(hand, n, step) {
       var best = null;
       var bestCost = Infinity;
@@ -342,17 +296,14 @@
       return best || [];
     }
 
-    /* The circle, where it ends up and where it starts:
-         c1, R1   its middle and radius once the camera has pulled back (the
-                  middle of the domain; as big as fits with its focused
-                  product);
-         c0, r0   the same at the hero's own scale — the wrist, and how far
-                  the rings on the hand are from it (hero.orbit());
-         z        how far the camera pulls back (R1 / r0);
-         s, S     a product's size, and the focused one's;
-         step     the angle between two places.
-       Then every visible product gets a place: the rings on the hand the
-       nearest ones they can, the rest the free ones in catalog order. */
+    /* The circle at both ends of the pull-back:
+         c1, R1   centre and radius pulled back (the domain's centre, as large as
+                  fits with the focused product)
+         c0, r0   the same at hero scale: the wrist and the rings' distance (hero.orbit())
+         z        the pull-back factor (R1 / r0)
+         s, S     product size, and the focused one's
+         step     angle between slots
+       The hand's rings take the nearest slots, the rest the free ones in catalog order. */
     function orbitLayout() {
       var list = visibleItems();
       var n = list.length;
@@ -376,7 +327,7 @@
       var c0 = orbit ? { x: orbit.x, y: orbit.y } : c1;
       var r0 = orbit && orbit.r > 0 ? orbit.r : R1;
 
-      // The rings on the hand, about the wrist.
+      // The hand's rings, about the wrist.
       var rings = {};
       heroRings().forEach(function (ring) { rings[String(ring.id)] = ring; });
       var hand = [];
@@ -407,8 +358,7 @@
         taken[next] = true;
       });
 
-      // Where the fingertips land, pulled back, and how far the hand has to
-      // go down to clear the header with them.
+      // Where the fingertips land pulled back, and how far the hand drops to clear the header.
       var z = R1 / r0;
       var handDrop = 0;
       if (orbit && isFinite(orbit.top) && window.innerWidth > viewHeight()) {
@@ -427,15 +377,13 @@
       });
     }
 
-    // The plate's turn as it lands: the product this history entry left at
-    // the top brought back there, or the first place at the top.
+    // The plate's landing turn: this entry's saved product on top, or the first slot.
     function homeTheta() {
       var item = state.restoreId ? state.byId[state.restoreId] : null;
       return item && item.visible && state.L ? -item.slot * state.L.step : 0;
     }
 
-    // The layout is redone once what it is made of has arrived: the hero (its
-    // circle, the rings on its hand) may land after the stack is mounted.
+    // The hero (its circle, its rings) may land after the wheel is mounted: relayout then.
     function layoutStale() {
       var L = state.L;
       if (!L) return visibleItems().length > 0;
@@ -444,14 +392,10 @@
       return L.ringsSeen === 0 && heroRings().length > 0;
     }
 
-    // What the layout was measured against has since moved: the hero laid out
-    // otherwise (its stylesheet, a picture, the screen turned or resized with
-    // no event for the stack to see) or the domain's edges. The wrist and the
-    // circle are measured once, so left alone this is a wheel drawn for
-    // another page — the hand off down the screen, the circle off up it —
-    // until the next scroll back through the hero measures it again. Checked
-    // at the moments that matter (landing, a page coming back, a resize), not
-    // per scroll frame: it reads the layout.
+    // The hero or the domain moved since the layout was measured (late
+    // stylesheet, a picture, rotation or resize without an event): the wheel
+    // would be drawn for another layout. Checked at landing, pageshow and resize,
+    // not per frame, since it reads layout.
     function layoutDrifted() {
       var L = state.L;
       if (!L || !L.fromHero) return false;
@@ -463,11 +407,9 @@
         Math.abs(d.top - L.dom.top) > 1 || Math.abs(d.bottom - L.dom.bottom) > 1 || Math.abs(d.right - L.dom.right) > 1;
     }
 
-    // The layout measured again where the plate stands: as the visitor left
-    // it once they have turned it, otherwise as it lands (homeTheta()).
+    // Re-measures at the plate's current turn if the visitor turned it, else at homeTheta().
     function remeasure() {
-      // Snapped: whatever glide the poses of the old layout were on (the
-      // filter's, at mount) must not carry them to the new one on screen.
+      // Snap: no glide from the old layout's poses.
       blend = null;
       if (state.touched) {
         relayout(false);
@@ -483,11 +425,8 @@
       if (state.active && layoutDrifted()) remeasure();
     }
 
-    // Whether the wheel is laid out for good, the layout made right first if it
-    // can be: the hero in and styled, its state published, nothing measured
-    // against another page than the one that stands. The homepage keeps its
-    // arrival cover down until it is (js/gallery.js), so a late stylesheet or
-    // a restore settling never shows as a jump.
+    // Whether the wheel is laid out for good, fixing the layout first if it can.
+    // js/gallery.js holds the arrival cover until it is, so late changes never jump.
     function settleLayout() {
       if (!state.active || !window.EmjiveHero) return true;
       var h = hero();
@@ -498,16 +437,10 @@
       return true;
     }
 
-    /* The hero isn't all in yet: its state not published, its stylesheet
-       not applied, or the rings not on its hand (they are made when the
-       products arrive, after the stack may have been mounted). The wheel
-       laid out before that is the one without the hand — the products in
-       catalog order, the first at the top — and its slots change once the
-       rings are there (the ones that slide the least take the places nearest
-       them: foramen at the top, not furcula), so it is not drawn until then
-       (.is-waiting): the wheel lands on its own first product, never
-       turning from another. Given up after HERO_WAIT_MS, for a hero that
-       never comes whole. */
+    /* The hero isn't complete yet: stage unpublished, stylesheet missing, or
+       rings not yet on the hand (they come with the products). Slots change once
+       the rings arrive, so the wheel stays undrawn until then (.is-waiting)
+       rather than visibly re-turning. Given up after HERO_WAIT_MS. */
     var HERO_WAIT_MS = 8000;
     var heroWaitEnds = Date.now() + HERO_WAIT_MS;
     var heroIsIn = false;
@@ -528,15 +461,13 @@
     function syncWaiting() {
       var waiting = heroPending();
       stage.classList.toggle("is-waiting", waiting);
-      // Not drawn: nothing to glide from when it is.
+      // Undrawn: nothing to glide from.
       if (waiting) blend = null;
     }
 
-    /* ---- the camera -------------------------------------------------------------
-       At entrance p, the hero's scale (s0 = 1, the wrist at c0) gives way to the
-       circle's (z, the wrist at c1): a point (wx, wy) of the hero as laid out
-       is on the screen at c(p) + scale(p) * (w - c0). The scale goes as z^e,
-       which reads as an even pull-back. */
+    /* ---- the camera ----
+       At entrance p, a hero point w is drawn at c(p) + scale(p) * (w - c0), the
+       scale going as z^e, an even-feeling pull-back. */
     function cameraAt(p) {
       var L = state.L;
       var e = easeInOutCubic(clamp01(p));
@@ -549,20 +480,17 @@
       };
     }
 
-    // A product's size at angle a on the circle (at the circle's scale): it
-    // grows as it nears the top.
+    // A product's size at angle a on the circle, growing toward the top.
     function sizeFor(a) {
       var L = state.L;
       var near = 1 - smoothstep(0, L.step, Math.abs(wrap(a)));
       return lerp(L.s, L.S, near);
     }
 
-    /* Where an item is at entrance p with the plate turned by theta, in px of
-       the screen: its middle (x, y), its turn (rot, degrees clockwise), its
-       size, what's left of its top shot (ring), how much of it shows
-       (alpha). For the 3D stack, a ring off the hand also carries fromRing,
-       the turn it lay at (ringRot) and how far it has come (u): the model
-       swings from its top view to its rest as it slides. */
+    /* An item's pose at entrance p and plate turn theta, in screen px: centre
+       (x, y), rot (degrees clockwise), size, ring (top shot's remaining share),
+       alpha. A ring leaving the hand also carries fromRing, ringRot and u for
+       the 3D scene's swing from top view to rest. */
     function poseAt(item, p, theta) {
       var L = state.L;
       var cam = cameraAt(p);
@@ -573,7 +501,7 @@
       var pose = { rot: 0, ring: 0, alpha: 1, fromRing: false, ringRot: 0, u: 1 };
       if (item.hand) {
         var u = easeInOutCubic(clamp01((p - SLIDE_START) / (SLIDE_END - SLIDE_START)));
-        // Along the circle the shortest way round, and out (or in) onto it.
+        // The shortest way round the circle, and out (or in) onto it.
         a = item.hand.angle + wrap(slotAngle - item.hand.angle) * u;
         dist = lerp(item.hand.dist, L.r0, u);
         worldSize = lerp(item.hand.size, sizeFor(slotAngle) / L.z, u);
@@ -596,9 +524,7 @@
       return pose;
     }
 
-    /* ---- moving between layouts -----------------------------------------------
-       Once landed, a new layout (the filter, the screen) is reached over
-       FLY_MS from the poses as they were. */
+    /* ---- between layouts: once landed, a new layout glides in over FLY_MS ---- */
     var blend = null;
 
     function lerpPose(from, to, t) {
@@ -611,32 +537,24 @@
       return out;
     }
 
-    /* ---- back to the hand -------------------------------------------------------
-       The slots were given out with the plate unturned (orbitLayout()), so a
-       whole turn (theta a multiple of TAU) is where the rings on the hand
-       slide the least. A plate left turned elsewhere is rolled back there by
-       the scroll before anything else moves, over room of its own: the hero's
-       entrance is made longer by as much as the turn back needs
-       (rollShare(), applied by syncRoom() through the hero's
-       setEntranceRoom), and that room sits just above the landing
-       (LAND_AT). Scrolling up from the landing, it only turns the plate —
-       easing in and out — and the camera's pull-back and the rings' slide
-       then play over the entrance exactly as they would unturned.
-       Scrolling down plays it the other way. */
+    /* ---- back to the hand ----
+       Slots are assigned unturned (orbitLayout()), so theta = 0 (mod TAU) is
+       where the rings slide least. A plate left turned is rolled back first by
+       the scroll, over room of its own added to the entrance just above LAND_AT
+       (rollShare(), syncRoom(), the hero's setEntranceRoom); the pull-back then
+       plays as if unturned. */
     function hasHand() {
       return state.items.some(function (item) { return item.visible && item.hand; });
     }
 
-    // How much room the plate's turn back needs, as a share of the entrance.
+    // The roll back's room, as a share of the entrance.
     function rollShare() {
       if (!state.L || !hasHand()) return 0;
       return Math.min(ROLL_MAX, ROLL_PER_STEP * Math.abs(wrap(state.theta)) / state.L.step);
     }
 
-    // The published entrance (raw, 0 to 1 over the whole stretch, the room
-    // included) as the stack plays it: how far the camera and the rings have
-    // come (p, 0 to 1 over the entrance proper) and how the plate is turned
-    // (theta).
+    // The published progress (raw, over the whole stretch, room included) as the
+    // wheel plays it: p over the entrance proper, and the plate's theta.
     function stageAt(raw) {
       var room = state.room;
       var p = raw;
@@ -651,8 +569,7 @@
       return { p: p, theta: theta };
     }
 
-    // How far the scroll has the plate rolled back: 0 at the landing, 1
-    // once past the room.
+    // The scroll's roll-back target: 0 at the landing, 1 past the room.
     function rollTarget() {
       if (state.rollFrom !== null) return 1;
       var room = state.room;
@@ -660,8 +577,7 @@
       return clamp01((LAND_AT + room - state.p * (1 + room)) / room);
     }
 
-    // One step of the plate's spring towards the scroll; whether it still
-    // moves.
+    // One spring step toward the scroll; true while still moving.
     function stepRoll(dt) {
       var r = state.roll;
       var target = rollTarget();
@@ -675,7 +591,7 @@
       if (Math.abs(target - r.x) < 1e-4 && Math.abs(r.v) < 1e-3) {
         r.x = target;
         r.v = 0;
-        // A plate kept rolled back, home now as drawn too.
+        // A kept roll-back, now home as drawn too.
         if (state.rollFrom !== null) {
           state.rollFrom = null;
           r.x = 0;
@@ -689,21 +605,19 @@
       return state.roll.v === 0 && state.roll.x === rollTarget();
     }
 
-    // Scrolled past the room: the plate is rolled all the way back.
+    // Scrolled past the room: fully rolled back.
     function rolledBack() {
       return state.room > 0 && state.p !== null && state.p * (1 + state.room) <= LAND_AT;
     }
 
-    // Landed: past the room, at the end of the entrance proper.
+    // Landed: past the room, at the entrance's end.
     function landedAt(raw) {
       return raw * (1 + state.room) >= LAND_AT + state.room;
     }
 
-    // Rolled all the way back: the plate stays there. Its room goes (the
-    // render after this, syncRoom(): below the visitor, so nothing they see
-    // moves), and scrolling down again lands on it as it now is — the
-    // product at the top, kept for Back, the one at home. The spring, if it
-    // is still on its way, carries on there (rollFrom).
+    // Fully rolled back: the plate stays there and its room is removed (below
+    // the visitor, invisibly), so scrolling down lands on it as is. The spring
+    // carries on from rollFrom if still moving.
     function keepRolledBack() {
       state.rollFrom = state.theta;
       state.theta += wrap(-state.theta);
@@ -717,18 +631,16 @@
       }
     }
 
-    // The room made to match the plate as it now rests. The page grows (or
-    // shrinks) by it just above the landing: a visitor at the landing is
-    // kept where they are against it — unless Back is restoring an offset,
-    // which was saved with this room already there.
+    // Resizes the room to the plate's current turn. It sits just above the
+    // landing, so a visitor at the landing is kept in place, except during a
+    // Back restore, whose offset already includes it.
     function syncRoom() {
       var share = rollShare();
       if (Math.abs(share - state.room) < 1e-6) return;
       var h = hero();
       if (!h || !h.setEntranceRoom) return;
       var root = document.documentElement;
-      // How far the visitor is from the page's end, which is the
-      // entrance's: the room goes in above them, so that is what stays.
+      // The room goes in above the visitor: preserve the distance from the page's end.
       var fromEnd = Math.max(0, root.scrollHeight - root.clientHeight - window.scrollY);
       var raw = state.p === null ? 0 : state.p;
       var u = raw * (1 + state.room);
@@ -738,8 +650,7 @@
       var grown = share - state.room;
       state.room = share;
       if (keep) {
-        // Shrinking, the browser has already pulled a visitor at the end up
-        // with it; growing, it hasn't moved them. Either way, from the end.
+        // Shrinking already pulled the visitor up; growing didn't. Either way, from the end.
         var previous = root.style.scrollBehavior;
         root.style.scrollBehavior = "auto";
         window.scrollTo(0, Math.max(0, root.scrollHeight - root.clientHeight - fromEnd));
@@ -747,7 +658,7 @@
         else root.style.removeProperty("scroll-behavior");
         u += grown;
       }
-      // Until the hero publishes again, the entrance as it now stands.
+      // Until the hero publishes again.
       if (state.p !== null) state.p = clamp01(u / (1 + share));
     }
 
@@ -760,21 +671,19 @@
       return lerpPose(from, pose, easeInOutCubic(clamp01((performance.now() - blend.start) / FLY_MS)));
     }
 
-    /* ---- the rings on the hand ------------------------------------------------ */
+    /* ---- the hand's rings ---- */
 
-    // While the entrance is under way the rings are the stack's: the hero's
-    // own are hidden (hero.css hides them for a skipped hero, so they are
-    // shown by name when the page is scrolled back up to them).
+    // During the entrance the wheel draws the rings; the hero's are hidden
+    // (hero.css hides them for a skipped hero, so they're shown explicitly).
     function showHeroRings(show) {
       heroRings().forEach(function (ring) {
         ring.el.style.visibility = show ? "visible" : "hidden";
       });
     }
 
-    /* ---- drawing ------------------------------------------------------------- */
+    /* ---- drawing ---- */
 
-    // The image stack: one transform per picture (where it is, how it's
-    // turned, how big against its box), its opacity, and its top shot's.
+    // The image rendering: one transform and opacity per picture, plus its top shot's.
     function place(item, pose) {
       var size = state.L.s;
       item.el.style.transform = "translate3d(" + (pose.x - size / 2).toFixed(2) + "px," + (pose.y - size / 2).toFixed(2) + "px,0) " +
@@ -786,7 +695,7 @@
       }
     }
 
-    // The slot at the top with the plate turned by theta.
+    // The slot at the top for plate turn theta.
     function focusedSlot(theta) {
       var L = state.L;
       return ((Math.round(-theta / L.step) % L.n) + L.n) % L.n;
@@ -794,13 +703,11 @@
 
     function setFocus(item) {
       if (item === state.focus) return;
-      // The old name fades out as the new one fades in.
+      // Old name fades out as the new one fades in.
       if (state.focus) state.focus.nameEl.classList.remove("is-shown");
       state.focus = item;
       if (item) item.nameEl.classList.add("is-shown");
-      // Turned by the visitor: kept for this history entry, so Back to the
-      // page finds the plate turned the same way (not while it rolls back to
-      // the hand: it is still turned the visitor's way).
+      // Visitor-turned: saved for this history entry (not mid-roll-back, still their turn).
       if (item && landed && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
         window.EmjiveScrollMemory.rememberWheel(item.id);
       }
@@ -809,9 +716,7 @@
       syncSceneFocus();
     }
 
-    // The 3D stack's focused model — turning on its own, turned by a drag —
-    // only once the camera has pulled back to the circle: during the entrance
-    // every model holds its default view.
+    // The 3D focus only once landed: during the entrance models hold their default view.
     function syncSceneFocus() {
       if (!state.scene) return;
       state.scene.setFocus(landed && state.focus ? state.focus.id : null, spinEl);
@@ -843,30 +748,25 @@
         item.pose = pose;
         poses[item.id] = pose;
         if (item.slot === slot) focus = item;
-        // Before the entrance starts a ring is the hero's, and the item
-        // taking it over isn't there yet (its top shot included, which the
-        // 3D stack keeps visible on its own).
+        // Before the entrance the ring is the hero's; its item stays hidden.
         var waiting = !started && item.hand;
         item.el.style.visibility = waiting ? "hidden" : "";
         if (item.ringImg) item.ringImg.style.visibility = waiting ? "hidden" : "";
-        // The pictures follow in the 3D stack too: a ring's top shot shows
-        // over its model until it has slid into it.
+        // The pictures follow in 3D too: a ring's top shot shows over its model until it slides off.
         place(item, pose);
       });
       if (state.scene) state.scene.setPoses(poses);
       setFocus(focus);
 
-      // The name and its button in the middle of the circle, where the camera
-      // has it.
+      // The centre button follows the camera.
       orbitEl.style.left = cam.x.toFixed(1) + "px";
       orbitEl.style.top = cam.y.toFixed(1) + "px";
       placeSpin();
-      // The plate at rest: the room for its roll back to match.
+      // At rest, the roll-back room follows the plate.
       if (motion.mode === "idle") syncRoom();
     }
 
-    // The drag target over the focused product, while the plate is still and
-    // its model is there to turn.
+    // The model drag target over the focused product, while the plate is still.
     function placeSpin() {
       var pose = state.focus && state.focus.pose;
       var on = !!(pose && landed && state.scene && motion.mode === "idle" && !blend);
@@ -884,12 +784,11 @@
       var stale = layoutStale();
       if (stale || ((was === null || was === 0) && p > 0 && p < 1)) {
         orbitLayout();
-        // The hero has arrived: the plate lands as this history entry left
-        // it, or on the first place, as at the start.
+        // The hero arrived: land as this entry left it, or on the first slot.
         if (stale && !state.touched) state.theta = homeTheta();
         if (stale) blend = null;
       }
-      // The first stage: the plate as the scroll has it, nothing to ease.
+      // First stage: the roll starts where the scroll is.
       if (was === null) {
         state.roll.x = rollTarget();
         state.roll.v = 0;
@@ -902,15 +801,14 @@
         stage.classList.toggle("is-landed", landed);
         if (!landed) stopMotion();
         syncSceneFocus();
-        // Arriving on the wheel is where a stale layout shows: checked here.
+        // Arriving on the wheel is where a stale layout would show.
         if (landed) checkLayout();
       }
       render();
     }
 
-    /* ---- turning the plate ------------------------------------------------------
-       One loop, running only while something moves: a drag, a coast, a settle
-       or a turn (a tween of theta), a blend between layouts. */
+    /* ---- turning the plate ----
+       One loop, running only while something moves: drag, coast, settle, turn, layout glide. */
     var motion = { mode: "idle" };
     var loopRaf = 0;
     var lastTick = 0;
@@ -936,7 +834,7 @@
       kick();
     }
 
-    // To the nearest place, a product at the top.
+    // To the nearest slot.
     function settle() {
       var step = state.L.step;
       tweenTo(Math.round(state.theta / step) * step, SETTLE_MS);
@@ -970,7 +868,7 @@
       if (going) loopRaf = requestAnimationFrame(tick);
     }
 
-    // The band the products move in: a press there turns the plate.
+    // The products' band: a press there turns the plate.
     function inBand(x, y) {
       var L = state.L;
       if (!L) return false;
@@ -978,7 +876,7 @@
       return r > L.R1 - L.S / 2 - MARGIN && r < L.R1 + L.S / 2 + MARGIN;
     }
 
-    // The product under (x, y), from the poses as drawn.
+    // The product under (x, y), from the drawn poses.
     function pick(x, y) {
       var best = null;
       var bestD = Infinity;
@@ -993,7 +891,7 @@
       return best;
     }
 
-    // A tap on a product not at the top turns the plate to bring it there.
+    // Turns the plate to bring a tapped product to the top.
     function turnToItem(item) {
       var L = state.L;
       tweenTo(state.theta + wrap(-(item.slot * L.step + state.theta)), TURN_MS, easeInOutCubic);
@@ -1003,9 +901,7 @@
       return target === spinEl || target.closest(".stack-orbit__go") || target.closest(".page-message");
     }
 
-    // A drag on the focused product turns its model: the rectangle it is
-    // measured against is taken again first (capture: before the drag's own
-    // listener on the element reads it).
+    // Refresh the model drag's reference rect first (capture: before the scene's listener).
     stage.addEventListener("pointerdown", function (e) {
       if (e.target === spinEl && state.scene) state.scene.focusMoved();
     }, true);
@@ -1043,7 +939,7 @@
       var now = performance.now();
       var dt = Math.max(1, now - drag.time) / 1000;
       drag.time = now;
-      // How fast the plate turns, smoothed over the last few moves.
+      // Smoothed turning speed.
       drag.speed = lerp(drag.speed, delta / dt, 0.5);
     });
 
@@ -1058,7 +954,7 @@
         else render();
         return;
       }
-      // A pause before letting go is a plate held still.
+      // A pause before release means held still.
       var speed = performance.now() - d.time > 80 ? 0 : d.speed;
       if (reducedMotion.matches || Math.abs(speed) < SETTLE_SPEED) {
         settle();
@@ -1070,9 +966,7 @@
     stage.addEventListener("pointerup", function (e) { endDrag(e, false); });
     stage.addEventListener("pointercancel", function (e) { endDrag(e, true); });
 
-    // On a touch screen a press in the band is the plate's, not the page's;
-    // anywhere else (the middle, the corners) a swipe still scrolls the page
-    // back up into the hero.
+    // On touch, a press in the band is the plate's; elsewhere a swipe still scrolls.
     stage.addEventListener("touchstart", function (e) {
       if (!landed || e.touches.length !== 1 || ignoreTarget(e.target)) return;
       var t = e.touches[0];
@@ -1083,11 +977,9 @@
       if (state.focus) window.location.href = state.focus.href;
     });
 
-    /* ---- new layouts ------------------------------------------------------------ */
+    /* ---- new layouts ---- */
 
-    // The filter changed, or the screen: every product's new place, reached
-    // with a glide once landed. The focused product stays at the top if it is
-    // still there.
+    // Filter or screen change: new slots, glided to once landed; the focused product stays on top if still shown.
     function relayout(animate) {
       var from = {};
       state.items.forEach(function (item) {
@@ -1107,11 +999,9 @@
       if (blend) kick();
     }
 
-    /* ---- the 3D stack ------------------------------------------------------------
-       Built once the page has revealed and the browser is idle (or at once,
-       when the gallery is what the page opened on), from the same items. It
-       takes over from the pictures in one frame — every model where its
-       picture is, turned the way its picture shows it. */
+    /* ---- the 3D scene ----
+       Built once the page has revealed and the browser is idle, then takes over
+       from the pictures in one frame. */
     var readyScene = null;
 
     function maybeHandOver() {
@@ -1149,8 +1039,7 @@
             return { id: item.id, product: item.product, size: state.L ? state.L.s : SIZE_MIN, ring: !!item.ringImg };
           }),
           hdri: window.EmjiveSeries.hdriPath(slug),
-          // Its context reclaimed (iOS does, under memory pressure): the
-          // pictures take the stack back.
+          // Context reclaimed (iOS under memory pressure): back to the pictures.
           onLost: function () { setTimeout(stopScene, 0); }
         });
         if (!scene) return null;
@@ -1166,8 +1055,7 @@
           throw err;
         });
       }).catch(function (err) {
-        // The image stack simply stays: it's the whole stack, without 3D.
-        // (Not worth a word if it was only given up — the grid, a page hide.)
+        // The image rendering stays. Silent if merely abandoned (list view, page hide).
         if (token === state.sceneToken) console.error("emjive: the 3D stack could not start", err);
       }).then(function () {
         if (token === state.sceneToken) state.sceneLoading = false;
@@ -1201,10 +1089,9 @@
       else setTimeout(fn, 300);
     }
 
-    /* ---- the page's own comings and goings --------------------------------------- */
+    /* ---- page lifecycle ---- */
 
-    // The Modify sheet (from the bar's drawer) builds a viewer of its own: the
-    // stack holds still behind it.
+    // The Modify sheet builds its own viewer: hold still behind it.
     window.addEventListener("emjive:modify-open", function () {
       state.suspended = true;
       if (state.scene) state.scene.setPaused(true);
@@ -1214,9 +1101,7 @@
       if (state.scene) state.scene.setPaused(false);
     });
 
-    // A page kept in the back/forward cache is a live page: nothing 3D is
-    // worth keeping there. Coming back, the pictures are the stack again
-    // until the 3D one has rebuilt.
+    // Nothing 3D is kept on a bfcache page; on return the pictures stand in until it rebuilds.
     window.addEventListener("pagehide", stopScene);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
@@ -1225,14 +1110,11 @@
     });
     document.addEventListener("visibilitychange", function () {
       if (state.scene) state.scene.setPaused(document.visibilityState === "hidden" || state.suspended);
-      // A page coming back after a long while (a tab the phone kept, its
-      // screen turned meanwhile): measured again if it moved.
+      // A tab returning after long (maybe rotated meanwhile): re-measure if moved.
       if (document.visibilityState === "visible") checkLayout();
     });
 
-    // A phone's browser bars coming or going resize the window but not the
-    // layout (domain()): only the canvas follows them then, and the circle,
-    // the hand and a turn under way are left as they are.
+    // Browser-bar resizes don't change the layout (domain()): only the canvas follows.
     var resizeTimer = 0;
     var laidOutFor = window.innerWidth + "x" + viewHeight();
     window.addEventListener("resize", function () {
@@ -1250,12 +1132,11 @@
       }, 150);
     });
 
-    /* ---- start ----------------------------------------------------------------- */
+    /* ---- start ---- */
     orbitLayout();
     state.theta = homeTheta();
     if (window.EmjiveHero) {
-      // The hero's own part of the entrance (the x-ray fading back) keeps
-      // pace with the camera's, the plate's roll back left out of it.
+      // The hero's part of the entrance keeps pace with the camera, the roll back left out.
       if (window.EmjiveHero.setStageMap) {
         window.EmjiveHero.setStageMap(function (raw) {
           return state.active && state.L ? stageAt(raw).p : raw;
@@ -1268,12 +1149,9 @@
       setStage(1);
     }
 
-    // The hero (its circle, the rings on its hand) may land after the stack is
-    // mounted, and a page landed at the end of it publishes nothing more until
-    // it is scrolled: the layout is redone as soon as the hero is there — the
-    // rings on the hand taking their places, the plate turned back to the
-    // first of them (or to the product this history entry left at the top) —
-    // unless the visitor has already turned the plate.
+    // The hero may land after mounting and, landed at its end, publishes nothing
+    // until scrolled: relayout as soon as it is in, unless the visitor already
+    // turned the plate.
     var heroWaitUntil = Date.now() + 8000;
     (function waitForHero() {
       if (state.touched || Date.now() > heroWaitUntil) return;
@@ -1285,11 +1163,9 @@
     if (state.active) whenPageRevealed(startScene);
 
     return {
-      // See settleLayout().
       settleLayout: settleLayout,
 
-      // ids: the products to show. The hidden leave the circle; the rest find
-      // new places on it.
+      // ids: products to show; hidden ones leave the circle, the rest re-slot.
       setFilter: function (ids) {
         var keep = {};
         (ids || []).forEach(function (id) { keep[String(id)] = true; });
@@ -1302,8 +1178,7 @@
         relayout(true);
       },
 
-      // The view switched (js/gallery.js): the grid doesn't need any of this
-      // drawn, nor its WebGL contexts kept — nor the hand pulled back.
+      // View switched (js/gallery.js): the list needs none of this, nor its WebGL contexts.
       setActive: function (on) {
         if (on === state.active) return;
         state.active = on;

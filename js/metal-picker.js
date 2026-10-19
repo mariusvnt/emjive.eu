@@ -1,37 +1,9 @@
-/* ==========================================================================
-   em·ji·ve — metal picker
-
-   Shared by the product page (js/product.js) and the Modify sheet
-   (js/modify-modal.js, built on every page): one square per metal, showing
-   its swatch, a dot in the middle of the selected one, and the selected
-   metal's name beside them. The squares never change on a pick; only the dot
-   and the name move. Both used
-   to build and update the same markup separately; loaded on all seven pages
-   for the same reason js/modify-modal.js is, ahead of it.
-
-   window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, row })
-   fills `container` (the .product-metals box) and returns { select(metal) }.
-
-   The selected square carries a dot (CSS, from aria-pressed). The squares
-   stack vertically, and the one name — the selected metal's —
-   stands to the right of its square: a pick only moves it to the new square's
-   row (--metal-index on the picker, which css/style.css turns into a
-   position). With `row: true` (the Modify sheet) the squares lie side by side
-   instead, and the name stands once, to the right of the last of them;
-   the product page switches the same markup to that arrangement for its
-   specs stage (.is-specs-layout, js/product.js). The page puts the
-   "Material" label by it, in the label | value tables the specs and the two
-   size sheets share. The squares' pictures are
-   assets/metal-sample_<metal>.webp, made by scripts/auto-render.js at the
-   size they are shown.
-
-   A click calls onSelect(metal) at once — the model, price and images behind
-   the picker must not wait on an animation — and the picker moves its name
-   to the new square in the same tick. Updated in place, never rebuilt, so
-   keyboard focus stays on the square just pressed. aria-pressed flips with
-   it. select(metal) is the same change without the onSelect call,
-   for callers that already know the metal.
-   ========================================================================== */
+// Metal picker: one swatch square per metal, a dot on the selected one, its
+// name beside it. Shared by js/product.js and js/modify-modal.js.
+//
+// window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, row })
+//   -> { select(metal) }  (select() does not call onSelect)
+// Updated in place, never rebuilt, so focus stays on the pressed square.
 
 (function () {
   "use strict";
@@ -60,8 +32,6 @@
       btn.type = "button";
       btn.dataset.metal = metal;
       btn.setAttribute("aria-label", metal);
-      // Which finish is selected is otherwise only a class and a dot — neither
-      // reachable by a screen reader, on a control that changes the price.
       btn.addEventListener("click", function () {
         select(metal);
         onSelect(metal);
@@ -69,7 +39,7 @@
       container.appendChild(btn);
       options.push({ metal: metal, btn: btn });
     });
-    // The selected metal's name: one element, moved (and re-worded) on a pick.
+    // The selected metal's name; CSS places it from --metal-index.
     var tag = el("span", "product-metals__tag");
     tag.setAttribute("aria-hidden", "true");
     container.appendChild(tag);

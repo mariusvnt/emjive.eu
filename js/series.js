@@ -1,33 +1,21 @@
-/* em·ji·ve — series resolution.
- *
- * Loaded BLOCKING from <head> on every page (no defer, no type="module"),
- * for three reasons:
- *   1. It must define window.EmjiveSeries before js/main.js runs, and
- *      launch-order.html loads main.js as a plain synchronous body script —
- *      a deferred series.js would run after it.
- *   2. It starts the data/series.json fetch at head-parse time, which is
- *      the whole anti-flash story for the injected hero (see loadHero).
- *   3. It's small; the parse block is negligible, and the preload scanner
- *      fetches it in parallel with the stylesheet anyway.
- *
- * This does NOT disturb the defer contract documented in
- * dev-guidelines/pages.md: a blocking <head> script runs before the whole
- * deferred queue, so three-viewer.js (module, first in document order)
- * still executes before main.js/product.js (both defer) within it. */
+// Series resolution (window.EmjiveSeries), plus the page-wide helpers every
+// page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage
+// hero bundle loader.
+//
+// Blocking in <head>: EmjiveSeries must exist before any deferred script runs,
+// and the data/series.json fetch starts at head-parse time so the hero can
+// load without a flash.
 (function () {
   "use strict";
 
   var INDEX_PATH = "data/series.json";
 
-  // Paths inside data/*.json are repo-root-relative with no leading slash,
-  // which resolves correctly only because every HTML page sits at the repo
-  // root. See dev-guidelines/data.md.
+  // data/*.json paths are repo-root-relative, which only resolves because every page sits at the root.
   var index = null;
   var activeSlug = null;
   var activeSeries = null;
 
-  // Memoized per slug: js/gallery.js wants the gallery's products and the hero
-  // handoff wants the same array — one request, two consumers.
+  // Memoized per slug: the gallery and the hero share one request.
   var productCache = {};
   var manifestCache = {};
 
@@ -54,12 +42,8 @@
     return null;
   }
 
-  // Resolves a series' "hdri" key against the top-level "hdris" map into an
-  // actual asset path, for js/three-viewer.js's loadEnvironment() —
-  // js/main.js/js/product.js pass the result as options.hdri when building a
-  // viewer. Returns null (rather than falling back to a hardcoded default
-  // itself) on anything unresolved, so js/three-viewer.js's own
-  // DEFAULT_HDRI_SRC stays the single fallback of last resort.
+  // A series' "hdri" key -> asset path, for options.hdri. null when unresolved,
+  // leaving js/three-viewer.js's DEFAULT_HDRI_SRC as the only fallback.
   function hdriPath(slug) {
     var entry = get(slug);
     var key = entry && entry.hdri;
@@ -72,11 +56,8 @@
     return all[key];
   }
 
-  // A request that neither succeeds nor fails — a stalled connection, a
-  // captive portal holding the socket open — would otherwise leave every
-  // page waiting on it forever (the loader cover included, until its own
-  // watchdog). Aborting turns that into an ordinary failure the callers'
-  // error paths already handle.
+  // A request that never settles (stalled connection, captive portal) is
+  // aborted into an ordinary failure.
   var FETCH_TIMEOUT_MS = 20000;
 
   function fetchJson(path) {
@@ -112,15 +93,10 @@
     return manifestCache[slug];
   }
 
-  // Addresses. The gallery is /gallery, a manifest page /series?series=<slug>,
-  // and an item is /<its name as a slug> — flat at the root, with no series in
-  // the path, because every page references css/, js/, assets/ and data/
-  // relatively and that only resolves from a root-level URL. Root-absolute
-  // here for the same reason. The server maps these onto the .html files
-  // (public/.htaccess; Vite's dev/preview server does it in vite.config.js).
-  //
-  // The gallery/manifest helpers deliberately omit ?series= for the featured
-  // series, so the common case keeps clean, shareable URLs.
+  // Addresses: /gallery, /series?series=<slug>, and /<item slug> flat at the
+  // root (pages reference css/, js/, assets/ relatively). public/.htaccess and
+  // vite.config.js map them to the .html files. The featured series gets no
+  // ?series=, keeping common URLs clean.
   function isFeatured(slug) {
     return !!index && slug === index.featured;
   }
@@ -138,33 +114,24 @@
     return "/series?series=" + encodeURIComponent(slug);
   }
 
-  // The item's address segment: its name, URL-safe. The same rule as
-  // slugify() in scripts/slugs.js (which the build uses for the per-item pages
-  // and the sitemap) — `npm run validate-data` compares the two on every
-  // product, so change them together. validate-data also reads this function's
-  // source, so keep it a single self-contained declaration.
+  // Mirrors slugify() in scripts/slugs.js; validate-data compares them on every
+  // product and parses this function's source, so keep it one self-contained
+  // declaration.
   function productSlug(product) {
     return String(product.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
-  // The series argument is kept for the callers' sake (and for a day when the
-  // address needs it again): the item's slug already identifies it across all
-  // series, which is why the URL carries no ?series=.
+  // Item slugs are unique across series, so no ?series=.
   function productHref(product) {
     return "/" + productSlug(product);
   }
 
-  // A product as one of its designs (its "designs" list, data/series/<slug>/
-  // products.json): the product's own fields are its default design; any
-  // other design brings its own model, wireframe, icons, fallback image and
-  // geometry, and keeps everything else — the name and address, the prices,
-  // the camera (every design is framed by the product's), the x-ray, the
-  // photos. Returns { view, design }: `view` is what the viewer, the label
-  // and the selection read, with `designKey` and `designName` added (the
-  // design's name, e.g. "rib-cage-1L2"; the product's name when it has no
-  // designs); `design` is the entry, null for a product without designs.
-  // An unknown or missing key is the default design — a saved selection
-  // whose design has since been removed still opens.
+  // A product shown as one of its designs. The product's own fields are the
+  // default design; another design swaps in its model, wireframe, icons,
+  // fallback image and geometry, keeping the rest (name, prices, camera, x-ray,
+  // photos). Returns { view, design }: view adds designKey and designName;
+  // design is null without designs. An unknown key falls back to the default,
+  // so an old selection still opens.
   function resolveDesign(product, key) {
     var designs = product && product.designs;
     var list = (designs && designs.list) || [];
@@ -192,25 +159,16 @@
     return { view: view, design: design };
   }
 
-  /* ---------------------------------------------------------------------
-   * Hero <-> chrome scroll bridge.
-   *
-   * A plain function registry rather than a CustomEvent: this fires once
-   * per animation frame while scrolling, and a registry costs no
-   * allocation per publish. The hero bundle owns all the geometry and
-   * publishes ONE number; js/selection-bar.js consumes it without ever
-   * learning which page it's on (it subscribes unconditionally — on pages
-   * with no hero, nothing ever publishes, so nothing ever happens).
-   * ------------------------------------------------------------------- */
+  /* ---- hero <-> chrome scroll bridge ----
+     A function registry rather than a CustomEvent: it fires every scroll frame.
+     The hero publishes; js/selection-bar.js subscribes on every page (nothing
+     publishes without a hero). */
   var heroScrollSubscribers = [];
-  // The second number: how far the gallery's entrance has come (0 to 1) —
-  // the stretch of scrolling past the wipe during which the products rise
-  // onto the hand (js/gallery-stack.js). null until a hero publishes one.
+  // The wheel's entrance progress (0..1, js/gallery-stack.js); null until published.
   var heroStageSubscribers = [];
   var heroStage = null;
-  // How the gallery plays that number (js/gallery-stack.js: part of it may
-  // only turn the wheel), so the hero's own part of the entrance can keep
-  // pace with the gallery's: mapStage(p), p itself when nothing is set.
+  // How the wheel plays that progress (part of it may only turn the wheel), so
+  // the hero keeps pace: mapStage(p), identity when unset.
   var heroStageMap = null;
 
   window.EmjiveHero = {
@@ -240,17 +198,10 @@
     }
   };
 
-  /* ---------------------------------------------------------------------
-   * Page messages — the one place the site words and lays out "this didn't
-   * load" / "that doesn't exist". Lives here with the other page-wide
-   * helpers because this is the one script every page loads first. Markup
-   * and look: .page-message in css/style.css.
-   *
-   * show(container, text, button, role) replaces the container's contents
-   * with the text and, if given, a button under it. `button` is
-   * { label, href } for a link, or { label, onClick } for an action;
-   * with neither it reloads the page (the retry for every failed load).
-   * ------------------------------------------------------------------- */
+  /* ---- page messages ----
+     show(container, text, button, role): the site's one "didn't load / doesn't
+     exist" layout (.page-message). `button` is { label, href } or
+     { label, onClick }; with neither it reloads. */
   window.EmjiveMessage = {
     show: function (container, text, button, role) {
       container.textContent = "";
@@ -280,20 +231,11 @@
     }
   };
 
-  /* ---------------------------------------------------------------------
-   * Click-away coordination for independently-opened chrome panels — the
-   * header menu (js/main.js) and the selection-bar drawer (js/selection-
-   * bar.js). Neither file knows about the other, so a plain outside-click
-   * listener in either one would either fight the other's own toggle or
-   * close both panels on a single click. Instead each panel registers a
-   * `root` (spanning both its trigger and its content, so clicking the
-   * trigger is never mistaken for "away") and reports its own open/close
-   * transitions here. A click landing outside every currently-open
-   * panel's root closes only the most-recently-opened one — so if both
-   * happen to be open at once, a second outside click is needed to close
-   * the other.
-   * ------------------------------------------------------------------- */
-  var openPanels = []; // oldest-opened first
+  /* ---- click-away for chrome panels ----
+     The header menu and the selection-bar drawer don't know about each other.
+     Each registers a `root` (trigger and content) and reports opening and
+     closing; a click outside every open root closes the most recent one only. */
+  var openPanels = []; // oldest first
 
   window.EmjiveMenus = {
     opened: function (panel) {
@@ -307,12 +249,8 @@
     }
   };
 
-  // Escape closes the most-recently-opened panel, the keyboard twin of the
-  // click-away below. Skipped while a dialog (the size or Modify sheet) holds
-  // the focus trap: that Escape belongs to the dialog, and the panel behind it
-  // should still be there when it closes. Focus goes back to the panel's
-  // trigger only if it was inside the panel — otherwise it is left where the
-  // visitor had it.
+  // Escape closes the most recent panel, unless a dialog holds the focus trap.
+  // Focus returns to the trigger only if it was inside the panel.
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape" || !openPanels.length) return;
     if (window.EmjiveFocusTrap && window.EmjiveFocusTrap.isActive && window.EmjiveFocusTrap.isActive()) return;
@@ -324,8 +262,7 @@
 
   document.addEventListener("click", function (e) {
     if (!openPanels.length) return;
-    // A click inside any currently-open panel is that panel's own concern
-    // (its toggle, an in-place filter click, etc.) — never "away".
+    // A click inside any open panel is its own concern.
     for (var i = 0; i < openPanels.length; i++) {
       if (openPanels[i].root.contains(e.target)) return;
     }
@@ -334,38 +271,23 @@
     top.close();
   });
 
-  /* ---------------------------------------------------------------------
-   * Hero bundle loading (index.html only — guarded on #seriesHero, the
-   * same pattern js/gallery.js uses for #productGrid).
-   * ------------------------------------------------------------------- */
-  // The hero pictures exist in four versions (see "responsive images" in
-  // js/loader.js). hero.preload names them by their original path; the first
-  // entry is the picture the first paint is made of, which has the low-res
-  // pair, and the rest are layers that have only the high-res ones.
+  /* ---- hero bundle loading (index.html, #seriesHero) ---- */
+  // hero.preload lists originals: the first is the first-paint picture (with a
+  // low-res pair), the rest are layers with high-res versions only.
   function injectPreload(href, isLcp) {
     var link = document.createElement("link");
     link.rel = "preload";
     link.as = "image";
     if (window.EmjiveLoader) href = window.EmjiveLoader.versions(href, !!isLcp).first;
-    // The first entry is the hero picture — the one thing on the homepage
-    // that is both above the fold and impossible to discover early (it lives
-    // in a fragment fetched two round trips deep, so the preload scanner
-    // never sees it). By the time this runs the grid's own product icons are
-    // usually already queued, and without an explicit priority the browser
-    // has no way to know the hero outranks a card sitting below the fold.
-    // The rest are hero layers that start out clipped away (the x-ray): they
-    // are wanted, but must never take bandwidth from the first one.
+    // The hero picture is above the fold but undiscoverable early (inside a
+    // fragment); the clipped layers must never take bandwidth from it.
     link.fetchPriority = isLcp ? "high" : "low";
     link.href = href;
     document.head.appendChild(link);
   }
 
-  // The fragment's pictures carry no src, only data-full (the original, the
-  // desktop high-res file and the base name of the other three) and, for the
-  // ones that have a low-res pair, data-lo (see series/bones/hero.html). Each
-  // gets the version that suits this viewport before it is attached, so the
-  // browser never fetches the wrong one. Run on the fragment while it is
-  // still inert — an <img> in a template's content does not load.
+  // Fragment images carry data-full (and data-lo with a low-res pair) instead of
+  // src; each gets the version for this viewport while still inert in the template.
   function chooseHeroImages(root) {
     var imgs = root.querySelectorAll("img[data-full]");
     for (var i = 0; i < imgs.length; i++) {
@@ -377,9 +299,7 @@
     }
   }
 
-  // Once the page has revealed and the browser is idle, the pictures that
-  // started low-res are swapped for their high-res version. A layer with no
-  // low-res version already is its high-res one.
+  // Once revealed and idle, low-res pictures are swapped for high-res.
   function upgradeHeroImages(slot) {
     if (!window.EmjiveLoader) return;
     var imgs = slot.querySelectorAll("img[data-full][data-lo]");
@@ -388,9 +308,8 @@
     }
   }
 
-  // The viewport crossed the phone/desktop line (a phone turned, a window
-  // resized): the hero's layout changes shape with it (hero.css), so every
-  // picture has to be the other set's — straight to the high-res one.
+  // Crossing the phone/desktop line reshapes the hero (hero.css): switch every
+  // picture to the other set's high-res version.
   var watchingPhone = false;
   function watchHeroForPhoneChange() {
     if (watchingPhone || !window.EmjiveLoader) return;
@@ -425,21 +344,14 @@
     var hero = entry && entry.hero;
     if (!hero) return Promise.resolve(false);
 
-    // Fired first and separately: the hero's own images are no longer
-    // discoverable by the browser's preload scanner at parse time (they
-    // live in a fragment now), so this is what keeps them starting on the
-    // second round trip rather than the third.
+    // First: the fragment's images are invisible to the preload scanner.
     (hero.preload || []).forEach(function (href, i) { injectPreload(href, i === 0); });
 
-    // Issued before the fragment fetch resolves, so the bundle's CSS is in
-    // flight (and CSS blocks render regardless) by the time any hero markup
-    // lands — the x-ray layer is never painted unclipped for a frame.
+    // Before the fragment lands, so the x-ray is never painted unclipped.
     if (hero.css) injectStylesheet(hero.css);
 
-    // hero.js is side-effect-free at execution time: it only assigns
-    // window.EmjiveSeriesHero and waits to be called. That's what lets the
-    // script, the stylesheet and the fragment all be in flight at once —
-    // two round trips to first hero paint, not three.
+    // hero.js has no side effects on execution, so script, stylesheet and
+    // fragment load in parallel.
     var fragmentPromise = fetch(hero.fragment).then(function (res) {
       if (!res.ok) throw new Error("Could not load " + hero.fragment);
       return res.text();
@@ -449,12 +361,8 @@
     return Promise.all([fragmentPromise, scriptPromise]).then(function (results) {
       var doc = new DOMParser().parseFromString(results[0], "text/html");
 
-      // One <template data-series-slot="..."> per destination, so a series
-      // can supply zero, one or several regions with no change to
-      // index.html. <template> content is inert in the parsed document, so
-      // its <img>s don't fetch here — they fetch once, on being cloned into
-      // the live document below (and resolve against the PAGE's URL, not
-      // the fragment's).
+      // One <template data-series-slot="id"> per destination. Template content is
+      // inert, so images fetch only once cloned, resolving against the page.
       var templates = doc.querySelectorAll("template[data-series-slot]");
       for (var i = 0; i < templates.length; i++) {
         var target = document.getElementById(templates[i].dataset.seriesSlot);
@@ -474,30 +382,24 @@
     });
   }
 
-  // Lets the page's arrival loader (js/loader.js; a no-op on a page that
-  // didn't opt in) go. Safe to call more than once.
+  // Lifts the arrival loader (no-op without one). Idempotent.
   function pageReady() {
     if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
   }
 
-  // No hero is coming (none in this series, or its bundle failed): the
-  // gallery's stack would otherwise wait below the screen for an entrance
-  // nobody will ever publish.
+  // No hero is coming: tell the wheel its entrance is done.
   function noHero() {
     window.EmjiveHero.publishStage(1);
   }
 
   function heroFailed(slot, err) {
     console.error("Hero bundle failed to load: " + (err && err.message ? err.message : err));
-    // Without this the .has-series-hero rule keeps the floating selection
-    // bar translated off-screen forever, since nothing will ever publish a
-    // scroll position to bring it back.
+    // Otherwise .has-series-hero keeps the selection bar off-screen for good.
     document.body.classList.remove("has-series-hero");
     if (slot) slot.innerHTML = "";
     noHero();
   }
 
-  /* ------------------------------------------------------------------- */
 
   var ready = fetchJson(INDEX_PATH).then(function (data) {
     index = data;
@@ -510,12 +412,8 @@
     window.EmjiveSeries.slug = activeSlug;
     window.EmjiveSeries.series = activeSeries;
 
-    // The pages that list products opt in with data-products="eager" on
-    // <html>: the request starts the moment the slug is known instead of
-    // when their own (deferred) script gets round to asking, which put it a
-    // full script-loading chain behind the index. loadProducts() memoizes,
-    // so the page's real call below simply picks up this promise. The catch
-    // is only for this side branch — the caller still sees the rejection.
+    // data-products="eager" on <html> starts products.json as soon as the slug is
+    // known; loadProducts() memoizes, so the page's own call reuses it.
     if (activeSeries && document.documentElement.getAttribute("data-products") === "eager") {
       loadProducts(activeSlug).catch(function () {});
     }
@@ -530,16 +428,10 @@
             pageReady();
             return;
           }
-          // The page's arrival loader (js/loader.js) waits for the hero's
-          // first paint and NOT for the products below. Which pictures that
-          // is depends on whether the hero plays (data-hero on <html>, set by
-          // js/scroll-memory.js): the fragment marks them data-first-paint=
-          // "play" or "skip" (the photo the reveal starts on, or the x-ray
-          // the stack rests on, with whatever lands in sight with it), falling
-          // back to the first <img> in the slot. All of them, so nothing of
-          // that first paint pops in after the reveal. On a grid that skips
-          // the hero the hero isn't the first paint at all — js/gallery.js
-          // lifts the loader once its first tiles are in.
+          // The arrival loader waits for the hero's first paint, not the products: the
+          // images marked data-first-paint matching data-hero ("play": the photo,
+          // "skip": the x-ray and what's in sight with it), else the slot's first
+          // <img>. A list landing without the hero is released by js/gallery.js instead.
           var mode = document.documentElement.getAttribute("data-hero") === "skip" ? "skip" : "play";
           var gridFirst = mode === "skip" && document.documentElement.getAttribute("data-gallery-view") === "grid";
           var heroImgs = Array.prototype.slice.call(slot.querySelectorAll('img[data-first-paint~="' + mode + '"]'));
@@ -554,9 +446,7 @@
           } else {
             pageReady();
           }
-          // Its own catch: the hero is already on screen and working by now,
-          // so a products failure must not fall through to the outer catch,
-          // which tears the hero down. (The grid reports its own failure.)
+          // Its own catch: the hero is working, and the outer catch would tear it down.
           return loadProducts(activeSlug).then(function (products) {
             if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.onProducts) {
               window.EmjiveSeriesHero.onProducts(products);
@@ -575,11 +465,8 @@
     return { index: index, slug: activeSlug, series: activeSeries };
   });
 
-  // If the index itself can't be loaded nothing below ever runs, so nothing
-  // would lift the arrival loader's cover except its long watchdog. Release
-  // it now so the page's own error message (each page's script handles the
-  // rejection of `ready`) is what the visitor sees. A side branch: `ready`
-  // itself still rejects for those consumers.
+  // Without the index nothing else lifts the cover but its watchdog; the
+  // page's own error handling shows the message.
   ready.catch(function () { pageReady(); });
 
   window.EmjiveSeries = {
@@ -591,15 +478,12 @@
     slug: null,
     series: null,
 
-    // The ACTIVE series' own subset of the global vocabulary, in the order
-    // it declared them — this is what the header's filter row renders.
+    // The active series' categories, in its order (the header filter row).
     categories: function () {
       return (activeSeries && activeSeries.categories) || [];
     },
 
-    // Sizing is a property of the category itself, declared once in the
-    // global vocabulary — so this resolves identically whichever series a
-    // product turned out to live in.
+    // Sizing belongs to the category, in the global vocabulary.
     categoryInfo: function (id) {
       var all = (index && index.categories) || {};
       return all[id] || { sizes: [], unit: "" };
@@ -621,9 +505,7 @@
     productSlug: productSlug,
     resolveDesign: resolveDesign,
 
-    // The raw ?series= value, with no featured-series fallback applied.
-    // series.html needs this: silently showing the featured series' manifest
-    // when the URL asked for a different one is worse than a not-found state.
+    // The raw ?series=, without the featured fallback (series.html shows not-found instead).
     requestedSlug: function () { return queryParam("series"); }
   };
 })();

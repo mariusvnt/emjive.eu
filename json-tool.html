@@ -1,33 +1,10 @@
 <!--
-  json-tool.html — standalone dev page: edit global catalog parameters
-  (data/series.json's featured/categories/hdris/metals), edit or add a
-  series, edit or add a series' products — including drag-and-drop for the
-  hand-owned asset files (3D model, x-ray, extra photos), each with an
-  explicit Replace/Remove pair once a file is already saved. Saves write
-  the right JSON fields and dispatch dropped files into the right folders
-  automatically.
-
-  Deliberately has no 3D preview and no swatch-scene editing at all (no
-  `three` import map, nothing like scene-tool.html's live viewer, no
-  swatch fields) — camera angle/HDRI/
-  metal-shader/swatch-scene tuning all stay scene-tool.html's job; this
-  page only has plain typed fields for the few global/series/product
-  values that job doesn't cover, with a pointer to `npm run scene-tool` in
-  the footer.
-
-  Icons/fallback-img/wheel-poster/top-shot are intentionally NOT editable here, for any
-  metal — those are 100% owned by `npm run auto-render`. This page shows a
-  plain reminder instead of an upload slot for them.
-
-  Not part of the built site — never added to vite.config.js's
-  rollupOptions.input, so `npm run build` never ships it. Served (and
-  saved through) by scripts/json-tool-server.js:
-
-    npm run json-tool
-
-  See dev-guidelines/procedures.md/data.md/assets.md for the conventions
-  this page automates, and scripts/json-tool-server.js's own header
-  comment for the server-side contract.
+  Dev-only page (not built), served by scripts/json-tool-server.js
+  (npm run json-tool): edit data/series.json's globals, series and products,
+  with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray,
+  photos). No 3D preview or swatch fields: that is scene-tool.html's job. The
+  auto-render-owned images (icons, fallback-img, wheel-poster, top-shot) are
+  not editable here.
 -->
 <!doctype html>
 <html lang="en">
@@ -37,13 +14,8 @@
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
-  /* Several author rules below (.stack, .row label, etc.) set `display` on
-     selectors that can also carry the native `hidden` attribute — and any
-     author-stylesheet `display` beats the user-agent stylesheet's own
-     `[hidden] { display: none }` rule regardless of specificity, since
-     origin/importance outranks specificity in the cascade. Without this,
-     toggling `.hidden = true` on such an element (the products-panel
-     product picker, the series add/edit panes) silently does nothing. */
+  /* Author `display` rules beat the UA's [hidden] rule, so toggling .hidden
+     would do nothing on those elements without this. */
   [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", sans-serif; padding: 24px; max-width: 760px; }
   h1 { font-size: 16px; margin: 0 0 16px; }
@@ -355,7 +327,7 @@ function setupDropZone(dropzoneEl, inputEl, onFiles) {
   inputEl.addEventListener("change", () => { onFiles(Array.from(inputEl.files)); inputEl.value = ""; });
 }
 
-// ---- small render helpers ----
+// ---- render helpers ----
 
 function escapeHtml(s) {
   return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, (c) => ({
@@ -407,14 +379,9 @@ function wireTabs() {
   });
 }
 
-// ============================================================
-// Global panel
-// ============================================================
+// ---- Global panel ----
 
-// Tracks which existing HDRI key a Replace click is for — the picked file
-// always overwrites that key's EXISTING path (its own filename is
-// ignored), same "overwrite in place, no JSON change needed" idea as
-// model/xray replace when the extension already matches.
+// The HDRI key a Replace is for: the file overwrites that key's existing path (its own name is ignored).
 let hdriReplaceTargetKey = null;
 
 function wireGlobalPanel() {
@@ -569,9 +536,7 @@ function renderGlobalPanel() {
   });
 }
 
-// ============================================================
-// Series panel
-// ============================================================
+// ---- Series panel ----
 
 function wireSeriesModeTabs() {
   document.querySelectorAll(".series-mode-btn").forEach((btn) => {
@@ -657,9 +622,7 @@ function fillSeriesEditForm() {
     .join("");
 }
 
-// ============================================================
-// Products panel
-// ============================================================
+// ---- Products panel ----
 
 function wireProductModeTabs() {
   document.querySelectorAll(".mode-btn").forEach((btn) => {
@@ -696,10 +659,8 @@ function wireProductsPanel() {
     renderPhotosList();
   });
 
-  // Replace/Remove next to an already-saved model/xray/photo act
-  // immediately (not deferred to the big Save button below) — the
-  // dropzones above only ever handle the "no file saved yet" case (a
-  // fresh Add, or an Edit where that slot is still empty).
+  // Replace/Remove on a saved model, x-ray or photo act immediately; the
+  // dropzones only handle empty slots (staged for Save).
   els.modelReplaceInput.addEventListener("change", () => replaceAssetImmediate("model", els.modelReplaceInput));
   els.xrayReplaceInput.addEventListener("change", () => replaceAssetImmediate("xray", els.xrayReplaceInput));
   els.photoReplaceInput.addEventListener("change", async () => {
@@ -803,9 +764,7 @@ async function removeProduct() {
   } catch (err) { setStatus(els.productStatus, false, err.message); }
 }
 
-// Only shown next to an already-saved file (Edit mode with that slot
-// filled) — Add mode, or an Edit slot that's still empty, shows the plain
-// dropzone instead (see fillProductForm).
+// Only next to a saved file; empty slots show the dropzone (fillProductForm).
 function renderModelSection(product) {
   const hasModel = !!(product && product.assets && product.assets.model);
   els.modelDropzone.hidden = hasModel;

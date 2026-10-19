@@ -1,60 +1,26 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   split-models — splits Blender exports holding many objects into the one
-   .glb per model (and per wireframe) the site loads.
-
-   The models are authored together in one Blender file and exported in one
-   go (items.glb, every product and every design of it; items-wireframes.glb,
-   the same objects as thin solid bars). Each root node is one object, named
-   after what it is:
-
-     furcula, disc, ...                 a product with a single design
-     rib-cage-1L2, foramen-twisted, ... one design of a product (its "name"
-                                        in that product's "designs" list)
-     <either>-wireframes                that model's wireframe
-
-   A node is matched by slug (scripts/slugs.js) to a design's "name" for a
-   product that has designs, else to a product's "name", in every series'
-   products.json, and written to the path its entry already names: the
-   model to "model" (the default design's is the product's own
-   assets.model), the wireframe to "wireframe" — so products.json says where
-   everything goes, and this script never invents a path. A wireframe keeps
-   POSITION only (js/three-viewer.js draws it unlit).
-
-   Several files can be given; a later one replaces the nodes of the same
-   name from an earlier one (a single corrected object exported on its own
-   after the full set).
-
-   The orientation guard. A node's transform is part of a model's pose (the
-   saved renders were made with it, see dev-guidelines/assets.md), and an
-   export has lost one before — furcula's +90 degrees about Y, twice. When a
-   model replaces an existing file whose bounds no longer match, but would
-   under the old file's root rotation, the old rotation is kept (and said
-   so), and that model's wireframe is given the same correction.
-
-   Then every written file goes through scripts/optimize-models.js (weld,
-   Draco, a decode round trip), unless --no-optimize. Run
-   `npm run measure-models` afterwards: the files' hashes have changed.
-
-   The print models. A .stl may be given too (`bones-stl.stl`): the same
-   objects as the models above, for the printer, in one binary file that has
-   no names in it. It is cut at the points where its triangles so far make
-   closed surfaces (scripts/stl.js), and each object is matched to a catalog
-   entry by what survives a different export — its volume, the sides of its
-   minimum bounding box and its triangle count against the model's (a print
-   model is the model subdivided, so 4 or 16 times as many) — with the best
-   assignment over all of them, refused when two entries could be swapped
-   without costing much (then export the objects one by one instead). Each is
-   written to the "stl" path of its entry, which products.json has to name
-   first, like the others. The match table shows the model's volume and box
-   next to the print model's: they are the same piece unless the table says
-   otherwise.
-
-   Usage:
-     npm run split-models -- <file.glb> [<file.glb> ...] [<file.stl>]
-     npm run split-models -- <file.glb> --dry-run        report only
-     npm run split-models -- <file.glb> --no-optimize    leave the raw split
-   ========================================================================== */
+// Splits combined Blender exports into the per-model .glb files the site loads.
+// Each root node is one object, matched by slug to a design's "name" (products
+// with designs) or a product's "name", and written to the "model" or
+// "wireframe" path products.json already names; "<name>-wireframes" nodes are
+// wireframes and keep POSITION only. Later files replace same-named nodes.
+//
+// Orientation guard: exports can lose a node's root rotation, which is part of
+// the pose the saved renders use. When a replaced file's bounds only match
+// under its old root rotation, that rotation is kept (and applied to the
+// wireframe too).
+//
+// A combined .stl is cut into its closed objects (scripts/stl.js) and each is
+// matched to an entry by volume, minimum box and triangle count (a print model
+// is the model subdivided 4x or 16x), refusing ambiguous assignments; written
+// to the entry's "stl" path.
+//
+// Written files then go through scripts/optimize-models.js; run
+// `npm run measure-models` afterwards.
+//
+//   npm run split-models -- <file.glb> [<file.glb> ...] [<file.stl>]
+//   npm run split-models -- <file.glb> --dry-run        report only
+//   npm run split-models -- <file.glb> --no-optimize    leave the raw split
 
 "use strict";
 
@@ -69,17 +35,14 @@ const SERIES_JSON_PATH = join(REPO_ROOT, "data", "series.json");
 const WIRE_SUFFIX = /-wireframes?$/i;
 // How far (mm) two bounding boxes may differ and still be the same pose.
 const BOUNDS_TOLERANCE_MM = 0.1;
-// What a matched print model has to have over the next best assignment to be
-// taken (the sum of the logs of the ratios the match is made of, see
-// matchCost): below it, two entries could change places.
+// Minimum lead over the next best assignment (in matchCost units) for a
+// print-model match to be accepted.
 const MATCH_MARGIN = 0.15;
-// How much a triangle count that is not 2^n times the model's costs, per
-// unit of the log of how far off it is.
+// Cost per unit log-distance of a triangle count from 2^n times the model's.
 const COUNT_WEIGHT = 5;
 
-// Every model the catalog expects, keyed by the slug of the node that holds
-// it: { label, model, wireframe, stl, geometry } (repo-root-relative paths;
-// "" if unset; the geometry is what measure-models wrote).
+// Every model the catalog expects, keyed by node slug:
+// { label, model, wireframe, stl, geometry } (repo-relative paths, "" if unset).
 function catalogEntries() {
   const index = JSON.parse(readFileSync(SERIES_JSON_PATH, "utf8"));
   const entries = new Map();
@@ -119,7 +82,7 @@ function catalogEntries() {
   return entries;
 }
 
-// ---- the print models ----------------------------------------------------------
+// ---- print models ----
 
 // Minimum-cost assignment of n rows to n columns (the Hungarian method with
 // potentials, O(n^3)); cost[i][j] -> the column chosen for each row.
@@ -166,10 +129,9 @@ function totalCost(cost, columnOf) {
   return columnOf.reduce((sum, j, i) => sum + cost[i][j], 0);
 }
 
-// How unlike a print object is a catalog entry: the log-ratios of the volume
-// and of the three sides of the minimum box (both longest first, so the pose
-// the export happened to have doesn't matter), and of the triangle count to
-// the nearest 2^n times the model's. 0 for the same piece.
+// Dissimilarity of a print object and an entry: summed log-ratios of volume,
+// the three minimum-box sides (sorted, so pose doesn't matter) and triangle
+// count to the nearest 2^n times the model's. 0 for the same piece.
 function matchCost(object, entry) {
   const g = entry.geometry;
   let cost = Math.abs(Math.log(object.volume / g["volume-cm3"]));
@@ -182,7 +144,6 @@ function matchCost(object, entry) {
   return cost;
 }
 
-// The triangles of a model file, as written in the catalog.
 async function modelTriangles(io, rel) {
   const path = rel && join(REPO_ROOT, rel);
   if (!path || !existsSync(path)) return 0;
@@ -198,8 +159,8 @@ async function modelTriangles(io, rel) {
   return Math.round(tris);
 }
 
-// Cuts the combined .stl into its objects, works out which entry each is and
-// writes each to its entry's "stl" path. Returns false if it could not.
+// Cuts the combined .stl into objects, matches each to an entry and writes it
+// to its "stl" path. false on failure.
 async function splitPrintModels(file, entries, io, dryRun) {
   const { measureTriangles } = require("./measure-models");
   const stl = stlFile.readStl(file);
@@ -237,8 +198,7 @@ async function splitPrintModels(file, entries, io, dryRun) {
   const cost = objects.map((object) => catalog.map((entry) => matchCost(object, entry)));
   const chosen = assign(cost);
   const best = totalCost(cost, chosen);
-  // What the assignment has over the next best one that does without each of
-  // its pairs.
+  // Each pair's lead over the best assignment without it.
   const margins = chosen.map((j, i) => {
     const without = cost.map((row) => row.slice());
     without[i][j] = 1e9;
@@ -344,7 +304,7 @@ async function main() {
 
   const entries = catalogEntries();
 
-  // Every root node of every input, the later files winning.
+  // Every root node of every input; later files win.
   const nodes = { model: new Map(), wireframe: new Map() };
   for (const file of inputs) {
     const document = await io.read(file);
@@ -361,8 +321,7 @@ async function main() {
     }
   }
 
-  // One node into a document of its own: the node, what it depends on (mesh,
-  // accessors, materials), in a scene of its own.
+  // One node and its dependencies in a document and scene of their own.
   function isolate(src) {
     const target = new Document().setLogger(new Logger(Logger.Verbosity.WARN));
     for (const ext of src.document.getRoot().listExtensionsUsed()) {
@@ -379,8 +338,7 @@ async function main() {
   const rows = [];
   const unmatched = [];
   const written = [];
-  // slug -> { from, to }: the root rotation a model's export had, and the
-  // one it was given back (the orientation guard), for its wireframe.
+  // slug -> { from, to }: a model's exported and restored root rotation, reused for its wireframe.
   const corrections = new Map();
   let failed = false;
 
@@ -432,7 +390,6 @@ async function main() {
         }
         const fix = corrections.get(slug);
         if (fix) {
-          // Whatever turned the model back turns its wireframe the same way.
           node.setRotation(quatMultiply(fix.to, quatMultiply(quatInverse(fix.from), node.getRotation())));
           note = "rotated with its model";
         }

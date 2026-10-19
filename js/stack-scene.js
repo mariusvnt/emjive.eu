@@ -1,33 +1,17 @@
-/* ==========================================================================
-   em·ji·ve — the homepage gallery's 3D stack
-
-   Every product's model in ONE canvas over the whole screen. js/gallery-stack.js
-   owns everything about the stack that isn't drawing — the circle, the
-   camera's pull-back, the rings, the plate's turning, the taps — and drives
-   this through the handle returned by createStackScene(): it hands over a
-   pose for each model whenever anything moved (setPoses). One WebGL context
-   and one environment map for all of it.
-
-   An ES module and a lazy chunk of its own (window.EmjiveLoadStack(), in
-   js/viewer-entry.js): three-viewer.js's toolkit gives it everything a model
-   needs to look the way it does in a viewer — the page's one Draco decoder
-   and HDR cache, the metals, the renderer's settings, the default camera's
-   orientation, and the viewers' own spin (toolkit.spinFor) for the focused
-   model.
-
-   Coordinates: one world unit is PX CSS pixels; x to the right from the
-   screen's left edge, y up from its top edge (so a point on screen is at
-   (x / PX, -y / PX)), z towards the visitor; an orthographic camera looking
-   down -Z sees exactly the screen. A model turned by the inverse of its
-   default orbit camera's orientation then shows the face its fallback-img
-   does, at the size the image shows it when its box is `size` px: the
-   handover from the pictures moves nothing.
-
-   The focused model (setFocus) turns slowly on its own, like a turntable;
-   under a drag on the element the page lays over it, it turns exactly as a
-   viewer's model does — coasting, then easing back to its default view once
-   let go, and turning on its own again after a pause.
-   ========================================================================== */
+// The wheel's 3D scene: every product's model in one full-screen canvas (one
+// WebGL context, one environment map). js/gallery-stack.js owns the layout and
+// interaction and drives this through createStackScene()'s handle (setPoses).
+// A lazy module chunk (window.EmjiveLoadStack); three-viewer.js's toolkit
+// supplies the decoder, HDR cache, metals, renderer settings, camera
+// orientation and the viewers' spin (toolkit.spinFor).
+//
+// Coordinates: one world unit is PX CSS px; screen point (x, y) is at
+// (x / PX, -y / PX); an orthographic camera down -Z sees exactly the screen.
+// A model turned by the inverse of its default orbit orientation shows its
+// fallback-img's face at that image's size, so the handover moves nothing.
+//
+// The focused model (setFocus) turns slowly on its own and, under a drag,
+// behaves like a viewer's model (coast, ease home, resume).
 
 import * as T from "three";
 import { toolkit } from "./three-viewer.js";
@@ -35,13 +19,12 @@ import { toolkit } from "./three-viewer.js";
 // CSS pixels per world unit.
 var PX = 100;
 var MAX_PIXEL_RATIO = 1.5;
-// A frame's dt is never taken as more than this (a tab coming back).
+// dt cap (a tab coming back).
 var MAX_DT = 1 / 15;
 // A clipping plane's constant that cuts nothing.
 var NO_CUT = 1e9;
-// The top shot's perspective, put back on a model lying on the hand
-// (placeOnHand()): each point drawn as the shot's camera saw it, nearer
-// points spread out from the model's middle, farther ones drawn in.
+// The top shot's perspective, applied to a model lying on the hand
+// (placeOnHand()): its close camera spreads nearer points outward.
 var SHOT_VERTEX = [
   "if (uShotAmount > 0.0) {",
   "  float shotK = uShotDist / max(uShotDist - (mvPosition.z - uShotCenter.z), 1e-4);",
@@ -63,12 +46,12 @@ export function createStackScene(options) {
   try {
     renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
   } catch (err) {
-    // The page's WebGL contexts are a finite budget; the pictures stay.
+    // WebGL contexts are a finite budget; the pictures stay.
     console.error("emjive: no WebGL context for the 3D stack", err);
     return null;
   }
   toolkit.configureRenderer(renderer, MAX_PIXEL_RATIO);
-  // The finger a ring on the hand is worn on (placeCut()).
+  // For the finger a ring on the hand is cut by (placeOnHand()).
   renderer.localClippingEnabled = true;
   toolkit.trackRenderer(renderer);
   var canvas = renderer.domElement;
@@ -89,11 +72,10 @@ export function createStackScene(options) {
   var byId = {};
   var environmentTarget = null;
   var heldCpuBytes = 0;
-  // The focused model, and the element a drag on it starts on.
   var focusId = null;
   var focusEl = null;
 
-  // What a top shot is, as a rotation of the model.
+  // A top shot's view, as a rotation of the model.
   var qTop = toolkit.orbitOrientation({ "3d-viewer-camera-default": { rotation: 0, tilt: 0, zoom: 100 } }).invert();
   var zAxis = new T.Vector3(0, 0, 1);
   var tmpQ = new T.Quaternion();
@@ -105,7 +87,7 @@ export function createStackScene(options) {
     return (out || new T.Quaternion()).setFromAxisAngle(zAxis, -deg * Math.PI / 180);
   }
 
-  /* ---- loading ---------------------------------------------------------------- */
+  /* ---- loading ---- */
 
   function meshBytes(g) {
     var bytes = 0;
@@ -121,12 +103,9 @@ export function createStackScene(options) {
     if (window.EmjiveMem) window.EmjiveMem.cpuGeometryBytes += bytes;
   }
 
-  // As js/three-viewer.js does once a model has drawn: the GPU has its own
-  // copy, and nothing here reads the arrays again — the bounds are computed
-  // first, and taps are tested by the page against the poses, not the
-  // meshes. Mesh by mesh, and only once that mesh has really been drawn
-  // (onAfterRender): a model hidden by the filter has never been uploaded,
-  // and drawing it later from arrays that are gone would fail.
+  // Free a mesh's CPU arrays once it has drawn (the GPU holds a copy; bounds
+  // are computed first, and taps test poses, not meshes). Only after
+  // onAfterRender: a model hidden by the filter isn't uploaded yet.
   var drawnMeshes = [];
   function markDrawn() {
     if (!this.userData.released) drawnMeshes.push(this);
@@ -164,8 +143,7 @@ export function createStackScene(options) {
     });
   }
 
-  // A model: its bounding sphere (what a viewer frames, so what the
-  // fallback-img shows), in its own frame.
+  // Bounding sphere in its own frame: what a viewer frames, so what the fallback-img shows.
   function setModel(entry, root) {
     if (disposed) {
       disposeObject(root);
@@ -177,16 +155,14 @@ export function createStackScene(options) {
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
     entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
-    // Where a top shot cuts it (scripts/auto-render.js's finger occluder:
-    // half way up its bounding box, along the axis the shot looks down),
-    // and the plane that cuts it so here (placeCut()).
+    // Where the top shot's finger occluder cuts it (half its box height,
+    // scripts/auto-render.js) and the plane that reproduces it.
     entry.cutMin = box.min.y;
     entry.cutHeight = box.max.y - box.min.y;
     entry.clip = new T.Plane(yAxis.clone(), NO_CUT);
     entry.material.clippingPlanes = [entry.clip];
-    // How far the top shot's camera stood from the model's middle
-    // (js/three-viewer.js frameCamera: the default zoom, straight down), in
-    // the model's own units; and the uniforms that draw it so.
+    // The top shot camera's distance from the model's middle (frameCamera:
+    // default zoom, straight down), in model units, and its uniforms.
     var framing = toolkit.defaultFraming(entry.product);
     entry.shotDist = entry.radius * framing.zoom / Math.sin(framing.fovDeg * Math.PI / 360);
     entry.shot = {
@@ -207,8 +183,7 @@ export function createStackScene(options) {
       if (!node.isMesh) return;
       disposeMaterial(node.material);
       node.material = entry.material;
-      // A dozen models on one screen: culling saves nothing, and a model
-      // still off the screen as the camera pulls back has to be uploaded too.
+      // Few models on screen, and off-screen ones must be uploaded before the pull-back reveals them.
       node.frustumCulled = false;
       node.onAfterRender = markDrawn;
       if (node.geometry) countBytes(meshBytes(node.geometry));
@@ -216,8 +191,7 @@ export function createStackScene(options) {
     entry.holder.add(root);
   }
 
-  // No model, or one that wouldn't load: its picture, facing the camera,
-  // standing in for it in the stack.
+  // No model, or one that failed: its picture as a camera-facing sprite.
   function setSprite(entry, texture) {
     if (disposed) {
       texture.dispose();
@@ -246,13 +220,13 @@ export function createStackScene(options) {
       group: group,
       holder: holder,
       viewQ: viewQ,
-      // Its resting turn: its default view, or wherever a drag has it.
+      // Resting turn: the default view, or where a drag left it.
       restQ: viewQ.clone(),
       size: 0,
       visible: true,
       opacity: 1,
       pose: null,
-      // The viewers' spin, built the first time it is focused.
+      // The viewers' spin, built on first focus.
       spin: null
     };
     var model = item.product.assets && item.product.assets.model;
@@ -270,11 +244,10 @@ export function createStackScene(options) {
     });
   }
 
-  /* ---- sizes ---------------------------------------------------------------------
-     An item `size` px across: its model scaled the way its fallback-img shows
-     it in a box that size (the default camera's fov and zoom fit its bounding
-     sphere), its sphere's centre on the group's origin. A pose's own size is
-     the group's scale on top of that. */
+  /* ---- sizes ----
+     An item `size` px across: scaled as its fallback-img shows it in a box that
+     size, its sphere centred on the group's origin. A pose's size is the
+     group's scale on top. */
   function framingScale(entry, sizePx) {
     var framing = toolkit.defaultFraming(entry.product);
     var halfFov = framing.fovDeg * Math.PI / 360;
@@ -294,10 +267,8 @@ export function createStackScene(options) {
     }
   }
 
-  /* ---- the camera and the canvas ------------------------------------------------- */
-  // The canvas as big as the layer it fills (css/style.css .gallery-stage:
-  // the screen without a phone's browser bars, so their coming and going
-  // leaves it as it is).
+  /* ---- camera and canvas ---- */
+  // Sized to its layer (.gallery-stage), which ignores the phone's browser bars.
   function resize() {
     var w = Math.max(1, options.host.clientWidth || window.innerWidth);
     var h = Math.max(1, options.host.clientHeight || window.innerHeight);
@@ -310,7 +281,7 @@ export function createStackScene(options) {
     dirty = true;
   }
 
-  /* ---- placing a model ----------------------------------------------------------- */
+  /* ---- placing a model ---- */
   function setOpacity(entry, opacity) {
     if (!entry.material || Math.abs(opacity - entry.opacity) < 1e-3) return;
     var wasTransparent = entry.material.transparent;
@@ -322,12 +293,10 @@ export function createStackScene(options) {
     }
   }
 
-  // A pose (js/gallery-stack.js): its middle (x, y) and size in px of the
-  // screen, its turn on the screen (rot, degrees clockwise), how far through
-  // a ring's flight off the hand it is (fromRing, ringRot: the turn it lay at
-  // on the hand, u: 0 to 1 — the model swings from its top view to its rest
-  // as it flies), what's left of its top shot (ring) and how much of it shows
-  // at all (alpha).
+  // A pose (js/gallery-stack.js): centre (x, y) and size in screen px, rot
+  // (degrees clockwise); fromRing/ringRot/u for a ring's flight off the hand
+  // (top view swinging to rest as u goes 0 -> 1); ring: the top shot's
+  // remaining share; alpha.
   function placeFromPose(entry, pose) {
     entry.pose = pose;
     entry.group.position.set(pose.x / PX, -pose.y / PX, 0);
@@ -344,17 +313,10 @@ export function createStackScene(options) {
     setOpacity(entry, alpha * (1 - (pose.ring || 0)));
   }
 
-  // A ring on the hand is drawn as its top shot shows it, so it lands
-  // exactly on the picture it crossfades with (scripts/auto-render.js):
-  //   - cut as the shot is: the shots were rendered with an invisible
-  //     finger through the ring, hiding everything below half its height
-  //     (addFingerOccluder) — the band under the finger, the inside of a
-  //     cuff. The model wears the same finger, which slides out of it (the
-  //     cut going down to its foot) as it swings off the hand;
-  //   - in the shot's perspective: the shot's camera stood close, so the
-  //     ring's top spreads wider than this scene's flat camera draws it.
-  // Both are whole on the hand and gone by the time its top shot has faded
-  // (the same stretch of the slide, 0 to 0.5).
+  // On the hand, a ring is drawn as its top shot shows it so the crossfade
+  // lands exactly: cut by the same finger (below half its height), sliding out
+  // as it swings off, and in the shot's close perspective. Both fade out over
+  // u 0 to 0.5, as the top shot does.
   function placeOnHand(entry, pose) {
     if (!entry.clip) return;
     var share = pose.fromRing && pose.u < 1 ? 1 - smoothstep(0, 0.5, pose.u) : 0;
@@ -367,27 +329,24 @@ export function createStackScene(options) {
     tmpPlane.normal.copy(yAxis);
     tmpPlane.constant = -(entry.cutMin + entry.cutHeight * 0.5 * share);
     entry.group.updateMatrixWorld(true);
-    // The box was measured in the holder's frame (the model's parent).
+    // The box was measured in the holder's frame.
     entry.clip.copy(tmpPlane).applyMatrix4(entry.holder.matrixWorld);
-    // The model's middle as the camera sees it, and the shot's distance at
-    // the size the model is drawn.
+    // The model's middle in view space, and the shot distance at its drawn size.
     camera.updateMatrixWorld();
     entry.shot.uShotCenter.value.setFromMatrixPosition(entry.group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
     entry.shot.uShotDist.value = entry.shotDist * entry.holder.scale.x * entry.group.scale.x;
   }
 
-  // A picture standing in for a model always faces the camera; it turns with
-  // its group about the view axis only.
+  // A sprite always faces the camera; it only turns about the view axis.
   function twistSprite(entry) {
     if (!entry.sprite) return;
     var q = entry.group.quaternion;
     entry.material.rotation = Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
   }
 
-  /* ---- the focused model's spin ---------------------------------------------------
-     Each model with a spin of its own steps it while it is focused (turning
-     on its own, or by hand) or still on its way home; its resting turn is then the inverse of the spin's
-     stand-in camera (at home: its default view). */
+  /* ---- the focused model's spin ----
+     A spin steps while its model is focused or still easing home; the resting
+     turn is the inverse of the spin's camera. */
   var spunQ = new T.Quaternion();
   function stepSpins(dt) {
     var moved = false;
@@ -404,8 +363,7 @@ export function createStackScene(options) {
     return moved;
   }
 
-  /* ---- the loop ---------------------------------------------------------------------
-     Draws only when something moved: a new set of poses, a spin. */
+  /* ---- the loop: draws only when something moved ---- */
   var raf = 0;
   var lastFrame = null;
 
@@ -426,7 +384,7 @@ export function createStackScene(options) {
     if (changed) draw();
   }
 
-  /* ---- teardown --------------------------------------------------------------------- */
+  /* ---- teardown ---- */
   function disposeMaterial(material) {
     if (!material) return;
     if (Array.isArray(material)) {
@@ -453,8 +411,7 @@ export function createStackScene(options) {
   }
   canvas.addEventListener("webglcontextlost", onContextLost, false);
 
-  // The browser may throw a canvas's drawing away (a tab coming back, a page
-  // restored), and a still stack draws nothing on its own: draw again.
+  // The browser may discard a canvas's drawing (tab return, page restore).
   function repaint() { dirty = true; }
   document.addEventListener("visibilitychange", repaint);
   window.addEventListener("pageshow", repaint);
@@ -482,7 +439,7 @@ export function createStackScene(options) {
     toolkit.untrackRenderer(renderer);
   }
 
-  /* ---- build -------------------------------------------------------------------- */
+  /* ---- build ---- */
   var items = options.items || [];
   if (items.length) baseSize = items[0].size || baseSize;
   var loads = items.map(buildEntry);
@@ -500,7 +457,7 @@ export function createStackScene(options) {
     if (disposed) throw new Error("disposed");
     entries.forEach(function (entry) { setSize(entry, baseSize); });
     resize();
-    // Shaders compiled now, before the handover's first frame needs them.
+    // Compile shaders before the handover's first frame.
     renderer.compile(scene, camera);
   });
 
@@ -515,9 +472,8 @@ export function createStackScene(options) {
   return {
     ready: ready,
 
-    // The pictures hand over: every model where its picture is (poses, by
-    // id — those missing are hidden by the filter), drawn at once, in the same
-    // frame the page hides the pictures.
+    // Takes over from the pictures: models placed by pose (missing ids are
+    // filtered out), drawn in the same frame the page hides the pictures.
     handOver: function (poses) {
       entries.forEach(function (entry) {
         setSize(entry, baseSize);
@@ -531,11 +487,9 @@ export function createStackScene(options) {
       raf = requestAnimationFrame(frame);
     },
 
-    // Every model's pose, by id: whenever anything moved.
     setPoses: applyPoses,
 
-    // The layout changed (the filter, the screen): the size a pose's size is
-    // measured against.
+    // The size poses are measured against (layout change).
     setBaseSize: function (px) {
       baseSize = px;
       entries.forEach(function (entry) {
@@ -545,8 +499,7 @@ export function createStackScene(options) {
       dirty = true;
     },
 
-    // The filter: those not listed leave the stack; those listed again come
-    // back (the next poses place them).
+    // Filter: unlisted models leave; relisted ones return at the next poses.
     setVisible: function (ids) {
       var keep = {};
       ids.forEach(function (id) { keep[String(id)] = true; });
@@ -558,8 +511,8 @@ export function createStackScene(options) {
       dirty = true;
     },
 
-    // The model that turns on its own and that a drag on el turns (null:
-    // none). The one focused before goes home on its own.
+    // The model that self-turns and that a drag on el turns (null: none); the
+    // previous one eases home.
     setFocus: function (id, el) {
       focusId = id === null || id === undefined ? null : String(id);
       focusEl = el || focusEl;

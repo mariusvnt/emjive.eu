@@ -4,80 +4,25 @@ import { defineConfig, transformWithEsbuild } from "vite";
 import sharp from "sharp";
 import { slugify } from "./scripts/slugs.js";
 
-// The public origin, for the generated sitemap.xml. Same host as every page's
-// og:url / canonical.
+// For sitemap.xml; the same host as every page's og:url and canonical.
 const SITE_ORIGIN = "https://emjive.eu";
 
-// What a "smartphone" is for the responsive images: the same query as
-// PHONE_QUERY in js/loader.js and the phone rules in css/style.css and
-// series/<slug>/hero.css. Keep the four in step.
+// The smartphone query for responsive images; must match js/loader.js,
+// css/style.css and series/<slug>/hero.css (validate-data checks).
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
-// Vite's static asset pipeline only ever sees paths it can trace at build
-// time: <script>/<link>/<img> attributes in the HTML entries themselves,
-// and url()/import references inside processed CSS/JS. This site's real
-// asset paths mostly come from a series' products.json (icons/top-shot/model
-// paths, fetched and read as plain string data at runtime) or from a bare
-// string constant in js/three-viewer.js (HDRI_SRC) — none of that is
-// something Vite's build can see, so those folders would silently be left
-// out of dist/ entirely without this. js/ needs the same treatment for a
-// different reason: Vite can only bundle <script type="module"> tags
-// (three-viewer.js) — a plain classic <script src="js/main.js"> can't be
-// bundled, and Vite doesn't copy what it can't bundle either, so without
-// this every classic script (main.js, product.js, selection*.js) would
-// silently vanish from the build even though the built HTML still
-// references them (confirmed by inspecting dist/ directly — worth
-// re-checking after any future Vite upgrade in case this behavior
-// changes). Copying all three verbatim (byte-for-byte, original
-// filenames) after the real build sidesteps having to trace every
-// dynamic/classic-script reference individually — a bit of redundant
-// output for whatever Vite's own pipeline *did* catch (e.g. CSS url()s,
-// the header's static <img> tags, three-viewer.js's own module bundle),
-// but that's harmless.
-//
-// series/ is on the list for the same reason as data/: it holds each
-// series' hero bundle (hero.html/hero.css/hero.js), which is referenced
-// only as string paths inside data/series.json and injected at runtime, so
-// Vite's build has no way to see it. That's also why a hero bundle's JS can
-// never use a bare specifier — nothing resolves it.
-// Copying whole trees is the right default (see above) but it is not free:
-// each of these was verified to ship in dist/ and never be requested by any
-// built page. Together they were ~2MB of the output.
-//
-//   assets/fonts/  — Vite DOES trace the @font-face url()s in css/style.css
-//     and the <link rel="preload"> hrefs in every page's <head>, so it emits
-//     its own content-hashed copies (dist/assets/DINish-Regular-<hash>.woff2
-//     et al) and rewrites both references to point at them. Nothing in the
-//     built output mentions assets/fonts/ at all — and only 5 of the 45
-//     files in there were ever referenced to begin with. Re-check this if a
-//     font is ever loaded from a runtime string rather than from CSS.
-//   assets/hand_normal.webp — genuinely dead, in the repo and in the build
-//     (see assets.md); it's the plain hand the ring-embossed hero replaced.
-//   js/viewer-entry.js — a module entry (<script type="module">), so Vite
-//     bundles it and the built pages load the hashed copy; the verbatim one
-//     has a relative dynamic import() that would resolve to the unbundled
-//     three-viewer.js, which can't run.
-//   js/hdr-worker.js — the HDR decode worker (new Worker(new URL(...)) in
-//     js/three-viewer.js). Vite bundles it into dist/assets/hdr-worker-<hash>.js
-//     and rewrites the reference; the verbatim copy still has the bare
-//     `three` import nothing at runtime can resolve.
-//   js/stack-scene.js — the same for the homepage's 3D stack: Vite bundles it
-//     (dist/assets/stack-scene-<hash>.js) behind
-//     js/viewer-entry.js's dynamic import; the source has bare imports.
-//   js/three-viewer.js — the unbundled ES module source. The built pages
-//     load Vite's bundled copy (dist/assets/three-viewer-<hash>.js); this
-//     one still carries the bare `import "three"` specifier that nothing at
-//     runtime can resolve, so shipping it is at best dead weight and at
-//     worst a trap for anyone who finds it in dist/ and assumes it runs.
-//     Every OTHER file in js/ is a classic script the built HTML really
-//     does load by its original path, which is why this is one exclusion
-//     rather than a rule about js/.
-//
-//   assets/logo*.svg, hand-pointer-thumb-opened.svg, metal-sample_*.webp —
-//     referenced only from HTML <img>/<link> and css/style.css url(), all of
-//     which Vite DOES trace, so it emits its own content-hashed copies and
-//     rewrites every reference. The verbatim copies this plugin used to add
-//     beside them (byte-identical, md5 checked) were never requested.
+// Vite only ships what it can trace, and most of this site's assets are named
+// in runtime data (products.json, series.json, hero bundles), while classic
+// <script>s aren't bundled or copied at all. So assets/, data/, js/ and
+// series/ are copied verbatim after the build (closeBundle), minus:
+//   assets/fonts/            Vite emits hashed copies from the @font-face and preload references
+//   assets/hand_normal.webp  unused
+//   logos, the pointer SVG, metal-sample_*.webp
+//                            traced from HTML and CSS, so Vite emits hashed copies
+//   js/three-viewer.js, viewer-entry.js, hdr-worker.js, stack-scene.js
+//                            module sources Vite bundles; the unbundled copies
+//                            carry bare `three` imports that can't run
+// A hero bundle's JS can't use bare imports for the same reason: nothing resolves them.
 const NEVER_COPY = [
   resolve(__dirname, "assets", "fonts"),
   resolve(__dirname, "assets", "hand_normal.webp"),
@@ -93,16 +38,10 @@ const NEVER_COPY = [
   resolve(__dirname, "js", "stack-scene.js")
 ];
 
-// The print models (STLs, assets.stl in products.json) are for the printer,
-// not for visitors: ~300MB of them, requested by no page, so assets/ is copied
-// without them (scripts/check-dist.js fails the build if one gets through).
+// Print models (~300MB) are for the printer, not visitors; check-dist fails if one ships.
 const PRINT_MODEL = /\.stl$/i;
 
-// Every classic script and hero bundle file that reaches dist/ by verbatim
-// copy rather than through Vite's pipeline: js/*.js, series/<slug>/hero.js
-// and hero.css. Walks dist/, not the sources, so it only ever touches what
-// was really copied (and never the already-minified Vite bundle in
-// dist/assets/).
+// The verbatim-copied scripts and hero CSS in dist/ (not Vite's own bundles in dist/assets/).
 function* distFilesToMinify(distDir) {
   const jsDir = join(distDir, "js");
   if (existsSync(jsDir)) {
@@ -122,12 +61,8 @@ function* distFilesToMinify(distDir) {
   }
 }
 
-// These files keep their names (nothing in the HTML or in data/series.json
-// is rewritten), so minifying is a pure size win: ~306KB of classic scripts
-// and ~9KB of hero CSS, no sourcemaps. esbuild's transform keeps top-level
-// names in a plain script (it only renames inside nested scopes), so the
-// window.Emjive* globals and the load-order contract between the scripts are
-// untouched.
+// They keep their names, so minifying is a pure size win. esbuild keeps
+// top-level names in a script, so the window.Emjive* globals are untouched.
 async function minifyCopiedFiles(distDir) {
   for (const file of distFilesToMinify(distDir)) {
     const out = await transformWithEsbuild(readFileSync(file, "utf8"), file, {
@@ -157,25 +92,12 @@ function copyFilesVitesBuildCantTrace() {
   };
 }
 
-// Two things Vite's HTML build does to every page's <head> that undo choices
-// documented in the page sources (both confirmed by reading dist/*.html):
-//
-// 1. <link rel="preload" as="fetch" href="data/series.json"> — Vite treats
-//    the href as an asset reference, and data/series.json is under its inline
-//    limit, so the built tag becomes href="data:application/json;base64,…".
-//    A data: URL can never satisfy the real fetch("data/series.json") in
-//    js/series.js, so the early request the preload exists for never
-//    happens, and every page also carries a stale base64 copy of the JSON.
-//    Put the real path back. (series.json is the only JSON any page
-//    preloads; scripts/check-dist.js fails the build if a data: preload ever
-//    reappears.)
-//
-// 2. The stylesheet — the source <link rel="stylesheet" href="css/style.css">
-//    sits ahead of the blocking scripts on purpose (scroll-memory.js adds
-//    .emjive-restoring-scroll, loader.js shows the loader cover — both rely
-//    on the rules in that file already being parsed), but Vite re-emits the
-//    CSS as a link injected AFTER the scripts. Move every stylesheet link in
-//    <head> back in front of the first <script>.
+// Undoes two things Vite's HTML build does to every <head>:
+// 1. It inlines the data/series.json preload as a data: URL, which can't
+//    satisfy js/series.js's fetch; restore the path (check-dist guards it).
+// 2. It moves the stylesheet after the blocking scripts, which rely on its
+//    rules being parsed (scroll-memory.js, loader.js); move it back before
+//    the first <script>.
 function restoreHeadOrderAndPreload() {
   return {
     name: "restore-head-order-and-preload",
@@ -189,10 +111,8 @@ function restoreHeadOrderAndPreload() {
 
         const headEnd = html.indexOf("</head>");
         const head = html.slice(0, headEnd);
-        // Same-length copy with every comment blanked out, so a "<script>" or
-        // a <link> mentioned inside one of the pages' long explanatory
-        // comments is never mistaken for a real tag. Offsets found in the
-        // copy are valid in `head`.
+        // Comments blanked to the same length so tags mentioned in them aren't matched;
+        // offsets stay valid in `head`.
         const bare = head.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
         const firstScript = bare.search(/<script\b/);
         if (firstScript === -1) return html;
@@ -201,7 +121,7 @@ function restoreHeadOrderAndPreload() {
         const sheets = [];
         const cuts = [];
         for (let m; (m = sheetRe.exec(bare)); ) {
-          // Only the ones currently AFTER the first script need moving.
+          // Only those after the first script move.
           if (m.index > firstScript) {
             sheets.push(head.slice(m.index, m.index + m[0].length).trim());
             cuts.push([m.index, m.index + m[0].length]);
@@ -211,44 +131,28 @@ function restoreHeadOrderAndPreload() {
 
         let rest = head;
         for (const [from, to] of cuts.reverse()) rest = rest.slice(0, from) + rest.slice(to);
-        // Removing text after firstScript doesn't shift it.
+        // Cuts after firstScript don't shift it.
         return rest.slice(0, firstScript) + sheets.join("\n") + "\n" + rest.slice(firstScript) + html.slice(headEnd);
       }
     }
   };
 }
 
-// Early-discovery hints for things the browser can only learn about by running
-// code, and that sit several round trips deep in the page's load chain. All of
-// them are derived here, at build time, from the same data/series.json the
-// pages read at runtime, so they can never drift from the catalog — and they
-// name the FEATURED series, which is what every page shows unless the URL says
-// ?series=. (A visitor on another series just gets a few unused preloads.)
-//
-//   - data/series/<featured>/products.json, on pages with data-products="eager"
-//     (js/series.js also starts that request itself once the index resolves;
-//     this is the same request, a hop earlier).
-//   - the homepage hero bundle (fragment, css, js, and the first image in
-//     hero.preload, which is the LCP image), all of which js/series.js can
-//     only request after data/series.json has come back.
-//
-// Deliberately NOT here: the three.js chunk, the HDRI and the model on
-// product.html. They are the heaviest things on the page (~165KB + 0.9MB +
-// the .glb) and none of them is part of the first paint, so hinting them from
-// the <head> only made them share a slow link with the images the page is
-// actually waiting on (measured: it pushed the LCP image later). js/product.js
-// starts all three itself once those images are in.
-//
-// `crossorigin` on a preload as=fetch is what makes it match a same-origin
-// fetch() — the same reason the series.json preload carries it.
+// Preload hints, at build time from data/series.json, for requests the
+// browser would otherwise discover several round trips deep. They name the
+// featured series (other series just get unused preloads):
+//   - its products.json, on pages with data-products="eager"
+//   - the homepage hero bundle and its LCP image
+// Not the three.js chunk, HDRI or model: not part of the first paint, and
+// hinting them delayed the LCP image; js/product.js starts them later.
+// crossorigin makes an as=fetch preload match a same-origin fetch().
 function injectLoadHints() {
   return {
     name: "inject-load-hints",
     transformIndexHtml: {
       order: "post",
       handler(html, ctx) {
-        // Build only: the dev server has no bundle, and serves everything
-        // unhashed anyway.
+        // Build only: the dev server has no bundle.
         if (!ctx || !ctx.bundle) return html;
 
         const htmlTag = /<html\b[^>]*>/.exec(html);
@@ -272,12 +176,8 @@ function injectLoadHints() {
           if (hero.css) hint('rel="preload" as="style" href="' + hero.css + '"');
           if (hero.js) hint('rel="preload" as="script" href="' + hero.js + '"');
           if (hero.preload && hero.preload[0]) {
-            // The first picture exists in four versions (see "responsive
-            // images" in js/loader.js): the low-res one for this viewport is
-            // what the first paint is made of, so that is what is preloaded —
-            // one link per side of the phone query, the browser takes the one
-            // whose media matches. (js/series.js repeats this for a page whose
-            // featured series is not this one.)
+            // The LCP picture's low-res variant for each side of the phone query; the
+            // browser takes the matching one (js/loader.js "responsive images").
             const first = hero.preload[0];
             const low = (suffix) => first.replace(/(.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
             hint('rel="preload" as="image" href="' + low("m_lo") + '" media="' + PHONE_QUERY + '" fetchpriority="high"');
@@ -286,8 +186,7 @@ function injectLoadHints() {
         }
         if (!hints.length) return html;
 
-        // Ahead of the stylesheet (and so of every script), where the preload
-        // scanner meets them first.
+        // Before the stylesheet, where the preload scanner meets them first.
         const block = hints.join("\n") + "\n";
         const sheet = /[ \t]*<link\b[^>]*\brel="stylesheet"/.exec(html);
         if (sheet) return html.slice(0, sheet.index) + block + html.slice(sheet.index);
@@ -298,10 +197,8 @@ function injectLoadHints() {
   };
 }
 
-// Every product with the series it lives in, read from the same data the site
-// renders from, so nothing here can drift from the catalog. The item's address
-// is /<slug> (scripts/slugs.js; js/series.js carries the browser copy of the
-// rule).
+// Every product with its series, from the site's own data; the address is
+// /<slug> (scripts/slugs.js).
 function readProducts() {
   const read = (path) => JSON.parse(readFileSync(resolve(__dirname, path), "utf8"));
   const index = read("data/series.json");
@@ -314,9 +211,7 @@ function readProducts() {
   return { index, list };
 }
 
-// sitemap.xml: the gallery plus one entry per item, at the addresses the site
-// really uses. The empty shell pages (archives, creation-process, series,
-// terms) and launch-order are noindex and deliberately left out.
+// The gallery and every item. The noindex pages are left out.
 function emitSitemap() {
   return {
     name: "emit-sitemap",
@@ -333,13 +228,10 @@ function emitSitemap() {
   };
 }
 
-// The link-preview pictures (og:image / twitter:image): 1200x630, the size
-// social cards want, drawn at build time on the page background (--bg, read
-// from css/style.css so the two cannot drift). The default is the full logo,
-// dist/preview.jpg, which every page without a picture of its own names; an
-// item's is its default-metal poster (assets.fallback-img, the model's own
-// framing) at dist/assets/previews/<slug>.jpg. JPEG rather than the site's
-// WebP: not every crawler reads WebP.
+// Link-preview images (og:image, twitter:image): 1200x630 JPEG (not every
+// crawler reads WebP) on --bg read from css/style.css. dist/preview.jpg is the
+// logo; each item gets its default-metal fallback-img at
+// dist/assets/previews/<slug>.jpg.
 const PREVIEW_SIZE = { width: 1200, height: 630 };
 const PREVIEW_LOGO_WIDTH = 600;
 
@@ -350,7 +242,7 @@ function pageBackground() {
   return match[1];
 }
 
-// `layer` is the picture (a Buffer) that goes in the middle of the card.
+// `layer`: the picture centred on the card.
 function previewCard(background, layer) {
   return sharp({ create: { ...PREVIEW_SIZE, channels: 3, background } })
     .composite([{ input: layer, gravity: "centre" }])
@@ -360,20 +252,12 @@ function previewCard(background, layer) {
 
 const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-// One real page per item: dist/<slug>.html, a copy of the built product.html
-// with that item's own <title>, description, canonical and social tags in the
-// static <head>. The server maps /<slug> to it (public/.htaccess), so an item
-// has a real address, link previews show the item rather than a generic
-// "Product", and a crawler that doesn't run JS still sees the right canonical.
-// The page's script is the same one every product shares: js/product.js finds
-// the product from the address. product.html itself stays as the template —
-// and as the landing for old product.html?id= links, which product.js rewrites
-// to the new address.
-//
-// Runs after the bundle is on disk (closeBundle), because Vite's processed HTML
-// (hashed asset URLs, hints) is what gets copied. Each tag it rewrites must
-// exist in the template: a missing one throws, so a head edit in product.html
-// can't silently leave items with the generic tags.
+// One real page per item, dist/<slug>.html: the built product.html with the
+// item's own title, description, canonical and social tags, so link previews
+// and non-JS crawlers see the item. js/product.js still finds the product
+// from the address. product.html stays as the template and the landing for
+// legacy ?id= links. After the bundle is written (closeBundle); every
+// rewritten tag must exist in the template, or the build throws.
 function emitItemPages() {
   let isBuild = false;
   return {
@@ -394,7 +278,7 @@ function emitItemPages() {
         return html.replace(pattern, () => replacement);
       };
 
-      // The default card, and the folder of the items'.
+      // The default card, and the items' folder.
       const background = pageBackground();
       const logo = await sharp(resolve(__dirname, "assets/logo.svg"), { density: 400 }).resize({ width: PREVIEW_LOGO_WIDTH }).png().toBuffer();
       writeFileSync(join(distDir, "preview.jpg"), await previewCard(background, logo));
@@ -417,8 +301,7 @@ function emitItemPages() {
         html = swap(html, /<meta name="twitter:title" content="[^"]*" \/>/, '<meta name="twitter:title" content="' + escapeAttr(title) + '" />', "twitter:title");
         html = swap(html, /<meta name="twitter:description" content="[^"]*" \/>/, '<meta name="twitter:description" content="' + escapeAttr(description) + '" />', "twitter:description");
         if (poster) {
-          // The poster fills the card's height: it is the model's raw
-          // framing, with its own margin round it.
+          // The poster fills the card's height, keeping its own margin.
           const picture = await sharp(resolve(__dirname, poster)).resize({ height: PREVIEW_SIZE.height }).png().toBuffer();
           writeFileSync(join(distDir, "assets/previews", slug + ".jpg"), await previewCard(background, picture));
           const image = SITE_ORIGIN + "/assets/previews/" + slug + ".jpg";
@@ -428,8 +311,7 @@ function emitItemPages() {
           html = swap(html, /<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="' + escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" />', "og:image:alt");
           html = swap(html, /<meta name="twitter:image" content="[^"]*" \/>/, '<meta name="twitter:image" content="' + image + '" />', "twitter:image");
         }
-        // The early products.json hint names the featured series; an item of
-        // another series needs its own.
+        // The products.json hint names the featured series; another series' item needs its own.
         if (featured && series.slug !== featured.slug) {
           html = html.split('href="' + featured.products + '"').join('href="' + series.products + '"');
         }
@@ -439,12 +321,9 @@ function emitItemPages() {
   };
 }
 
-// Dev and preview have no .htaccess, so this does what its rewrite rules do
-// (keep the two in step): /gallery is index.html, /<page> is <page>.html, and
-// an item's /<slug> is its own page — in preview that is the per-item file
-// emitItemPages() wrote, in dev (where none exists) the shared product.html,
-// which finds its product from the address. Only extension-less single-segment
-// paths are touched.
+// What public/.htaccess does, for dev and preview: /gallery, /<page>, and
+// /<slug> (its own page in preview, the shared product.html in dev). Only
+// extension-less single-segment paths. Keep in step with .htaccess.
 function cleanUrls() {
   const rewrite = (root, isPreview) => (req, res, next) => {
     const url = req.url || "";
@@ -467,20 +346,10 @@ function cleanUrls() {
   };
 }
 
-// three's own DRACOLoader.js resolves its bundled decoder with
-// `new URL('../libs/draco/draco_decoder.wasm', import.meta.url)` (and four
-// siblings). Vite treats that pattern as a static asset reference, so it
-// emits all five into dist/assets/ — ~1.26MB of .wasm and .js — even though
-// this site can never request them: js/three-viewer.js calls
-// setDecoderPath(new URL("assets/draco/", document.baseURI).href) before any
-// load, which replaces every one of those URLs with our own self-hosted copy
-// under assets/draco/ (kept, and still copied by the plugin above).
-//
-// Deleting them from the bundle rather than from disk afterwards, so the
-// manifest stays truthful and nothing else can end up referencing a file
-// that isn't there. If the decoder path in js/three-viewer.js is ever
-// removed or made conditional, this has to go with it — three would then
-// genuinely need the copies it emitted.
+// three's DRACOLoader references its bundled decoder via new URL(...,
+// import.meta.url), so Vite emits ~1.26MB of decoder files the site never
+// requests: js/three-viewer.js points setDecoderPath at assets/draco/. Dropped
+// from the bundle; if that decoder path ever goes, this must go too.
 function dropUnusedDracoDecoderCopies() {
   return {
     name: "drop-unused-draco-decoder-copies",
@@ -493,12 +362,9 @@ function dropUnusedDracoDecoderCopies() {
 }
 
 export default defineConfig({
-  // The site is served from the domain root (OVH), so every built
-  // <script>/<link> reference resolves from "/". If it ever goes into a
-  // subfolder instead, set this to that subfolder's path (e.g. "/shop/").
+  // Served from the domain root.
   base: "/",
-  // Module workers (js/hdr-worker.js): the default worker format is an IIFE,
-  // which cannot be loaded with { type: "module" }.
+  // Module workers (js/hdr-worker.js) need ES format, not the default IIFE.
   worker: { format: "es" },
   plugins: [
     dropUnusedDracoDecoderCopies(),
@@ -510,18 +376,12 @@ export default defineConfig({
     emitItemPages()
   ],
   build: {
-    // The one chunk over Vite's 500kB default is three.js itself (the lazy
-    // three-viewer chunk, ~645kB / ~168kB gzipped) — a known, deliberate size
-    // that only loads when a 3D model is actually drawn (js/viewer-entry.js).
-    // The limit is raised just past it so the warning stays meaningful: a
-    // second chunk growing that large, or this one doubling, would still show.
+    // Just above the lazy three.js chunk (~645kB, ~168kB gzipped), so the warning
+    // still flags any other chunk growing that large.
     chunkSizeWarningLimit: 700,
     rollupOptions: {
-      // Vite only treats index.html as an entry by default — every other
-      // page needs listing explicitly or its own <script type="module">
-      // tags (three-viewer.js on product.html) would ship unprocessed,
-      // with the same unresolved bare-specifier "three" import that broke
-      // index.html on the first deploy. Add a line here for any new page.
+      // Every page must be an entry, or its module scripts ship unprocessed with
+      // bare imports. Add new pages here.
       input: {
         main: resolve(__dirname, "index.html"),
         product: resolve(__dirname, "product.html"),
@@ -530,9 +390,7 @@ export default defineConfig({
         creationProcess: resolve(__dirname, "creation-process.html"),
         series: resolve(__dirname, "series.html"),
         terms: resolve(__dirname, "terms.html"),
-        // Served by Apache for any missing path (ErrorDocument in
-        // public/.htaccess). A real entry rather than a public/ file so Vite
-        // rewrites its stylesheet and logo to absolute hashed URLs.
+        // The ErrorDocument; an entry so Vite makes its references absolute.
         notFound: resolve(__dirname, "404.html")
       }
     }

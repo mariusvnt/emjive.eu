@@ -18,7 +18,7 @@ The only 3D thing the pages load up front (~2KB). `three-viewer.js` plus three.j
 
 **`?mem=1`** — adding it to any address puts a small fixed read-out in the corner of the page (built at the bottom of `viewer-entry.js`; nothing runs without the parameter). It exists because iOS Safari ends a tab that uses too much memory and reloads it, and from a Windows machine there is no inspector to attach to a phone. It shows `window.EmjiveMem`'s numbers: live 3D viewers (the homepage allows 2 — the stack and the Modify sheet — and a product page 1), decoded model geometry still held as JavaScript arrays (should fall to ~0 once every live model has drawn), the GPU objects the live renderers hold, Draco workers alive (0 a few seconds after the last load), whether the window counts as a **phone** for the image variants (a "NO" on a phone means the big desktop pictures are loading) with the window size, aspect ratio and pixel ratio it was judged on, and the JS heap where the browser reports one (not iOS Safari).
 
-## `js/three-viewer.js` (~2620 lines) — the 3D viewer, and the largest file here
+## `js/three-viewer.js` (~1950 lines) — the 3D viewer, and the largest file here
 
 The single shared construction path for every 3D product view on the site (the product page's model, the Modify sheet's model) and for `scripts/auto-render.js`'s render pipeline — see `tooling.md`. A raw three.js scene per instance, driven by the `TrackballControls` addon (free, pole-crossing rotation — unlike the polar-angle-limited orbit a `<model-viewer>`-based approach would have), with a substantial amount of hand-tuned polish layered on top. Exports (all module-internal except the one exposed global):
 
@@ -73,7 +73,7 @@ Free, pole-crossing rotation (unlike the polar-angle-limited orbit a `<model-vie
 
 **Exposes**: `window.EmjiveModelViewer = buildThreeViewer` — consumed by `product.js`'s model, `modify-modal.js`'s model, and (with `options.freeOrbit`/`options.swatch`) `scene-tool.html`, a standalone dev tool outside the built site entirely (see `tooling.md`). Also `window.EmjiveModelViewer.METAL_PRESETS` and `window.EmjiveModelViewer.swatchOrbit` (both tool/render-only), see above.
 
-## `js/series.js` (~620 lines) — series resolution
+## `js/series.js` (~510 lines) — series resolution
 
 **`window.EmjiveMessage.show(container, text, button, role)`** (also in this file — the one script every page loads first) is how every "didn't load" / "doesn't exist" state is worded and laid out: it fills `container` with a `.page-message` (text — centred if it fits on one line, left-justified if it wraps — then an optional centred button, the whole group a third of the way down the screen when the container is a `--screen` / `--hero` one (`styling.md`); `button` is `{label, href}` for a link or `{label, onClick}`, defaulting to a page reload). Used by `gallery.js` (hero slot, grid or wheel stage — failed load, empty filter, no products), `product.js` and `series-page.js`. Wording: missing product → "Item not found" + "Back to gallery"; unknown series → "The requested series doesn't exist" + "Back to gallery"; any failed load → the explanation + "Reload". On the homepage a failed `series.json` puts the message in the empty hero slot (the first screen), not the grid below it.
 
@@ -110,7 +110,7 @@ The hero's behavior, loaded at runtime. Assigns `window.EmjiveSeriesHero = { ini
 
 Two rules any hero bundle has to keep: no side effects at execution time (the loader parallelizes on that assumption), and no bare specifiers (Vite never sees this file, so `import "three"` would ship unresolved — call `window.EmjiveModelViewer` instead).
 
-## `js/main.js` (~330 lines)
+## `js/main.js` (~260 lines)
 
 Loads on **every** page. Owns:
 
@@ -123,7 +123,7 @@ It used to own the whole product grid — the cards, the two `IntersectionObserv
 
 Owns **no hero logic at all**, no gallery and no `METAL_PRESETS` or viewer-construction logic. A guarded `#contactForm` stub also remains (a no-op, since no page has that element; see `procedures.md`).
 
-## `js/gallery.js` (~610 lines) — the homepage gallery's views
+## `js/gallery.js` (~540 lines) — the homepage gallery's views
 
 `index.html` only. Two views of the active series' products — the **wheel** and the **list** to the visitor, `data-gallery-view="stack"|"grid"` on `<html>` (the code's names) (decided in the `<head>` by `scroll-memory.js`), and the hero played or skipped, `data-hero="play"|"skip"`. Exposes `window.EmjiveGallery = { setFilter(cats, onShowAll) }`.
 
@@ -135,7 +135,7 @@ Owns **no hero logic at all**, no gallery and no `METAL_PRESETS` or viewer-const
 - **Filtering** (`setFilter`): rows get `hidden` (the header row stays), the stack is told which ids remain (`stack.setFilter`), and an empty result shows a `.page-message` built once with `EmjiveMessage.show()` ("Nothing in .x in this series yet." + "Show all", which calls back into `main.js`'s reset; later only its text changes, so a focused button keeps focus), given `--grid` or `--stage` by `placeEmptyMessage()` for whichever view is showing. Returns the per-category counts, or `null` before the products are in.
 - **Grid with the hero skipped is the first paint** for such a visit, so `releaseLoaderOnTiles()` lifts the arrival loader once the rows above the fold have decoded (4s cap), rather than waiting on a hero that isn't shown.
 
-## `js/gallery-stack.js` (~1320 lines) — the stack (the wheel)
+## `js/gallery-stack.js` (~1200 lines) — the stack (the wheel)
 
 `index.html` only. `window.EmjiveGalleryStack.mount(stage, options)` → `{ setFilter(ids), setActive(on), settleLayout() }`, called by `gallery.js` (`options`: `products`, `slug`, `active`). Everything about the wheel that is not drawing: the circle, the camera's pull-back, the rings taken off the hand, the plate's turning, the taps, the name button, and the hand-off to the 3D scene. The tunables are named constants at the top: the entrance (`SLIDE_START`/`SLIDE_END`, `APPEAR_START`/`APPEAR_END`), the circle (`SPACING_FILL`, `FOCUS_SCALE`, `SIZE_MIN`/`SIZE_MAX`, `MARGIN`, `HAND_TOP_GAP`) and the turning (`TAP_SLOP`, `DRAG_GAIN`, `COAST_DECAY`, `SETTLE_SPEED`, `SETTLE_MS`, `TURN_MS`, `FLY_MS`).
 
@@ -151,7 +151,7 @@ Owns **no hero logic at all**, no gallery and no `METAL_PRESETS` or viewer-const
 - **Around the Modify sheet and the page.** `emjive:modify-open`: the scene is paused; `-close` resumes it. `pagehide` disposes the scene; a persisted `pageshow` brings it back. `visibilitychange` pauses the scene.
 - **`setFilter(ids)`** hides the others (`item.visible`, their pictures and list links `hidden`), tells the scene (`setVisible`) and relays out. **`setActive(on)`** is the view switch (off: stop turning, dispose the scene, and `render()` puts the hand back at scale 1 — the list has no pull-back).
 
-## `js/stack-scene.js` (~590 lines) — the 3D stack
+## `js/stack-scene.js` (~545 lines) — the 3D stack
 
 An ES module, a lazy chunk (`window.EmjiveLoadStack()` in `viewer-entry.js`; bundled by Vite; ESLint and `NEVER_COPY` know it — `tooling.md`). `createStackScene(options)` → a handle, or `null` when no WebGL context can be had. Every product's model in **one renderer and one environment map** over the whole screen (`.stack-canvas`, orthographic, pixel ratio capped at 1.5, sized from its host — `.gallery-stage`, the screen without a phone's browser bars — not the window, so the bars coming and going don't resize it). Built from `three-viewer.js`'s `toolkit` (the one Draco decoder, the HDR cache, the metals, the viewers' renderer settings, the default view's orientation, and the viewers' own spin, `spinFor`) — so a model looks, and turns, as it does in a viewer. It owns no layout: `gallery-stack.js` hands it a pose per model whenever anything moved. **There is no physics** (`cannon-es` is no longer a dependency) and no tap testing (the stack picks from its own poses).
 
@@ -163,7 +163,7 @@ An ES module, a lazy chunk (`window.EmjiveLoadStack()` in `viewer-entry.js`; bun
 - **The handle.** `ready` (a promise: every model loaded or given up, shaders compiled), `handOver(poses)` (every model where its picture is — poses by id, those missing are hidden by the filter — drawn at once, then the loop starts), `setPoses(poses)`, `setBaseSize(px)` (the layout changed), `setVisible(ids)` (the filter), `setFocus(id, el)`, `focusMoved()`, `setPaused(on)`, `resize()`, `dispose()`.
 - **Memory.** After a mesh's first real draw (`onAfterRender`, once) its JS geometry arrays are released (the GPU has its own copy; bounds computed first), counted in `EmjiveMem.cpuGeometryBytes`; frustum culling is off (a dozen models on one screen: culling saves nothing, and a model still off the screen as the camera pulls back has to be uploaded too). `dispose()` frees every geometry, material, spin and the environment target, then `renderer.dispose()`, `forceContextLoss()` and a 1×1 canvas, as `buildThreeViewer` does, and unregisters the renderer from the `?mem=1` count.
 
-## `js/scroll-memory.js` (~500 lines) — back-navigation scroll memory and the landing
+## `js/scroll-memory.js` (~395 lines) — back-navigation scroll memory and the landing
 
 `index.html` **only**, blocking in `<head>`, first script on the page. Makes Back return to the gallery exactly where the visitor left it: right offset on the first painted frame, no jump, no smooth-scroll travel, no blank hold.
 
@@ -187,7 +187,7 @@ An ES module, a lazy chunk (`window.EmjiveLoadStack()` in `viewer-entry.js`; bun
 
 **Exposes**: `window.EmjiveScrollMemory = { isRestoring(), holdUntil(fn), landing(), remember(patch), rememberWheel(id), wheel(), contentReady() }`, consumed only by `gallery.js` and `gallery-stack.js`.
 
-## `js/selection.js` (~415 lines)
+## `js/selection.js` (~335 lines)
 
 The cart/selection data layer — a thin `localStorage` wrapper. `STORAGE_KEY = "emjive_selection"`. Storage is `{ v: 3, items: [...] }` (`STORAGE_VERSION`): `readAll()` returns `[]` for anything with another version, a bare array included — version 2 came with the renumbering of the catalog's ids and the item's `design`, and an older cart's `productId` could name a different item now; version 3 with prices that follow the size (below), an older item carrying the flat price (the carts of those times were test carts: nothing to migrate). `readAll()` falls back to `[]` on any read error (e.g. corrupted JSON) and **sanitises what it finds**: entries that aren't objects or have no `productId` are dropped, and `productId`/`name`/`category`/`metal`/`size` are coerced to strings, `price` to a non-negative number (else 0), `image` to `""` unless it is a same-origin relative path (no scheme, not `//host`) — since it ends up in an `<img src>`. One bad entry used to throw inside `itemKey()` and take the bar and the order page down. A `storage` listener re-announces (`action: "sync"`) when another tab changes the cart. `writeAll()` never throws: if `setItem` fails (storage blocked outright, as Safari does with all site data blocked, or over quota), the list moves into an in-memory copy (`memoryItems`) that `readAll()` serves instead, so the bar and order page still show the change and the index-based mutators below keep acting on the list that's on screen. The next successful write clears it and hands the selection back to `localStorage`. That copy lasts only as long as the page does — it can't follow the visitor to the next one. Every mutating call dispatches `new CustomEvent("emjive:selection-changed", { detail: { action, index } })` on `window`, **synchronously**, from inside the call — the sole mechanism other scripts use to react live to a change without a page reload. `action` is `"add"`/`"remove"`/`"insert"`/`"update"`/`"clear"`; it's how `selection-bar.js` tells an Undo's insert (its icon plays the collapse in reverse) from an Add's (its icon slides in from the edge), and how `selection-page.js` knows a Save happened.
 
@@ -205,7 +205,7 @@ Four mutators, all index-based (an item's position in the stored array, not an i
 
 **Item shape** (enforced by `sanitizeItem()` on every read): `{ series, productId, design?, name, category, metal, size, price, image }` — a deliberately self-contained snapshot, so `launch-order.html` never has to re-fetch or join against any products file to render itself. `series` is what makes `productId` meaningful, since ids are only unique within one series. Selections saved before that field existed simply lack it; `itemKey()` tolerates it being absent so an existing cart doesn't read as all-new.
 
-## `js/focus-trap.js` (~340 lines) — the two sheets' keyboard containment, and the page lock
+## `js/focus-trap.js` (~235 lines) — the two sheets' keyboard containment, and the page lock
 
 Loaded on **all seven pages**, since every page can open the Modify sheet. Not folded into `js/series.js` despite that file already hosting two non-series globals: `series.js` is blocking in `<head>`, and nothing here needs to be.
 
@@ -225,7 +225,7 @@ Load-bearing rather than incidental:
 
 A closed modal needs no handling: `.size-modal` is `visibility: hidden`, `visibility` inherits, nothing inside redeclares it, and an element whose computed `visibility` isn't `visible` is excluded from sequential focus navigation.
 
-## `js/product.js` (~2200 lines)
+## `js/product.js` (~2100 lines)
 
 Owns `product.html` (and every item's built copy of it, `dist/<slug>.html`) end to end. `getRequest()` reads the item from `location.pathname` — the last segment, lower-cased; `product.html`/`product` mean "none" — falling back to the old `?id=` (+ `?series=`, which `series.js` already uses to pick the active series). `findProduct(slug, request)` matches by slug (or by id for the old form) in the active series first, then scans the remaining series in index order (each memoized) — the scan is what keeps bare `?id=` bookmarks working now that ids are only unique per series, and what lets an item of a non-featured series live at a plain `/<slug>`. `canonicalizeUrl()` then rewrites the shared template's `/product.html?id=…` address to `/<slug>` with `history.replaceState` (hash kept); a path the server really has is left as typed. Then renders (by the file's own numbered section comments):
 
@@ -252,7 +252,7 @@ All page state lives in one `state` object (product, the chosen design's `view` 
 - **The Modify sheet takes the viewer's place.** On `emjive:modify-open` the page's own viewer is released (`releaseModelViewer()`) and its box goes back to the poster (`showPoster()`); on `emjive:modify-close` — dispatched after the sheet's viewer has been disposed — `attachViewer()` rebuilds it. The sheet builds a viewer of its own (a second WebGL context, a second PMREM environment, a second decode of a model that was once over a hundred MB) while the page's sat behind the backdrop drawing nothing anyone could see; now there is one at a time.
 - **One loader for the model** (`modelLoadHold()`). The model, each design swap and the model-less icon fallback go through a single loader mounted on the **design frame**, `#productDesignFrame` (`EmjiveLoader.mount(designFrameEl, { target: modelBoxEl })`), crossing the screen's width at the model's height. It is on the frame rather than on the model's box because the box is its own stacking context (its `transform`), inside which the loader passed under the picker and the options; on the frame (`.product-design-frame > .loader`, `z-index: 5`, one `--tile` tall, lifted with the model) it is above everything laid in the frame. The model's hold is taken in `buildModelViewer()`, handed to the viewer as `options.loader` and released by it (or here, if no viewer comes back); a design swap takes another (`state.swapHold`) until the new model is in. The full rules are `js/loader.js`'s "a loader shared by several assets". The x-ray backdrop and the model's poster have no loader of their own — the page's arrival loader covers them.
 
-## `js/size-finder.js` (~1010 lines) — the "Find my size" modal
+## `js/size-finder.js` (~875 lines) — the "Find my size" modal
 
 Built on first use (no DOM at load), on all seven pages, ahead of `modify-modal.js`. **Exposes** `window.EmjiveSizeFinder = { open(options), isOpen(), sizeFromDiameter(mm) }`; `options` is `{ guide, onFill(size), returnFocus }`. The callers (`product.js` for the specs stage and the Select sheet, `modify-modal.js` for the Modify sheet) pass the category's `size-guide`, the button as `returnFocus`, and an `onFill` that writes `normalizeSize(size)` into their input and dispatches a bubbling `input` event. It opens as a *nested* focus trap (`isActive()` decides), so the sheet underneath keeps its trap and the page lock.
 
@@ -268,7 +268,7 @@ Built on first use (no DOM at load), on all seven pages, ahead of `modify-modal.
 
 **Fill rule**: `state.lastSize` is set on each round's Validate (the result's size) and discarded (`null`) by No and "Use a different method"; on close (cross, Escape — there is no backdrop) `onFill(lastSize)` runs once if it is not `null`. "Measure another ring" keeps the previous size until the new ring's first Validate. Reduced motion kills the fades (the step swap's timer still runs).
 
-## `js/product-stages.js` (~390 lines) — the product page's scroll show
+## `js/product-stages.js` (~325 lines) — the product page's scroll show
 
 A classic script, loaded on `product.html` only, ahead of `product.js`. **Exposes** `window.EmjiveProductStages = { mount(stageEl, { onChange }), screenPx(), entry(u, a) }`; `mount` returns `{ scrollToStage(index), restart(), update() }` (`screenPx()` is the screen's height as the CSS pin counts it; `entry` is the ramp below, which `product.js` reuses for the model's rise). It reads the track's position on every scroll frame (rAF-throttled — the technique `series/bones/hero.js` uses for the homepage wipe) and publishes, as custom properties on `.product-stage`: `--to-design` (inspiration → design) and `--to-specs` (design → specs), each 0 to 1 and eased (smootherstep) over its transition (`--stage-step-in`, `--stage-step`); `--leave` (how far design's things have gone: linear in the scroll **from the first pixel of the design stretch** to where `--to-specs` reaches `--t0`, which `product.js` sets; `--p-out` is `1 − --leave`; `invEase()` finds that point); and `--browse-0`, `--browse-1`, `--browse-2` (how far through each stage's stretch of scrolling the page is, which the CSS turns into the show — or the feed — browsing up, see `product.js`). **The track, in order**: the inspiration stretch, the transition to design, the design stretch (`--hold-ratio` of the transition after it, set below), the transition to specs and the specs stretch. *Inspiration's* length is set by `syncFeedHold()` as `--feed-hold` (px): the feed's room (`--feed-room`, fitted by `product.js`'s `fitFeed()`) at `FEED_PACE` (1: the feed goes up one for one with the scroll, read like a page) plus half the ramp it eases to rest over (`exit()`: full pace from the first pixel, slowing over the last third of a screen — a feed stopping dead at full speed felt like hitting a wall), or `FEED_MIN_SCREENS` (0.4 of a screen) when there is nothing to browse. *Design's* length is set by `syncDesignHold()` as `--hold-ratio` (its share of the transition after it, the track's height going by it): the room to cover (`--room-1`, fitted by `product.js`) over `BROWSE_PACE`, plus half the ramp, never under `DESIGN_MIN_SCREENS` (0.25 of a screen) — a rest for the model even when everything of design stands clear of the bars. *Design's and specs'* browsing start from rest: `entry(u, a)` is a quadratic over the first third of the screen's height of scrolling (`ENTRY_SCREENS`, the screen being the small viewport — a `100svh` probe, `screenPx()`: `innerHeight` changes as iOS Safari's toolbar collapses mid-scroll, which stretched the ramp while it ran) and then a constant pace, the one the ramp reaches, so there is no step in the speed; `--browse-1` and `--browse-2` are both on it (the same function and ramp length, so the two stretches start alike). The pace of the specs stretch is fixed (`BROWSE_PACE`: 15px of show per 24px of scroll), **so its length isn't:** `syncEndHold()` sizes it — the room to cover (`max(--room-0, --browse-room)`, the latter fitted by `product.js`) over the pace, plus half the ramp — and sets it as `--end-hold` on the track (px; `css/style.css`'s height uses it, falling back to as long as the design stretch), and `measure()` splits the rest between the design stretch and the transition in their ratio. A taller column therefore means a longer page. It also publishes `data-stage` (the nearest stage: `inspiration`, `design` or `specs`; `flow` below) and three classes for what CSS can't fade: `.is-feed-gone` once the feed is out (`--to-design` ≥ `FEED_GONE_AT`, 0.45) `.is-design-out` until design's things start to come in (≤ `--d-from`, which `product.js` sets from where the band meets the title bar; `DESIGN_FROM`, 0.55, until it has) and `.is-model-out` until the way to design has begun (the model alone is shown from there, behind the band) — what is out of sight takes no taps and shows no loader — and calls `onChange({ toDesign, toSpecs, leave, along, ramp, stage })` when they change (`along`: 0 to 1, how far the page is through the design stretch and the transition together, linear in the scroll from the stretch's first pixel — what the model's path runs on; `ramp`: the share of the design stretch its browsing eases in over, so `product.js`'s `modelRise()` follows the same curve). (`LEAD_RAMPS`, 0 now, would start the specs stretch that many ramps before the transition ends.) `--stage-step` and `--stage-step-in` are in `css/style.css` (and `--hold-ratio`, as a default that `syncDesignHold()` overrides); everything is measured fresh each frame, so it holds at any size.
 
@@ -276,7 +276,7 @@ A classic script, loaded on `product.html` only, ahead of `product.js`. **Expose
 - **No loop; a way back.** The show used to loop at the end (a fresh gesture past the end of specs faded everything out and jumped to the top); that is gone. `restart()` — what the "Back to photos" button at the end of the specs column calls — adds `.is-veiled` (the pin fades to the page background, 0.55s), jumps to the top while nothing shows (`update()` right after) and lifts the veil; instant under reduced motion.
 - **Flow** — under `(max-height: 560px)` it stands down: `data-stage="flow"`, nothing published, the page a plain column (`css/style.css`'s flow block).
 
-## `js/carousel.js` (~625 lines) — the carousels' dragging and paging
+## `js/carousel.js` (~465 lines) — the carousels' dragging and paging
 
 **Keyboard**: the viewport is `tabindex="0"`, `role="group"`, `aria-roledescription="carousel"`, `aria-label="Product images"`; ←/→ page one slide, Home/End jump, all through `centerOnSlide()` (the same centring a tap does). Dragging and tapping were the only ways to reach slide 2 before.
 
@@ -288,7 +288,7 @@ The drag's pointer is captured on the **track**, not the viewport: in the Modify
 
 **Notable gotchas** (from the file's own comments): `img.draggable = false` + `dragstart` prevention stops the browser's native image-drag gesture from fighting the custom pointer-drag scroll; a `pointercancel` doesn't reliably carry the pointer's final coordinates, so settling a drag interrupted mid-gesture falls back to the strip's own live position instead of the event's `clientX`; a press inside the model's circle (`.emjive-3d-viewer__hit`) is left alone entirely (no `pointerdown` tracking at all) so it rotates the model via `TrackballControls` instead of paging the carousel; a locked strip (`setLocked`) still scrolls the page by a vertical drag but ignores sideways ones and taps.
 
-## `js/order-rows.js` (~690 lines) — the item rows, in every list
+## `js/order-rows.js` (~585 lines) — the item rows, in every list
 
 **`EmjiveOrderRows.notice(message)`** is the site's replacement for `alert()`: one `role="status"` element (`.emjive-notice`, created on first use), a full-width bar that slides up from the bottom of the screen and rests on whatever stands there (`stackHeight()` measures the selection bar and its drawer, the Select/checkout bars, the checkout drawer and the Modify sheet each time it is shown), then slides away after 6s. Used by the Modify sheet's "couldn't be found" cases and the checkout stub.
 
@@ -305,7 +305,7 @@ The rows `launch-order.html`'s order list and the floating bar's drawer share (`
 - **`settledHeight()`** — the list's height once every row now collapsing or expanding has finished. What the bar's drawer sizes itself to, so it heads straight for its final height rather than overshooting and correcting afterwards.
 - **`buttonAt(index)`** — the row button now at that index. The Modify sheet's `returnFocus` looks it up late, since rows come and go.
 
-## `js/metal-picker.js` (~95 lines) — the metal picker
+## `js/metal-picker.js` (~65 lines) — the metal picker
 
 Shared by `product.js` (`#productMetals`) and `modify-modal.js` (the sheet's `.product-metals` row), which used to build and update the same markup separately. **Exposes** `window.EmjiveMetalPicker.mount(container, { metals, selected, onSelect, row })` → `{ select(metal) }`. Loaded on all seven pages, ahead of `modify-modal.js` (which builds its picker at load); the styling is `styling.md`'s metal-selection entry.
 
@@ -315,7 +315,7 @@ Shared by `product.js` (`#productMetals`) and `modify-modal.js` (the sheet's `.p
 - **In place, never rebuilt** — an update only toggles attributes and properties, so keyboard focus stays on the square just pressed (the Modify sheet's requirement). `mount()` itself re-renders from scratch with the final state, which is what both callers want on first paint / reopening.
 - `select(metal)` is the same change without the `onSelect` call, for a caller that already knows the metal.
 
-## `js/modify-modal.js` (~960 lines) — the Modify sheet
+## `js/modify-modal.js` (~780 lines) — the Modify sheet
 
 The one "Modify" popup on the site, opened by tapping a row in either list — so it lives on all seven pages and builds its own DOM at load (`#modifyModal`, a `.size-modal--drawer.size-modal--modify` bottom sheet; no page has markup for it). **Exposes** `window.EmjiveModifyModal = { open(item, index, options), openSelect(product, slug, options), isOpen(), attach(bar) }`.
 
@@ -330,7 +330,7 @@ The one "Modify" popup on the site, opened by tapping a row in either list — s
 - **Select mode** (`openSelect(product, slug, options)`; `state.mode` `"select"`, `options.mode`) — **not reached from anywhere at present**: it was the homepage grid's tap, and a row of the list now goes to the product's page. Still here, working, for whenever something wants it. The same sheet for a product not yet in the selection: the model (poster, then the live model, and the Go to page button), the metal picker on `default-metal`, the size field pre-filled with the size last selected for that category (the most recent item of that category with an orderable size) or empty, with "Find my size". A synthetic item `{ series, productId, name, category, metal, size, price, image }` is the draft (its price `priceAt` that size — 0 until there is one); `index` is `null`. The strip shows a single **Add** (`.modify-strip__select`, `.is-select`: the band across the whole strip, the other two buttons `display: none` and inert), disabled until `isValidSize`; Enter in the field adds too. `select()` (the Add) calls `options.onAdd()`, then `addItem(draft with the normalised size)`, then closes like a Save (`keepStrip`, `keepPreview`) and plays the same band-grows-and-fades (`leaveAfterSave`). `options.onPreview` is called with the draft as in a Modify, and `onOpen(item)` gets the synthetic item — `selection-bar.js` uses both for the preview line. There is no Unselect/Undo here. The dialog's `aria-label` reads "Add <name>". The item is the product's default design (`openSelect` resolves it): picking another is the product page's job.
 - **`pagehide`** — closes the sheet, disposes the viewer at once rather than after the slide-out (a bfcached page is still live, context and all), and ends any Undo offer (`expireUndo(true)` drops the held line at once), so a restored page doesn't come back offering one.
 
-## `js/selection-bar.js` (~850 lines)
+## `js/selection-bar.js` (~655 lines)
 
 The floating bar, on every page except `launch-order.html` (that page isn't in its script list at all, plus it self-guards with `if (!window.EmjiveSelection) return;`). Builds its whole DOM programmatically and appends to `<body>`.
 
@@ -350,7 +350,7 @@ This file has no notion of **which page it's on**, which was always the point. I
 
 Listens for `emjive:selection-changed` (`render(e)`) — this is how it stays in sync with adds from `product.js` and every change the Modify sheet makes.
 
-## `js/selection-page.js` (~430 lines) — `launch-order.html`'s checkout review
+## `js/selection-page.js` (~345 lines) — `launch-order.html`'s checkout review
 
 The order page's logic — see `pages.md`'s `launch-order.html` section for what it all looks like.
 
@@ -359,7 +359,7 @@ The order page's logic — see `pages.md`'s `launch-order.html` section for what
 - **The drawer over the checkout bar** — this page's version of the floating bar's drawer shrinking to the tapped row: `.order-checkout-drawer`, a fixed element built here holding a copy of the tapped row (its own `EmjiveOrderRows`, `inert` and `aria-hidden` — assistive tech already has the real row in the list). Opened on the sheet's `onOpen` (max-height to the row's measured height, publishing `--selection-bar-live-height` so the sheet rests on it), closed on `onClose`. A Save crossfades the copy along with the real row (`detail.action === "update"`); an Unselect leaves it to close with the sheet.
 - **Shipping/terms/checkout** — `SHIPPING_OPTIONS`, a small in-file placeholder array (easy to extend later, not a restructure), rendered as a single-select dot-indicator list. Shipping is part of the checkout bar's total. The terms row's click is delegated across the whole element (the dedicated tick-box or the surrounding sentence both toggle; a click on the actual `<a>` to `terms.html` navigates instead). `updateCheckoutGate()` disables `#orderCheckoutButton` until both a shipping option is selected and terms are ticked. The button itself is a stub — no Stripe session exists yet, so a click (once enabled) just shows a pop-up notice (`EmjiveOrderRows.notice`) that it isn't connected.
 
-## `js/loader.js` (~910 lines) — the logo loader
+## `js/loader.js` (~745 lines) — the logo loader
 
 A classic script, blocking in `<head>` on **all seven pages** (after the stylesheet, after `scroll-memory.js` on `index.html`, before `series.js`), exposing `window.EmjiveLoader`. One loader per host (a `WeakMap`), and **holds**: `mount(host, opts)` returns a hold, and the loader goes when the last hold on that host is released.
 
@@ -406,7 +406,7 @@ A classic script, blocking in `<head>` on **all seven pages** (after the stylesh
 - **`sessionStorage["emjive:scroll:<key>"]` + `history.state.emjiveScrollKey`** — the saved `{ y, h, hero, view }` for one history entry and the token that names it (`scroll-memory.js`). Anything calling `history.replaceState` on `index.html` must pass `history.state` back through rather than `null`, or the token is lost.
 - **Item shape**: `{ series, productId, design?, name, category, metal, size, price, image }` (see `selection.js` above); `design` is the chosen design's key for a product with designs, and `name` and `image` are then that design's.
 
-## `js/series-page.js` (~65 lines)
+## `js/series-page.js` (~55 lines)
 
 `series.html` only. Resolves the slug via `EmjiveSeries.requestedSlug()` — deliberately **not** the fallback-applying `.slug` — loads that series' manifest, fills in the title/year/subtitle, and otherwise shows a not-found state. Rendering `manifest.json`'s `sections[]` belongs here later; the page is an empty shell by design.
 

@@ -158,7 +158,7 @@ It's still the **only** page **without** the floating selection bar (`selection-
 
 ## `archives.html`, `creation-process.html`, `terms.html` — empty shells
 
-Header, a `.section-head` title block, correct meta tags, and a deliberately empty `.page-shell__body`. No designed content yet; each carries a comment naming what belongs there. Archives will render the series list from `data/series.json` via `EmjiveSeries.all()`/`.manifestHref()` — that's deferred, not missing by accident. `terms.html` follows the identical shell pattern but isn't in the header nav at all — it's reached only from `launch-order.html`'s terms-acceptance link, so the checkbox row there isn't pointing at a dead page.
+Header, a `.section-head` title block, correct meta tags, and a deliberately empty `.page-shell__body`. No designed content yet; each body carries a one-line placeholder comment. Archives will render the series list from `data/series.json` via `EmjiveSeries.all()`/`.manifestHref()` — that's deferred, not missing by accident. `terms.html` follows the identical shell pattern but isn't in the header nav at all — it's reached only from `launch-order.html`'s terms-acceptance link, so the checkbox row there isn't pointing at a dead page.
 
 ## `series.html` — a series' design manifest
 

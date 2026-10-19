@@ -1,33 +1,14 @@
-/* ==========================================================================
-   em·ji·ve — lazy 3D viewer loader
-
-   The only thing the pages load up front for 3D. js/three-viewer.js (three.js
-   plus the glTF/Draco/HDR loaders, ~645KB minified, ~168KB gzipped) is pulled
-   in through the dynamic import() below instead of a <script> tag, so the
-   pages that never draw a model pay nothing for it — and the ones that do
-   fetch it in parallel with their data rather than ahead of first paint.
-
-   It is a module because the dynamic import has to go through Vite: the
-   classic scripts in js/ are copied to dist/ verbatim, so only a module
-   entry can have this import resolved to the content-hashed chunk (and the
-   bare "three" specifier inside it resolved at all).
-
-   window.EmjiveLoadViewer() resolves to the viewer factory (the same
-   function as window.EmjiveModelViewer, which three-viewer.js also still
-   sets) and rejects if the module could not be fetched. The result is
-   cached — including a failure: a visitor whose connection dropped keeps the
-   icon fallbacks for the rest of the page rather than retrying on every
-   scroll.
-
-   When to start fetching is the page's call, via data-viewer on <html>:
-     "eager"  — start now (no page uses it at the moment: product.html used to,
-                but its first paint doesn't need the chunk and the download
-                competed with the images that do);
-     "idle"   — start once the browser is idle (index.html: the grid's models
-                sit below the hero);
-     absent   — only when something asks (product.html once its first paint
-                is in, the Modify sheet on every other page).
-   ========================================================================== */
+// Lazy 3D viewer loader: the only 3D code pages load up front. A module so the
+// dynamic import resolves through Vite to the hashed three-viewer.js chunk.
+//
+// window.EmjiveLoadViewer() -> Promise of the viewer factory
+// (window.EmjiveModelViewer). Cached, failures included, so a dropped
+// connection keeps the icon fallbacks instead of retrying on every scroll.
+//
+// data-viewer on <html> sets when to start fetching:
+//   "eager"  now
+//   "idle"   once the page has revealed and the browser is idle (index.html)
+//   absent   only when something asks
 
 var pending = null;
 
@@ -40,11 +21,8 @@ window.EmjiveLoadViewer = function () {
   return pending;
 };
 
-// The homepage gallery's shared 3D stack (js/stack-scene.js: the scene,
-// on top of three-viewer.js's chunk, which it imports)
-// — asked for by js/gallery-stack.js only, once the page has revealed.
-// Resolves to its create() function; cached, a failure included, like the
-// viewer's.
+// The wheel's shared 3D scene (js/stack-scene.js), requested by
+// js/gallery-stack.js. Resolves to createStackScene; cached like the viewer.
 var stackPending = null;
 
 window.EmjiveLoadStack = function () {
@@ -60,14 +38,9 @@ var when = document.documentElement.getAttribute("data-viewer");
 if (when === "eager") {
   window.EmjiveLoadViewer().catch(function () {});
 } else if (when === "idle") {
-  // The grid's models are below the hero, so nothing here is needed for the
-  // first paint — and the chunk (~165KB gzipped, plus evaluating 645KB) used
-  // to start the moment the browser had a free moment, which on a slow link
-  // was while the hero picture was still downloading. It now starts once the
-  // page has revealed (js/loader.js's "emjive:pageready") and the browser is
-  // idle, or as soon as the visitor shows they are about to scroll toward the
-  // models — whichever comes first — with a backstop for a page that never
-  // reveals.
+  // Not needed for first paint: start after the page reveals and the browser is
+  // idle, or at the first sign of scrolling toward the models, so the chunk
+  // doesn't compete with the hero picture.
   var started = false;
   var start = function () {
     if (started) return;
@@ -86,24 +59,14 @@ if (when === "eager") {
   setTimeout(start, 10000);
 }
 
-/* ---- ?mem=1: a memory read-out for a device with no inspector ----------------
-   iOS Safari ends a tab that uses too much memory and reloads it, and from a
-   Windows machine there is no way to attach Safari's inspector to see why.
-   Adding ?mem=1 to any address puts a small panel in the corner of the page
-   with the numbers that matter, so a person holding the phone can read them
-   off. Nothing else changes, and without the parameter none of this runs.
-
-   What the numbers mean, and which way is good:
-     3D viewers     live WebGL contexts. The gallery allows 3; a product page 1.
-     model arrays   decoded geometry still held as JavaScript arrays. Should
-                    fall to ~0 MB once each live model has drawn its first frame.
-     GPU objects    geometries / textures the live renderers hold.
-     Draco workers  decoder workers alive. 0 a few seconds after the last load.
-     phone images   whether this window counts as a phone for the picture
-                    variants, plus the window size and pixel ratio it is judged
-                    on — a "no" on a phone means the big desktop pictures load.
-     JS heap        only where the browser reports it (not iOS Safari).
-   --------------------------------------------------------------------------- */
+/* ?mem=1: a memory read-out panel, for phones with no attachable inspector
+   (iOS Safari reloads tabs that use too much memory).
+     3D viewers     live WebGL contexts (gallery max 3, product page 1)
+     model arrays   geometry still held as JS arrays; ~0 MB once drawn
+     GPU objects    geometries / textures held by live renderers
+     Draco workers  0 a few seconds after the last load
+     phone images   whether phone picture variants apply, and the window it judged
+     JS heap        where reported (not iOS Safari) */
 if (/[?&]mem=1(&|$)/.test(location.search)) {
   var memPanel = document.createElement("div");
   var memStyle = memPanel.style;

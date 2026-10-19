@@ -1,60 +1,18 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   optimize-hdri — halves the Radiance .hdr environment maps the 3D viewer
-   lights every model with.
-
-   Why this exists. The HDRI is the single heaviest thing the site downloads
-   and nothing about the page hints at it: at 2048x1024,
-   studio_kontrast_04_2k.hdr was 5.62 MB — 61% of the homepage's total
-   weight, and more than five times the combined size of the three ring
-   models it was lighting. It's also on the critical path in the worst way.
-   js/three-viewer.js does Promise.all([modelPromise, environmentPromise])
-   before its first render, so NO model appears until the whole HDRI has
-   landed, however small that model is.
-
-   Why halving costs nothing visible. The texture is never displayed. It's
-   fed straight to THREE.PMREMGenerator, which prefilters it into a small
-   mip chain of roughness-blurred cube faces — the top level is 256px a side
-   — and only that chain is ever sampled. Going 2048 -> 1024 removes detail
-   that PMREM's own first downsample was going to throw away regardless. The
-   one case where it would show is a mirror-perfect surface reflecting a
-   sharp light source; the roughest metal here is silver at roughness 0.09,
-   which is close enough to that to be worth an eyeball before committing —
-   hence --dry-run, which reports without writing.
-
-   Why this is hand-rolled rather than a call into sharp. sharp is already a
-   devDependency and is the obvious tool, and it cannot do this: the libvips
-   build it ships has Radiance support compiled out
-   (sharp.format.rad.input.file === false on libvips 8.18.3). ImageMagick and
-   ffmpeg can both read and write .hdr, but making either a prerequisite
-   would be the only non-npm system dependency in the repo, for one file
-   format used by three files. RGBE is a small, completely specified format,
-   so it's cheaper to just implement it.
-
-   THE ONE THING TO NOT GET WRONG, if this is ever modified: the downsample
-   happens in LINEAR space, never on the RGBE bytes. RGBE packs a pixel as
-   three 8-bit mantissas plus ONE shared 8-bit exponent, so two neighbouring
-   pixels only have comparable mantissas when their exponents match.
-   Box-filtering the bytes directly — averaging an (R,G,B,E) quad with a
-   different (R,G,B,E) quad — is averaging numbers on two different scales,
-   and in a high-dynamic-range image that is not a subtle error: a bright
-   window next to a dark wall differs by several exponent steps, and the
-   naive average lands orders of magnitude off. decodeToLinear() below
-   expands every pixel to real floats first; the box filter runs there; only
-   then is the result re-encoded.
-
-   Usage:
-     npm run optimize-hdri -- --dry-run     report only, write nothing
-     npm run optimize-hdri                  halve every .hdr wider than 1024
-     npm run optimize-hdri -- <path.hdr>    only this one
-     npm run optimize-hdri -- --width=512   target width other than 1024
-
-   Unlike optimize-models/optimize-images, this does NOT rewrite in place:
-   the width is part of the filename by convention (studio_..._2k.hdr), so a
-   halved file under the old name would be a lie. It writes a sibling with
-   the new bucket in its name and tells you which data/series.json path to
-   update. Git is the undo either way.
-   ========================================================================== */
+// Downsamples the Radiance .hdr environment maps. They only feed PMREM (top
+// level 256px a side), so 1024 wide loses nothing visible.
+//
+// Hand-rolled RGBE codec: sharp's libvips is built without Radiance support.
+// The box filter runs in LINEAR space, never on RGBE bytes: the shared
+// exponent puts neighbouring mantissas on different scales.
+//
+// Writes a sibling with the new _<n>k width bucket and prints the
+// data/series.json paths to update; never overwrites the source.
+//
+//   npm run optimize-hdri -- --dry-run     report only
+//   npm run optimize-hdri                  every .hdr wider than 1024
+//   npm run optimize-hdri -- <path.hdr>    only this one
+//   npm run optimize-hdri -- --width=512   another target width
 
 const { readdirSync, statSync, existsSync, readFileSync, writeFileSync } = require("node:fs");
 const { join, resolve, relative, dirname, basename } = require("node:path");
@@ -62,24 +20,13 @@ const { join, resolve, relative, dirname, basename } = require("node:path");
 const REPO_ROOT = resolve(__dirname, "..");
 const HDRI_DIR = join(REPO_ROOT, "assets", "hdri");
 
-// Anything at or below this is left alone. 1024x512 is what two of the
-// three current files already are, and it's the point where PMREM's own
-// prefiltering stops being able to tell the difference on this site's
-// materials.
 const DEFAULT_TARGET_WIDTH = 1024;
 
-/* ---- Radiance RGBE decoding --------------------------------------------
-   Format reference: Greg Ward's original, as shipped in Radiance's
-   color.c/header.c. The parts that matter here:
-
+/* ---- Radiance RGBE decoding ----
      #?RADIANCE          magic
-     FORMAT=...          one of several variables, terminated by a blank line
-     -Y <h> +X <w>       resolution line, immediately before the pixel data
-
-   Only the -Y/+X orientation is handled. It is the one every tool in the
-   wild writes, and silently mis-decoding one of the seven other orientations
-   would be far worse than refusing it.
-   ----------------------------------------------------------------------- */
+     FORMAT=...          variables, ended by a blank line
+     -Y <h> +X <w>       resolution line, right before the pixel data
+   Only -Y/+X, the orientation every tool writes; others are refused, not mis-decoded. */
 
 function parseHeader(buf) {
   const magic = buf.toString("ascii", 0, 10);
@@ -91,9 +38,7 @@ function parseHeader(buf) {
   let format = null;
   let sawBlankLine = false;
 
-  // Header lines are \n-terminated ASCII. Read them one at a time rather
-  // than splitting the whole buffer: everything after the resolution line
-  // is binary and must not be touched as text.
+  // Line by line: everything after the resolution line is binary.
   for (;;) {
     const nl = buf.indexOf(0x0a, offset);
     if (nl === -1) throw new Error("malformed header (no resolution line)");
@@ -106,8 +51,7 @@ function parseHeader(buf) {
       sawBlankLine = true;
       continue;
     }
-    // The resolution line is what actually ends the header, and it only
-    // counts once the blank line separating variables from it has been seen.
+    // The resolution line ends the header, once past the blank line.
     if (sawBlankLine) {
       const res = /^-Y\s+(\d+)\s+\+X\s+(\d+)$/.exec(line);
       if (!res) {
@@ -125,18 +69,9 @@ function parseHeader(buf) {
   }
 }
 
-// One scanline of RGBE bytes -> `out` (RGBE-interleaved, 4 bytes per pixel).
-// Returns the new read offset.
-//
-// Two encodings coexist in the wild and a real file can mix them line by
-// line, so both are handled per scanline rather than per file:
-//
-//   * Adaptive RLE ("new" RLE): marked by the 0x02 0x02 header below. Each
-//     of the four CHANNELS is run-length encoded separately across the whole
-//     scanline, which is why the output has to be strided by 4 rather than
-//     written contiguously.
-//   * Flat: 4 bytes per pixel, no compression. Also the fallback for any
-//     scanline too short or too wide to be adaptive.
+// One scanline -> `out` (4 bytes per pixel); returns the new offset. Either
+// flat, or adaptive RLE (0x02 0x02 marker) with each channel run-length
+// encoded separately; files can mix both per line.
 function readScanline(buf, offset, width, out) {
   const adaptive =
     width >= 8 &&
@@ -167,7 +102,7 @@ function readScanline(buf, offset, width, out) {
         if (x + count > width) throw new Error("RLE run overruns the scanline");
         for (let i = 0; i < count; i++) out[(x++) * 4 + channel] = value;
       } else {
-        // A literal span of `count` distinct values.
+        // A literal span of `count` values.
         if (count === 0) throw new Error("zero-length RLE span");
         if (x + count > width) throw new Error("RLE span overruns the scanline");
         for (let i = 0; i < count; i++) out[(x++) * 4 + channel] = buf[offset++];
@@ -177,13 +112,8 @@ function readScanline(buf, offset, width, out) {
   return offset;
 }
 
-// -> { width, height, data: Float32Array } — three linear floats per pixel.
-//
-// The exponent bias is 128 and the mantissa is offset by another 8 bits
-// (i.e. the stored byte represents a value in [0,255] scaled by 1/256), so
-// the standard reconstruction is value = mantissa * 2^(e - 128 - 8). e === 0
-// is the encoding of exact black and must short-circuit: 2^-136 is not zero
-// but it is also not what the file means.
+// -> { width, height, data: Float32Array } of linear RGB.
+// value = mantissa * 2^(e - 136); e === 0 is exact black.
 function decodeToLinear(buf) {
   const header = parseHeader(buf);
   const { width, height, dataOffset } = header;
@@ -211,17 +141,9 @@ function decodeToLinear(buf) {
   return { width, height, format: header.format, data: out };
 }
 
-/* ---- resampling ---------------------------------------------------------
-   A plain box filter over an integer block, which is the right choice here
-   precisely because it is the dumb one: the reductions this script does are
-   exact integer ratios (2048 -> 1024 is 2x2), and for an exact ratio a box
-   filter IS the correct area average — no ringing, no negative lobes, and
-   critically no possibility of a lanczos-style undershoot producing a
-   NEGATIVE radiance value that RGBE cannot represent.
-
-   Guarded to exact integer ratios for that reason. A non-integer target
-   would need a real resampling kernel and the clamping that goes with it.
-   ----------------------------------------------------------------------- */
+/* ---- resampling ----
+   Box filter, exact integer ratios only: then it is the true area average,
+   with no negative lobes, which RGBE couldn't represent. */
 function boxDownsample(src, srcWidth, srcHeight, dstWidth, dstHeight) {
   const bx = srcWidth / dstWidth;
   const by = srcHeight / dstHeight;
@@ -257,12 +179,9 @@ function boxDownsample(src, srcWidth, srcHeight, dstWidth, dstHeight) {
   return out;
 }
 
-/* ---- Radiance RGBE encoding -------------------------------------------- */
+/* ---- Radiance RGBE encoding ---- */
 
-// One linear RGB triple -> 4 RGBE bytes written into `out` at `at`.
-// frexp-by-hand: Math.log2 + Math.floor would misbehave on exact powers of
-// two, so the exponent comes from the standard "scale until the largest
-// channel is in [0.5, 1)" formulation instead.
+// One linear RGB triple -> 4 RGBE bytes at `out[at]`.
 function encodePixel(r, g, b, out, at) {
   const max = Math.max(r, g, b);
   if (max < 1e-32) {
@@ -273,9 +192,8 @@ function encodePixel(r, g, b, out, at) {
     return;
   }
   let e = Math.ceil(Math.log2(max));
-  // Math.log2 is not exact for every input; nudge until the invariant
-  // (max * 2^-e) < 1 actually holds, so the mantissa can never round to 256
-  // and overflow its byte.
+  // Math.log2 isn't exact: nudge until max * 2^-e is in [0.5, 1), so no
+  // mantissa can round to 256.
   while (max * Math.pow(2, -e) >= 1) e++;
   while (max * Math.pow(2, -e) < 0.5) e--;
   const scale = Math.pow(2, -e) * 256;
@@ -285,10 +203,8 @@ function encodePixel(r, g, b, out, at) {
   out[at + 3] = e + 128;
 }
 
-// Adaptive RLE, per channel, matching what readScanline expects. Runs of 4+
-// identical bytes are worth encoding as a run; shorter ones cost more in
-// span headers than they save, which is the same threshold Radiance's own
-// writer uses.
+// Adaptive RLE per channel, as readScanline reads it; runs of 4+ (Radiance's
+// own threshold) become runs.
 function encodeScanline(rgbe, width, chunks) {
   const header = Buffer.alloc(4);
   header[0] = 2;
@@ -304,7 +220,6 @@ function encodeScanline(rgbe, width, chunks) {
     const encoded = [];
     let x = 0;
     while (x < width) {
-      // How far does the run starting here reach?
       let runEnd = x;
       while (runEnd < width && line[runEnd] === line[x]) runEnd++;
       const runLength = runEnd - x;
@@ -320,7 +235,7 @@ function encodeScanline(rgbe, width, chunks) {
         continue;
       }
 
-      // A literal span, running until a run of 4+ starts.
+      // A literal span, up to the next run of 4+.
       let spanEnd = x;
       while (spanEnd < width) {
         let ahead = spanEnd;
@@ -365,16 +280,9 @@ function encodeHdr(linear, width, height, formatLine) {
   return Buffer.concat(chunks);
 }
 
-/* ---- naming -------------------------------------------------------------
-   assets/hdri/ encodes width as a `_<n>k` bucket in the filename
-   (studio_kontrast_04_2k.hdr). Rewrite that bucket rather than appending a
-   second one, and fall back to appending only if the name has no bucket to
-   rewrite.
-
-   Note two of the three current files are ALREADY misnamed in the other
-   direction — white-room_2k.hdr is 1024x512 — which is exactly why this
-   derives the bucket from the real pixel width instead of trusting the name.
-   ----------------------------------------------------------------------- */
+/* ---- naming ----
+   Rewrites the _<n>k width bucket in the name (appends one if absent), from
+   the real pixel width: existing names aren't reliable. */
 function bucketFor(width) {
   return Math.max(1, Math.round(width / 1024)) + "k";
 }
@@ -386,7 +294,7 @@ function targetNameFor(file, width) {
   return (rewritten === base ? base + "_" + bucket : rewritten) + ".hdr";
 }
 
-/* ---- run ---------------------------------------------------------------- */
+/* ---- run ---- */
 
 function listHdris() {
   if (!existsSync(HDRI_DIR)) return [];
@@ -399,11 +307,8 @@ function formatBytes(n) {
   return (n / 1048576).toFixed(2) + " MB";
 }
 
-// Mean luminance, Rec.709 weights. Compared before and after as the
-// round-trip check: a box average preserves it to within floating-point
-// noise, so a delta beyond a fraction of a percent means the decode, the
-// resample or the encode is wrong — which is exactly the class of bug that
-// would otherwise ship as "the models look a bit off" months later.
+// Mean luminance (Rec.709). A box average preserves it, so drift past a
+// fraction of a percent means the codec or resample is wrong.
 function meanLuminance(linear) {
   let sum = 0;
   const pixels = linear.length / 3;
@@ -482,8 +387,7 @@ function main() {
 
     const encoded = encodeHdr(resampled, dstWidth, dstHeight, source.format);
 
-    // Round trip: re-decode what was just encoded, from the exact bytes that
-    // would be written, and check both the geometry and the light level.
+    // Re-decode the encoded bytes and check size and light level.
     let check;
     try {
       check = decodeToLinear(encoded);

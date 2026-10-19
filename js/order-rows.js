@@ -1,89 +1,45 @@
-/* ==========================================================================
-   em·ji·ve — order rows
-   The item rows shared by launch-order.html's order list and the floating
-   selection bar's drawer (js/selection-page.js and js/selection-bar.js), so
-   the two behave identically: a tap anywhere on a row opens the Modify
-   sheet for its item (js/modify-modal.js). That's all a row does — its
-   Unselect lives in the page's bar while the sheet is open; the Undo after
-   it is on the row's own line (offerUndo, below). Same .order-item markup
-   and CSS in both lists.
-
-   Rows follow the selection one change at a time instead of being rebuilt
-   on every change, so each change shows as what it is: a Modify crossfades
-   just the parts of its row that changed, an Unselect collapses its row
-   (or, when the Modify sheet asked for an Undo, holds it open as one — see
-   below), and an Undo brings it back where it was.
-
-   window.EmjiveOrderRows.create(options) returns
-   { render(items, { animate }), preview(index, values), settledHeight(),
-   buttonAt(index), offerUndo(index, handlers), isHolding() } — preview() is
-   the Modify sheet's live draft: the row's changed parts switch to the draft
-   at once, no fade (null: back to the stored item), without touching
-   storage.
-
-   offerUndo(index, handlers) is called just BEFORE the item at `index` is
-   removed from storage. The removal's row then stays in the list, at its
-   full height, as the item's "undo line" (css/style.css's .order-item__undo):
-   its content fades out and an invert band grows in across the left quarter
-   of the line, under an "Undo" button. handlers is { onUndo(), onGone() }:
-   onUndo when that button is tapped (the caller puts the item back, and the
-   held line is the very row that comes back to life), onGone once the line
-   has gone for any other reason — closed, dropped, or swept away by a
-   rebuild. It returns the handle { held(), button(), leave(done), drop() }:
-   held() is false when no line could be held (the list wasn't animating),
-   leave(done) is the offer running out — the band regresses to the left
-   edge, then the line closes — and drop() closes it at once. A line that is
-   all that's left of its list (the last item) doesn't collapse: it leaves
-   along with the list, like the last row always has. isHolding() says
-   whether a line is held or about to be, which is what a page needs to know
-   before it treats its list as empty.
-   options:
-     listEl             the <ul> the rows are rendered into
-     rowClass           an extra class on every <li> (the drawer's
-                        "order-item--drawer")
-     showPrice          each row shows its price, to the right of its label (the
-                        order list and the bar's drawer alike)
-     onModify(binding)  a row was tapped — binding.item / binding.index
-     newestFirst        the rows stand in reverse: the latest item on top, the
-                        oldest at the bottom (the drawers). Indexes and
-                        everything else still follow the selection's order
-     dropAtOnce         a dropped undo line (another row was tapped while it
-                        was on offer) leaves the list at once instead of
-                        closing: for the bar's drawer, which is about to
-                        measure the tapped row's place and mustn't have the
-                        row above it still collapsing
-     onResize()         the list's height changes: once a collapsed row has
-                        left, and when a row is put back — at full size,
-                        just before its expansion plays, so a container
-                        that sizes itself to the list (the bar's drawer) can
-                        measure where it's heading — then again once it's
-                        done.
-
-   The list emptying out is left to each page (the drawer closes, the order
-   list crossfades to its empty state), which simply stops calling render()
-   then — except while a line is held (isHolding()): the last row leaves along
-   with its list rather than collapsing on its own first, and the page lets
-   the list go when onGone says the line has.
-   ========================================================================== */
+// Item rows shared by launch-order.html's list and the floating bar's drawer.
+// A tap on a row opens the Modify sheet for its item. Rows follow the
+// selection one change at a time: a Modify crossfades the changed parts, an
+// Unselect collapses the row (or holds it as an Undo line), an Undo brings
+// it back.
+//
+// window.EmjiveOrderRows.create(options) -> { render(items, { animate }),
+//   preview(index, values), settledHeight(), buttonAt(index),
+//   offerUndo(index, handlers), isHolding() }
+//   preview()    the Modify sheet's live draft, no fade (null: back to the stored item)
+//   offerUndo()  call just before removing the item at `index`: its row stays
+//                as an Undo line (.order-item__undo). handlers { onUndo(), onGone() }.
+//                Returns { held(), button(), leave(done), drop() }: held() is
+//                false if no line could be held; leave() runs the offer out;
+//                drop() closes it at once. A list's last line leaves with the list.
+//   isHolding()  a line is held or pending: the list isn't empty yet
+// options:
+//   listEl             the <ul>
+//   rowClass           extra class on every <li>
+//   showPrice          show each row's price
+//   onModify(binding)  a row was tapped (binding.item, binding.index)
+//   newestFirst        latest item on top; indexes still follow the selection
+//   dropAtOnce         a dropped Undo line leaves at once instead of collapsing
+//                      (the drawer measures the tapped row's place right after)
+//   onResize()         the list's height changes; on an Undo, called at full
+//                      size before the expansion plays, then after
 
 (function (global) {
   "use strict";
 
-  // Backstops for a transitionend that never comes (a backgrounded tab):
-  // past the rows' 0.3s collapse/expand, and past the 0.12s fade-out a
-  // crossfading part plays before its swap (css/style.css).
+  // Backstops for a missing transitionend (background tab): past the 0.3s
+  // collapse/expand and the 0.12s swap fade-out (css/style.css).
   var ROW_MOTION_MS = 400;
   var SWAP_OUT_MS = 170;
-  // How long a crossfading icon waits for its new picture before swapping
-  // anyway.
+  // How long a crossfading icon waits for its new picture before swapping anyway.
   var DECODE_WAIT_MS = 1000;
 
   function wait(ms) {
     return new Promise(function (resolve) { setTimeout(resolve, ms); });
   }
 
-  // Resolves once `el`'s own `prop` transition ends — or after `ms`, if
-  // there turns out to be nothing to transition.
+  // Resolves when `el`'s own `prop` transition ends, or after `ms`.
   function transitionDone(el, prop, ms) {
     return new Promise(function (resolve) {
       var done = false;
@@ -101,8 +57,7 @@
     });
   }
 
-  // The new icon, fully decoded — so a crossfade never shows an empty frame
-  // between the old picture leaving and the new one arriving.
+  // Fully decoded, so a crossfade never shows an empty frame.
   function decoded(src) {
     if (!src) return null;
     var img = new Image();
@@ -111,12 +66,9 @@
     return Promise.race([ready, wait(DECODE_WAIT_MS)]);
   }
 
-  // Sequenced, not simultaneous — the same handoff the floating bar's own
-  // labels use: `el` fades out (.is-swapping), apply() puts the new value
-  // in while nothing's showing, and it fades back in. Two versions of a
-  // label never overlap mid-fade. `ready` (optional) holds the swap until
-  // it resolves — a new icon still decoding. A second swap started on the
-  // same element meanwhile wins: the first one then never applies.
+  // Sequential swap: fade out (.is-swapping), apply(), fade in, so two values
+  // never overlap. `ready` holds the swap (an icon decoding); a newer swap on
+  // the same element wins.
   var swapTokens = new WeakMap();
 
   function fadeSwap(el, apply, ready) {
@@ -130,14 +82,11 @@
     });
   }
 
-  // Fetches and decodes images ahead of a swap, so a metal pick that changes
-  // an icon with no fade shows the new one at once instead of the old one
-  // lingering while the new loads (most noticeable on a phone). Kept in a
-  // map so they stay in memory for the swap.
+  // Decoded ahead, so an unfaded icon swap shows the new one at once; kept
+  // referenced so they stay in memory.
   var preloaded = {};
 
-  // A row's thumbnail is 48px: it shows the icon's 128px sibling (see
-  // EmjiveLoader.variant), not the 512px file.
+  // Rows show the icon's 128px variant.
   function thumbSrc(src) {
     return src && global.EmjiveLoader ? global.EmjiveLoader.variant(src, "128") : src;
   }
@@ -152,13 +101,9 @@
     });
   }
 
-  // Safari's backdrop-filter re-samples what's behind it late when that
-  // changes in place: text or an icon under an invert band (.order-item::before,
-  // .product-detail__label-bar::before) showed its old value for a moment
-  // after the new one was in the DOM. Nudging the band's own filter (an
-  // imperceptible invert(0.99), see .is-resampling in css/style.css) for a
-  // couple of frames makes it sample again at once. Used wherever a value
-  // under a band changes with no fade to cover it.
+  // Safari's backdrop-filter re-samples late when content under an invert band
+  // changes in place; nudging the band's filter (.is-resampling) for two frames
+  // forces it.
   var resampleTokens = new WeakMap();
 
   function resampleBand(el) {
@@ -172,8 +117,7 @@
     });
   }
 
-  // The same change with no fade, for a live preview: any fadeSwap still
-  // under way on `el` is cancelled, so it can't land over this value.
+  // No-fade change for a live preview; cancels any fadeSwap under way on `el`.
   function setNow(el, apply) {
     swapTokens.set(el, (swapTokens.get(el) || 0) + 1);
     el.classList.remove("is-swapping");
@@ -187,25 +131,19 @@
     var dropAtOnce = !!options.dropAtOnce;
     var newestFirst = !!options.newestFirst;
 
-    // Where the row at `index` goes in the list: right before this element
-    // (null: at the end). `bindings` is in selection order, the list in
-    // reverse of it when newestFirst — the row goes just above the one
-    // before it in the selection.
+    // The element the row at `index` goes before (null: the end); the list is
+    // reversed when newestFirst.
     function slotFor(index) {
       var neighbour = bindings[newestFirst ? index - 1 : index];
       return neighbour ? neighbour.li : null;
     }
 
-    // One entry per row still in the list, in list order:
-    // { item, index, li, inner, button, thumb, name, attrs, price }. A row
-    // playing its collapse has already left this array — so a tap on it
-    // can't open an item that's gone, and every index here matches
-    // storage.
+    // Rows in the list, in order: { item, index, li, inner, button, thumb, name,
+    // attrs, price }. A collapsing row has already left, so indexes match storage.
     var bindings = [];
-    // The undo line asked for and not answered yet (offerUndo() runs before
-    // the removal, which render() then answers), and the one now held: both
-    // { index, handlers, state: "pending" | "held" | "leaving" | "done",
-    // binding, line }.
+    // The Undo line requested but not yet answered (offerUndo() precedes the
+    // removal render() answers), and the one held: { index, handlers, state:
+    // "pending" | "held" | "leaving" | "done", binding, line }.
     var pendingHold = null;
     var held = null;
 
@@ -218,24 +156,19 @@
       global.EmjiveSelection.appendSize(el, item.size);
     }
 
-    // The visible label packs everything into one dotted string (and a
-    // decimal size into a small raised "50"), so the button gets a plain
-    // spoken name of its own.
+    // The visible label is a dotted string, so the button gets a plain spoken name.
     function spokenLabel(item) {
       return "Modify " + item.name + ", " + item.metal + ", size " + item.size;
     }
 
     function buildRow(item) {
-      // shown: the values the row currently displays — the stored item,
-      // unless a Modify sheet is previewing a draft over it (see preview()).
+      // shown: what the row displays (a preview may be over the stored item).
       var binding = { item: item, shown: item, index: -1 };
 
       var li = document.createElement("li");
       li.className = "order-item" + (rowClass ? " " + rowClass : "");
 
-      // The row's one control: a real <button>, so it's in the Tab order
-      // and announced as one, wrapping everything the row shows — hence
-      // spans throughout (a button holds phrasing content only).
+      // One <button> wrapping the whole row, hence spans throughout.
       var button = document.createElement("button");
       button.type = "button";
       button.className = "order-item__content";
@@ -248,8 +181,7 @@
         else thumb.src = item.image;
       }
       thumb.alt = "";
-      // A picture arriving under the invert band is its own change in
-      // place — see resampleBand().
+      // A picture arriving under the band: see resampleBand().
       thumb.addEventListener("load", function () { resampleBand(li); });
 
       var meta = document.createElement("span");
@@ -260,9 +192,7 @@
       var attrs = document.createElement("span");
       attrs.className = "order-item__attrs";
       fillAttrs(attrs, item);
-      // No space between them either — the two read as one continuous label
-      // (the period already reads as a separator) rather than two chips with
-      // any gap, flex or otherwise, between them.
+      // No space between: they read as one label.
       meta.appendChild(name);
       meta.appendChild(attrs);
 
@@ -277,18 +207,13 @@
         button.appendChild(price);
       }
 
-      // Wrapped rather than appended straight to li — see .order-item__inner
-      // in css/style.css: this is what clips the collapse/expand motion,
-      // kept off .order-item itself so it never clips ::before's own
-      // full-bleed invert band.
+      // .order-item__inner clips the collapse/expand, so .order-item doesn't clip its ::before band.
       var inner = document.createElement("div");
       inner.className = "order-item__inner";
       inner.appendChild(button);
       li.appendChild(inner);
 
-      // Anywhere on the row, its padding included. A tap on the button
-      // itself, or Enter/Space on it from a keyboard, arrives here too, as
-      // the button's own click bubbling up.
+      // Anywhere on the row; the button's own click (and Enter/Space) bubbles here.
       li.addEventListener("click", function () {
         if (bindings.indexOf(binding) === -1) return;
         if (options.onModify) options.onModify(binding);
@@ -304,11 +229,9 @@
       return binding;
     }
 
-    // A Modify just saved: each part whose value changed crossfades to it
-    // in place — the icon, the ".category.metal.size" label, the price —
-    // and nothing else about the row moves. instant (the sheet's live
-    // preview) skips the fade. Compared against what the row shows, not
-    // what's stored, so a Save after a preview finds nothing left to swap.
+    // Crossfades only the parts that changed (icon, label, price); `instant` for
+    // previews. Compared with what the row shows, so a Save after a preview has
+    // nothing left to swap.
     function crossfadeRow(binding, item, instant) {
       var old = binding.shown;
       var swap = instant ? setNow : fadeSwap;
@@ -333,16 +256,12 @@
       }
     }
 
-    // Collapsing this one row's box is what slides the rows below it up —
-    // .order-items' flex layout recalculating every frame. Its item is
-    // already gone from storage; this only touches the DOM.
-    // Rows mid-motion, for settledHeight(): collapsing ones (already out of
-    // bindings) and expanding ones, each with the height it's heading to.
+    // Rows mid-motion, for settledHeight(): collapsing (already out of bindings)
+    // and expanding, each with its target height.
     var collapsing = [];
     var expanding = [];
 
-    // A rebuild may have cleared the list out from under a motion still
-    // finishing, so the entry isn't necessarily there any more.
+    // A rebuild may have cleared the list under a running motion.
     function forget(list, binding) {
       var i = list.indexOf(binding);
       if (i !== -1) list.splice(i, 1);
@@ -351,12 +270,8 @@
     function collapse(binding, done) {
       collapsing.push(binding);
       binding.li.classList.add("is-removing");
-      // Waits for both: .order-item__inner's max-height (the layout
-      // collapse) and .order-item::before's own opacity — the invert band,
-      // which now outlives it (css/style.css's .order-item.is-removing
-      // ::before delays the band so it's the last thing left visible).
-      // transitionend on a pseudo-element reports its host as e.target, so
-      // listening on binding.li for "opacity" catches ::before's own finish.
+      // Waits for the collapse (max-height) and the band's later fade (::before
+      // opacity, reported on the li).
       Promise.all([
         transitionDone(binding.inner, "max-height", ROW_MOTION_MS),
         transitionDone(binding.li, "opacity", ROW_MOTION_MS)
@@ -368,7 +283,7 @@
       });
     }
 
-    /* ---- the undo line ------------------------------------------------------ */
+    /* ---- the Undo line ---- */
 
     function buildUndoLine(h) {
       var wrap = document.createElement("div");
@@ -392,9 +307,8 @@
       return { wrap: wrap, button: button, band: band };
     }
 
-    // The removed row stays: its content goes inert, and the line is built in
-    // and laid out before .is-undo lands, so there is a state to transition
-    // from.
+    // The row stays, content inert; the line is laid out before .is-undo lands,
+    // so there is a state to transition from.
     function hold(h, binding) {
       h.state = "held";
       h.binding = binding;
@@ -406,8 +320,7 @@
       binding.li.classList.add("is-undo");
     }
 
-    // The line is over. It closes like any removed row — unless it is all the
-    // list has left, which goes with the list.
+    // The line is over: it collapses like a removed row, unless it is the list's last.
     function finishHold(h, done, atOnce) {
       if (h.state === "done") return;
       var wasPending = h.state === "pending";
@@ -430,8 +343,7 @@
       }
     }
 
-    // The offer ran out: the label goes, the band regresses to the left edge,
-    // and only then does the line close.
+    // The offer ran out: the label goes, the band shrinks back, then the line closes.
     function leave(h, done) {
       if (h.state !== "held") return;
       h.state = "leaving";
@@ -441,16 +353,13 @@
       });
     }
 
-    // Undo: the held line is the row coming back — its band sweeps the whole
-    // line and fades as the row's own band and content return (all CSS),
-    // and then the undo line is taken down.
+    // Undo: the held line becomes the row again (CSS transitions), then the line is removed.
     function revive(h, items, index) {
       var binding = h.binding;
       var li = binding.li;
       h.state = "done";
       held = null;
-      // Only moved when something has come between (re-inserting an element
-      // drops the state its transitions start from — it would just snap).
+      // Re-inserting would reset the transition's start state; only move if needed.
       var next = slotFor(index);
       if (li.nextElementSibling !== next) listEl.insertBefore(li, next);
       bindings.splice(index, 0, binding);
@@ -466,11 +375,8 @@
       });
     }
 
-    // The collapse in reverse, for an Undo. The row goes in at full size
-    // first, for onResize's measurement (see the header), then snaps shut
-    // (.is-instant — no frame is painted in between) and opens from there
-    // on the next frame. .is-expanding keeps its content clipped while it
-    // grows, the way .is-removing does while it shrinks.
+    // The collapse in reverse: inserted at full size for onResize's measurement,
+    // snapped shut (.is-instant) and opened on the next frame.
     function expand(binding) {
       var li = binding.li;
       binding.fullHeight = li.offsetHeight;
@@ -489,10 +395,7 @@
       });
     }
 
-    // The list's height once every row now collapsing or expanding has
-    // finished — what a container sizing itself to the list (the bar's
-    // drawer) should head for, rather than whatever the list happens to
-    // measure mid-motion.
+    // The list's height once current motions finish, for containers sized to it.
     function settledHeight() {
       var height = listEl.offsetHeight;
       collapsing.forEach(function (binding) { height -= binding.li.offsetHeight; });
@@ -508,8 +411,7 @@
     }
 
     function rebuild(items) {
-      // Whatever was held goes with the list; told once this call is over,
-      // since the page it tells may well be the one that is rendering.
+      // A held line goes with the list; onGone deferred, as the caller may be mid-render.
       var swept = held;
       held = null;
       if (swept) {
@@ -532,19 +434,16 @@
       syncBindings(items);
     }
 
-    // animate off — the first render, a list nobody can see (a closed
-    // drawer, a list about to crossfade in) — just rebuilds. Otherwise the
-    // same single-change diff the bar's icon strip runs
-    // (EmjiveSelection.singleChange) picks the one row to animate; anything
-    // it can't explain as one change rebuilds too.
+    // Without animate (first render, hidden list) it just rebuilds; otherwise
+    // EmjiveSelection.singleChange picks the one row to animate, rebuilding when
+    // the change isn't a single one.
     function render(items, opts) {
       var animate = !!(opts && opts.animate);
       var sel = global.EmjiveSelection;
       var oldKeys = bindings.map(function (binding) { return sel.itemKey(binding.item); });
       var keys = items.map(sel.itemKey);
 
-      // An Unselect that asked for an Undo (offerUndo): its row stays, as the
-      // line — even the list's last one.
+      // An Unselect that asked for an Undo: its row stays as the line, even the last one.
       if (pendingHold) {
         var asked = pendingHold;
         pendingHold = null;
@@ -557,7 +456,7 @@
         asked.state = "done";
       }
 
-      // An Undo: the line held for it is the row that comes back.
+      // An Undo: the held line is the row that comes back.
       if (held && animate) {
         var back = sel.singleChange(oldKeys, keys);
         if (back && back.type === "insert" && keys[back.index] === sel.itemKey(held.binding.item)) {
@@ -592,10 +491,8 @@
       syncBindings(items);
     }
 
-    // Live preview for the Modify sheet: the row at `index` switches at once
-    // to its item with `values` (any of metal, size, price, image) laid over it, or
-    // back to the stored item when `values` is null. Storage is untouched;
-    // a row that has left the list is ignored.
+    // The row at `index` shows its item with `values` (metal, size, price,
+    // image) over it, or the stored item for null. Storage untouched.
     function preview(index, values) {
       var binding = bindings[index];
       if (!binding) return;
@@ -626,8 +523,7 @@
       preview: preview,
       offerUndo: offerUndo,
       isHolding: function () { return !!(pendingHold || held); },
-      // The row now at `index` — where focus goes back to when the Modify
-      // sheet closes, looked up late because rows come and go.
+      // buttonAt: the row now at `index` (focus return), looked up late as rows come and go.
       settledHeight: settledHeight,
       buttonAt: function (index) {
         var binding = bindings[index];
@@ -636,27 +532,18 @@
     };
   }
 
-  /* ---- transient notice ----------------------------------------------------
-     What replaces alert() for "can't do that right now" messages (the Modify
-     sheet failing to open, the checkout stub): a blocking native dialog is
-     jarring, can't be styled, and on iOS is suppressed outright in some
-     contexts. A full-width bar that slides up from the bottom of the screen
-     and rests on whatever stands there — see .emjive-notice in
-     css/style.css. role="status" so assistive tech announces the text
-     without moving focus; it slides away by itself after a few seconds. */
+  /* ---- transient notice ----
+     A bar sliding up from the bottom in place of alert() (unstyleable, and
+     suppressed on iOS in some contexts). role="status"; hides after NOTICE_MS. */
   var NOTICE_MS = 6000;
   var noticeEl = null;
   var noticeTextEl = null;
   var noticeTimer = 0;
 
-  // The bottom-anchored things a notice has to rest on. Whichever of them is
-  // actually on screen and highest wins: the selection bar (grown by its
-  // drawer), the product page's Select bar and the order page's checkout bar
-  // and drawer that stand on it, and the Modify sheet.
+  // Bottom-anchored elements a notice rests on; the highest visible one wins.
   var REST_ON = ".selection-bar, .product-select-bar, .order-checkout-bar, .order-checkout-drawer, .size-modal__sheet";
 
-  // How far up from the bottom of the screen the stack reaches: the viewport
-  // height minus the highest top edge among the visible elements above.
+  // The viewport height minus the highest visible top edge among them.
   function stackHeight() {
     var viewportHeight = window.innerHeight;
     var top = viewportHeight;
@@ -667,8 +554,7 @@
       var style = getComputedStyle(node);
       if (style.display === "none" || style.visibility === "hidden") continue;
       var rect = node.getBoundingClientRect();
-      // Off screen (the homepage bar before its entrance, a closed sheet
-      // slid out of view) or empty: not part of what is standing there.
+      // Off screen or empty: not standing there.
       if (rect.height <= 0 || rect.top >= viewportHeight || rect.bottom <= 0) continue;
       if (rect.top < top) top = rect.top;
     }
@@ -690,14 +576,12 @@
     }
     noticeTextEl.textContent = message;
     noticeEl.style.setProperty("--notice-rest", stackHeight() + "px");
-    // A frame between placing it and showing it, so the first notice slides
-    // in instead of appearing already at rest.
+    // A frame between placing and showing, so it slides in.
     requestAnimationFrame(function () { noticeEl.classList.add("is-shown"); });
     clearTimeout(noticeTimer);
     noticeTimer = setTimeout(function () { noticeEl.classList.remove("is-shown"); }, NOTICE_MS);
   }
 
-  // preload and resampleBand are shared with js/product.js's label bar and
-  // js/modify-modal.js, which swap icons the same way.
+  // preload and resampleBand are shared with js/product.js and js/modify-modal.js.
   global.EmjiveOrderRows = { create: create, preload: preload, resampleBand: resampleBand, notice: notice };
 })(window);

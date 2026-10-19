@@ -1,25 +1,12 @@
-/* ==========================================================================
-   em·ji·ve — the homepage gallery (index.html only)
-
-   Two views of the active series' products, one at a time — data-gallery-view
-   on <html>, decided in the <head> by js/scroll-memory.js:
-     stack  the camera pulls back from the x-ray hand to the products on a
-            circle round its wrist, a plate the visitor turns to bring one to
-            the top (js/gallery-stack.js, mounted from here);
-     grid   a table, a product a row, built here: no 3D, each row's picture
-            a deck of cards (the model's own view, then the photos) dealt
-            with a swipe sideways; a tap goes to the product's page.
-   And the hero: data-hero="play" plays the reveal first, "skip" lands on the
-   gallery at rest. It plays once per device — this file sets the seen flag
-   once it has played out.
-
-   Owns: loading the products, the grid, the control (the view switch) and the
-   veil the switch crosses through, the filter's effect on both
-   views (js/main.js owns the filter row and calls setFilter()), and telling
-   js/scroll-memory.js what the visitor changes, so Back finds it again.
-
-   window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
-   ========================================================================== */
+// Homepage gallery (index.html): one of two views, data-gallery-view on
+// <html> (set in the <head> by js/scroll-memory.js):
+//   stack  the wheel (js/gallery-stack.js, mounted here)
+//   grid   the list, built here: one row per product, its pictures a deck dealt by swiping
+// data-hero="play" plays the hero reveal first, "skip" lands at rest.
+// Also owns product loading, the view toggle and its veil, the filter's
+// effect on both views, and reporting changes to js/scroll-memory.js.
+//
+// window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
 
 (function () {
   "use strict";
@@ -32,11 +19,11 @@
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
 
-  // The key js/scroll-memory.js reads in the <head>.
+  // Read by js/scroll-memory.js in the <head>.
   var VIEW_KEY = "emjive_gallery_view";
-  // The veil's fade (--fade-standard), plus a margin for its fallback timer.
+  // The veil's fade (--fade-standard); its fallback timer adds a margin.
   var VEIL_MS = 300;
-  // How long the arrival loader waits on the grid's first tiles at most.
+  // Longest the arrival loader waits on the list's first tiles.
   var FIRST_TILES_MS = 4000;
 
   function el(tag, className, text) {
@@ -67,8 +54,7 @@
     return window.EmjiveSeriesHero && window.EmjiveSeriesHero.setMode ? window.EmjiveSeriesHero : null;
   }
 
-  // Instant, whatever html { scroll-behavior: smooth } says — the page jumps
-  // under the veil, where nobody sees it travel.
+  // Instant regardless of scroll-behavior: the jump happens under the veil.
   function jumpTo(top) {
     var previous = html.style.scrollBehavior;
     html.style.scrollBehavior = "auto";
@@ -89,24 +75,16 @@
     cats: [],
     onShowAll: null,
     emptyMsg: null,
-    // The entrance's progress, as the hero last published it.
     stage: null
   };
 
-  /* ---- the arrival cover and the wheel ---------------------------------------
-     The wheel is laid out from the hero (the wrist, the rings on the hand) and
-     the screen, which arrive on their own time — the hero's stylesheet last,
-     on a cold cache — and a restored scroll settles meanwhile: drawn before
-     they are in, it jumps into place. So in the stack view the page is not
-     shown until the wheel has settled its layout (settleLayout()):
-       - a landing has the page's arrival cover (js/loader.js) held down
-         for it;
-       - a restored scroll (Back, a reload) has the hero and the wheel hidden
-         by js/scroll-memory.js until then — the page background, nothing
-         more, which a restore from the cache is done with in a few frames —
-         and only if that runs long does js/loader.js raise the cover, with
-         its logo, to hold the wait.
-     Given up after WHEEL_SETTLE_MS. */
+  /* ---- arrival cover and the wheel ----
+     The wheel is laid out from the hero and the screen, which can arrive late
+     (hero.css last on a cold cache), so the wheel view isn't shown until its
+     layout settles (settleLayout()): a landing holds js/loader.js's arrival
+     cover; a restored scroll has js/scroll-memory.js hide the hero and wheel,
+     and js/loader.js raises the cover only if that runs long. Given up after
+     WHEEL_SETTLE_MS. */
   var WHEEL_SETTLE_MS = 5000;
   var wheelHold = view() === "stack" && window.EmjiveLoader && window.EmjiveLoader.holdPage
     ? window.EmjiveLoader.holdPage()
@@ -138,10 +116,7 @@
     })();
   }
 
-  /* ---- the veil -------------------------------------------------------------
-     A switch of view changes the page wholesale — its height, what's in it,
-     where it's scrolled — so it crosses through the page background: it fades
-     in, `change` runs, it fades back out. */
+  /* ---- the veil: a view switch fades through the page background ---- */
   var veil = el("div", "gallery-veil");
   veil.setAttribute("aria-hidden", "true");
   document.body.appendChild(veil);
@@ -155,8 +130,7 @@
       done = true;
       veil.removeEventListener("transitionend", onEnd);
       change();
-      // Two frames: the page's new shape is laid out and painted under the
-      // veil before it lifts.
+      // Two frames: the new layout is painted under the veil before it lifts.
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
           if (token === veilToken) veil.classList.remove("is-veiled");
@@ -171,26 +145,18 @@
     setTimeout(swap, VEIL_MS + 50);
   }
 
-  /* ---- the control ----------------------------------------------------------- */
+  /* ---- the view toggle ---- */
 
   function syncControls() {
-    // What it shows (an icon and a word) is css/style.css's, keyed on the
-    // same attribute; this is its name.
+    // Its icon and word are CSS's (same attribute); this is its name.
     if (!viewToggle) return;
     viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to list");
-    // In the stack view it comes only once the visitor has scrolled down to
-    // the wheel (the entrance as good as done: from the point the wheel counts
-    // as landed, js/gallery-stack.js LAND_AT — of the entrance as the wheel
-    // plays it, EmjiveHero.mapStage, its roll back to the hand left out);
-    // the grid's button is always there.
+    // Wheel view: shown once the entrance has played out (mapStage, the roll back left out).
     var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
     viewToggle.classList.toggle("is-ready", view() === "grid" || (stage !== null && stage >= 0.9));
   }
 
-  // Either view lands at rest: the hero has had its turn (a visitor leaving
-  // it for the other view has had enough of it) — the grid at the top of the
-  // page, the stack at the end of the hero, which is still there to scroll
-  // back up into.
+  // Either view lands at rest: the list at the top, the wheel at the hero's end.
   function switchView(next) {
     if (next === view()) return;
     throughVeil(function () {
@@ -199,7 +165,7 @@
       writeLocal(VIEW_KEY, next);
       remember({ view: next, hero: "skip" });
       if (state.stack) state.stack.setActive(next === "stack");
-      // The stack's page is tall again by now (the attributes above).
+      // The page is tall again by now (the attributes above).
       jumpTo(next === "stack" ? html.scrollHeight : 0);
       if (hero()) hero().setMode();
       placeEmptyMessage();
@@ -213,7 +179,6 @@
     });
   }
 
-  // The entrance's progress (series/<slug>/hero.js).
   if (window.EmjiveHero) {
     window.EmjiveHero.onStage(function (progress) {
       state.stage = progress;
@@ -222,20 +187,14 @@
   }
   syncControls();
 
-  /* ---- the grid ---------------------------------------------------------------
-     A header row, then a row (a tile) a product: its index, its pictures as a
-     deck of cards seen from an angle (the model's own default view — the
-     fallback-img the 3D viewer starts from elsewhere, or the icon for a
-     product with no model — on top, then the photos), and its facts. Each
-     card behind sits a little
-     further right and a little smaller, a sliver of it out past the right
-     edge of the one before (css/style.css). A swipe sideways deals the deck —
-     the front card goes to the back, or the back one comes to the front — and
-     so does a tap on a card behind; a tap on the front card, or anywhere else
-     on the tile, opens the product. */
-  // How many cards show behind the front one; any more wait under the last.
+  /* ---- the list ----
+     A header row, then one row per product: index, a deck of pictures (the
+     model's fallback-img, or icon without a model, then the photos), and its
+     facts. A sideways swipe or a tap on a card behind deals the deck; any other
+     tap opens the product. */
+  // Cards shown behind the front one; the rest wait under the last.
   var DECK_DEPTH = 3;
-  // How far a press travels sideways before it deals a card, in px.
+  // Sideways travel, in px, before a press deals a card.
   var DEAL_PX = 24;
 
   function card(src, alt, modifier) {
@@ -250,10 +209,7 @@
     return img;
   }
 
-  // The deck goes round: dealing on from the last card brings the first back
-  // to the front. Each card's place in it (0 the front) is --pos, which
-  // css/style.css turns into where it sits and how small; the cards past
-  // DECK_DEPTH share the last place, under it.
+  // A circular deck; each card's place (0 = front) is --pos for the CSS, capped at DECK_DEPTH.
   function wireDeck(frame, deck) {
     var cards = Array.prototype.slice.call(deck.children);
     var count = cards.length;
@@ -265,8 +221,7 @@
       cards.forEach(function (c, i) {
         var pos = (i - current + count) % count;
         c.style.setProperty("--pos", Math.min(pos, DECK_DEPTH));
-        // The card leaving the front drops under the rest at once and slides
-        // back beneath them; the one coming from the back rises over them.
+        // The card leaving the front drops under the rest; the one coming from the back rises over them.
         c.style.zIndex = String(count - pos);
         c.classList.toggle("is-front", pos === 0);
       });
@@ -280,10 +235,8 @@
     frame.style.setProperty("--deck-depth", Math.min(count - 1, DECK_DEPTH));
     place();
 
-    // Swiped, mouse, pen and touch alike: within 45° of horizontal and
-    // DEAL_PX long, a press deals one card — leftwards the next, rightwards
-    // the one before; nearer the vertical it is the page's scroll (by touch
-    // the browser's own, touch-action: pan-y, which cancels the press).
+    // Within 45° of horizontal and DEAL_PX long, a press deals one card; nearer
+    // vertical it's the page's scroll (touch-action: pan-y cancels the press).
     deck.addEventListener("pointerdown", function (e) {
       press = { id: e.pointerId, x: e.clientX, y: e.clientY };
       dealt = false;
@@ -304,8 +257,7 @@
     deck.addEventListener("pointerup", release);
     deck.addEventListener("pointercancel", release);
 
-    // A swipe that dealt isn't a tap on the tile; nor is a tap on a card
-    // behind, which brings that card to the front.
+    // A dealing swipe isn't a tap on the tile; nor is a tap on a card behind.
     deck.addEventListener("click", function (e) {
       if (dealt) {
         dealt = false;
@@ -326,15 +278,11 @@
     });
   }
 
-  // A tile is a link to the product's own page.
   function openProduct(product) {
     window.location.href = window.EmjiveSeries.productHref(product, state.slug);
   }
 
-  // The columns of a row's facts, in order: Id (the name — also the row's
-  // button for a keyboard), Category (even where the series has only one),
-  // Size (the range it is made in) and Price (what it starts at, over all the
-  // metals: the price follows the size, js/selection.js priceAt).
+  // Row facts. Price is the lowest over all metals (it scales with size, js/selection.js priceAt).
   var FACTS = [
     { key: "name", label: "Id" },
     { key: "category", label: "Category" },
@@ -342,9 +290,7 @@
     { key: "price", label: "Price" }
   ];
 
-  // The header row: the same cells as a product's row, the labels in them,
-  // so it lines up with the rows at every width (css/style.css). Only seen —
-  // each row's facts carry their own labels for a screen reader.
+  // Visual only: each row's facts carry their own labels for screen readers.
   function buildHead() {
     var head = el("div", "grid-tile grid-tile--head");
     head.setAttribute("aria-hidden", "true");
@@ -390,8 +336,7 @@
     return list;
   }
 
-  // The index is the product's place in the series (01, 02 …): a catalogue
-  // number, kept as the filter hides rows around it.
+  // The index is the product's place in the series, kept when the filter hides rows.
   function buildTile(product, index) {
     var tile = el("article", "grid-tile");
     var number = index + 1;
@@ -422,8 +367,6 @@
       deck.setAttribute("aria-label", name + " pictures");
       wireDeck(frame, deck);
     }
-    // The body: the picture, then beside it the item's facts, a column each
-    // (css/style.css).
     var body = el("div", "grid-tile__body");
     body.appendChild(frame);
     body.appendChild(buildFacts(product));
@@ -431,8 +374,6 @@
 
     tile.addEventListener("click", function () { openProduct(product); });
 
-    // The model's picture hides behind a loader until it has loaded, as the
-    // old cards' did (js/loader.js).
     if (firstImg && window.EmjiveLoader) {
       window.EmjiveLoader.cover(frame, window.EmjiveLoader.imageReady(firstImg));
     }
@@ -449,8 +390,7 @@
     });
   }
 
-  // A grid landing straight on the page (no hero first): its first tiles are
-  // the first paint, so they are what the arrival loader waits for.
+  // A list landing without the hero: its first visible tiles are the first paint.
   function releaseLoaderOnTiles() {
     if (!window.EmjiveLoader) return;
     var top = window.innerHeight || 0;
@@ -464,10 +404,9 @@
     ]).then(function () { window.EmjiveLoader.pageReady(); });
   }
 
-  /* ---- filtering ---------------------------------------------------------------
-     js/main.js's filter row decides the categories; both views hide what
-     doesn't match without rebuilding anything. Kept until the products are in
-     when it comes first (a ?cat= in the address). */
+  /* ---- filtering ----
+     Both views hide non-matching items without rebuilding. A filter set before
+     the products load (?cat=) is applied once they do. */
   function counts() {
     var out = {};
     (state.products || []).forEach(function (product) {
@@ -480,7 +419,6 @@
     return !state.cats.length || state.cats.indexOf(product.category) !== -1;
   }
 
-  // The empty filter's message, in whichever view is showing.
   function placeEmptyMessage() {
     if (!state.emptyMsg) return;
     var inGrid = view() === "grid";
@@ -497,9 +435,7 @@
     }
     var text = "Nothing in " + state.cats.map(function (c) { return "." + c; }).join(" or ") + " in this series yet. ";
     if (!state.emptyMsg) {
-      // The site's one message component (EmjiveMessage); placeEmptyMessage
-      // below gives it the grid's or the stage's placement. Built once, then
-      // only its text changes, so a focused "Show all" keeps its focus.
+      // Built once, then only its text changes, so a focused "Show all" keeps focus.
       state.emptyMsg = el("div");
       window.EmjiveMessage.show(state.emptyMsg, text, {
         label: "Show all",
@@ -522,14 +458,12 @@
     showEmpty(state.products.length > 0 && visible === 0);
   }
 
-  /* ---- loading ---------------------------------------------------------------- */
+  /* ---- loading ---- */
 
   function showLoadFailure() {
     grid.innerHTML = "";
-    // Where the visitor is looking: when the series index itself failed, no
-    // hero will ever arrive, so its (empty) slot — the whole first screen —
-    // carries the message. If the hero did load and only the products
-    // failed, the message goes where the products would have been.
+    // Where the visitor is looking: the empty hero slot if the series index
+    // failed, else where the products would have been.
     var heroSlot = document.getElementById("seriesHero");
     var host;
     if (heroSlot && !heroSlot.children.length && view() === "stack") {
@@ -574,9 +508,7 @@
       applyFilter();
       window.dispatchEvent(new CustomEvent("emjive:gallery-filtered", { detail: { counts: counts() } }));
       if (view() === "grid" && heroMode() === "skip") releaseLoaderOnTiles();
-      // The gallery is the last thing that changes this page's height, so
-      // this is the signal js/scroll-memory.js is waiting on to finish
-      // restoring a back-navigation's scroll position.
+      // The gallery is the last height change: js/scroll-memory.js finishes restoring on it.
       if (state.stack && view() === "stack" && isRestoring() && window.EmjiveScrollMemory.holdUntil) {
         window.EmjiveScrollMemory.holdUntil(function () { return state.stack.settleLayout(); });
       }
@@ -589,16 +521,14 @@
       releaseWheel();
       showLoadFailure();
       if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
-      // Still signalled: a failed fetch means the height this page is ever
-      // going to have is the height it has now.
+      // Still signalled: the page's height is now final.
       signalContentReady();
     });
 
   window.EmjiveGallery = {
-    // cats: the categories to show ([] for all). onShowAll: what the empty
-    // filter's "Show all" does (the filter row's own reset). Returns the
-    // number of products per category, or null before the products are in
-    // — they're reported then through "emjive:gallery-filtered".
+    // cats: categories to show ([] for all). onShowAll: the empty message's
+    // "Show all". Returns per-category counts, or null before products load
+    // (reported then via "emjive:gallery-filtered").
     setFilter: function (cats, onShowAll) {
       state.cats = (cats || []).slice();
       if (onShowAll) state.onShowAll = onShowAll;

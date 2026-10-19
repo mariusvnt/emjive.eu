@@ -1,16 +1,10 @@
 name: Verify
 
-# Everything that must be true of a change before it can go live: lint, the
-# data files against their schema (including exact-case asset paths — the dev
-# machine's file system doesn't care about case, the Linux host does), a real
-# production build, assertions about the built output, and an audit of the
-# runtime dependencies.
+# The gate for every change: lint, data schema, production build, built-output
+# checks, runtime dependency audit. Runs on pull requests and is called by
+# deploy.yml, which ships this job's dist/ artifact as-is.
 #
-# Runs on every pull request, and is called by deploy.yml, which publishes the
-# exact dist/ this job produced (uploaded as an artifact) rather than
-# rebuilding it — so what is checked is what ships.
-#
-# Locally the same checks are:   npm run verify   (then `npm audit --omit=dev`)
+# Locally: npm run verify (then npm audit --omit=dev)
 
 on:
   pull_request:
@@ -30,17 +24,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      # Only what is shipped to visitors. The devDependencies (build tooling,
-      # the asset pipeline) never reach the site, so findings there are
-      # tracked as maintenance rather than blocking a deploy.
+      # Runtime dependencies only: devDependencies never reach the site.
       - run: npm audit --omit=dev --audit-level=high
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist
           path: dist/
-          # Without this the artifact silently omits every dotfile — which in
-          # dist/ is .htaccess, the host configuration. The first deploy that
-          # went through this artifact shipped without it.
+          # Otherwise dotfiles are dropped, including dist/.htaccess.
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

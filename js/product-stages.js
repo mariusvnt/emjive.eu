@@ -1,124 +1,66 @@
-/* ==========================================================================
-   em·ji·ve — the product page's three stages
-   product.html's show is one tall track (.product-stage) holding one sticky
-   stage (.product-stage__pin): scrolling down the track doesn't move the
-   page, it moves the show along — inspiration (the description and the
-   photos, one under the other), then design (the model, the metal picker and
-   the options of a product with several designs), then specs (the model in
-   grey inside its dimensioned box, a size field, the printing technology, the
-   cost breakdown, shipping and returns). Free scrub, no snapping, and not
-   linear: each stage is a stretch of scrolling in which the show browses (it
-   goes up by the room its stage needs, see below), and the transitions
-   between them are eased at both ends, so the page eases out of one stage and
-   into the next.
-
-   The track, in order: the inspiration stretch (as long as it takes to browse
-   the feed at FEED_PACE, --feed-hold below), the transition to design
-   (--stage-step-in in css/style.css), the design stretch, the transition to
-   specs (--stage-step) and the specs stretch (--end-hold below); the design
-   stretch is --hold-ratio of the transition after it, which is set below
-   (syncDesignHold) so that it is as long as it takes to browse design's room.
-
-   window.EmjiveProductStages.mount(stageEl, { onChange }) reads the track's
-   position on every scroll frame (the technique series/bones/hero.js uses
-   for the homepage wipe) and publishes, as custom properties on the track
-   (css/style.css fades everything from them), two eased numbers, 0 to 1:
-
-     --to-design      inspiration -> design
-     --to-specs       design -> specs
-
-   and --leave, 0 to 1, how far design's things have gone on the way to
-   specs: linear in the scroll from the very first pixel of the design
-   stretch (not once it is over), ending where --to-specs reaches --t0 (set
-   by js/product.js) — and, for the room to browse each stage, --browse-0,
-   --browse-1 and --browse-2, 0 to 1 each, how far through that stage's
-   stretch of scrolling the page is (0 before it, 1 from its end on) —
-   css/style.css makes the show (or the feed) go up by that much of the room
-   it has. Plus data-stage, the nearest stage ("inspiration", "design" or
-   "specs"; "flow" on a screen too short to pin the stage, where the page is
-   laid out as a plain column and none of this runs), and two classes for
-   what CSS can't fade: .is-feed-gone once the feed has faded out
-   (FEED_GONE_AT) and .is-design-out until design's things start to come in
-   (DESIGN_FROM) — what is out of sight takes no taps and shows no loader.
-   It calls onChange({ toDesign, toSpecs, leave, along, ramp, stage }) when
-   they change, for what CSS can't do (js/product.js: the model). `along`, 0
-   to 1, is how far the page is through the design stretch and the transition
-   to specs together, linear in the scroll from the stretch's first pixel: the
-   model's rise to its place in specs runs on it. `ramp` is the share of the
-   design stretch its browsing eases in over (see entry(), below; the model's
-   rise follows the same curve).
-
-   Returns { scrollToStage(index), restart(), update() }. Focus moving into an element marked
-   data-stage-owner="inspiration|design|specs" (or several, space apart)
-   while another stage is showing scrolls to that one (the first), so the
-   keyboard can reach everything — but only focus a keyboard put there
-   (:focus-visible). A click on the model focuses its viewer without any such
-   intent.
-
-   The show doesn't loop: at the end of specs the page just ends, and a
-   "Back to photos" button there (js/product.js) calls restart(), which takes
-   the show back to the start — everything fades out to the page's background
-   (.is-veiled, css/style.css), the page jumps to the top while nothing shows,
-   and the first stage fades back in.
-   ========================================================================== */
+// The product page's three-stage show: a tall track (.product-stage) holding
+// one sticky stage, where scrolling steps inspiration (description and photo
+// feed) -> design (model, metal, design options) -> specs (blueprint model,
+// size, dimensions, costs). Each stage is a stretch the show browses through,
+// with eased transitions between them.
+//
+// Track order: inspiration stretch (--feed-hold), transition (--stage-step-in),
+// design stretch (--hold-ratio of the next transition), transition
+// (--stage-step), specs stretch (--end-hold). The stretches are sized here
+// from the room each stage needs.
+//
+// window.EmjiveProductStages.mount(stageEl, { onChange }) publishes on the track:
+//   --to-design, --to-specs   eased 0..1 transitions
+//   --leave                   0..1, linear from the design stretch's start to --to-specs = --t0
+//   --browse-0/1/2            0..1 through each stage's stretch
+//   data-stage                "inspiration" | "design" | "specs" | "flow" (too short to pin)
+//   .is-feed-gone, .is-design-out, .is-model-out   for what CSS can't fade
+// and calls onChange({ toDesign, toSpecs, leave, along, ramp, stage }); `along`
+// is linear through the design stretch and the transition to specs, `ramp`
+// the design stretch's ease-in share.
+// Returns { scrollToStage(index), restart(), update() }. Keyboard focus
+// (:focus-visible) entering a data-stage-owner element of another stage
+// scrolls there. restart() fades out, jumps to the top and fades back in.
 
 (function () {
   "use strict";
 
-  // Below this height there's no room to pin a title, the model and the
-  // controls in one screen (a phone on its side): the stage is laid out as a
-  // plain column instead. Same query as the "flow" block in css/style.css.
+  // Too short to pin title, model and controls (a phone on its side): a plain
+  // column instead. Same query as the "flow" block in css/style.css.
   var FLOW_QUERY = "(max-height: 560px)";
 
   var STAGES = ["inspiration", "design", "specs"];
 
-  // The feed goes up one for one with the scrolling — it is read like a
-  // page — easing to rest over its last ramp (ENTRY_SCREENS) before the
-  // transition to design: a feed stopping dead at full speed felt like
-  // hitting a wall. A product with nothing to browse (the description alone,
-  // no photos) still gets FEED_MIN_SCREENS of scrolling in its first stage.
+  // The feed scrolls one for one, easing to rest over its last ramp before the
+  // transition. With nothing to browse it still gets FEED_MIN_SCREENS.
   var FEED_PACE = 1;
   var FEED_MIN_SCREENS = 0.4;
-  // How far through the transition to design the feed is gone, and from where
-  // design's things come in (css/style.css --i-out and --d-in: keep them the
-  // same numbers).
+  // Mirrors --i-out and --d-in in css/style.css.
   var FEED_GONE_AT = 0.45;
   var DESIGN_FROM = 0.55;
 
-  // A stretch's entry: the show starts browsing from rest, speeding up over
-  // the first third of the screen's height of scrolling and going on at a
-  // constant pace after — the pace where it has got to, so there is no step in
-  // the speed (the transition before it has come to rest, and a browse at full
-  // pace from the first pixel was an abrupt start). `a` is the ramp's share of
-  // the stretch (the third of the screen over the stretch's length, at most
-  // all of it). Reaches 1 at u = 1, and is 0 at 0. The design stretch and the
-  // specs stretch both begin with it.
+  // entry(u, a): browsing starts from rest, accelerating over the first ramp
+  // (ENTRY_SCREENS of scroll, share `a` of the stretch) then constant pace,
+  // without a speed step. entry(0) = 0, entry(1) = 1.
   var ENTRY_SCREENS = 1 / 3;
-  // The least the design stretch is, in screens: a rest for the model, even
-  // when everything of design stands clear of the bars already.
+  // The design stretch's minimum, a rest for the model.
   var DESIGN_MIN_SCREENS = 0.25;
-  // How fast the show browses the specs column once up to speed: 15px up for
-  // every 24px scrolled. The specs stretch is then as long as it takes to
-  // cover its room at that pace (plus the ramp), whatever the room is: the
-  // track is longer for a taller column (--end-hold, set below), instead of
-  // the show going faster to make it in a fixed stretch.
+  // Specs browsing pace: 15px up per 24px scrolled. The track lengthens for a
+  // taller column rather than browsing faster.
   var BROWSE_PACE = 15 / 24;
-  // The specs stretch starts before the transition ends, by this many
-  // ramps (none: the model lands in its place from above as the transition
-  // ends, and browsing takes it up from there).
+  // How many ramps the specs stretch starts before the transition ends.
   var LEAD_RAMPS = 0;
   function entry(u, a) {
     var t = clamp01(u);
     var y = t < a ? (t * t) / (2 * a) : t - a / 2;
     return y / (1 - a / 2);
   }
-  // The same ramp at the other end: full pace from the first pixel, easing to
-  // rest over the last `a` of the stretch (the feed's).
+  // The mirror ramp: full pace, easing to rest over the last `a` (the feed's).
   function exit(u, a) {
     return 1 - entry(1 - u, a);
   }
 
-  // The u that ease(u) = y: ease is increasing, so bisect.
+  // Inverse of ease() by bisection (ease is increasing).
   function invEase(y) {
     var lo = 0;
     var hi = 1;
@@ -134,20 +76,14 @@
     return x < 0 ? 0 : x > 1 ? 1 : x;
   }
 
-  // Zero speed and zero acceleration at both ends (Perlin's smootherstep).
+  // Perlin's smootherstep: zero speed and acceleration at both ends.
   function ease(u) {
     var t = clamp01(u);
     return t * t * t * (t * (t * 6 - 15) + 10);
   }
 
-  // The screen's height as the CSS pin counts it — the small viewport (svh),
-  // which stays the same while the browser's toolbars come and go.
-  // window.innerHeight does not: on iOS Safari it changes as the toolbar
-  // collapses with the scrolling itself, which would stretch or shrink
-  // anything measured in screens (the ramps, and js/product.js's timing of
-  // the fades from where the model is on screen — the metal picker among
-  // them) in the middle of a scroll. vh is the fallback (the large viewport on
-  // iOS: constant too). Shared with js/product.js.
+  // The screen height as the pin counts it (svh), stable while the browser's
+  // bars move; innerHeight changes mid-scroll on iOS. Shared with js/product.js.
   var screenProbe = null;
   function screenPx() {
     if (!screenProbe) {
@@ -165,12 +101,11 @@
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
     var state = { toDesign: -1, toSpecs: -1, leave: -1, along: -1, ramp: -1, stage: "", browse: "" };
-    // Where each stage sits, in page scroll, as last measured.
+    // Each stage's page scroll position, as last measured.
     var stops = [0, 0, 0];
 
-    // Lengths the CSS holds, in pixels, read off probes as tall as they are:
-    // --room-0, the least a stage's browsing takes the show up by (the two
-    // bars and 4rem), and --stage-step-in, the transition to design.
+    // CSS lengths in px, read off probes: --room-0 (minimum browse room),
+    // --room-1, --stage-step, --stage-step-in.
     function probe(height) {
       var el = document.createElement("div");
       el.setAttribute("aria-hidden", "true");
@@ -183,11 +118,8 @@
     var stepProbe = probe("var(--stage-step)");
     var stepInProbe = probe("var(--stage-step-in)");
 
-    // The inspiration stretch's length in scroll, in pixels, as last set on
-    // the track (--feed-hold): the room the feed has to go up by (--feed-room,
-    // fitted by js/product.js) at FEED_PACE, plus the half of the ramp it
-    // eases out over (which covers what a ramp does: half its length at full
-    // pace) — or FEED_MIN_SCREENS when there is nothing to browse.
+    // Inspiration stretch (--feed-hold): --feed-room (js/product.js) at FEED_PACE
+    // plus half the ramp, or FEED_MIN_SCREENS with nothing to browse.
     var feedHold = 0;
     function syncFeedHold() {
       var want = 0;
@@ -202,11 +134,8 @@
       else stageEl.style.removeProperty("--feed-hold");
     }
 
-    // The design stretch's length: the room design has to cover (--room-1,
-    // fitted by js/product.js) at BROWSE_PACE, plus the half of the ramp it
-    // eases in over, and never less than DESIGN_MIN_SCREENS. It is set as
-    // --hold-ratio, its share of the transition to specs (--stage-step), which
-    // the track's height and every place that reads the stretch go by.
+    // Design stretch: --room-1 at BROWSE_PACE plus half the ramp, at least
+    // DESIGN_MIN_SCREENS; set as --hold-ratio of --stage-step.
     var holdRatio = -1;
     function syncDesignHold() {
       var want = -1;
@@ -223,13 +152,8 @@
       else stageEl.style.removeProperty("--hold-ratio");
     }
 
-    // The specs stretch's length in scroll, in pixels, as last set on the
-    // track (--end-hold; 0: not set, the track's own, as long as the design
-    // stretch) — after the transition, not counting the ramp's length it has
-    // started before it (BROWSE_PACE's note, above).
-    // The room it has to cover is what js/product.js fits (--browse-room), and
-    // never less than --room-0; at BROWSE_PACE after the ramp (which
-    // covers what a ramp of that length does: half its length at full pace).
+    // Specs stretch (--end-hold, 0 = unset): --browse-room (js/product.js), at
+    // least --room-0, at BROWSE_PACE plus half the ramp.
     var endHold = 0;
     function syncEndHold() {
       var want = 0;
@@ -244,7 +168,7 @@
       else stageEl.style.removeProperty("--end-hold");
     }
 
-    // How far the track has been scrolled past the pin's stick point, in pixels.
+    // Track scroll past the pin's stick point, in px.
     function scrolledPx() {
       var stickAt = parseFloat(getComputedStyle(pin).top) || 0;
       return stickAt - stageEl.getBoundingClientRect().top;
@@ -253,8 +177,7 @@
     function measure() {
       var scrolled = scrolledPx();
       var trackStart = window.pageYOffset - scrolled;
-      // The inspiration stretch and the transition to design come first; the
-      // rest is design's stretch, the transition to specs and specs' stretch.
+      // Inspiration stretch and transition first; then design stretch, transition, specs stretch.
       var feed = feedHold;
       var stepIn = stepInProbe.offsetHeight;
       var offset = feed + stepIn;
@@ -264,8 +187,7 @@
       var move;
       var hold2;
       if (endHold > 0) {
-        // The end stretch is its own length (syncEndHold): the rest is the
-        // design stretch and the transition, in their ratio.
+        // With --end-hold set, the rest splits between design stretch and transition by ratio.
         move = Math.max(0, travel - endHold) / (ratio + 1);
         hold2 = endHold;
       } else {
@@ -289,9 +211,7 @@
       if (stageEl.getAttribute("data-stage") !== next.stage) stageEl.setAttribute("data-stage", next.stage);
       var inFlow = next.stage === "flow";
       stageEl.classList.toggle("is-feed-gone", !inFlow && next.toDesign >= FEED_GONE_AT);
-      // Where design's things start to come in is the page's (--d-from, set by
-      // js/product.js from where the band is by the title bar); DESIGN_FROM
-      // until it has.
+      // --d-from (js/product.js, from the band's position) once set, else DESIGN_FROM.
       var dFrom = parseFloat(stageEl.style.getPropertyValue("--d-from"));
       stageEl.classList.toggle("is-design-out", !inFlow && next.toDesign <= (dFrom > 0 ? dFrom : DESIGN_FROM));
       stageEl.classList.toggle("is-model-out", !inFlow && next.toDesign <= 0);
@@ -310,11 +230,9 @@
       var m = measure();
       var s = m.scrolled;
       var screenRamp = screenPx() * ENTRY_SCREENS;
-      // Inspiration: the feed browses, then fades out as design comes in.
       var browse0 = m.feed > 0 ? exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed)) : 1;
       var toDesign = m.stepIn > 0 ? ease((s - m.feed) / m.stepIn) : (s >= m.feed ? 1 : 0);
-      // From here on, everything counts from the first pixel of the design
-      // stretch.
+      // From here, counted from the design stretch's first pixel.
       var s1 = s - m.offset;
       if (!(m.move > 0)) {
         publish({ toDesign: toDesign, toSpecs: 0, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, 0, 0], leave: 0, along: 0, ramp: 1 });
@@ -322,23 +240,16 @@
       }
       var toSpecs = ease((s1 - m.hold) / m.move);
       var stage = toDesign < 0.5 ? STAGES[0] : toSpecs >= 0.5 ? STAGES[2] : STAGES[1];
-      // Room to browse each stage: how far through its stretch of scrolling
-      // the page is (each stretch is the hold before the stage's own
-      // transition out; the last is the one at the end).
       function through(from, length) { return length > 0 ? clamp01((s1 - from) / length) : 1; }
-      // Design's things start going with the first pixel of its stretch,
-      // linearly, and are gone where the transition has reached --t0 (set by
-      // js/product.js from where the model is on screen).
+      // Design's controls leave linearly, gone where the transition reaches --t0
+      // (js/product.js, from the model's position).
       var t0 = parseFloat(getComputedStyle(stageEl).getPropertyValue("--t0"));
       if (!(t0 > 0)) t0 = 0.3;
       var gone = m.hold + m.move * invEase(Math.min(t0, 1));
       var leave = gone > 0 ? clamp01(s1 / gone) : 0;
-      // The specs stretch begins LEAD_RAMPS ramps before the transition ends,
-      // and runs on to the end of the track.
       var lead = m.hold2 > 0 ? Math.min(screenRamp * LEAD_RAMPS, m.move / 2) : 0;
       var length = m.hold2 + lead;
       var ramp = length > 0 ? Math.min(1, screenRamp / length) : 1;
-      // Design's stretch eases in the same way as specs'.
       var ramp1 = m.hold > 0 ? Math.min(1, screenRamp / m.hold) : 1;
       publish({
         toDesign: toDesign,
@@ -357,8 +268,7 @@
       requestAnimationFrame(update);
     }
 
-    // html's own scroll-behavior: smooth carries this (and the
-    // reduced-motion block in css/style.css turns it off).
+    // Smooth via html's scroll-behavior (off under reduced motion).
     function scrollToStage(index) {
       if (flow.matches) return;
       measure();
@@ -371,19 +281,16 @@
       if (!e.target.matches(":focus-visible")) return;
       var owner = e.target.closest("[data-stage-owner]");
       if (!owner) return;
-      // One stage, or several (space apart): inside one of them, nowhere to go.
+      // Already in one of its stages: nowhere to go.
       var owned = owner.getAttribute("data-stage-owner").split(/\s+/);
       if (owned.indexOf(state.stage) !== -1) return;
       var index = STAGES.indexOf(owned[0]);
       if (index !== -1) scrollToStage(index);
     });
 
-    /* ---- back to the start --------------------------------------------- */
+    /* ---- back to the start ---- */
 
-    // Everything fades to the background (the veil class, a fade the CSS
-    // owns), the page is taken to the top while nothing shows, and the veil
-    // lifts, the first stage fading back in. Straight to the top under
-    // reduced motion.
+    // The veil fade is CSS's; instant under reduced motion.
     var VEIL_MS = 550;
     var restarting = false;
     function restart() {
@@ -407,8 +314,7 @@
     window.addEventListener("scroll", requestUpdate, { passive: true });
     window.addEventListener("resize", requestUpdate);
     if (typeof flow.addEventListener === "function") flow.addEventListener("change", requestUpdate);
-    // A restored scroll position (a reload part way down, Back) lands
-    // straight in its stage.
+    // A restored scroll lands straight in its stage.
     window.addEventListener("pageshow", requestUpdate);
     update();
 

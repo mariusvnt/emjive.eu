@@ -1,57 +1,30 @@
-/* ==========================================================================
-   Bones — hero styling.
-
-   Loaded at runtime by js/series.js (injected as a <link>, from this
-   series' "hero.css" path in data/series.json), not from index.html — so
-   it lands after css/style.css in the cascade and wins on ties.
-
-   PATH CONVENTION, and it differs from the fragment next door: any url()
-   here resolves against THIS FILE (../../assets/...), whereas an <img src>
-   in hero.html resolves against the PAGE, since the element gets cloned
-   into the live document. This file happens to need no url() at all — the
-   hero's images are all real <img> elements — but a future series' bundle
-   will hit this.
-   ========================================================================== */
+/* Bones hero styles, injected by js/series.js after css/style.css (wins ties).
+   url()s here resolve against this file, unlike hero.html's paths. */
 
 :root {
-  /* Global (not scoped to .reveal) because .reveal__extension-crop, which
-     also uses this, lives in .products — a sibling section, not a
-     descendant of .reveal, so a variable defined only there wouldn't be
-     visible here. */
+  /* On :root because .reveal__extension-crop sits outside .reveal. */
   --reveal-pin-height: 100vh;
 
-  /* Shared by the x-ray hand image and its two extension panels below the
-     fold (same reason --reveal-pin-height is global above) so the x-ray
-     effect reads as one continuous image at one consistent opacity rather
-     than three separately-tuned values drifting apart. */
+  /* Shared by the x-ray hand and its extension panels. */
   --reveal-xray-opacity: 1;
-  /* How far the x-ray hand (and the arm below it) fades once the camera has
-     pulled back from it to the gallery's circle of rings (hero.js eases the
-     x-ray group's opacity from 1 to this over the entrance, and the skipped
-     hero starts here): a trace of it stays behind the circle. */
+  /* The x-ray's opacity once the camera has pulled back to the wheel (hero.js
+     eases to it over the entrance; a skipped hero starts here). */
   --reveal-xray-rest-opacity: 0.2;
 
-  /* The shape of every hero picture. They are all 16:9 at whatever resolution
-     each ships at (the desktop versions); a smartphone gets versions cropped
-     to the middle --hero-crop of the width (scripts/make-image-variants.js,
-     PHONE_CROP.hero; js/loader.js picks them with the same query as the rule
-     below), so they are taller than wide, and everything laid out on top of
-     them follows:
-       --hero-aspect     width / height of each picture: the layers all use it,
-                         so they stay exactly on top of one another
-       --hero-crop       the share of the full picture's width that is left
+  /* Hero picture geometry. All pictures are 16:9; phones get versions cropped
+     to the middle --hero-crop of the width (PHONE_CROP.hero in
+     scripts/make-image-variants.js), and every layer follows:
+       --hero-aspect     width / height of each picture, shared by all layers
+       --hero-crop       share of the full picture's width that is kept
        --hero-crop-left  where that share starts, as a % of the full width
-     Sizes are written as ratios of the pixel counts, not decimals, so the
-     numbers can be checked against the files. */
+     Ratios are written as pixel counts so they can be checked against the files. */
   --hero-aspect: calc(3840 / 2160);
   --hero-crop: 1;
   --hero-crop-left: 0%;
 }
 
-/* A smartphone: the same query as PHONE_QUERY in js/loader.js. --hero-crop is
-   PHONE_CROP.hero in scripts/make-image-variants.js and the aspect is that
-   crop of 3840x2160 (1536x2160); scripts/validate-data.js fails the build if
-   they differ. */
+/* Phones: same query as PHONE_QUERY in js/loader.js. 1536x2160 is the 0.4 crop
+   of 3840x2160; scripts/validate-data.js checks both against PHONE_CROP.hero. */
 @media (max-width: 640px) and (max-aspect-ratio: 3/5) {
   :root {
     --hero-aspect: calc(1536 / 2160);
@@ -60,41 +33,23 @@
   }
 }
 
-/* ==========================================================================
-   Entry reveal — scroll pins the stage for --reveal-scroll-vh, during which
-   js/main.js clips hand_xray.webp open from the bottom up over
-   hand-rings-under-flesh_3k.webp.
-   ========================================================================== */
+/* ---- Entry reveal: the pinned stage, over which hero.js wipes the x-ray open
+   from the bottom up. ---- */
 
 .reveal {
   position: relative;
-  --reveal-scroll-vh: 200vh; /* the reveal's own height: the wipe plays over all of it but the pin's own */
-  /* The gallery's entrance (js/gallery-stack.js): a further stretch of
-     scrolling at the end of the reveal, the pin still held, during which the
-     camera pulls back from the hand to the circle of rings round the wrist
-     and the hand fades back. Only in the stack view — the grid simply follows
-     the reveal. */
+  --reveal-scroll-vh: 200vh; /* the wipe plays over all of it but the pin's own height */
+  /* The wheel's entrance (js/gallery-stack.js): extra pinned scroll in which the
+     camera pulls back from the hand to the wheel. Stack view only. */
   --reveal-entrance-vh: 0px;
-  /* Room added to the entrance, as a share of it, for the wheel to roll
-     back to the hand in before the camera moves in (set by hero.js's
-     setEntranceRoom, for js/gallery-stack.js). */
+  /* Extra entrance length, as a share of it, for the wheel to roll back before
+     the camera moves (hero.js setEntranceRoom). */
   --reveal-entrance-room: 0;
-  --reveal-frontier-height: 0.8rem; /* height of the scanning band (narrow-screen override below); width is always full screen */
-  /* --reveal-pin-height lives on :root now (see there) — .reveal__extension-crop,
-     which also needs it, lives outside .reveal entirely. */
+  --reveal-frontier-height: 0.8rem; /* full screen width; narrow-screen override below */
 
-  /* Ring placement on the x-ray hand: x/y are a ring's center as a % of
-     the hand image's own width/height (not the viewport), size is the
-     ring's width as a % of the hand image's width, rotation spins it in
-     place around that same center point. These four are only the
-     fallback values, inherited by a .reveal__ring <img> if nothing more
-     specific overrides them — js/main.js's updateHeroRings() creates one
-     .reveal__ring per product whose data/products.json
-     "hero-hand-visibility.visible" is true, each with these same four set
-     inline (from that product's own
-     hero-hand-visibility.x/y/scale/rotation) directly on that specific <img>, so
-     several rings on screen at once don't all read the one shared set
-     defined here. */
+  /* Fallback ring placement: x/y are its centre and size its width, as % of the
+     hand image. hero.js sets these per ring from each product's
+     hero-hand-visibility. */
   --ring-x: 58.5%;
   --ring-y: 51%;
   --ring-size: 6%;
@@ -105,28 +60,15 @@
 html[data-gallery-view="stack"] .reveal {
   --reveal-entrance-vh: 100vh;
 }
-/* The pinned frame never moves at the end of the page. It is as tall as the
-   screen without a phone's browser bars (--reveal-pin-height, 100vh), and a
-   sticky frame can't stay pinned past the end of what holds it: with the
-   bars showing at the end of the page (Safari brings them back there), the
-   page ending with the reveal pushed it up by the bars' height — the hand
-   with it, off the wheel (which is fixed to the screen), and a script
-   catching up with that lagged the browser's own scrolling by a frame.
-   So the page ends that much before the reveal does (the margin, 100svh -
-   100lvh: the bars' height, 0 where there are none), the overhang clipped
-   (overflow: clip on the hero's box: no scroll container, the pin still
-   sticks): at the end of the page, bars or not, the frame is still pinned,
-   and hero.js ends the entrance where the page ends without the bars.
-   A few px more than the bars (--reveal-end-slack): ending exactly where the
-   frame lets go, the page's end (whole px) and the bars' height (fractions
-   of one) could leave it a fraction past that point, and the frame,
-   flipping between pinned and not as a phone scrolled, shimmered there. */
+/* Keeps the frame pinned at the end of the page when the phone's browser bars
+   show (Safari brings them back there): the page ends 100svh - 100lvh (the
+   bars' height) before the reveal does, the overhang clipped, and hero.js ends
+   the entrance there. --reveal-end-slack adds a few px so sub-pixel bar
+   heights can't leave the frame flickering between pinned and not. */
 @supports (height: 100lvh) and (overflow: clip) {
   html[data-gallery-view="stack"] .series-hero {
-    /* Its own formatting context, so the reveal's negative margin shortens
-       this box (and the page) rather than collapsing through it to the page's
-       end, where it did nothing; overflow: clip, unlike hidden, doesn't make
-       one. */
+    /* flow-root, so the reveal's negative margin shortens this box instead of
+       collapsing through it; overflow: clip doesn't create a formatting context. */
     display: flow-root;
     overflow: clip;
   }
@@ -136,12 +78,8 @@ html[data-gallery-view="stack"] .reveal {
   }
 }
 
-/* The hero skipped (data-hero="skip", js/scroll-memory.js): the page lands
-   at the reveal's end — the photo wiped away, the x-ray faded back, the band
-   gone — with the whole of it still above, to scroll back up into. The rings
-   are the stack's by then (js/gallery-stack.js); in the grid the hero isn't
-   shown at all. hero.js sets the same clips inline; these cover the first
-   paint, before it runs. */
+/* Hero skipped (data-hero="skip"): the reveal's end state for the first paint,
+   before hero.js sets the same clips inline. */
 html[data-hero="skip"] .reveal__img--normal {
   clip-path: inset(0 0 100% 0);
 }
@@ -153,7 +91,7 @@ html[data-hero="skip"] .reveal__ring {
   visibility: hidden;
 }
 
-/* Measured by hero.js: the entrance stretch, its room included, in px. */
+/* The entrance stretch, measured in px by hero.js. */
 .reveal__entrance {
   position: absolute;
   left: 0;
@@ -183,10 +121,7 @@ html[data-hero="skip"] .reveal__ring {
   height: 100%;
 }
 
-/* Both images share identical intrinsic dimensions and this exact same
-   sizing/position rule, so they land pixel-for-pixel on top of each other:
-   full pin height, width auto (overflow cropped equally by the centering),
-   flush to the pin's bottom edge. */
+/* Both images share dimensions and this rule, so they overlap pixel for pixel. */
 .reveal__img {
   position: absolute;
   bottom: 0;
@@ -200,17 +135,12 @@ html[data-hero="skip"] .reveal__ring {
 }
 
 .reveal__img--normal {
-  /* Starts fully visible; js/main.js clips this away from the bottom by
-     the same amount the x-ray reveals, so the two never overlap. */
+  /* hero.js clips this from the bottom as the x-ray is revealed. */
   clip-path: inset(0 0 0 0);
 }
 
-/* Wraps the x-ray image + the ring, sized/positioned identically to
-   .reveal__img above (same intrinsic aspect ratio, so it lands pixel-for-
-   pixel on top of the normal/x-ray images). js/main.js applies the reveal
-   clip-path to THIS wrapper rather than to the x-ray image directly, so
-   the ring reveals in lockstep with the x-ray automatically instead of
-   needing its own separately-synced clip. */
+/* The x-ray and its rings, sized like .reveal__img. The reveal clip goes on
+   this wrapper so the rings reveal with the x-ray. */
 .reveal__xray-group {
   position: absolute;
   bottom: 0;
@@ -218,34 +148,14 @@ html[data-hero="skip"] .reveal__ring {
   transform: translateX(-50%);
   height: 100%;
   width: auto;
-  /* The RATIO is what matters here, not the pixel counts — every hero image
-     is 16:9, at whatever native resolution each happens to ship at
-     (hand_xray.webp 1920x1080, hand-rings-under-flesh_3k.webp 2880x1620, the
-     two extension panels 3840x2160). Written as 3840/2160 rather than 16/9
-     because .reveal__extension below derives its width from the same pair of
-     numbers, and the two must not drift apart. */
   aspect-ratio: var(--hero-aspect);
-  /* Starts fully hidden; js/main.js animates this toward inset(0 0 0 0) as
-     the section scrolls, revealing from the bottom edge upward. */
+  /* hero.js opens this toward inset(0 0 0 0) on scroll. */
   clip-path: inset(100% 0 0 0);
 }
 
-/* A background layer living behind the product grid (not inside
-   .reveal__pin, no scroll/clip-path logic of its own) — this is
-   deliberately the simple half of the split: hand_xray.webp used to be
-   one taller file with this appended below it, but making that work with
-   the reveal's sticky/overflow setup kept causing viewport bugs on
-   mobile. Positioned absolutely within .products (which is
-   position: relative), pinned to its top so it continues directly from
-   the hero above, with .product-grid's z-index: 1 keeping it in front —
-   the image shows through in the grid's gaps/margins, like a backdrop.
-   Two panels rather than one — hand_xray_extension_1.webp then
-   hand_xray_extension_2.webp, stacked top to bottom — continuing the
-   lines that run off the bottom of hand_xray.webp across both seams.
-   overflow: hidden here only crops horizontally (same reason the hand
-   images need it: wider than the viewport on narrow screens) — safe to
-   do with plain overflow: hidden since unlike .reveal__pin there's no
-   sticky element anywhere in this chain to trigger that WebKit bug. */
+/* The x-ray arm continuing behind the product grid (z-index 0 under
+   .product-grid's 1), two panels stacked from the top of .products.
+   overflow: hidden crops the width; no sticky ancestor here, so it is safe. */
 .reveal__extension-crop {
   position: absolute;
   top: 0;
@@ -253,21 +163,12 @@ html[data-hero="skip"] .reveal__ring {
   right: 0;
   z-index: 0;
   overflow: hidden;
-  /* Two stacked panels. Both extension images share hand_xray.webp's own
-     3840:2160 intrinsic ratio, so each one renders at exactly one
-     pin-height tall (same logic as .reveal__img's height: 100%) — no
-     per-image ratio math needed here, just double the height. */
+  /* Each panel is one pin height tall. */
   height: calc(var(--reveal-pin-height) * 2);
 }
 
-/* Same width formula as .reveal__img (uncapped, cropped by the wrapper
-   above rather than letterboxed) so it lines up edge-to-edge with the
-   hand images' rendered width — no width mismatch at the seams. Centered
-   via left: 50% + transform (not margin: auto) because auto margins
-   collapse to 0 instead of centering once width exceeds the container —
-   the same reason .reveal__img uses this same technique. Each panel is
-   exactly one pin-height tall; the --1/--2 modifiers stack them so the
-   second continues directly where the first leaves off. */
+/* Same width as .reveal__img so the seams line up. Centred with left/transform
+   because auto margins don't centre an element wider than its container. */
 .reveal__extension {
   position: absolute;
   left: 50%;
@@ -290,11 +191,8 @@ html[data-hero="skip"] .reveal__ring {
   opacity: var(--reveal-xray-opacity);
 }
 
-/* The arm below the hand (hero.html): the two extension panels share the
-   picture's shape, so each is exactly the group's box, stacked under it. They
-   lie below the pin — out of sight — until the gallery's stack pulls the
-   camera back and the group shrinks; hero.js then lifts the group's clip so
-   it doesn't cut them off. The grid view has no pull-back. */
+/* The arm below the hand, stacked under the group's box; below the pin until
+   the wheel pulls the camera back, when hero.js lifts the group's clip. */
 .reveal__xray-extension {
   position: absolute;
   left: 0;
@@ -313,30 +211,18 @@ html[data-gallery-view="grid"] .reveal__xray-extension {
 
 .reveal__ring {
   position: absolute;
-  /* --ring-x / --ring-size are a product's numbers against the FULL picture
-     (data/series/<slug>/products.json); a smartphone's picture is cropped, so
-     they are re-expressed against what is left of it. On desktop crop is 1
-     and left is 0%, which leaves them as they were. --ring-y is untouched:
-     the crop is of the width only. */
+  /* --ring-x / --ring-size are against the full picture; re-expressed against a
+     phone's crop (identity on desktop). The crop is width-only, so --ring-y stays. */
   left: calc((var(--ring-x) - var(--hero-crop-left)) / var(--hero-crop));
   top: var(--ring-y);
   width: calc(var(--ring-size) / var(--hero-crop));
   height: auto;
-  /* translate centers the ring on (--ring-x, --ring-y) first; rotate then
-     spins it around that same center point (the default transform-origin)
-     to align with the finger. */
   transform: translate(-50%, -50%) rotate(var(--ring-rotation));
   pointer-events: none;
 }
 
-/* The "frontier" scan band. Full screen width, tunable height via
-   --reveal-frontier-height. Starts sitting just below the pin (fully
-   invisible below the viewport). js/main.js drives its `bottom` in two
-   phases: first lifting it up until flush with the pin's bottom edge (=
-   the normal image's bottom), then — once flush — riding it upward in
-   lockstep with the reveal boundary for the rest of the scroll. Inverts
-   whatever's directly behind it via backdrop-filter, rather than painting
-   its own color. */
+/* The scan band: hero.js lifts it from below the pin to its bottom edge, then
+   rides it up with the reveal boundary. Inverts what is behind it. */
 .reveal__frontier {
   position: absolute;
   left: 0;

@@ -1,84 +1,38 @@
-<!-- Bones — hero markup, injected into index.html by js/series.js.
-
-     One <template data-series-slot="..."> per destination slot; the loader
-     clones each into the matching element id. A series can supply any
-     subset of the slots (or extra ones, given a matching id in the page)
-     without index.html changing.
-
-     Image paths here (data-full, set as <img src> by js/series.js) resolve
-     against the PAGE, not this file, because the elements are cloned into the
-     live document — so these stay repo-root-relative, same as the paths in
-     data/. (hero.css's url() would
-     resolve the other way; see its header.)
-
-     No <script> tags: behavior lives in hero.js. -->
+<!-- Bones hero, cloned into index.html by js/series.js: each
+     <template data-series-slot="id"> fills the element with that id.
+     Paths resolve against the page, not this file. Behaviour is in hero.js. -->
 
 <template data-series-slot="seriesHero">
   <section class="reveal" id="revealSection">
     <div class="reveal__pin">
       <div class="reveal__stage">
-        <!-- The LCP image: fetchpriority="high" because by the time this fragment
-             is cloned in, the grid's own icons are usually already queued and
-             the browser has no other way to know this one outranks them.
-             width/height are the file's intrinsic size (the CSS sets both
-             dimensions itself) so the box is reserved before it decodes.
-
-             NO src here, on purpose: this picture exists in four versions —
-             desktop and smartphone, low and high res (the smartphone ones are
-             cropped to the middle of it) — and js/series.js picks one for the
-             viewport as it clones this fragment in: data-full names the
-             original, which is the desktop high-res one and the base name of
-             the others (_lo, _m, _m_lo); data-lo says it has the low-res
-             pair too, shown first and swapped for the high-res one once the
-             page is loaded and idle (EmjiveLoader in js/loader.js).
-             scripts/make-image-variants.js writes the versions;
-             scripts/validate-data.js checks they are there. -->
+        <!-- LCP image. No src: js/series.js picks the desktop/phone, low/high-res
+             version when cloning (data-full is the base name, data-lo marks a low-res
+             pair). fetchpriority="high" so it outranks the grid's queued icons. -->
         <img class="reveal__img reveal__img--normal" data-full="assets/series/bones/hero/hand-rings-under-flesh_3k.webp" data-lo data-first-paint="play" width="2880" height="1620" fetchpriority="high" decoding="async" alt="" />
         <div class="reveal__xray-group" id="revealXrayGroup">
-          <!-- Clipped away entirely until the visitor scrolls (see hero.css),
-               so it must not outrank the picture above: low priority. No
-               low-res version (data-lo absent): on a phone it is cropped
-               exactly like the picture it overlays, or the two would not
-               line up. When the hero is skipped (data-hero="skip") it is
-               the first paint instead: the gallery's stack rests on it. -->
+          <!-- Hidden until scroll, hence low priority. No low-res version: on a phone
+               it must crop exactly like the picture it overlays. First paint when the
+               hero is skipped (data-hero="skip"). -->
           <img class="reveal__img--xray" data-full="assets/series/bones/hero/hand_xray.webp" data-first-paint="skip" width="1920" height="1080" fetchpriority="low" decoding="async" alt="" />
-          <!-- The arm going on below the hand, two screens of it, hung under
-               the picture inside the group: when the gallery's stack pulls the
-               camera back (the group shrinks), the arm carries on down the
-               screen instead of stopping at the picture's bottom edge. Below
-               the pin until then, so not lazy — a lazy picture clipped by the
-               pin's overflow would only start loading once the pull-back had
-               brought it into view — but low priority, and preloaded like the
-               x-ray (data/series.json, hero.preload). A skipped hero lands
-               pulled back, the arm in sight, so it is part of that first paint
-               along with the x-ray (data-first-paint="skip": the page waits
-               for all of them, js/series.js) — or it would pop in after it.
-               Not shown in the grid view, which has no pull-back. -->
+          <!-- The arm below the hand, in view when the wheel pulls the camera back.
+               Not lazy: the pin's overflow clip would hold it back until in view. -->
           <img class="reveal__xray-extension reveal__xray-extension--1" data-full="assets/series/bones/hero/hand_xray_extension_1.webp" data-first-paint="skip" width="3840" height="2160" fetchpriority="low" decoding="async" alt="" />
           <img class="reveal__xray-extension reveal__xray-extension--2" data-full="assets/series/bones/hero/hand_xray_extension_2.webp" data-first-paint="skip" width="3840" height="2160" fetchpriority="low" decoding="async" alt="" />
-          <!-- .reveal__ring <img>s are inserted here by hero.js's
-               updateHeroRings() — one per product whose
-               hero-hand-visibility.visible is true in this series'
-               products.json, not a fixed single element. -->
+          <!-- hero.js inserts one .reveal__ring per product with hero-hand-visibility.visible. -->
         </div>
       </div>
       <div class="reveal__frontier" id="revealFrontier"></div>
     </div>
-    <!-- Invisible: as tall as the entrance stretch at the end of the reveal
-         (--reveal-entrance-vh, 0 when there is none), so hero.js can measure
-         it in px whatever the viewport unit resolves to. -->
+    <!-- As tall as the entrance stretch (--reveal-entrance-vh), measured in px by hero.js. -->
     <div class="reveal__entrance" aria-hidden="true"></div>
   </section>
 </template>
 
-<!-- The x-ray hand continues below the fold, behind the product grid — a
-     second slot because it has to live inside .products (which is
-     position: relative and stacks the grid above it), not inside .reveal. -->
+<!-- The x-ray arm behind the product grid: a separate slot, as it must sit inside .products. -->
 <template data-series-slot="seriesBackdrop">
   <div class="reveal__extension-crop">
-    <!-- Two screens down, behind the grid: lazy (fetched as the visitor
-         nears them, not alongside the hero) and decoded off the main thread
-         (each is 3840x2160, ~33MB once decoded). -->
+    <!-- Lazy: two screens down. -->
     <img class="reveal__extension reveal__extension--1" data-full="assets/series/bones/hero/hand_xray_extension_1.webp" width="3840" height="2160" loading="lazy" decoding="async" alt="" />
     <img class="reveal__extension reveal__extension--2" data-full="assets/series/bones/hero/hand_xray_extension_2.webp" width="3840" height="2160" loading="lazy" decoding="async" alt="" />
   </div>

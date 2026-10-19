@@ -21,6 +21,16 @@ Before/after pushing, map the diff's changed paths to the doc(s) that cover them
 
 Do a full sweep — every `dev-guidelines/*.md` file plus `README.md` and `CLAUDE.md` — only periodically (e.g. before a release, or roughly every 10 pushes) rather than after each one. That's what catches drift the targeted check would miss; running it every push makes the doc-sync cost fixed and full-repo-sized regardless of how small the change was, which isn't worth paying that often.
 
+## Code comments: minimal, present-tense, no history
+
+Comments in code (JS, CSS, HTML, scripts, config) are kept to the minimum that is useful:
+
+- **What, only for structure.** A file header (what the module is, its public API or options), section markers, and a line on a function or constant whose name doesn't say enough, worded as directly as possible. No comment that restates what the code already says.
+- **Why, only when the code can't show it.** A browser bug or quirk being worked around, an ordering or timing constraint, a value that must stay in step with another file, a trade-off that would otherwise look like a mistake. A sentence or two, not an essay.
+- **Never about past versions.** No "used to", "replaced", "the old…", "previously", "an earlier version…", no account of what was tried and failed or how a bug was found. A comment describes the code as it is now; history belongs in commit messages.
+- **Not documentation.** Workflows, rationale write-ups and cross-file walkthroughs go in `dev-guidelines/`. A doc should hold its own detail rather than point to "the comment in X".
+- **Kept true in the same pass.** Changing code means fixing or deleting the comments it invalidates right then. Unlike the docs, comments are not deferred to push time: a wrong comment is worse than none.
+
 ## Never attribute commits to the coding agent
 
 Commit messages should read as if the user wrote them. Don't add a `Co-Authored-By` trailer, a "Generated with ..." line, or any other mention of an AI/agent's involvement — to the commit message, the PR description, or anywhere else in the commit itself. This holds regardless of how much of the change the agent actually authored.

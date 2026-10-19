@@ -1,77 +1,54 @@
-# Server configuration for the OVH (Apache) host. Vite copies public/ to the
-# root of dist/, and the deploy mirrors dist/ over www/ with --delete — so this
-# file only survives if it lives here, never if it is edited on the server.
-#
-# Every block is wrapped in <IfModule> so a module missing on the hosting plan
-# degrades to "directive skipped" rather than a 500 for the whole site. After
-# the first deploy, confirm with `curl -I` that each section really applied
-# (see "Production checklist" in README.md).
+# Apache config for the OVH host. Edit it here, never on the server: the deploy
+# mirrors dist/ with --delete. Every block is in <IfModule> so a missing module
+# skips its directives instead of failing the whole site.
 
 Options -Indexes
 ServerSignature Off
 
-# ---------------------------------------------------------------------------
-# HTTPS and a single host name
-# ---------------------------------------------------------------------------
+# ---- HTTPS and a single host name ----
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  # www -> apex (the canonical/og:url host is https://emjive.eu).
+  # www -> apex (canonical host https://emjive.eu).
   RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
   RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
-  # http -> https. X-Forwarded-Proto covers a TLS-terminating proxy in front
-  # of Apache, where %{HTTPS} is "off" even for secure requests.
+  # http -> https. X-Forwarded-Proto covers a TLS-terminating proxy, where
+  # %{HTTPS} is "off" even for secure requests.
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-  # -------------------------------------------------------------------------
-  # Clean URLs. The site's addresses carry no file names:
-  #   /gallery            the homepage (index.html; the bare / serves it too,
-  #                       through DirectoryIndex, with no redirect)
-  #   /archives, /terms,  the other pages, i.e. <page>.html without the .html
-  #   /launch-order, ...
-  #   /furcula, ...       an item: the build writes one page per product,
-  #                       dist/<slug>.html (emitItemPages in vite.config.js)
-  # so the rules below need no list of items. vite.config.js's cleanUrls()
-  # does the same mapping for the dev and preview servers — keep them in step.
-  #
-  # THE_REQUEST is the raw request line: it only matches when a client asked
-  # for the .html name itself, never for the internal rewrites below (which
-  # would otherwise redirect and rewrite each other forever). Query strings
-  # ride along on every redirect.
-  # -------------------------------------------------------------------------
+  # ---- Clean URLs ----
+  #   /gallery            index.html (/ serves it too, via DirectoryIndex)
+  #   /<page>             <page>.html
+  #   /<slug>             an item's page, dist/<slug>.html (emitItemPages in vite.config.js)
+  # Mirrored by cleanUrls() in vite.config.js for the dev and preview servers.
+  # THE_REQUEST matches only what the client asked for, so the redirects below
+  # never loop with the internal rewrites.
 
-  # The old homepage address.
   RewriteCond %{THE_REQUEST} \s/index\.html[?\s]
   RewriteRule ^index\.html$ /gallery [L,R=301]
 
-  # /<page>.html -> /<page>, so links and bookmarks from before still land.
-  # Not product.html: old product.html?id=01 links arrive there and
-  # js/product.js moves the address on to /<slug> (the page can't know the
-  # item without running). Not 404.html: it is the ErrorDocument.
+  # /<page>.html -> /<page>. Not product.html (js/product.js redirects
+  # ?id= links to /<slug> itself) nor 404.html (the ErrorDocument).
   RewriteCond %{THE_REQUEST} \s/[^/?\s]+\.html[?\s]
   RewriteRule ^(?!(?:product|404)\.html$)([^/]+)\.html$ /$1 [L,R=301]
 
-  # No trailing slash (/archives/ -> /archives): the pages reference css/, js/,
-  # assets/ relatively, which only resolves from a root-level URL. Real
+  # No trailing slash: pages reference css/, js/, assets/ relatively. Real
   # directories are left to mod_dir.
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^(.+)/$ /$1 [L,R=301]
 
-  # Internal: /gallery is index.html, and /<name> is <name>.html when that
-  # file exists (every page, and every item's own page). Anything else falls
-  # through to a real 404.
+  # Internal: /gallery is index.html, /<name> is <name>.html when it exists;
+  # anything else is a real 404.
   RewriteRule ^gallery$ index.html [L]
   RewriteCond %{REQUEST_FILENAME}.html -f
   RewriteRule ^([^/]+)$ $1.html [L]
 </IfModule>
 
-# ---------------------------------------------------------------------------
-# MIME types — the 3D assets are the ones shared hosts most often get wrong.
+# ---- MIME types ----
 # A wrong .wasm type breaks streaming compilation of the Draco decoder.
-# ---------------------------------------------------------------------------
 <IfModule mod_mime.c>
   AddType model/gltf-binary .glb
   AddType application/wasm  .wasm
@@ -83,10 +60,8 @@ ServerSignature Off
   AddCharset UTF-8 .html .css .js .json .svg .xml .txt
 </IfModule>
 
-# ---------------------------------------------------------------------------
-# Compression. .glb/.hdr/.wasm are included on purpose: they compress poorly
-# (the studio HDR ~1.47MB -> ~0.9MB) but it is still free bandwidth.
-# ---------------------------------------------------------------------------
+# ---- Compression ----
+# .glb/.hdr/.wasm compress poorly but still gain (studio HDR ~1.47MB -> ~0.9MB).
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
   AddOutputFilterByType DEFLATE application/javascript application/json application/xml
@@ -96,67 +71,42 @@ ServerSignature Off
   </FilesMatch>
 </IfModule>
 
-# ---------------------------------------------------------------------------
-# Caching
-#
-# Vite content-hashes only what its pipeline traced: the bundle, the CSS and
-# the fonts/SVGs it emitted straight into /assets/. Those never change under
-# the same name, so they are cached for a year. Everything else keeps a fixed
-# filename (js/*.js, data/**, series/**, the HTML, and the models/images/HDRIs
-# under assets/), so a deploy could otherwise leave a returning visitor with a
-# mix of old scripts/JSON and new bundles.
-#   - html/js/css/json/xml/txt: no-cache = always revalidate (a cheap 304 via
-#     ETag), never serve a stale copy.
-#   - unhashed binaries (models, images, HDRIs, wasm): a week, then served
-#     stale for up to a further day while the browser refetches in the
-#     background (stale-while-revalidate). A returning visitor re-downloads
-#     nothing on every page — the models and the HDRI are megabytes — and a
-#     replaced file reaches them within a week at the outside, on the visit
-#     after it expires rather than blocking that one. These keep their names
-#     when their art is regenerated (scripts/auto-render.js), so a change that
-#     must show up sooner than that needs a new filename.
-# ---------------------------------------------------------------------------
+# ---- Caching ----
+# Content-hashed bundles under /assets/: a year, immutable. HTML/JS/CSS/JSON
+# with fixed names: always revalidate, so a deploy never mixes old and new.
+# Unhashed binaries (models, images, HDRIs): see below; they keep their names
+# when regenerated, so a change needed sooner requires a new filename.
 <IfModule mod_headers.c>
   <FilesMatch "\.(html|js|mjs|css|json|xml|txt)$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
   <FilesMatch "\.(glb|hdr|wasm|webp|png|jpe?g|svg|ico|woff2)$">
-    # TEMPORARY while the site is in development: 5 hours, and no
-    # stale-while-revalidate (it would serve a replaced file for a further
-    # day). Restore "public, max-age=604800, stale-while-revalidate=86400"
-    # (the paragraph above describes that) once the models settle.
+    # TEMPORARY during development: 5 hours. Target once the models settle:
+    # "public, max-age=604800, stale-while-revalidate=86400".
     Header set Cache-Control "public, max-age=18000"
   </FilesMatch>
   <If "%{REQUEST_URI} =~ m#^/assets/[^/]+-[A-Za-z0-9_-]{8}\.(js|css|woff2|svg|webp)$#">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </If>
 
-  # -------------------------------------------------------------------------
-  # Security headers
-  # -------------------------------------------------------------------------
+  # ---- Security headers ----
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
   Header always set X-Frame-Options "DENY"
 
-  # HSTS starts short on purpose: a wrong max-age is hard to take back once a
-  # browser has cached it. Raise to 31536000 (and consider includeSubDomains)
-  # after the site has run on HTTPS for a while.
+  # HSTS starts short, as a cached max-age is hard to take back. Raise to
+  # 31536000 (and consider includeSubDomains) once HTTPS has run a while.
   Header always set Strict-Transport-Security "max-age=300"
 
-  # Report-Only first: nothing is blocked, violations just show in the browser
-  # console. The site has no inline scripts or handlers, so this should be
-  # quiet — the sources it needs are listed explicitly:
-  #   img-src data: blob:   the stylesheet's inline SVG masks (data: URLs)
-  #   worker-src blob:      three's Draco loader spins up a blob worker
-  #   wasm-unsafe-eval      compiling the Draco decoder wasm
-  # Once a clean pass on every page confirms no violations, rename the header
-  # to Content-Security-Policy to enforce it.
+  # Report-Only until a clean pass on every page, then rename to
+  # Content-Security-Policy. Non-'self' sources:
+  #   img-src data: blob:   the stylesheet's inline SVG masks
+  #   worker-src blob:      three's Draco loader worker
+  #   wasm-unsafe-eval      compiling the Draco decoder
   Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob:; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 </IfModule>
 
-# ---------------------------------------------------------------------------
-# Errors — 404.html is built from the repo-root 404.html (see vite.config.js)
-# and uses only absolute URLs, so it renders correctly at any path depth.
-# ---------------------------------------------------------------------------
+# ---- Errors ----
+# 404.html uses only absolute URLs, so it renders at any path depth.
 ErrorDocument 404 /404.html

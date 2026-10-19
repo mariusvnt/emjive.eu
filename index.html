@@ -26,58 +26,30 @@
 <meta name="twitter:description" content="Gallery of 3d-engineered items" />
 <meta name="twitter:image" content="https://emjive.eu/preview.jpg" />
 
-<!-- Both typefaces are self-hosted (see the @font-face blocks in
-     css/style.css) — this used to be a render-blocking Google Fonts
-     stylesheet on a third-party origin. Preloaded rather than left for the
-     CSS parser to discover: a webfont is otherwise found only once
-     style.css has downloaded AND parsed, which puts it a full round trip
-     behind everything else in the head.
-     crossorigin is mandatory on a font preload even same-origin — fonts
-     are always fetched in CORS mode, and a preload whose mode doesn't
-     match the real request is simply downloaded twice. -->
+<!-- crossorigin is required even same-origin, or the font is fetched twice. -->
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
 
-<!-- data/series.json gates EVERYTHING on every page: which series is
-     shown, its products, and (on the homepage) the hero bundle, which
-     can't even start until this resolves. js/series.js below fetches it,
-     but only once the browser has downloaded and executed that script —
-     so without this the request sits a round trip behind where it could.
-     The preload scanner sees this while still parsing the head and starts
-     it in parallel with series.js itself. -->
+<!-- Every page waits on data/series.json; preloading starts it in parallel with series.js. -->
 <link rel="preload" as="fetch" href="data/series.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
-<!-- Back-navigation scroll memory (this page only — see the header comment
-     in js/scroll-memory.js). Blocking, and deliberately the FIRST script on
-     the page: it has to reserve the old document height before <body> is
-     parsed, so the saved offset is already reachable on the first painted
-     frame. Placed after the stylesheet so the .emjive-restoring-scroll
-     rules it relies on are parsed by the time it adds the class. -->
+<!-- First blocking script: reserves the previous document height before
+     <body> parses, so the saved scroll offset is reachable on first paint.
+     After the stylesheet, whose .emjive-restoring-scroll rules it needs. -->
 <script src="js/scroll-memory.js"></script>
 
-<!-- Loader (see js/loader.js). Blocking, and ahead of series.js: pages that
-     wait on something opt into an arrival loader with data-page-loader on
-     <html>, and that cover has to be up before <body> is parsed; every
-     page's scripts also use window.EmjiveLoader for their own assets. -->
+<!-- Blocking: the arrival cover (data-page-loader) must be up before <body> parses. -->
 <script src="js/loader.js"></script>
 
-<!-- Series resolution (which series this page shows, and its data).
-     Blocking on purpose — see the header comment in js/series.js. -->
+<!-- Blocking on purpose; see js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- Lazy 3D viewer loader (see js/viewer-entry.js): three.js itself is a
-     separate chunk, fetched once the browser is idle (data-viewer="idle" on
-     <html>) or as soon as a grid card wants a model, whichever is first. -->
+<!-- Lazy 3D viewer: three.js loads when idle (data-viewer="idle") or when a model is first needed. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
-<!-- has-series-hero is static markup on purpose: css/style.css uses it to
-     keep the floating selection bar off-screen until the hero's scroll
-     publishes a position. The rule it replaced, body:has(#revealSection),
-     can't work now that the hero arrives at runtime — :has() is live, so it
-     wouldn't match at first paint and the bar would flash in, then snap
-     away once the fragment landed. -->
+<!-- Static, so the selection bar is hidden from first paint, before the hero arrives. -->
 <body id="top" class="has-series-hero">
 <a class="skip-link" href="#main">Skip to content</a>
 
@@ -95,12 +67,7 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav" aria-label="Site">
-        <!-- Filter row: the buttons are rendered by js/main.js from the
-             ACTIVE series' own category list (data/series.json) — don't
-             hand-write them, and don't assume three: each series declares
-             its own subset of the global vocabulary. On every page but
-             the grid this becomes a plain "Gallery" link instead — see
-             js/main.js's renderHeaderFilter(). -->
+        <!-- Filled by js/main.js from the active series' categories. -->
         <div class="site-header__filter" id="siteHeaderFilter">
           <span class="site-header__filter-label">Filter gallery by</span>
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
@@ -109,8 +76,7 @@
         <a href="/creation-process" class="is-info">Creation process</a>
       </nav>
     </div>
-    <!-- Under the header, going down with its menu: the title bar's blur
-         and chromatic aberration (css/style.css .site-header__veil). -->
+    <!-- Header blur and chromatic aberration (.site-header__veil). -->
     <span class="site-header__veil" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
     </span>
@@ -124,29 +90,15 @@
   </div>
 </noscript>
 
-  <!-- The page's only heading. Visually hidden (see .visually-hidden in
-       css/style.css) because the design opens straight into the hero with
-       no room for a title — but a document whose outline starts at nothing
-       is a real problem for screen-reader and search-engine navigation, and
-       this page had no h1 or h2 of any kind. -->
+  <!-- Visually hidden: the design has no room for a title. -->
   <h1 class="visually-hidden">em&middot;ji&middot;ve — digital gallery of innovative jewelry</h1>
 
-  <!-- The featured series' hero is injected here by js/series.js, from that
-       series' hero bundle (series/<slug>/hero.{html,css,js}). Which series
-       is featured is one field — "featured" — in data/series.json. -->
+  <!-- The featured series' hero (series/<slug>/hero.*), injected by js/series.js. -->
   <div class="series-hero" id="seriesHero"></div>
 
   <section class="products" id="products">
-    <!-- The two ways of seeing the gallery: the stack (the models come up out
-         of the hero onto the x-ray hand, js/gallery-stack.js) and the grid
-         (js/gallery.js). Which one, and whether the hero plays first, is
-         decided in the <head> (js/scroll-memory.js) as data-gallery-view and
-         data-hero on <html>. -->
-    <!-- The icon and the word of the view the button goes to (list from the
-         wheel, wheel from the list — the grid and stack views of the code) —
-         both written out, one shown by data-gallery-view on <html>
-         (css/style.css), so there is nothing to swap and nothing flashes.
-         The accessible name is js/gallery.js's. -->
+    <!-- Wheel/list toggle ("stack"/"grid" in code). Both icons and labels are in
+         the markup; data-gallery-view on <html> shows one, so nothing swaps. -->
     <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button" aria-label="switch to list">
       <svg class="gallery-control__icon gallery-control__icon--list" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16 M4 12h16 M4 17h16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       <svg class="gallery-control__icon gallery-control__icon--wheel" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
@@ -154,36 +106,23 @@
       <span class="gallery-control__label gallery-control__label--stack">wheel</span>
     </button>
 
-    <!-- Second hero slot: art that has to sit inside .products, behind the
-         grid, rather than inside the hero section itself. -->
+    <!-- Second hero slot, behind the grid. -->
     <div class="series-hero-backdrop" id="seriesBackdrop"></div>
 
-    <!-- The stack: fixed over the hero's pin. Its items, the focus row and
-         the canvas are built by js/gallery-stack.js. -->
+    <!-- The wheel, built by js/gallery-stack.js. -->
     <div class="gallery-stage" id="galleryStage"></div>
 
     <div class="product-grid" id="productGrid">
-      <!-- Grid tiles are rendered here by js/gallery.js from the active series' products.json -->
+      <!-- List tiles, rendered by js/gallery.js. -->
     </div>
   </section>
 
 
 </main>
 
-<!-- Every script below is deferred. A plain (parser-blocking) classic script
-     here made the parser wait for each file in turn — a staggered chain of
-     round trips on a slow link — which held back DOMContentLoaded, the
-     arrival loader and the module in <head>. Deferred scripts download in
-     parallel with the parser and run in document order once it is done.
-     That order is the contract: js/viewer-entry.js (a module, in <head>)
-     is first on the deferred queue, so window.EmjiveLoadViewer exists
-     before any of these run.
-
-     The Modify sheet (modify-modal.js) and its parts are reachable from the
-     floating bar's drawer; order-rows.js has to precede selection-bar.js,
-     which builds its drawer rows with it at load; gallery-stack.js precedes
-     gallery.js, which mounts it; main.js runs last, as it did when it was
-     the only deferred one. -->
+<!-- Deferred, run in document order after the viewer-entry.js module (so
+     window.EmjiveLoadViewer exists). order-rows.js must precede
+     selection-bar.js; gallery-stack.js must precede gallery.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/carousel.js" defer></script>

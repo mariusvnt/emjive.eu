@@ -1,13 +1,7 @@
-/* ==========================================================================
-   J&MV — product detail page
-   Resolves the item from the address against the active series'
-   products.json and renders the label, the feed of photos, the model, the
-   metal picker and the design options, the characteristics and the
-   size/selection flow — the three stages of product.html's show
-   (inspiration, design, specs), whose scrolling js/product-stages.js drives;
-   this file reacts to it for the parts CSS can't do (the model's grey sweep,
-   its rise to its place in specs, the feed's room to scroll).
-   ========================================================================== */
+// The product page: resolves the item from the address and renders its label,
+// photo feed, model, metal picker, design options, specs and the selection
+// flow across the three stages js/product-stages.js drives, handling what CSS
+// can't (the model's blueprint sweep, its rise into specs, the feed's room).
 
 (function () {
   "use strict";
@@ -18,21 +12,17 @@
   var loadingEl = document.getElementById("productDetailLoading");
   var contentEl = document.getElementById("productDetailContent");
   var stageEl = document.getElementById("productStage");
-  // The design stage's frame (a --tile tall band across the screen, the
-  // model in its middle) and the model's own box in it.
+  // The design stage's frame (a --tile tall band, the model centred) and the model's box.
   var designFrameEl = document.getElementById("productDesignFrame");
   var modelBoxEl = document.getElementById("productModel");
-  // js/product-stages.js's handle, once mounted (wireStages).
+  // js/product-stages.js's handle (wireStages).
   var stages = null;
-  // Until the way to design (--to-design) has begun, the model is out of
-  // sight and holds still. From then the band crosses the screen and shows it
-  // behind itself (refreshStage); design's other things come in later, from
-  // --d-from (css/style.css, set by refreshStage).
+  // The model holds still out of sight until --to-design passes this; design's
+  // other controls follow from --d-from (refreshStage).
   var MODEL_FROM = 0;
   var resetEl = document.getElementById("productModelReset");
 
-  // The reset button fades in once the model has been turned off its pose and
-  // out when it is back (or on its way, after a tap).
+  // The reset button shows while the model is turned off its pose.
   function setModelAway(away) {
     state.modelAway = !!away;
     if (resetEl) resetEl.classList.toggle("is-away", state.modelAway);
@@ -40,77 +30,63 @@
 
   var state = {
     product: null,
-    // The product as its chosen design (EmjiveSeries.resolveDesign): what the
-    // model, the label's thumbnail, the specs and the selection read. The
-    // product itself for one with a single design.
+    // The product as its chosen design (EmjiveSeries.resolveDesign), read by the
+    // model, label thumbnail, specs and selection.
     view: null,
     designKey: "",
-    // The loader hold over the model while a design's model is on its way.
+    // The loader hold while a design's model is loading.
     swapHold: null,
     metals: [],
-    // data/series.json's "metal-costs", keyed by metal (see computeCosts).
+    // data/series.json "metal-costs" (computeCosts).
     metalCosts: {},
-    // data/series.json's "metal-technology" (metal -> technology) and
-    // "printing-technologies" (technology -> { name, description }).
+    // data/series.json "metal-technology" and "printing-technologies".
     metalTechnology: {},
     technologies: {},
-    // data/series.json's "metal-composition" (metal -> what it is made of).
+    // data/series.json "metal-composition".
     compositions: {},
-    // Each photo's caption with the picture under it, for inkCaption.
+    // Each caption with its picture, for inkCaption.
     captions: [],
     selectedMetal: null,
     modelHandle: null,
-    // The model box's poster <img> while the viewer isn't in yet.
+    // The model box's poster <img> until the viewer is in.
     posterImg: null,
-    // The x-ray backdrop's original file (the page shows a version of it
-    // chosen for the viewport — see startXray) and whether the viewport
-    // watcher is wired.
+    // The x-ray's original file (startXray picks the viewport's version) and whether the watcher is wired.
     xraySrc: "",
     xrayWatching: false,
     iconFallbackImg: null,
-    // How far the show has gone (js/product-stages.js): inspiration ->
-    // design and design -> specs, 0 to 1 each — and what that makes of the
-    // model (refreshStage). Kept so a viewer built later (first mount, after
-    // the Modify sheet, after Back) starts where the page is.
+    // The stage transitions (0..1) and what they make of the model (refreshStage),
+    // kept so a viewer built later starts where the page is.
     toDesign: 0,
     toSpecs: 0,
-    // Whether design's things are out of sight (the inspiration stage): the
-    // viewer is paused then.
+    // Design's controls out of sight: the viewer is paused.
     designOut: true,
-    // How far the page is through the design stretch and the transition to
-    // specs, linear in the scroll from its first pixel: what the model's rise
-    // runs on.
+    // Linear progress through the design stretch and the transition to specs: the model's rise.
     along: 0,
-    // The share of the design stretch its browsing eases in over
-    // (js/product-stages.js).
+    // The design stretch's ease-in share (js/product-stages.js).
     ramp: 1,
-    // Whether a released model eases back to its pose on its own: not in the
-    // design stage, where it stays and the reset button (productModelReset)
-    // is the way back. Kept for a viewer built later, like the pause.
+    // Whether a released model eases home by itself: not in design, where the
+    // reset button does it.
     autoReturn: true,
-    // Whether the model stands turned off its pose (the viewer says so).
+    // The model is turned off its pose (reported by the viewer).
     modelAway: false,
     sweep: 0,
     fit: 0,
-    // The chosen ring size over the model's base size (setModelSize), and
-    // the size as it stands in the specs field when it is a valid one ("" if
-    // none: the label bar then shows no size).
+    // The chosen size over the model's base size (setModelSize), and the valid
+    // size in the specs field ("" if none: no size on the label).
     sizeFactor: 1,
     sizeText: "",
-    // Whether a metal has been picked on the page yet (the default one is not
-    // a pick): the price reads from the lowest of all the metals until then.
+    // A metal has been picked (the default isn't a pick): until then the price
+    // reads from the cheapest metal.
     metalPicked: false,
-    // The size circle's elements (wireSizeRing) and its sizes as last worked
-    // out (syncSizeRing).
+    // The size circle's elements (wireSizeRing) and last geometry (syncSizeRing).
     sizeRing: null,
     ringGeo: null,
-    // How far the model is lifted on the page, in pixels (refreshStage): on its
-    // way to its place in specs, from the first pixel of scrolling.
+    // The model's lift on its way into specs, px (refreshStage).
     lift: 0,
-    // Whether the specs size has been given its starting value (62).
+    // Whether the specs size has its starting value (62).
     sizeSeeded: false,
     seedSize: null,
-    // The timer that marks the cost chart as played out.
+    // Marks the cost chart as played out.
     settleTimer: 0
   };
 
@@ -121,25 +97,18 @@
     return node;
   }
 
-  // The model's loader: on the design frame, crossing the screen at the
-  // model's height (the model's box itself is smaller than its tile, and has
-  // no visible edge), for the model's first load and for each design's model
-  // after it. It only counts while the model is on screen (js/loader.js, "a
-  // loader shared by several assets"), and CSS keeps it out of sight while
-  // the design stage is (.is-design-out). null when there is no loader
-  // (js/loader.js missing, reduced motion).
+  // The model's loader, on the design frame (the model's box has no visible
+  // edge): for the first load and each design swap. Counts only while the model
+  // is on screen; CSS hides it during .is-design-out. null without a loader.
   function modelLoadHold() {
     if (!window.EmjiveLoader || !designFrameEl) return null;
     var hold = window.EmjiveLoader.mount(designFrameEl, { target: modelBoxEl });
     return hold && typeof hold.done === "function" ? hold : null;
   }
 
-  // What the address asks for. The real form is /<name-as-a-slug> (the
-  // server hands every such path this one page — public/.htaccess, and a
-  // per-item copy of it for each product, see emitItemPages() in
-  // vite.config.js); the older product.html?id=01[&series=x] still arrives
-  // from old bookmarks and from selections saved before the move, and is
-  // rewritten to the new address once the product is found (canonicalizeUrl).
+  // The address: /<slug> (served by public/.htaccess and the per-item pages,
+  // emitItemPages() in vite.config.js), or the legacy product.html?id=01[&series=x],
+  // rewritten once found (canonicalizeUrl).
   function getRequest() {
     var last = window.location.pathname.split("/").pop() || "";
     var slug;
@@ -151,17 +120,14 @@
     };
   }
 
-  // The page's arrival loader (js/loader.js) covers the page until this is
-  // called — on success once the product is built, on failure once the
-  // not-found message is in place.
+  // Lifts the arrival loader.
   function pageReady() {
     if (window.EmjiveLoader) window.EmjiveLoader.pageReady();
   }
 
   function showNotFound() {
     loadingEl.hidden = false;
-    // Back to whichever series was being browsed, not always the featured
-    // one — mainHref() drops the ?series= for the featured slug anyway.
+    // Back to the series being browsed (mainHref drops ?series= for the featured one).
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
@@ -170,10 +136,8 @@
     pageReady();
   }
 
-  // Something went wrong that is NOT "this id doesn't exist": a failed
-  // request, a timeout, an exception while building the page. Saying
-  // "Item not found" for those sends a visitor with a perfectly good link
-  // away from a product that is really there. A reload is the retry.
+  // A failure other than "no such item": saying "not found" would turn away a
+  // valid link. Reload is the retry.
   function showLoadError(err) {
     console.error("Could not load the product:", err);
     loadingEl.hidden = false;
@@ -184,15 +148,9 @@
     pageReady();
   }
 
-  // An item's slug (its name, see EmjiveSeries.productSlug) is unique across
-  // ALL series — validate-data enforces it — so the address alone identifies
-  // the product and the series it lives in. A bare ?id= (an old bookmark)
-  // can't: ids are only unique WITHIN a series. Resolution order either way:
-  // the active series first — the featured one unless ?series= says otherwise
-  // — then every other series in index order. The scan costs nothing in the
-  // normal case, since step 1 hits, and it's bounded by the number of series.
-  // For an id shared by two series with no ?series= in the URL, the active
-  // one wins, which is the friendliest resolution available.
+  // A slug is unique across all series (validate-data), so it identifies the
+  // series too; a legacy ?id= is only unique within one. Either way the active
+  // series is tried first, then the others in index order.
   function findProduct(slug, request) {
     var matches = function (p) {
       return request.slug ? window.EmjiveSeries.productSlug(p) === request.slug : p.id === request.id;
@@ -217,12 +175,9 @@
     });
   }
 
-  // The page renders as soon as the product data is in — it does NOT wait for
-  // the 3D viewer chunk (js/viewer-entry.js, ~165KB gzipped plus evaluation).
-  // The first paint is the inspiration stage (the description and the feed's
-  // first photo); the model's box starts as its poster image, out of sight
-  // until the design stage, and the viewer takes it over once the chunk is in
-  // (mountViewer below).
+  // Renders as soon as the product data is in, not waiting for the viewer
+  // chunk: the first paint is the inspiration stage; the model's box starts as
+  // its poster until the viewer takes over (mountViewer).
   function init() {
     window.EmjiveSeries.ready
       .then(function (ctx) {
@@ -243,10 +198,8 @@
       .catch(showLoadError);
   }
 
-  // Old-style addresses (product.html?id=01, product.html?series=x&id=01)
-  // become the item's own, /<slug>, without a reload or a history entry; a
-  // hash survives. Only the shared template is rewritten: a path the server
-  // really has (/furcula) keeps whatever the visitor typed.
+  // Legacy addresses become /<slug> without a reload or history entry, the hash
+  // kept. Only the shared template is rewritten.
   function canonicalizeUrl(product) {
     var here = window.location.pathname;
     if (here !== "/product.html" && here !== "/product") return;
@@ -255,12 +208,8 @@
     window.history.replaceState(window.history.state, "", want + window.location.hash);
   }
 
-  // The per-item pages the build emits (emitItemPages() in vite.config.js)
-  // already carry the product's canonical URL and description in the static
-  // <head>; this is for the shared product.html (old links, the dev server),
-  // whose head can't — it would collapse every product into one. Crawlers
-  // that run the page's JS get the product's own address and summary, taken
-  // from the data already on the page, never a stray #hash or ?id=.
+  // For the shared product.html (legacy links, dev server), whose static head
+  // can't carry per-item metadata; the built per-item pages already do.
   function updateSearchMetadata(product) {
     var canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
@@ -283,13 +232,11 @@
     var sizes = window.EmjiveSelection.sizeRange(product);
     SIZE_MIN_MM = sizes.min;
     SIZE_MAX_MM = sizes.max;
-    // The product opens on its default design.
+    // Opens on the default design.
     state.view = window.EmjiveSeries.resolveDesign(product).view;
     state.designKey = state.view.designKey;
 
-    // First, ahead of everything else this function builds: the feed's first
-    // photo is what the first paint is really waiting on, so its request
-    // goes out before any other image's.
+    // First: the feed's first photo is what the first paint waits on.
     var feed = renderFeed(product);
 
     renderLabel(product);
@@ -304,34 +251,24 @@
     loadingEl.hidden = true;
     contentEl.hidden = false;
 
-    // Once #productDetailContent is visible: the stages measure the track,
-    // and the feed's room is measured off its laid-out height (while it's
-    // [hidden], every element in it has a zero-size box).
+    // After unhiding: the stages and the feed measure laid-out boxes.
     wireStages();
 
-    // The arrival loader (js/loader.js) lifts once the picture the first
-    // paint is made of is in, rather than on a blank page that fills in
-    // underneath it; and everything that isn't needed for that paint waits
-    // until then, so none of it competes with that picture for bandwidth.
+    // The arrival loader lifts once the first paint's picture is in, and
+    // everything else waits for it so nothing competes for bandwidth.
     var firstPaintReady = Promise.race([
       feed.firstReady,
       new Promise(function (resolve) { setTimeout(resolve, FIRST_PAINT_WAIT_MS); })
     ]);
     firstPaintReady.then(pageReady);
-    // ...and not before it has actually been painted: the image being
-    // downloaded is not the same moment as it being on screen, and anything
-    // started in between (the viewer, the environment map, the model) is
-    // competing with a paint that has not happened yet.
+    // ...and once it's actually painted, not just downloaded.
     firstPaintReady
       .then(afterFirstPaint)
       .then(function () { loadRemainingAssets(product, feed, modelParts); });
   }
 
-  // Resolves once the browser has painted the first stage's largest picture —
-  // the feed's first photo, or the description where there is none, whichever
-  // the browser reports as the largest paint inside the feed — or after a
-  // short cap, or at the next two frames where the Largest Contentful Paint
-  // API is missing.
+  // Resolves once the browser reports the feed's largest contentful paint, or
+  // after a cap, or after two frames without the LCP API.
   var AFTER_PAINT_CAP_MS = 2000;
 
   function afterFirstPaint() {
@@ -359,14 +296,11 @@
     });
   }
 
-  // A ceiling, not a target: an image that stalls must not hold the loader
-  // cover (or the viewer, photos and other icons behind it) up indefinitely.
+  // A ceiling, so a stalled image can't hold everything up.
   var FIRST_PAINT_WAIT_MS = 6000;
 
-  // The x-ray backdrop behind the model in the design stage: static,
-  // independent of the metal and the design. No product.assets.xray means no
-  // backdrop at all, rather than a broken image. Not part of the first paint
-  // (the design stage is a scroll away): started after it, with the rest.
+  // The x-ray behind the model in design: independent of metal and design;
+  // hidden without assets.xray. Loaded after the first paint.
   function startXray(product) {
     var xray = document.getElementById("productDesignXray");
     var xraySrc = product.assets && product.assets.xray;
@@ -374,20 +308,14 @@
       xray.hidden = true;
       return;
     }
-    // The low-res version for this viewport first (~25-50KB against ~320KB
-    // for the original); loadRemainingAssets() swaps the high-res one in once
-    // the model is on screen. A phone's versions are cropped to the middle of
-    // the picture, which is why the phone rule for .product-design__xray in
-    // css/style.css narrows the box to match. Without EmjiveLoader, the
-    // original directly.
+    // The low-res version first (~25-50KB vs ~320KB); loadRemainingAssets swaps
+    // in the high-res once the model is up. Phone versions are cropped (hence the
+    // narrower box in the phone CSS).
     var loader = window.EmjiveLoader;
     state.xraySrc = xraySrc;
     if (loader) {
       loader.setSrc(xray, loader.versions(xraySrc, true).first, xraySrc);
-      // A phone turned (or a window resized) across the phone/desktop line:
-      // the box changes shape with it, so the picture has to be the other
-      // set's — its high-res one straight away, the low-res one has no job
-      // left to do.
+      // Crossing the phone/desktop line reshapes the box: switch straight to the other set's high-res.
       if (!state.xrayWatching) {
         state.xrayWatching = true;
         loader.onPhoneChange(function () {
@@ -400,18 +328,14 @@
     xray.hidden = false;
   }
 
-  // What the first paint did not need: the other metals' icons (so a pick
-  // swaps the label thumbnail at once — the selected one's is already in),
-  // the rest of the feed's photos, the 3D viewer and the x-ray behind it.
+  // After the first paint: other metals' icons, the rest of the feed, the viewer and the x-ray.
   function loadRemainingAssets(product, feed, modelParts) {
     preloadIcons(state.view);
     feed.loadRest();
     modelParts.mountViewer();
     startXray(product);
-    // The sharp x-ray replaces the small one once the model is on screen
-    // (or, at the latest, VIEWER_SETTLE_WAIT_MS after the first paint), so
-    // its 320KB never competes with the viewer, the environment map and the
-    // model for the link.
+    // The high-res x-ray once the model is up (or after VIEWER_SETTLE_WAIT_MS), so
+    // it never competes with the viewer's downloads.
     if (state.xraySrc && window.EmjiveLoader) {
       Promise.race([
         modelParts.viewerSettled,
@@ -425,8 +349,7 @@
     }
   }
 
-  // A design's icons for the metals not showing, fetched and decoded ahead of
-  // a pick (js/order-rows.js preload), so the label's thumbnail swaps at once.
+  // Decode the other metals' icons ahead, so the label thumbnail swaps at once.
   function preloadIcons(view) {
     var icons = (view.assets && view.assets.icons) || {};
     window.EmjiveOrderRows.preload(Object.keys(icons)
@@ -436,7 +359,7 @@
 
   var VIEWER_SETTLE_WAIT_MS = 20000;
 
-  /* ---- 1. label ------------------------------------------------------- */
+  /* ---- 1. label ---- */
 
   function renderLabel(product) {
     document.getElementById("productLabelName").textContent = product.name || "";
@@ -447,9 +370,7 @@
     renderLabelPrice(product);
   }
 
-  // The chosen design, after the name, as its own name has it: the product's
-  // name and what the design adds to it ("rib-cage" + "-1L2"; nothing for a
-  // design named as the product is). A product with one design has none.
+  // The design's addition to the name ("rib-cage" + "-1L2"); none for single-design products.
   function renderLabelDesign(product) {
     var node = document.getElementById("productLabelDesign");
     var name = String(product.name || "");
@@ -463,10 +384,7 @@
     window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
   }
 
-  // ".category.metal", like the rows' label in the selection lists — and
-  // ".size" once one is held in the specs field, written as the order rows
-  // and the drawer write it: whole millimetres, a fraction (two digits) small
-  // and with no point (EmjiveSelection.appendSize).
+  // ".category.metal", plus ".size" once the specs field holds one (appendSize, as in the rows).
   function labelTypeText(product) {
     return (product.category ? "." + product.category.toLowerCase() : "") +
       (state.selectedMetal ? "." + state.selectedMetal : "");
@@ -482,23 +400,15 @@
       node.appendChild(document.createTextNode("."));
       window.EmjiveSelection.appendSize(node, state.sizeText);
     }
-    // Text changing in place under the bar's invert band.
+    // Changed in place under the invert band.
     window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
   }
 
-  // Always the icon (not a photos[0] fallback) — this thumbnail sits right
-  // next to the name at a fixed small size, so it needs the icon's
-  // consistent transparent-background framing rather than a real photo's
-  // arbitrary crop. No thumbnail at all if there's no icon for the
-  // currently selected metal, rather than showing a broken or placeholder
-  // image. Re-run from onMetalSelect and onDesignSelect too (not just the
-  // initial render), so the thumbnail always matches whichever finish and
-  // design are currently selected.
+  // Always the icon, for its consistent framing at this small size; hidden
+  // without one. Re-run on metal and design changes.
   function renderLabelThumb() {
     var thumb = document.getElementById("productLabelThumb");
-    // A picture arriving under the label bar's invert band is a change in
-    // place the band has to re-sample — see resampleBand() in
-    // js/order-rows.js. Wired once.
+    // A picture arriving under the invert band needs a re-sample (resampleBand). Wired once.
     if (!thumb.dataset.resample) {
       thumb.dataset.resample = "1";
       thumb.addEventListener("load", function () {
@@ -515,9 +425,8 @@
     }
   }
 
-  // "from" the lowest price over all the metals until one is picked, "from"
-  // the picked metal's lowest until a size is given for the first time, then
-  // the price at that size.
+  // "from" the cheapest metal until one is picked, "from" that metal's lowest
+  // until a size is given, then the price at that size.
   function renderLabelPrice(product) {
     var sel = window.EmjiveSelection;
     document.getElementById("productLabelPrice").textContent = state.sizeText
@@ -525,22 +434,12 @@
       : sel.formatPriceFrom(sel.priceFrom(product, state.metalPicked ? state.selectedMetal : ""));
   }
 
-  /* ---- 2. the feed (inspiration) ------------------------------------------ */
+  /* ---- 2. the feed (inspiration) ---- */
 
-  // The description (plain text under the title — no heading, nothing to
-  // open; a product without one shows nothing there rather than a
-  // placeholder), then the product's photos (product.assets.photos) one
-  // under the other, with no gap between them, each with the name of what it
-  // shows in its bottom right corner (its description, set like an item's name
-  // — see captionFor; none, none). After the last, the trail: the last row of
-  // its pixels carried on down, going to the page's colour (buildTrail). The
-  // first photo is the first paint's picture and is requested at once; the
-  // others only once that has been painted (loadRest, from
-  // loadRemainingAssets). Each of those waits out a loader of its own
-  // (js/loader.js cover()); the first is what the page's arrival loader waits
-  // on, and shows as soon as that lifts. A photo's height is its own (square
-  // until it has loaded), so the feed's room to scroll is measured again as
-  // each one arrives (fitFeed).
+  // The description, then the photos stacked without gaps, each with its
+  // caption, then the trail (buildTrail). The first photo is requested at once;
+  // the rest after the first paint (loadRest), each behind its own loader. Photo
+  // heights are their own, so the feed's room is re-fitted as each arrives (fitFeed).
   function renderFeed(product) {
     var description = document.getElementById("productDescription");
     description.textContent = product.description || "";
@@ -581,7 +480,7 @@
         started = window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
         if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
         started.then(function () {
-          // The caption's ink is set before it can show (.is-loaded).
+          // The caption's ink is set before it shows (.is-loaded).
           inkCaption(img, caption);
           figure.classList.add("is-loaded");
           if (i === last) buildTrail(trail, img);
@@ -598,11 +497,8 @@
     };
   }
 
-  // A photo's caption: the name of the item on it, set as an item's name is
-  // everywhere (the label bar's, the rows'): the name in the main face, then
-  // ".category.metal.size" in the mono one, smaller, the size's fraction small
-  // (EmjiveSelection.appendSize). Its colour is inkCaption's (css/style.css
-  // .product-feed__caption).
+  // The caption is the item's name styled like everywhere else: name, then
+  // ".category.metal.size" in mono (appendSize). Colour from inkCaption.
   function captionFor(text) {
     var caption = el("figcaption", "product-feed__caption");
     var dot = text.indexOf(".");
@@ -622,16 +518,10 @@
     return caption;
   }
 
-  // The colour of a caption follows the corner it stands on: white over a dark
-  // one, black over a light one. The part of the picture under the caption
-  // (its box and INK_PAD_PX more all round, in the picture's own pixels) is
-  // read back through a 16 by 8 canvas, which averages it, and the mean
-  // luminance of those pixels (WCAG's relative luminance) is set against
-  // INK_THRESHOLD: 0.179, where white and black are equally readable. Set as
-  // data-ink (css/style.css .product-feed__caption); a picture the page can't
-  // read back leaves the caption as it was, white inverted by blending.
-  // Run when a photo arrives, and again whenever the screen's width changes
-  // (the caption covers a different part of the picture).
+  // Caption colour from the picture under it: the area (plus INK_PAD_PX) is
+  // averaged through a 16x8 canvas and its WCAG relative luminance compared to
+  // INK_THRESHOLD (0.179, where white and black read equally), giving data-ink.
+  // An unreadable picture leaves the CSS default. Re-run on width changes.
   var INK_PAD_PX = 6;
   var INK_THRESHOLD = 0.179;
   var INK_COLS = 16;
@@ -664,11 +554,11 @@
       }
       caption.setAttribute("data-ink", sum / (data.length / 4) < INK_THRESHOLD ? "white" : "black");
     } catch (err) {
-      // A picture that won't be read back (a tainted canvas): as it was.
+      // A tainted canvas: left as it was.
     }
   }
 
-  // An sRGB channel (0-255) as light, 0 to 1.
+  // sRGB channel (0-255) to linear light.
   function linearChannel(value) {
     var c = value / 255;
     return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -689,42 +579,27 @@
     });
   }
 
-  // The trail under the last photo: a slit-scan smear of the photo's edge. Its
-  // last TRAIL_DEPTH rows of pixels, taken from the last one upwards, are laid
-  // down the trail one canvas row at a time, the stretch growing smoothly from
-  // about the photo's own scale at the seam (the first row is the photo's last
-  // row itself, and the next few go on up it at the pace it was going) to a
-  // single row held over the rest, so the edge is carried on as an echo that
-  // coarsens into streaks, with no step where the photo ends. It is drawn
-  // into a canvas that the CSS stretches over the trail's height
-  // (css/style.css .product-feed__trail), under a layer in the page's own
-  // background that fades it, so the smear goes from the picture's colours to
-  // --bg exactly at the bottom, and a change to --bg is followed with no
-  // script. A picture the page can't read back (a failed load) leaves no
-  // trail.
+  // The trail under the last photo: a slit-scan smear of its bottom
+  // TRAIL_DEPTH rows, laid down one canvas row at a time with the stretch
+  // growing from the photo's own scale at the seam to a single held row, so the
+  // edge continues as coarsening streaks. CSS stretches the canvas over the
+  // trail and fades it to --bg beneath an overlay. No trail if the picture can't
+  // be read.
   //
-  // The red, green and blue are drawn apart — the red of each row slips one
-  // way and its blue the other — by an amount that begins inside the photo,
-  // TRAIL_FRINGE_LEAD rem above its bottom edge (buildPhotoFringe: a canvas
-  // over that stretch of the picture), and goes on growing down the trail, up
-  // to TRAIL_FRINGE of the width at TRAIL_FRINGE_FULL rem from where it began,
-  // so colour fringes open up along the streaks. Both are one profile
-  // (trailFringe), so the trail takes up exactly where the photo's canvas
-  // leaves off. They stop short of the sides: the red and blue slipping off the
-  // edge would leave a coloured edge, so the split fades into the plain picture
-  // over the outer stretch of each side and is not there at all on the
-  // outermost pixels. Drawn once (the photo's, again when its width changes).
-  var TRAIL_DEPTH = 180;       // rows of the photo's edge the smear is made of
-  var TRAIL_ROWS = 288;        // the smear's height, in canvas rows
-  var TRAIL_PACE = 3;          // how fast the stretch grows: the photo's rows per canvas row at the seam are DEPTH * PACE / ROWS
-  var TRAIL_FRINGE = 0.04;     // the red-to-blue gap at its widest, as a share of the width
-  var TRAIL_FRINGE_LEAD = 6;   // rem of the photo, above its bottom edge, that carry it
-  var TRAIL_FRINGE_FULL = 14;  // rem from where it begins to where it is widest
+  // Red and blue slip apart, starting TRAIL_FRINGE_LEAD rem inside the photo
+  // (buildPhotoFringe) and widening down the trail up to TRAIL_FRINGE of the
+  // width; one profile (trailFringe) so photo and trail join seamlessly. The
+  // split fades out toward the sides so edges don't get coloured.
+  var TRAIL_DEPTH = 180; // rows of the photo's edge used
+  var TRAIL_ROWS = 288; // the smear's height, in canvas rows
+  var TRAIL_PACE = 3; // stretch growth: photo rows per canvas row at the seam = DEPTH * PACE / ROWS
+  var TRAIL_FRINGE = 0.04; // widest red-blue gap, as a share of the width
+  var TRAIL_FRINGE_LEAD = 6; // rem of the photo above its bottom edge carrying the split
+  var TRAIL_FRINGE_FULL = 14; // rem from its start to its widest
   function trailFringe(rem) {
     return Math.pow(Math.max(0, Math.min(1, rem / TRAIL_FRINGE_FULL)), 1.8);
   }
-  // A picture's rows split in red, green and blue: the picture times each
-  // colour, with the side each is pushed to.
+  // The picture multiplied into red, green and blue layers, each with its slip direction.
   function fringeChannels(source, width, height) {
     return [["#f00", 1], ["#0f0", 0], ["#00f", -1]].map(function (spec) {
       var canvas = document.createElement("canvas");
@@ -738,11 +613,9 @@
       return { canvas: canvas, side: spec[1] };
     });
   }
-  // The split rows on a canvas of their own, transparent towards the sides:
-  // row y takes its pixels from row rowAt(y) of the channels, split by the
-  // profile's value rem0 + (y + 0.5) / height * remSpan rem along. Added
-  // together, the three channels are the picture again where they are not
-  // apart.
+  // Row y takes row rowAt(y) of the channels, split by the profile at
+  // rem0 + (y + 0.5) / height * remSpan; added together they rebuild the picture
+  // where unsplit. Transparent toward the sides.
   function fringeSplit(channels, width, height, rowAt, rem0, remSpan) {
     var canvas = document.createElement("canvas");
     canvas.width = width;
@@ -762,8 +635,7 @@
         if (dx) ctx.drawImage(channels[c].canvas, 0, sy, width, 1, dx > 0 ? dx - width : dx + width, y, width, 1);
       }
     }
-    // None within the widest slip of the edge (where the wrapped-round pixels
-    // are), full from twice that in.
+    // None within the widest slip of the edge (wrapped pixels), full from twice that in.
     var edge = Math.min(width / 4, widest + 2);
     var fade = ctx.createLinearGradient(0, 0, width, 0);
     fade.addColorStop(0, "rgba(0,0,0,0)");
@@ -795,7 +667,7 @@
       row.height = TRAIL_ROWS;
       var ctx = row.getContext("2d");
       ctx.imageSmoothingEnabled = false;
-      // How far up the photo's edge a row of the trail is taken from.
+      // Which row of the photo's edge a trail row takes.
       var rowAt = function (y) {
         var t = (y + 0.5) / TRAIL_ROWS;
         return depth - 1 - Math.min(depth - 1, Math.floor(depth * (1 - Math.pow(1 - t, TRAIL_PACE))));
@@ -811,13 +683,9 @@
     }
   }
 
-  // The photo's own stretch of the effect: a canvas over its bottom
-  // TRAIL_FRINGE_LEAD rem (css/style.css .product-feed__fringe) holding the
-  // same rows split from nothing at its top to where the trail takes up at
-  // its bottom. Transparent towards the sides, so the picture itself shows
-  // there. It has to cover exactly those rem of the picture, so it is drawn
-  // from the picture's rows at the width the photo has now, and again when
-  // that changes.
+  // The photo's own part of the split: a canvas over its bottom
+  // TRAIL_FRINGE_LEAD rem (.product-feed__fringe), from zero at its top to where
+  // the trail takes over. Redrawn at the photo's current width.
   function buildPhotoFringe(img) {
     var shown = img.clientWidth;
     if (!shown || !img.naturalWidth) return false;
@@ -853,14 +721,12 @@
     if (window.ResizeObserver) new ResizeObserver(build).observe(img);
   }
 
-  /* ---- 2b. the model (design, then specs) ---------------------------------- */
+  /* ---- 2b. the model (design, then specs) ---- */
 
-  // The model's box, in the middle of the design frame: its poster (the
-  // viewer's own, fallback-img, so the swap moves nothing) until the 3D viewer
-  // takes it over; a plain icon for a product without a model, or when the
-  // viewer can't be had. The viewer is built for the design and the metal
-  // chosen when it arrives (state.view, state.selectedMetal), and a design
-  // picked later swaps its model in place (onDesignSelect).
+  // The model's box: its poster (fallback-img, the viewer's own, so the swap
+  // moves nothing) until the viewer takes over; the icon without a model or
+  // viewer. Built for the design and metal current when it arrives; later
+  // design picks swap the model in place (onDesignSelect).
   function renderModel(product) {
     var box = modelBoxEl;
     box.innerHTML = "";
@@ -869,29 +735,20 @@
     setModelAway(false);
     state.posterImg = null;
     state.iconFallbackImg = null;
-    // Resolves when the 3D model is on screen — or will never be (no viewer,
-    // failed, no model at all). What render() holds the sharp x-ray back for:
-    // that swap is polish, and should not share the link with the model.
+    // Resolves once the model is on screen, or never will be; the high-res x-ray waits on it.
     var settleViewer;
     var viewerSettled = new Promise(function (resolve) { settleViewer = resolve; });
     var hasModel = !!(product.assets && product.assets.model);
 
-    // window.EmjiveModelViewer is exposed by js/three-viewer.js — reused here
-    // so the viewer construction/material logic lives in exactly one place.
-    // It can return null if the browser couldn't grant a WebGL context (see
-    // its own comment) — that takes the icon fallback. Reads state.view and
-    // state.selectedMetal at call time, so a rebuild (after the Modify sheet,
-    // after Back) picks up whatever is chosen now.
+    // window.EmjiveModelViewer (js/three-viewer.js), null without a WebGL context
+    // (then the icon). Reads state.view and state.selectedMetal at call time, so
+    // rebuilds pick up the current choice.
     function buildModelViewer() {
-      // The viewer is a separate module: if it never arrived (its hashed file
-      // gone after a deploy while this page's HTML was cached, a blocked
-      // request) the box takes the icon fallback, exactly as it does for a
-      // browser with no WebGL.
+      // The viewer module never arrived (stale hashed file after a deploy, a
+      // blocked request): the icon, as without WebGL.
       if (typeof window.EmjiveModelViewer !== "function") return null;
-      // The model's wait goes through the frame's loader (modelLoadHold):
-      // handed to the viewer, which releases it when the model is on screen
-      // or has failed or the viewer is disposed. If no viewer comes back the
-      // hold is released here.
+      // The frame loader's hold goes to the viewer, which releases it when the
+      // model shows, fails or is disposed; released here if no viewer comes back.
       var hold = modelLoadHold();
       var viewer = null;
       try {
@@ -906,35 +763,25 @@
     function createModelViewer(loadHold) {
       return window.EmjiveModelViewer(state.view, state.selectedMetal, {
         hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
-        // The frame's loader, held on the model while it loads (false: none,
-        // e.g. reduced motion) — the viewer's box has no visible edge.
+        // false: no loader (reduced motion).
         loader: loadHold || false,
-        // Only a circle of the viewer is the model's to drag: its radius
-        // leaves a quarter of the viewer's width as a margin. A press outside
-        // it scrolls the page.
+        // Only a centred circle is the model's to drag (radius leaving a quarter of
+        // the width as margin); presses outside scroll the page.
         hitCircle: 0.25,
-        // The model turned off its pose (or back on it): the reset button.
         onAway: setModelAway,
-        // Fires for an initial load/HDRI failure OR — since three-viewer.js
-        // also treats a WebGL context loss as a failure — for a model that
-        // HAD already loaded and was on screen: iOS Safari can silently
-        // reclaim a GPU context under memory pressure at any time, not just
-        // during load.
+        // Also fires for a lost WebGL context, possibly long after loading (iOS
+        // reclaims GPU contexts under memory pressure).
         onError: replaceModelWithIcon,
         onReady: function () {
           settleViewer();
         },
-        // The specs stage's metal -> grey sweep and wireframe (see
-        // onStageChange). lineColor is the wireframe's colour.
+        // The specs stage's metal -> blueprint sweep and wireframe (onStageChange).
         blueprint: { lineColor: pageColor("--category-col", "#727272") }
       });
     }
 
-    // The box before the viewer is in: its poster image (the same one the
-    // viewer shows over its own canvas until the model is drawn), sized
-    // exactly like the viewer that replaces it, so the swap moves nothing —
-    // the Modify sheet's stand-in for the same reason (js/modify-modal.js
-    // posterBox(), .size-modal__model-poster in css/style.css).
+    // Before the viewer: its own poster, sized like the viewer, so the swap moves
+    // nothing (as in js/modify-modal.js posterBox()).
     function showPoster() {
       box.innerHTML = "";
       state.posterImg = null;
@@ -950,15 +797,12 @@
       state.posterImg = img;
     }
 
-    // Swaps the viewer in for the poster. Also what restoreModelViewer() calls
-    // after a back/forward-cache restore. No WebGL context to be had (or the
-    // viewer module never arrived) means the icon fallback, as always.
+    // Swaps the viewer in for the poster; also the bfcache restore path. Falls
+    // back to the icon without a viewer.
     function attachViewer() {
       if (state.modelHandle) return;
-      // The box loses .is-model the moment replaceModelWithIcon takes it
-      // over, which is exactly the case that must NOT be rebuilt — the
-      // visitor is looking at the icon fallback, and a viewer appended
-      // underneath it would be an invisible second context.
+      // Without .is-model the icon fallback has taken over: a viewer under it would
+      // be an invisible second context.
       if (!box.classList.contains("is-model")) return;
       var handle = buildModelViewer();
       if (!handle) {
@@ -969,19 +813,15 @@
       state.posterImg = null;
       box.innerHTML = "";
       box.appendChild(handle.el);
-      // Out of sight while the design stage is (the inspiration stage): no
-      // drawing, no idle nudge.
+      // Paused while out of sight (inspiration).
       handle.setPaused(state.designOut);
       handle.setAutoReturn(state.autoReturn);
-      // Wherever the show is now — a rebuild after the Modify sheet or Back
-      // can land in specs.
+      // Wherever the show is now (a rebuild can land in specs).
       applyStageToViewer();
     }
 
-    // Called by render() once the first paint is in. Asks for the viewer
-    // chunk, then builds it when the browser is idle: creating a WebGL
-    // context and compiling shaders is a long task that should not land on
-    // top of the images and text arriving.
+    // After the first paint: request the chunk, then build when idle (context
+    // creation and shader compiles are long tasks).
     function mountViewer() {
       if (!hasModel) {
         settleViewer();
@@ -991,11 +831,8 @@
         replaceModelWithIcon();
         return;
       }
-      // The chunk, the environment map and the model are independent
-      // downloads; the viewer asks for the last two only once it has been
-      // built, which is after the chunk. Hinting them now runs all three at
-      // once instead of one after another (the viewer's own requests then
-      // reuse these, being the same URL fetched the same way).
+      // Hint the HDRI and model now so they download alongside the chunk; the
+      // viewer's own requests reuse them.
       hintFetch(window.EmjiveSeries.hdriPath(state.seriesSlug));
       hintFetch(state.view.assets.model);
       window.EmjiveLoadViewer().then(function () {
@@ -1003,10 +840,8 @@
       }, replaceModelWithIcon);
     }
 
-    // The permanent fallback, for a viewer that failed (a load or HDRI
-    // failure, a lost context): the box shows the metal's icon instead, as a
-    // product without a model does. state.iconFallbackImg is what
-    // onMetalSelect and onDesignSelect re-point on a pick.
+    // The permanent fallback for a failed viewer: the metal's icon.
+    // state.iconFallbackImg is re-pointed on picks.
     function replaceModelWithIcon() {
       if (state.modelHandle) {
         state.modelHandle.dispose();
@@ -1033,19 +868,11 @@
       state.iconFallbackImg = img;
     }
 
-    /* ---- releasing the viewer while the page is frozen --------------------
-       Same reasoning as js/gallery-stack.js's pagehide, from the other end
-       of the same navigation. Pressing Back doesn't end this page: it goes
-       into the back/forward cache holding its WebGL context, its decoded
-       model and its PMREM environment, while the gallery it returns to
-       builds its own. Both pages' footprints counted against one page-wide
-       iOS Safari budget is what tips it over.
-
-       Deliberately NOT replaceModelWithIcon: that's the permanent fallback
-       for a viewer that genuinely failed, and it rewrites the box so no
-       rebuild is possible afterwards. This leaves the box alone, so coming
-       back from the cache restores the real thing.
-       --------------------------------------------------------------------- */
+    /* ---- releasing the viewer on pagehide ----
+       A bfcache page keeps its WebGL context, model and environment while the
+       gallery builds its own, and iOS counts both against one budget. Unlike
+       replaceModelWithIcon this leaves the box intact, so a return restores the
+       viewer. */
     function releaseModelViewer() {
       hideScanBand();
       if (!state.modelHandle) return;
@@ -1066,15 +893,8 @@
         if (e.persisted) attachViewer();
       });
 
-      // The Modify sheet (js/modify-modal.js, opened from a row of the
-      // selection bar's drawer) builds a viewer of its own — a second WebGL
-      // context, a second PMREM environment and a second decode — while this
-      // page's viewer sits behind the sheet's backdrop, drawing nothing
-      // anyone is looking at. The page's own model goes back to its poster
-      // for as long as the sheet is up, and the real viewer is rebuilt once
-      // the sheet's own has been freed ("emjive:modify-close" is dispatched
-      // after that, see cleanup() there). Same swap as the back/forward-cache
-      // path above.
+      // The Modify sheet builds a viewer of its own: show the poster while it's up
+      // and rebuild after "emjive:modify-close" (sent once the sheet's viewer is freed).
       var viewerHeldForModify = false;
       window.addEventListener("emjive:modify-open", function () {
         if (!state.modelHandle) return;
@@ -1097,18 +917,15 @@
     };
   }
 
-  // What stands in for the model until its viewer is built: the viewer's own
-  // poster (fallback-img, the model's default-orbit capture, so it lines up
-  // with the live canvas's first frame), else the metal's icon.
+  // The stand-in until the viewer is built: fallback-img (matching the live
+  // canvas's first frame), else the icon.
   function posterSrcFor(view, metal) {
     var assets = view.assets || {};
     return (assets["fallback-img"] && assets["fallback-img"][metal]) ||
       (assets.icons && assets.icons[metal]) || "";
   }
 
-  // <link rel="preload" as="fetch" crossorigin> is what a same-origin fetch()
-  // (three's FileLoader) matches, so the viewer's own request joins this one
-  // instead of downloading the file twice.
+  // Matches three's same-origin fetch(), so the viewer's request reuses this download.
   function hintFetch(href) {
     if (!href) return;
     var link = document.createElement("link");
@@ -1124,19 +941,13 @@
     else setTimeout(fn, 0);
   }
 
-  /* ---- 2c. the design options (design) ------------------------------------- */
+  /* ---- 2c. design options (design) ---- */
 
-  // A product with several designs (its "designs" in products.json: the
-  // options and every design they lead to) gets one row per option under the
-  // model: its label, then its choices, each a button with the site's dot
-  // before the chosen one(s). A "multiple" option (the rib-cage's ribs) is a
-  // set of toggles, the last one on not turned off; any other is one choice
-  // of several. Every design is a combination of picks, so a pick lands on
-  // the design that has them all — or, when no design has that combination
-  // (a link between ribs that aren't side by side), on the one that keeps the
-  // pick just made and as many of the others as it can (the first listed of
-  // equals). A choice that would land somewhere other than its exact
-  // combination is dimmed, still there to be tapped.
+  // One row per option under the model: its label and choice buttons. A
+  // "multiple" option is a set of toggles (the last one can't be turned off);
+  // others pick one. A pick lands on the design with exactly those picks, or
+  // else the one keeping the new pick and most of the others (first listed of
+  // equals). Choices that wouldn't land exactly are dimmed.
   function renderDesigns(product) {
     var host = document.getElementById("productOptions");
     host.innerHTML = "";
@@ -1176,7 +987,7 @@
     return list[0];
   }
 
-  // A design's picks for one option, as a list (one item for a plain option).
+  // A design's picks for an option, as a list.
   function picksOf(design, option) {
     var pick = design.picks && design.picks[option.key];
     return Array.isArray(pick) ? pick.slice() : pick === undefined ? [] : [pick];
@@ -1192,8 +1003,7 @@
     return true;
   }
 
-  // The picks a tap on `choice` would make, from the current design's: null
-  // for turning off the last one on of a multiple option.
+  // The picks a tap on `choice` would give; null for the last one on of a multiple option.
   function nextPicks(product, option, choice) {
     var design = currentDesign(product);
     var picks = {};
@@ -1238,20 +1048,15 @@
   function pickChoice(product, option, choice) {
     var picks = nextPicks(product, option, choice);
     if (!picks) return;
-    // A choice of a plain option that no design has with the other picks as
-    // they are (a link between ribs that aren't side by side) is out: a tap
-    // does nothing.
+    // A plain option's choice no design has with the other picks: no-op.
     if (!option.multiple && !exactDesign(product, picks)) return;
     var design = landingDesign(product, option, picks);
     if (design) onDesignSelect(product, design.key);
   }
 
-  // The choices' states, for the current design: pressed (its picks), dimmed
-  // (not one of them, and no design has the combination a tap would make — a
-  // chosen one is never dimmed, whatever turning it off would land on; a
-  // toggle of a multiple option still goes to the nearest design, the choice
-  // of a plain one is disabled as well), disabled (the last one on of a
-  // multiple option; a dimmed choice of a plain one).
+  // Choice states for the current design: pressed (its picks); dimmed (no
+  // design has the combination a tap would make; never for a chosen one);
+  // disabled (the last one on of a multiple option, or a dimmed plain choice).
   function syncDesignChoices(product) {
     var design = currentDesign(product);
     var buttons = document.querySelectorAll("#productOptions .product-option__choice");
@@ -1270,10 +1075,9 @@
     });
   }
 
-  // Another design: the label, the thumbnail, the specs (its geometry) and
-  // the model follow it. The viewer swaps its model in place, the camera kept
-  // (handle.setProduct), under the frame's loader until the new one is in; a
-  // model not built yet is simply built as this design (state.view).
+  // Another design: label, thumbnail, specs and model follow. The viewer swaps
+  // models in place, camera kept (setProduct), under the frame's loader; a
+  // viewer not built yet is built as this design.
   function onDesignSelect(product, key) {
     if (key === state.designKey) return;
     state.designKey = key;
@@ -1304,12 +1108,9 @@
     }
   }
 
-  /* ---- 3. metal selection ------------------------------------------------ */
+  /* ---- 3. metal selection ---- */
 
-  // The bars, their selected state and the change animation are
-  // js/metal-picker.js; this just reacts to a pick. There are two pickers —
-  // the page's own and the Select sheet's first row — each moving the other
-  // along with it, so whichever is looked at shows the metal chosen.
+  // Two pickers (the page's and the Select sheet's), each mirroring the other.
   function renderMetalOptions(product) {
     var pagePicker = null;
     var sheetPicker = null;
@@ -1334,12 +1135,8 @@
     });
   }
 
-  // Re-tints the existing model in place (no reload, no camera reset) — but
-  // only once the text changes below have been painted: re-tinting means a
-  // fresh material per mesh and a re-render, heavy enough on an iPhone to
-  // hold the next frame for a noticeable moment, and the label waited on it.
-  // rAF runs ahead of that frame's paint, the timeout right after it; picks
-  // made meanwhile just retint to whichever metal is current.
+  // Re-tint after the text changes have painted: rebuilding materials can hold
+  // a phone's next frame. rAF precedes the paint, the timeout follows it.
   var tintQueued = false;
   function tintAfterPaint() {
     if (tintQueued) return;
@@ -1362,19 +1159,15 @@
     state.selectedMetal = metal;
     renderLabelType(product);
     renderLabelPrice(product);
-    // The text and thumbnail under the label bar's invert band would show
-    // their old value a moment longer in Safari otherwise.
+    // Safari re-samples the label bar's invert band late otherwise.
     window.EmjiveOrderRows.resampleBand(document.querySelector(".product-detail__label-bar"));
-    // The label thumbnail (and the model box's icon fallback) are static
-    // images — each needs its own explicit swap to the new metal's icon, the
-    // chosen design's.
+    // The label thumbnail and icon fallback are static images: swap them to the design's icon.
     var view = state.view;
     renderLabelThumb();
     if (state.iconFallbackImg) {
       state.iconFallbackImg.src = (view.assets && view.assets.icons && view.assets.icons[metal]) || "";
     }
-    // The model's poster, if the viewer isn't in yet: the viewer is built for
-    // whichever metal is selected when it arrives.
+    // The poster too, if the viewer isn't in yet.
     if (state.posterImg) state.posterImg.src = posterSrcFor(view, metal);
     renderSpecs();
     renderPrinting();
@@ -1382,18 +1175,12 @@
     tintAfterPaint();
   }
 
-  /* ---- specs: characteristics (metal-dependent) -------------------------- */
+  /* ---- specs ---- */
 
-  // The weight and the cost breakdown for one metal, from the piece's
-  // measured volume (the chosen design's geometry, written by
-  // scripts/measure-models.js: the print model's, see renderSpecs) and that
-  // metal's constants in data/series.json's "metal-costs". Raw materials are
-  // the metal bought, which is more than the finished piece weighs: the
-  // process loses a share of it (lost-wax casting, binder jetting), so it is
-  // weight x (1 + loss margin) x price per gram. Manufacturing is whatever
-  // is left of the production cost (volume x production cost per cm3).
-  // The weight is the finished piece's, in grams. Returns null if either
-  // input is missing.
+  // Weight and costs for one metal from the piece's volume and the metal's
+  // "metal-costs": raw materials = weight x (1 + loss margin) x price per gram
+  // (processes lose metal); manufacturing = production cost - raw. Weight in
+  // grams. null if an input is missing.
   function computeCosts(volumeCm3, costs) {
     if (!(volumeCm3 > 0) || !costs) return null;
     var weight = volumeCm3 * costs["density-g-cm3"];
@@ -1406,15 +1193,9 @@
     return "€ " + amount.toFixed(2);
   }
 
-  // The figures that follow the chosen size: the dimensions, in centimetres,
-  // and the weight, in grams (the two rows of the specs cluster), and the cost
-  // diagram. A piece scaled by a factor weighs and costs that factor cubed
-  // (the model is scaled the same on every axis); the diagram's bars are shares
-  // of that cost — the raw materials', the manufacturing's — so they always fill
-  // their column, and move with the metal only. The geometry is the chosen
-  // design's, and as it is printed where the design has that measured
-  // (geometry.print, from its STL): that is the piece that is made and
-  // priced, whatever the 3D model on the page shows.
+  // Dimensions (cm), weight (g) and the cost chart at the chosen size: weight
+  // and cost scale with the factor cubed. Uses the design's print geometry
+  // (geometry.print, from its STL) when measured: that's what is made and priced.
   function renderSpecs() {
     var geometry = (state.view && state.view.geometry) || {};
     var printed = geometry.print || geometry;
@@ -1434,9 +1215,7 @@
       var dd = document.getElementById(figures[key]);
       var row = dd.parentNode;
       dd.textContent = costs ? formatEuros(costs[key]) : "TBD";
-      // The bars are shares of the production cost, so together they always
-      // fill the column: the raw materials from 0 to their share, the
-      // manufacturing from there to the whole.
+      // The bars are shares of the production cost: raw from 0, manufacturing to 1.
       var share = costs && costs.production > 0 ? costs.raw / costs.production : 0;
       var from = key === "manufacturing" ? share : 0;
       var to = !costs ? 0 : key === "raw" ? share : 1;
@@ -1445,7 +1224,7 @@
     });
   }
 
-  // The specs stage's printing technology: how the chosen metal is made.
+  // How the chosen metal is printed.
   function renderPrinting() {
     var section = document.getElementById("productPrinting");
     var tech = state.technologies[state.metalTechnology[state.selectedMetal]];
@@ -1455,15 +1234,11 @@
     if (!tech) return;
     document.getElementById("productPrintingName").textContent = tech.name;
     document.getElementById("productPrintingText").textContent = tech.description;
-    // A different text can be a different height, and the rows under it follow:
-    // glide from the old height to the new one instead of snapping.
+    // A different text height: glide instead of snapping.
     if (wasShown && from > 0) tweenHeight(section, from);
   }
 
-  // The specs stage's composition of the chosen metal, in the picker's second
-  // column under the squares (data/series.json's "metal-composition"). Shown
-  // in specs only (css/style.css); the same glide as the printing technology's
-  // when the text is a different height.
+  // The chosen metal's composition (specs only, css/style.css), with the same glide.
   function renderComposition() {
     var node = document.getElementById("productComposition");
     if (!node) return;
@@ -1474,12 +1249,9 @@
     if (text && from > 0) tweenHeight(node, from);
   }
 
-  // Animates `node`'s height from `from` px to `to` (default: what it is now;
-  // css/style.css .is-resizing owns the transition): pins the old height, lets
-  // the next frame set the new one, and hands the height back to the layout
-  // once it has arrived, then calls `after`. Called again mid-flight (read the
-  // height off `node.offsetHeight` for `from` then), it starts over from
-  // there, and the first call's `after` is dropped.
+  // Animates `node`'s height from `from` to `to` (default: its new natural
+  // height; .is-resizing owns the transition), then returns it to auto and calls
+  // `after`. A new call mid-flight restarts and drops the old `after`.
   function tweenHeight(node, from, to, after) {
     if (node._tween) {
       clearTimeout(node._tween);
@@ -1496,8 +1268,7 @@
     node.classList.add("is-resizing");
     void node.offsetHeight;
     node.style.height = to + "px";
-    // transitionend can be skipped (display: none, a cancelled transition), so
-    // a timer past the longest the transition runs does the clean-up too.
+    // transitionend can be skipped, so a timer cleans up too.
     node._tween = setTimeout(function () {
       node._tween = null;
       node.classList.remove("is-resizing");
@@ -1513,37 +1284,24 @@
     dl.appendChild(group);
   }
 
-  /* ---- the three stages ---------------------------------------------------- */
+  /* ---- the three stages ---- */
 
-  // The show's scroll (js/product-stages.js) gives two eased numbers, and
-  // css/style.css fades everything from them — in phases, never crossfading:
-  // what a stage shows fades out, there is a blank, then what the next shows
-  // fades in. This is the rest: the feed's room to scroll, and the model.
-  //
-  // Inspiration -> design is a plain fade (the feed out, the model, the
-  // picker and the options in); the model holds still out of sight before
-  // it (state.designOut).
-  //
-  // Design -> specs is the one with the model in it, and its blank is
-  // the model's own change. A full-width inversion band (the hero's frontier
-  // band) travels the whole height of the screen over the transition, from
-  // under the page to over it, and the model's metal -> grey sweep is
-  // that band's passage across it: it starts when the band reaches the
-  // model's foot and ends when it leaves its head, the cut under the band
-  // all the way. So the first fade ends (--t0) as the band reaches the
-  // model, the second begins (--t1) as it leaves it, and the model's fit
-  // (the shrink that makes room for the size circle, and the size scale)
-  // follows from there on. The three are worked out from where the model is
-  // on screen, so they hold on any screen.
+  // js/product-stages.js publishes the eased transitions and CSS fades in
+  // phases (out, blank, in). This handles the rest: the feed's room and the model.
+  // Inspiration -> design is a plain fade; the model holds still before it.
+  // Design -> specs: an inversion band sweeps up the screen, and the model's
+  // metal -> blueprint sweep is its passage across the model, from foot to
+  // head. The first fade ends (--t0) as the band reaches the model, the second
+  // starts (--t1) as it leaves, and the model's fit follows; all derived from
+  // the model's screen position.
   function wireStages() {
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
     stages = window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
-    // mount() has already published once, before this handle existed: the
-    // feed's room it fitted then is only taken into the track now.
+    // mount() published before this handle existed: fit the feed into the track now.
     fitFeed();
     stages.update();
-    // Design: the model back to its pose, the button fading out as it goes.
+    // Design: back to the pose.
     if (resetEl) {
       resetEl.addEventListener("click", function () {
         resetEl.blur();
@@ -1551,7 +1309,7 @@
         if (state.modelHandle) state.modelHandle.returnHome();
       });
     }
-    // The end of specs: the way back to the first stage (there is no loop).
+    // The end of specs: back to the first stage (no loop).
     var restart = document.getElementById("productRestart");
     if (restart) {
       restart.addEventListener("click", function () {
@@ -1577,15 +1335,12 @@
     state.ramp = stage.ramp || 1;
     state.flow = stage.stage === "flow";
     refreshStage();
-    // The cost chart builds once the last stage is fully in, and starts over
-    // when it has been left (everything shows at once in the flow layout).
+    // The cost chart builds once specs is fully in, and resets once left (all at once in flow).
     var costs = document.getElementById("productCosts");
     if (costs) {
       if ((stage.stage === "flow" || stage.toSpecs >= 0.999) && !costs.classList.contains("is-built")) {
         costs.classList.add("is-built");
-        // Once the cascade has played out (css/style.css: its last step ends
-        // by 1.65 s), a change of the figures — another metal — moves the bars
-        // all at once, not by the cascade's steps.
+        // After the cascade (ends by 1.65 s in CSS), figure changes move all bars at once.
         clearTimeout(state.settleTimer);
         state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 1800);
       } else if (stage.stage !== "flow" && stage.toSpecs < 0.5 && costs.classList.contains("is-built")) {
@@ -1593,13 +1348,10 @@
         costs.classList.remove("is-built", "is-settled");
       }
     }
-    // The size field gets its starting value as design's things start going.
+    // The size field gets its starting value as design's controls start leaving.
     if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
-    // Out of sight (before design's things start to come in): the viewer
-    // holds still — no drawing, no idle nudge.
-    // In design, where the visitor looks at what they have changed, a released
-    // model stays where it was put (the reset button takes it back); not in
-    // specs, nor in the plain column, which it enters at its pose.
+    // In design a released model stays put (the reset button returns it); in
+    // specs and flow it eases home. Out of sight it pauses.
     var autoReturn = stage.stage !== "design";
     if (autoReturn !== state.autoReturn) {
       state.autoReturn = autoReturn;
@@ -1615,17 +1367,11 @@
     if (state.modelHandle) state.modelHandle.setPaused(out);
   }
 
-  // The feed is taller than the screen as soon as it has a photo or two: the
-  // inspiration stage's stretch of scrolling takes it up (css/style.css
-  // .product-feed) by what it takes for its end — the trail under the last
-  // photo, already the page's colour there — to stand FEED_CLEAR_REM above the
-  // two bars at the bottom: just above the band over them (.product-bottom-veil,
-  // 3.5rem tall), clear of its strong blurs, which would otherwise draw the picture's
-  // colours down into the end of the trail. Published as --feed-room, which
-  // js/product-stages.js turns into the stretch's length. Measured as the feed would stand unshifted,
-  // against the bars as high as they ever are (the smallest viewport's
-  // bottom), so it holds still once it has moved; again whenever a photo
-  // arrives (it was a square until then) and on every resize.
+  // The inspiration stretch scrolls the feed up until its end (the trail, already
+  // the page colour) stands FEED_CLEAR_REM above the bottom bars, clear of the
+  // bottom veil's blurs. Published as --feed-room (js/product-stages.js sizes
+  // the stretch from it). Measured unshifted against the bars at their highest,
+  // so it holds still; re-fitted as photos arrive and on resize.
   var FEED_CLEAR_REM = 4;
   var feedRoom = 0;
   function fitFeed() {
@@ -1645,9 +1391,8 @@
     if (stages) stages.update();
   }
 
-  // Where the two bars at the bottom begin, in pixels from the top of the
-  // screen: the small viewport's bottom less the bars as tall as they ever are
-  // (--bars-h, read off a probe), so it holds still once the page has moved.
+  // The bottom bars' top in screen px: the small viewport's bottom minus
+  // --bars-h (a probe), stable as the page moves.
   var barsHeightProbe = null;
   function barsTopPx() {
     if (!barsHeightProbe) {
@@ -1659,9 +1404,7 @@
     return screenHeight() - barsHeightProbe.offsetHeight;
   }
 
-  // How far the show stands scrolled up by browsing a stage, in pixels (its
-  // transform, css/style.css .product-stage__show); what is measured on it
-  // is measured at its place without that.
+  // The show's current browse offset (its transform), so measurements can undo it.
   function browsePx() {
     var show = document.querySelector(".product-stage__show");
     if (!show) return 0;
@@ -1670,9 +1413,7 @@
     return -new DOMMatrix(t).m42;
   }
 
-  // What the design stage's stretch of browsing takes the show up by, in
-  // pixels (css/style.css --room-1: the room fitDesignRoom has found it takes),
-  // read off a probe that is as tall.
+  // The design stretch's browse distance (--room-1, found by fitDesignRoom), read off a probe.
   var designRoomProbe = null;
   function designRoomPx() {
     if (!designRoomProbe) {
@@ -1684,17 +1425,11 @@
     return designRoomProbe.offsetHeight;
   }
 
-  // The design stage's things — the picker and, under it, the options of a
-  // product with several designs — are tall too, and the last of them can stand
-  // under the bars at the bottom of the screen: the stage's stretch of
-  // scrolling takes the show up by what it takes for it to clear them by
-  // DESIGN_CLEAR_REM (css/style.css --design-room: none, so nothing but the
-  // last of them is under the bars' edge when the stretch ends, and the
-  // stretch is no longer than it takes). Measured as it would stand unshifted — less
-  // the show's browsing and the model's lift, which it goes up with — so it
-  // holds still once it has moved. Once the picker has gone to its place in
-  // the specs column (.is-specs-layout) nothing of design stands where it did:
-  // the last figure is kept.
+  // Design's controls (picker, then options) can reach under the bottom bars:
+  // the design stretch scrolls the show up until the last clears them by
+  // DESIGN_CLEAR_REM (--design-room). Measured unshifted (browse and lift
+  // removed) so it holds still; frozen once the picker moves into the specs
+  // column (.is-specs-layout).
   var DESIGN_CLEAR_REM = 0;
   var designRoom = 0;
   function fitDesignRoom() {
@@ -1715,7 +1450,7 @@
     if (Math.abs(room - designRoom) < 0.5) return;
     designRoom = room;
     stageEl.style.setProperty("--design-room", room.toFixed(1) + "px");
-    // The stretch is as long as the room takes to cover.
+    // The stretch is as long as covering the room takes.
     if (stages) stages.update();
   }
 
@@ -1723,10 +1458,8 @@
     return x < lo ? lo : x > hi ? hi : x;
   }
 
-  // Where the model is on screen, as the top and bottom of its sweep in
-  // viewport pixels — the viewer's own figures once it is in, else the
-  // model slide's (the poster standing in), which is close enough to time
-  // the fades by.
+  // The model's sweep span on screen (top, bottom): the viewer's own figures,
+  // else the model box's (close enough to time the fades).
   function modelSpan() {
     var handle = state.modelHandle;
     var own = handle && handle.scanSpan();
@@ -1740,21 +1473,12 @@
     return { top: mid - r.height * 0.44, bottom: mid + r.height * 0.44 };
   }
 
-  // How far up the model stands (in pixels, from where it stands at rest) when
-  // the page is `w` of the way through the design stretch and the transition,
-  // and its place in specs is `place` up. One path, from the first pixel of
-  // that stretch: it goes up with the show while the stretch browses
-  // (`room` by its end), and then goes on to its place, at the same speed at
-  // first and slowing gently to a stop there — so that the show coming back
-  // down to rest as specs arrives never takes the model with it. (The
-  // browsing that follows starts before the transition ends,
-  // js/product-stages.js, and takes it up from there.) The stretch's browsing
-  // eases in (js/product-stages.js entry(), over `ramp` of the stretch, the
-  // show's own curve), so it speeds up from rest by the same amount as the
-  // show does, and the model goes on from there at the pace it has got to.
-  // The whole path stands `base` higher: where design holds the model (from the
-  // first pixel of the way to design, before the stretch's browsing begins),
-  // which is also where the path to specs starts from.
+  // The model's lift (px above rest) at progress w through the design stretch
+  // and transition, with its specs place `place` up. It rises with the show's
+  // browsing (`room` by the stretch's end, easing in like the show over `ramp`),
+  // then carries on at the same pace and slows to a stop at its place, so the
+  // show settling as specs arrives never drags it. Everything is offset by
+  // `base`, where design holds the model.
   function modelRise(w, place, room, ratio, ramp, base) {
     var wh = ratio / (ratio + 1);
     var x = clamp(w, 0, 1);
@@ -1762,21 +1486,20 @@
     if (x <= wh) return base + (wh > 0 ? room * browseEntry(x / wh, a) : 0);
     var u = (x - wh) / (1 - wh);
     var dist = place - room - base;
-    // The pace the browsing ends at, over the one of a straight line.
+    // The browse's final pace relative to a straight line.
     var pace = 1 / (1 - a / 2);
     if (dist > 1) return base + room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
     return base + room + dist * u * u * (3 - 2 * u);
   }
 
-  // How far a stretch's browsing has got (0 to 1) at u of the way through it:
-  // js/product-stages.js's ramp, from there.
+  // The browse progress at u through a stretch (js/product-stages.js entry()).
   function browseEntry(u, a) {
     var stages = window.EmjiveProductStages;
     if (stages && stages.entry) return stages.entry(u, a);
     return clamp(u, 0, 1);
   }
 
-  // The t at which ease(u) = t, by bisection.
+  // Inverse of ease() by bisection.
   function invEase(y) {
     var lo = 0;
     var hi = 1;
@@ -1788,9 +1511,8 @@
     return (lo + hi) / 2;
   }
 
-  // A smooth monotone curve through the points (xs[i], ys[i]) (Fritsch-
-  // Carlson), read at x: it never overshoots a point, so the band never turns
-  // back. Falls back to straight lines if the points aren't strictly falling.
+  // Monotone cubic interpolation (Fritsch-Carlson) through (xs, ys) at x, so
+  // the band never turns back. Linear if the points aren't strictly falling.
   function bandAt(xs, ys, x) {
     var n = xs.length;
     var d = [];
@@ -1826,24 +1548,21 @@
       (-2 * u3 + 3 * u2) * ys[seg + 1] + (u3 - u2) * w * m[seg + 1];
   }
 
-  // Zero speed and zero acceleration at both ends, as in js/product-stages.js.
+  // Smootherstep, as in js/product-stages.js.
   function ease(u) {
     var x = clamp(u, 0, 1);
     return x * x * x * (x * (x * 6 - 15) + 10);
   }
 
-  // The screen's height for the timing and the places below: the small
-  // viewport (js/product-stages.js screenPx), not window.innerHeight, which on
-  // iOS Safari changes as the toolbar collapses mid-scroll and would move the
-  // fades (the metal picker's among them) and the model's place under the
-  // visitor's finger.
+  // The stable small-viewport height (js/product-stages.js screenPx):
+  // innerHeight changes mid-scroll on iOS and would shift the fades and the model.
   function screenHeight() {
     return window.EmjiveProductStages && window.EmjiveProductStages.screenPx ? window.EmjiveProductStages.screenPx() : window.innerHeight;
   }
 
-  // Works the whole of the show out from state.toSpecs and where the model is: the phases' timing, the band, and what the model
-  // does. Run on every change of the scroll and of the screen's size, and
-  // whenever a viewer arrives.
+  // Derives the show from state.toSpecs and the model's position: phase timing,
+  // the band, the model's sweep and lift. Runs on every scroll and resize
+  // change and when a viewer arrives.
   function refreshStage() {
     var band = document.getElementById("productScan");
     if (!stageEl) return;
@@ -1857,24 +1576,18 @@
     if (!(ratio >= 0)) ratio = 0.5;
     fitDesignRoom();
     var room = designRoomPx();
-    // The model's place in specs: its middle on the first quarter of the
-    // screen's height — or just under the title bar, if the model is so tall
-    // that its head would run under it — and then SPECS_GAP_REM lower, the
-    // gap before the model. How far up that is from where the
-    // model stands at rest (`place`): the middle of its tile (the design
-    // frame, which the lift doesn't move), less the browsing it is under now.
+    // The model's specs place: its middle a quarter down the screen (or just
+    // under the title bar for a tall model), then SPECS_GAP_REM lower; `place` is
+    // how far up that is from rest (tile middle less the current browse).
     var place = 0;
-    // Design holds the model, and everything laid out against it but the x-ray
-    // (the lift carries them), higher than the tile's middle: its middle on
-    // DESIGN_ANCHOR of the screen's height, or just under the title bar if the
-    // model is so tall that its head would run under it, and then DESIGN_GAP_REM
-    // lower (`hold`, from rest).
+    // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
+    // the screen (or under the title bar), then DESIGN_GAP_REM lower. Everything
+    // placed against the model but the x-ray goes with it.
     var hold = 0;
     if (designFrameEl && !state.flow) {
       var box = designFrameEl.getBoundingClientRect();
       var titleBar = document.querySelector(".product-detail__label-bar");
-      // (The model stands about this tall: the share of the tile it fills at
-      // the size it is fitted to.)
+      // The model's approximate half-height at its fitted size.
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
@@ -1884,13 +1597,11 @@
     var path = modelRise(state.along, place, room, ratio, state.ramp, hold);
     var span = state.flow ? null : modelSpan();
     if (span && span.bottom > span.top) {
-      // The model's foot and head where they stand at rest (nothing applied).
-      // The fades are timed by where they stand once the first stretch has
-      // browsed (`room` up), the model still on its way; the band then goes
-      // smoothly (a monotone curve) through four places: under the screen at
-      // the start, the model's foot at t0, its head at t1 — where they stand
-      // by then, the model having risen — and over the screen at the end. The
-      // sweep is the band's passage across the model as it stands now.
+      // The model's foot and head at rest. Fades are timed from where they stand
+      // after the design stretch's browse; the band passes monotonically through
+      // four points: below the screen at 0, the foot at t0, the head at t1 (as the
+      // risen model has them), above the screen at 1. The sweep is the band's
+      // passage across the model as it stands now.
       var restBottom = span.bottom + state.lift + browsed;
       var restTop = span.top + state.lift + browsed;
       var viewport = screenHeight();
@@ -1909,15 +1620,10 @@
       barOn = t > 0 && t < 1;
       if (band && barOn) band.style.top = barY.toFixed(1) + "px";
     }
-    // The first transition, inspiration to design, has the same band: from under
-    // the screen to over it as the show comes in, a pure function of the
-    // scroll. The model is shown behind it, as the grey is in specs: its box
-    // is cut at the band's top edge (--model-cut, css/style.css .product-model),
-    // nothing above the band yet and all of it once the band is past — the
-    // box rather than the shader, so the poster and the icon come in the same
-    // way as the live model.
-    // Design's other things come in from where the band's top edge is at the
-    // title bar's lower edge — about to go under it — to the end.
+    // Inspiration -> design uses the same band, rising with the scroll; the model
+    // shows behind it by cutting its box at the band's top edge (--model-cut), so
+    // the poster and icon reveal like the live model. Design's controls come in
+    // from when the band's top meets the title bar (--d-from).
     var labelBar = document.querySelector(".product-detail__label-bar");
     if (band && labelBar && !state.flow) {
       var fromH = screenHeight();
@@ -1936,13 +1642,11 @@
       modelBoxEl.style.removeProperty("--model-cut");
     }
     state.sweep = sweep;
-    // The picker changes place (under the model / in the specs column) in the middle
-    // of the blank, where nothing of it shows.
+    // The picker swaps place (under the model / in the specs column) mid-blank, unseen.
     stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
-    // What the model is lifted by, on top of the show: the path less what
-    // the show does by itself — it goes up for the design stretch's browsing
-    // and comes back down as specs arrives (css/style.css --browse-px).
+    // The model's own lift: the path less what the show's browse already does
+    // (it rises for the design stretch and settles as specs arrives, --browse-px).
     var wh = ratio / (ratio + 1);
     var browsing = room * (wh > 0 ? browseEntry(clamp(state.along / wh, 0, 1), state.ramp > 0 ? Math.min(1, state.ramp) : 1) : 1) * (1 - state.fit);
     state.lift = path - browsing;
@@ -1956,14 +1660,10 @@
     applyStageToViewer();
   }
 
-  // The specs stage's column (size, picker, printing technology, costs, shipping,
-  // returns, the button back to the photos) is tall, and starts under where
-  // the model stands: its end can be under the bars at the bottom of the
-  // screen, out of reach (the page doesn't scroll there). So the stage's
-  // stretch of scrolling takes the show up by what it takes for the end (the
-  // button) to clear the bars by BROWSE_CLEAR_REM — never less than the two
-  // bars' own height (css/style.css --browse-room). Measured as the column
-  // would stand unshifted, so it holds still once it has moved.
+  // The specs column can end under the bottom bars, out of reach: its stretch
+  // scrolls the show up until the last block clears the bars by
+  // BROWSE_CLEAR_REM (--browse-room, at least the bars' height in CSS).
+  // Measured unshifted so it holds still.
   var BROWSE_CLEAR_REM = 8;
   var browseRoom = 0;
   function fitBrowse(stageEl) {
@@ -1986,23 +1686,18 @@
     state.modelHandle.setSize(state.sizeFactor);
   }
 
-  // The model is drawn at the chosen ring size: the specs stage's size field
-  // and slider call this with what they hold. Its base size is 62 (what the
-  // model files are authored at, and what the field starts at when specs
-  // first comes in); the slider's own range bounds how far it scales, and no
-  // size (or a half-typed one) is the base. The size also goes to the label
-  // bar, and to the dimensions and the cost diagram.
+  // Where specs holds the model's middle: a quarter down the screen.
   var SPECS_ANCHOR = 0.25;
-  // Where design holds the model's middle: a third of the way down the screen,
-  // and DESIGN_GAP_REM lower.
+  // Where design holds it: a third down, then DESIGN_GAP_REM lower. The model's
+  // half-height as a share of its tile.
   var DESIGN_ANCHOR = 1 / 3;
   var DESIGN_GAP_REM = 4.5;
   var SPECS_HALF_HEIGHT = 0.13;
-  // The gap before the model in specs, on top of where it would stand: 7.5rem.
+  // The extra gap above the model in specs.
   var SPECS_GAP_REM = 7.5;
-  // The base is the size the model is drawn at, and the one its price is for
-  // (EmjiveSelection.priceAt). The ends are the product's own size-range,
-  // set when it renders.
+  // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
+  // the bounds are the product's size-range, set on render. setModelSize scales
+  // the model, specs, label and circle to a typed size (none: the base).
   var SIZE_BASE_MM = 62;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 80;
@@ -2020,38 +1715,29 @@
     syncSizeRing();
   }
 
-  /* ---- the size circle ---------------------------------------------------- */
+  /* ---- the size circle ---- */
 
-  // How far from the line a touch still takes the circle, each way, and the
-  // room the box has beyond the largest circle.
+  // Touch band either side of the line, and the box's padding beyond the largest circle.
   var RING_BAND_PX = 22;
   var RING_PAD_PX = 4;
-  // Arrow keys: the step, and with Shift the fine one, in millimetres.
+  // Key steps in mm: arrows, Shift+arrows, PageUp/PageDown.
   var RING_KEY_STEP = 0.5;
   var RING_KEY_FINE = 0.1;
   var RING_KEY_PAGE = 5;
-  // A drag on the circle moves the size by half of what the finger moves the
-  // circle's edge (the gain, as the size finder's sliders have), and by less
-  // as the size nears an end in the direction of the drag: within
-  // RING_RESIST_MM of it the gain falls, by a smooth curve, to
-  // RING_RESIST_END of itself at the end — so the extremes take a long drag.
-  // The size sticks to a whole number while the drag is within this many
-  // millimetres of it (a notch to land on); farther, it is free to the tenth.
+  // Within this many mm of a whole number, the size snaps to it.
   var RING_DETENT_MM = 0.25;
-  // Round the circle, the circles of the sizes near it: one at every
-  // RULER_STEP_MM, each clearer the nearer the size is to it, and gone from
-  // RULER_REACH_MM (and half a step) away.
+  // The ruler: a circle every RULER_STEP_MM, gone RULER_REACH_MM (plus half a
+  // step) away. Drags move the size at RING_DRAG_GAIN of the finger, easing to
+  // RING_RESIST_END of that within RING_RESIST_MM of the end it heads for.
   var RULER_STEP_MM = 5;
   var RULER_REACH_MM = 15;
   var RING_DRAG_GAIN = 0.5;
   var RING_RESIST_MM = 10;
   var RING_RESIST_END = 0.2;
 
-  // The circle's sizes in pixels, from the viewer's: now (at the fit and the
-  // size the page is at), at the largest size (what the layout under it makes
-  // room for), and per millimetre at the fit — the circle's radius is the
-  // model's reach from its middle, which scales with the size. null with no
-  // live model.
+  // The circle's radius in px from the viewer: now (at the current fit and
+  // size), at the largest size (what the layout makes room for), and per mm.
+  // null without a live model.
   function ringGeometry() {
     var handle = state.modelHandle;
     var g = handle && handle.sizeRing && handle.sizeRing();
@@ -2064,13 +1750,9 @@
     };
   }
 
-  // The ruler's circles: one for each multiple of RULER_STEP_MM in the sizes'
-  // range, each the circle of its size — at its radius from the circle's
-  // middle, the circle's own scale, so the circle itself is on one when the
-  // size is one of them — and each with an opacity that is a function of how
-  // far the size is from it, so that it comes up as the size nears and dies
-  // away as it leaves, whatever the other circles are doing. Made on first
-  // need, and then only moved.
+  // The ruler's circles, one per RULER_STEP_MM multiple, drawn at their own
+  // sizes on the circle's scale, each fading with its distance from the current
+  // size. Created once, then only moved.
   var rulerShape = "";
   function syncRuler(ring, g) {
     if (!ring.rings) return;
@@ -2086,26 +1768,22 @@
         tick.setAttribute("class", "product-size-ring__tick");
         ring.rings.appendChild(tick);
       }
-      // How near it is, as a curve that keeps the nearest in full and lets the
-      // rest drop away fast (--reach); the ruler's showing multiplies it in
-      // the CSS, circle by circle.
+      // Squared, so the nearest stays full and the rest drop off fast (--reach).
       var reach = clamp(1 - Math.abs(k - mm) / (RULER_REACH_MM + RULER_STEP_MM / 2), 0, 1);
       tick.setAttribute("r", (k * perMm).toFixed(2));
       tick.style.setProperty("--reach", (reach * reach).toFixed(3));
     }
   }
 
-  // A disc as an SVG path: for the band, an annulus (evenodd) of two.
+  // A disc as an SVG path; two make the band's annulus (evenodd).
   function ringDisc(c, r) {
     return "M " + (c - r).toFixed(1) + " " + c.toFixed(1) + " a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (2 * r).toFixed(1) +
       " 0 a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (-2 * r).toFixed(1) + " 0 Z ";
   }
 
-  // The circle drawn at the right size (--ring-r), its box and the band that
-  // takes a touch (an annulus: clip-path clips hit-testing as well as
-  // painting) — and what the layout needs: the circle's radius at the largest
-  // size (--ring-r-max, on the design frame), under which the column starts.
-  // Run whenever the size, the fit, the model or the screen changes.
+  // Sizes the circle (--ring-r), its box and its annulus hit band (clip-path
+  // clips hit-testing too), and publishes --ring-r-max for the layout below.
+  // Runs on any size, fit, model or screen change.
   var ringShape = "";
   function syncSizeRing() {
     var ring = state.sizeRing;
@@ -2139,9 +1817,7 @@
     ring.hit.setAttribute("aria-valuetext", (given ? state.sizeText : String(SIZE_BASE_MM)) + " mm");
   }
 
-  // The gain of a drag that moves the size `from` by `delta` millimetres (its
-  // sign the direction): RING_DRAG_GAIN, less within RING_RESIST_MM of the end
-  // it is heading for.
+  // RING_DRAG_GAIN, reduced within RING_RESIST_MM of the end being approached.
   function dragGain(from, delta) {
     var toEnd = delta > 0 ? SIZE_MAX_MM - from : from - SIZE_MIN_MM;
     var u = clamp(toEnd / RING_RESIST_MM, 0, 1);
@@ -2149,12 +1825,9 @@
     return RING_DRAG_GAIN * (RING_RESIST_END + (1 - RING_RESIST_END) * smooth);
   }
 
-  // The circle's touches and keys: a drag on its band moves the size by the
-  // finger's movement across the circle's edge, over the pixels a millimetre
-  // is, times the gain (dragGain) — the circle follows the size, not the
-  // finger, and the grip on the line follows the finger round — to the nearest
-  // tenth, between the ends (the size is kept as it is moved, so a slow drag
-  // adds up instead of rounding away). The field follows.
+  // Dragging the band changes the size by the finger's radial movement over px
+  // per mm, times dragGain; the circle follows the size, the grip follows the
+  // finger. Kept unrounded while dragging so slow drags accumulate. The field follows.
   function wireSizeRing(field) {
     var el = document.getElementById("productSizeRing");
     var hit = document.getElementById("productSizeRingHit");
@@ -2183,7 +1856,7 @@
       return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
     }
 
-    // The finger's distance from the circle's middle, and the grip's angle.
+    // The finger's distance from the centre; also sets the grip's angle.
     function fingerAt(e) {
       var r = el.getBoundingClientRect();
       var dx = e.clientX - (r.left + r.width / 2);
@@ -2192,7 +1865,7 @@
       return Math.sqrt(dx * dx + dy * dy);
     }
 
-    // The size the hand's is shown as: the whole number it is near, or itself.
+    // Snaps to a nearby whole number (RING_DETENT_MM).
     function detent(mm) {
       var whole = Math.round(mm);
       return Math.abs(mm - whole) <= RING_DETENT_MM ? whole : mm;
@@ -2212,11 +1885,10 @@
     hit.addEventListener("pointerdown", function (e) {
       if ((e.pointerType === "mouse" && e.button !== 0) || !state.ringGeo) return;
       e.preventDefault();
-      // Where it was taken: the size moves from here, the circle doesn't jump
-      // to the finger.
+      // Moves from the grabbed size; the circle doesn't jump to the finger.
       grabbed = { id: e.pointerId, distance: fingerAt(e), mm: currentSize() };
       el.classList.add("is-held");
-      try { hit.setPointerCapture(e.pointerId); } catch (err) { /* a pointer that is already gone */ }
+      try { hit.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
     });
     hit.addEventListener("pointermove", function (e) {
       if (grabbed && e.pointerId === grabbed.id) follow(e);
@@ -2254,31 +1926,23 @@
     if (band) band.classList.remove("is-on");
   }
 
-  /* ---- 4 + size modal + selection ---------------------------------------- */
+  /* ---- 4. size sheet and selection ---- */
 
   function wireSelectButton(product) {
     var selectBtn = document.getElementById("selectButton");
-    // The unit is a property of the category (all rings are measured the
-    // same way, all necklaces would share another), not of the individual
-    // product — and the category vocabulary is global rather than
-    // per-series, so this resolves identically whichever series the product
-    // lives in. See data/series.json's top-level "categories". Its "sizes"
-    // run isn't read any more: the size field below is the only way to
-    // give a size.
+    // The unit belongs to the category, in the global vocabulary.
     var info = window.EmjiveSeries.categoryInfo(product.category);
     var unit = info.unit || "";
 
     var customInput = document.getElementById("sizeModalCustomInput");
     var customUnit = document.getElementById("sizeModalCustomUnit");
     var finderToggle = document.getElementById("sizeModalFinderToggle");
-    // The size finder (js/size-finder.js), from the sheet (beside the size
-    // field) and from the specs stage (under its size row): its chart is the
-    // category's own size guide, and a category with none gets no button.
+    // The size finder, from the sheet and the specs stage, using the category's
+    // size guide; no button without one.
     var guide = info["size-guide"];
     var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
     finderToggle.hidden = !hasFinder;
-    // What the finder works out goes into the field as if typed: the field's
-    // own input listener does the rest.
+    // The finder's result goes in as if typed.
     function openFinder(toggle, input) {
       window.EmjiveSizeFinder.open({
         guide: guide,
@@ -2295,8 +1959,7 @@
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
     selectBar.hidden = false;
 
-    // The Select bar steps aside while the Modify sheet is up: that sheet
-    // rests on the drawer's one remaining row, right where this bar rides.
+    // Steps aside while the Modify sheet rests where this bar rides.
     function setBarAway(away) {
       selectBar.classList.toggle("is-away", away);
       selectBar.inert = away;
@@ -2304,9 +1967,7 @@
     window.addEventListener("emjive:modify-open", function () { setBarAway(true); });
     window.addEventListener("emjive:modify-close", function () { setBarAway(false); });
 
-    // A category with no unit has nothing to measure yet (neck and wrist,
-    // today) — the Select bar stays disabled rather than opening a field
-    // nobody knows how to fill in.
+    // A unitless category has nothing to measure: Select stays disabled.
     if (!unit) {
       selectBtn.setAttribute("aria-disabled", "true");
       selectLabel.textContent = "No sizes available";
@@ -2317,26 +1978,17 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The specs stage's own size: a field to type an exact size in (any
-    // orderable size, in or out of the circle's range) and the circle round
-    // the model, which is as big as the model is at that size and can be
-    // dragged to change it — the two follow each other (setModelSize drives
-    // the circle). What the field holds is what the sheet opens with; it
-    // never works the other way round — the sheet doesn't write back — so a
-    // visitor who never gave a size in specs keeps getting an empty sheet, an
-    // earlier Add included. Same filtering as the sheet's field; Enter opens
-    // the sheet with it. The circle's range is in millimetres, the one unit
-    // with a size run today (a category with no unit never gets this row at
-    // all).
+    // The specs size: a field and the draggable circle, kept in step
+    // (setModelSize). The sheet opens with the field's value but never writes
+    // back. Enter opens the sheet.
     var specsSize = document.getElementById("productSizeInput");
     document.getElementById("productSizeUnit").textContent = unit;
     document.getElementById("productSize").hidden = false;
-    // The specs stage's "Find my size", centred under the field.
+    // The specs stage's "Find my size".
     var specsFinderToggle = document.getElementById("productSizeFinderToggle");
     specsFinderToggle.hidden = !hasFinder;
     specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize); });
-    // The first time specs comes in the field starts at the model's own size
-    // (62), as if it had been given; from then on it is the visitor's.
+    // The first time specs comes in, the field starts at the model's size (62).
     state.seedSize = function () {
       state.sizeSeeded = true;
       state.seedSize = null;
@@ -2356,12 +2008,8 @@
       if (!modal.classList.contains("is-open")) openModal();
     });
 
-    // The glass Select bar's one button: "Select" (opens the sheet), then
-    // "Add" while the sheet is up — the only way to confirm. Add is dimmed
-    // (aria-disabled) until the field holds a size that can actually be
-    // ordered: an empty field, a lone "." or a zero isn't one. See
-    // isValidSize in js/selection.js. The label fades out, changes, and
-    // fades back in rather than changing in plain sight.
+    // The Select bar's button: "Select" opens the sheet, "Add" confirms while it
+    // is open (aria-disabled until the size is orderable). The label fades through its change.
     var swapTimer = null;
     function setBarLabel(text) {
       if (selectLabel.textContent === text) return;
@@ -2376,26 +2024,20 @@
     function syncBar() {
       var isOpen = modal.classList.contains("is-open");
       setBarLabel(isOpen ? "Add" : "Select");
-      // Add mode: the sheet rests above the bar, so the bar gets a ground of
-      // its own (css/style.css .product-select-bar.is-add).
+      // Add mode gives the bar its own ground (.product-select-bar.is-add).
       selectBar.classList.toggle("is-add", isOpen);
       var canAct = !isOpen || window.EmjiveSelection.isValidSize(customInput.value);
       selectBtn.setAttribute("aria-disabled", String(!canAct));
     }
 
-    // Filtered down to digits and one decimal point (js/selection.js's
-    // sanitizeSizeInput, shared with the Modify sheet). Only written back
-    // when the filter actually changed something — reassigning an
-    // unchanged value would throw the caret to the end on every keystroke.
+    // Written back only when changed, so the caret doesn't jump.
     customInput.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(customInput.value);
       if (cleaned !== customInput.value) customInput.value = cleaned;
       syncBar();
     });
 
-    // Enter confirms. Not just a convenience: the Add button lives in the
-    // Select bar, outside the focus trap, so without this a keyboard
-    // visitor could type a size and have no way to add it.
+    // Enter confirms: Add sits outside the focus trap, so the keyboard needs this.
     customInput.addEventListener("keydown", function (e) {
       if (e.key !== "Enter") return;
       e.preventDefault();
@@ -2403,57 +2045,41 @@
     });
 
     function openModal() {
-      // Pre-filled from the specs stage when a size was given there (Add is
-      // then live straight away); otherwise empty, as it always was.
+      // Pre-filled from the specs field when it holds a valid size.
       customInput.value = window.EmjiveSelection.isValidSize(specsSize.value) ? specsSize.value : "";
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();
-      // AFTER .is-open, not before: the modal is visibility: hidden until
-      // that class lands, and focus() on a hidden element is a no-op. The
-      // trap also freezes the page behind the sheet (and frees it again on
-      // release()).
-      // selectBtn is resolved once at wireSelectButton() time and is never
-      // re-rendered, so a plain element reference is enough here — unlike
-      // the order page's per-row trigger.
+      // After .is-open (focus() is a no-op while hidden). The trap also locks the page.
       window.EmjiveFocusTrap.activate(modal, {
         returnFocus: selectBtn,
         onEscape: closeModal
       });
     }
 
-    // quiet: focus goes back to the Select button without a ring — Enter in
-    // the field confirms from the keyboard, and the ring that would otherwise
-    // appear there right after reads as a glitch (see js/focus-trap.js).
+    // quiet: an Enter add returns focus to Select without a ring (js/focus-trap.js).
     function closeModal(quiet) {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
-      // Covers both paths that reach here: a successful confirmAdd() (which
-      // calls this after adding) and an abandoned pick via backdrop/Escape
-      // — either way, the bar goes back to "Select" once the sheet is gone.
-      // Before the trap lets go, so focus lands back on a live button.
+      // Before the trap releases, so focus lands on a live button.
       syncBar();
       window.EmjiveFocusTrap.release(undefined, quiet === true);
     }
 
-    // The actual "add to cart" action — reached via the Select bar's Add or
-    // Enter in the field, both of which only fire for a valid size; the
-    // guard below is belt and braces against a stale callback.
+    // Reached via Add or Enter, both for a valid size; the guard covers stale callbacks.
     function confirmAdd(quiet) {
       if (!window.EmjiveSelection.isValidSize(customInput.value)) return;
       var view = state.view;
       var size = window.EmjiveSelection.normalizeSize(customInput.value);
       var item = {
-        // Which series this came from — product ids are only unique within
-        // one, so the id alone no longer identifies a piece.
+        // Ids are only unique within a series.
         series: state.seriesSlug,
         productId: product.id,
-        // The chosen design's name and icon (the product's own for a product
-        // with one design), so every list shows the piece as it was chosen.
+        // The chosen design's name and icon.
         name: view.designName || product.name,
         category: product.category,
         metal: state.selectedMetal,
-        // Stored in its one canonical form ("62.5" -> "62.50", "62." -> "62").
+        // Canonical form ("62.5" -> "62.50").
         size: size,
         price: window.EmjiveSelection.priceAt(product, state.selectedMetal, size),
         image: (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || ""
@@ -2468,18 +2094,9 @@
       else if (window.EmjiveSelection.isValidSize(customInput.value)) confirmAdd();
     });
     document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
-    // Escape is handled by the focus trap's own keydown listener (registered
-    // on activate, removed on release) rather than by a permanent
-    // document-level one here. That listener already exists for Tab, and
-    // folding Escape into it means the two can't disagree about whether the
-    // modal is open — the old handler gated on .is-open, a second source of
-    // truth for exactly that.
+    // Escape is the focus trap's onEscape.
 
-    // The bar's drawer can still be opened over this sheet (its height is
-    // what pushes the sheet up — see --selection-bar-live-height), and
-    // tapping a drawer row opens a sheet of its own (js/modify-modal.js).
-    // Two sheets stacked on one backdrop is never right, so this one steps
-    // aside for it.
+    // A Modify sheet opening (from the bar's drawer): this sheet steps aside.
     window.addEventListener("emjive:modify-open", function () {
       if (modal.classList.contains("is-open")) closeModal();
     });

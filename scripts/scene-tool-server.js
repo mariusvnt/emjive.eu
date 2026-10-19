@@ -1,26 +1,7 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   scene-tool-server — bare static/API server for scene-tool.html, a
-   standalone dev page for tuning a product's camera angle, a series' HDRI,
-   the swatch scene's HDRI, its blur and the camera angles (rotation, tilt, roll), and a
-   metal's shader — all as a live preview through the site's real
-   window.EmjiveModelViewer (js/three-viewer.js), with a Save action that
-   text-patches the relevant source file in place.
-
-   Usage:
-     node scripts/scene-tool-server.js
-     npm run scene-tool
-
-   Modeled directly on scripts/auto-render.js's own startServer()/MIME map/
-   path-traversal guard (duplicated rather than imported — this file has no
-   other reason to depend on auto-render.js, and a little redundancy here
-   is consistent with this repo's own tolerance for that trade-off, e.g.
-   vite.config.js's copyFilesVitesBuildCantTrace() comment).
-
-   Deliberately outside Vite entirely (not in vite.config.js's
-   rollupOptions.input, same as auto-render.js itself) — this is an
-   authoring tool, not a page the live site ever serves.
-   ========================================================================== */
+// Dev server for scene-tool.html (npm run scene-tool): live preview of product
+// cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders
+// through the real viewer, saved by text-patching the source files in place.
 
 "use strict";
 
@@ -48,7 +29,7 @@ const MIME = {
   ".css": "text/css"
 };
 
-// ---- small shared helpers ----
+// ---- helpers ----
 
 function isFiniteNumber(n) {
   return typeof n === "number" && Number.isFinite(n);
@@ -89,14 +70,10 @@ function findSeriesEntry(seriesIndex, seriesSlug) {
   return (seriesIndex.series || []).find((s) => s.slug === seriesSlug) || null;
 }
 
-// ---- text-surgery patchers — same "id"/"slug"-anchor, non-nested-braces
-// block-scoping idiom as scripts/auto-render.js's own
-// updateProductMetalFieldInText, adapted for whole-block numeric/string
-// replacements instead of a per-metal string value swap. Never re-parses/
-// re-serializes the whole file, so hand-aligned formatting elsewhere
-// survives untouched. Each returns the patched text, or null if the
-// expected shape wasn't found (caller responds with a clear error rather
-// than silently inserting a new key). ----
+// ---- text patchers ----
+// Replace one field inside the block anchored on an "id"/"slug", without
+// re-serializing the file, so hand alignment survives. null if the field
+// isn't there: it must be added by hand first.
 
 function updateCameraDefaultInText(text, productId, orbit) {
   var idAnchor = '"id": "' + productId + '"';
@@ -129,10 +106,7 @@ function updateSeriesHdriInText(text, seriesSlug, hdriKey) {
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// Top-level fields only ("swatch-hdri"/"swatch-blur"/"swatch-camera"), no nesting — the
-// camera is one flat object of three numbers. Either update can be given
-// alone. Returns null if a field to replace isn't there, so nothing is written
-// for a field that has to be added by hand first.
+// Top-level swatch fields; each update is optional.
 function updateSwatchSceneInText(text, updates) {
   var result = text;
   if (updates["swatch-hdri"] !== undefined) {
@@ -155,14 +129,8 @@ function updateSwatchSceneInText(text, updates) {
   return result;
 }
 
-// Patches js/three-viewer.js's own METAL_PRESETS object — the one save
-// target in this file that isn't JSON. Bounded to the object literal's own
-// span first ("var METAL_PRESETS = {" to the first "};" after it — a
-// small, flat, 3-entry object, safe to bound this way) before matching the
-// one metal's own sub-block within it, so a coincidental "steel:"/etc
-// elsewhere in the file (there isn't one today, but this is cheap
-// insurance) can never be touched. Regenerates the whole metal line in the
-// file's existing "N / 255" style for baseColorFactor.
+// Patches one metal in js/three-viewer.js's METAL_PRESETS, bounded to that
+// object literal.
 function updateMetalPresetInText(text, metalKey, preset) {
   var startAnchor = "var METAL_PRESETS = {";
   var startIdx = text.indexOf(startAnchor);
@@ -181,10 +149,7 @@ function updateMetalPresetInText(text, metalKey, preset) {
   return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
 }
 
-// ---- endpoint handlers — each re-reads its target file fresh (this
-// server is long-lived across many separate Save clicks, unlike
-// auto-render.js's one-shot batch read), validates before touching disk,
-// and writes only on a successful patch match. ----
+// ---- endpoints: each re-reads its file and writes only on a successful patch ----
 
 async function handleSaveProductCamera(req, res) {
   var body = await readJsonBody(req);
@@ -241,9 +206,7 @@ async function handleSaveSeriesHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
 }
 
-// The swatch scene's camera angles are all anyone gets to set of its camera
-// — the distance, the fov and the frame are solved (see swatchOrbit in
-// js/three-viewer.js), so there is nothing else to accept or write.
+// Only the angles: distance, fov and frame are solved (swatchOrbit in js/three-viewer.js).
 async function handleSaveSwatchCamera(req, res) {
   var body = await readJsonBody(req);
   if (![body.rotation, body.tilt, body.roll].every(isFiniteNumber)) {
@@ -283,7 +246,7 @@ async function handleSaveSwatchHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { "swatch-hdri": hdriKey } });
 }
 
-// The swatch HDRI's blur: a gaussian sigma in pixels of the HDRI image.
+// Gaussian sigma in pixels of the HDRI image.
 async function handleSaveSwatchBlur(req, res) {
   var body = await readJsonBody(req);
   if (!isFiniteNumber(body.blur) || body.blur < 0) {
@@ -340,10 +303,7 @@ const ROUTES = {
   "POST /api/save-metal-shader": handleSaveMetalShader
 };
 
-// ---- static file serving — same shape as scripts/auto-render.js's own
-// startServer(), including /node_modules/... so scene-tool.html's import
-// map (three/three-addons, resolved the same way auto-render.js's
-// HARNESS_HTML does) can be served from this same bare server. ----
+// ---- static files, including /node_modules for scene-tool.html's import map ----
 function serveStatic(req, res) {
   var urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/scene-tool.html";
@@ -366,12 +326,9 @@ function serveStatic(req, res) {
   });
 }
 
-// These servers can write to and delete files in the repo, so they must only
-// ever answer this machine: bound to the loopback interface (not the LAN),
-// and — because a web page the developer happens to have open could still
-// aim a request at localhost — only for requests whose Host is a loopback
-// name (stops DNS rebinding) and, for anything that isn't a plain read, whose
-// Origin is this server itself (stops cross-site writes).
+// These servers write and delete repo files: loopback only, Host must be a
+// loopback name (DNS rebinding), and non-GET requests must come from this
+// origin (cross-site writes).
 const LOOPBACK = "127.0.0.1";
 function isLocalRequest(req) {
   const host = String(req.headers.host || "");

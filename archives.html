@@ -6,8 +6,7 @@
 <meta name="theme-color" content="#f8f8f8" />
 <title>Archives — em·ji·ve</title>
 <meta name="description" content="Every series across the brand's lifetime" />
-<!-- Not indexable: this page is either an empty shell waiting on its real content or a
-     per-visitor page. Remove this line when the page has content worth indexing. -->
+<!-- Remove once the page has content worth indexing. -->
 <meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 <link rel="icon" href="/favicon.ico" sizes="32x32" />
@@ -28,44 +27,22 @@
 <meta name="twitter:description" content="Every series across the brand's lifetime" />
 <meta name="twitter:image" content="https://emjive.eu/preview.jpg" />
 
-<!-- Both typefaces are self-hosted (see the @font-face blocks in
-     css/style.css) — this used to be a render-blocking Google Fonts
-     stylesheet on a third-party origin. Preloaded rather than left for the
-     CSS parser to discover: a webfont is otherwise found only once
-     style.css has downloaded AND parsed, which puts it a full round trip
-     behind everything else in the head.
-     crossorigin is mandatory on a font preload even same-origin — fonts
-     are always fetched in CORS mode, and a preload whose mode doesn't
-     match the real request is simply downloaded twice. -->
+<!-- crossorigin is required even same-origin, or the font is fetched twice. -->
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
 
-<!-- data/series.json gates EVERYTHING on every page: which series is
-     shown, its products, and (on the homepage) the hero bundle, which
-     can't even start until this resolves. js/series.js below fetches it,
-     but only once the browser has downloaded and executed that script —
-     so without this the request sits a round trip behind where it could.
-     The preload scanner sees this while still parsing the head and starts
-     it in parallel with series.js itself. -->
+<!-- Every page waits on data/series.json; preloading starts it in parallel with series.js. -->
 <link rel="preload" as="fetch" href="data/series.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
-<!-- Loader (see js/loader.js). Blocking, and ahead of series.js: pages that
-     wait on something opt into an arrival loader with data-page-loader on
-     <html>, and that cover has to be up before <body> is parsed; every
-     page's scripts also use window.EmjiveLoader for their own assets. -->
+<!-- Blocking: the arrival cover (data-page-loader) must be up before <body> parses. -->
 <script src="js/loader.js"></script>
 
-<!-- Series resolution (which series this page shows, and its data).
-     Blocking on purpose — see the header comment in js/series.js. -->
+<!-- Blocking on purpose; see js/series.js. -->
 <script src="js/series.js"></script>
 
-<!-- Lazy 3D viewer loader (see js/viewer-entry.js). This page draws no
-     model of its own; the only consumer is the Modify sheet's carousel
-     (js/modify-modal.js), reachable from the floating bar's drawer, which
-     asks for the viewer when a Modify is clicked — so three.js is not
-     downloaded at all unless that happens. -->
+<!-- Lazy 3D viewer, only requested by the Modify sheet on this page. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body id="top">
@@ -85,12 +62,7 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav" aria-label="Site">
-        <!-- Filter row: the buttons are rendered by js/main.js from the
-             ACTIVE series' own category list (data/series.json) — don't
-             hand-write them, and don't assume three: each series declares
-             its own subset of the global vocabulary. On every page but
-             the grid this becomes a plain "Gallery" link instead — see
-             js/main.js's renderHeaderFilter(). -->
+        <!-- Filled by js/main.js from the active series' categories. -->
         <div class="site-header__filter" id="siteHeaderFilter">
           <span class="site-header__filter-label">Filter gallery by</span>
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
@@ -99,8 +71,7 @@
         <a href="/creation-process" class="is-info">Creation process</a>
       </nav>
     </div>
-    <!-- Under the header, going down with its menu: the title bar's blur
-         and chromatic aberration (css/style.css .site-header__veil). -->
+    <!-- Header blur and chromatic aberration (.site-header__veil). -->
     <span class="site-header__veil" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
     </span>
@@ -114,21 +85,13 @@
   </div>
 
   <div class="page-shell__body" id="archivesBody">
-    <!-- Deliberately empty — this page is a shell waiting on its design.
-
-         The series list gets rendered here later from data/series.json's
-         "series" array: js/series.js already exposes what it needs, as
-         EmjiveSeries.all() for the entries and EmjiveSeries.manifestHref()
-         for each one's presentation page. -->
+    <!-- Empty until designed. -->
   </div>
 </main>
 
-<!-- All deferred (see index.html for why): they download in parallel and run
-     in this order once the page is parsed. -->
+<!-- Deferred: run in document order once the page is parsed. -->
 <script src="js/main.js" defer></script>
-<!-- The Modify sheet (modify-modal.js) and its parts, reachable from the
-     floating bar's drawer; order-rows.js has to precede selection-bar.js,
-     which builds its drawer rows with it at load. -->
+<!-- Modify sheet and its parts; order-rows.js must precede selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/carousel.js" defer></script>

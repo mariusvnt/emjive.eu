@@ -1,24 +1,7 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   render-favicons — rasterises assets/logo_compact.svg into the two raster
-   icons browsers and devices still ask for by fixed name.
-
-   The pages' <link rel="icon"> points at the SVG, which covers every current
-   browser except where it doesn't (older Safari, iOS home-screen icons,
-   anything that requests /favicon.ico without reading the page). Those get:
-
-     public/favicon.ico          32x32 PNG inside an ICO container — modern
-                                 readers accept PNG-in-ICO, which spares an
-                                 ICO encoder dependency.
-     public/apple-touch-icon.png 180x180, the mark centred on the site
-                                 background (iOS fills transparency with
-                                 black, so this one can't be transparent).
-
-   public/ is copied verbatim to the root of dist/ by Vite, which is why the
-   files live there and are referenced as /favicon.ico etc.
-
-   Re-run only if the logo changes:   npm run render-favicons
-   ========================================================================== */
+// Rasterises assets/logo_compact.svg into public/favicon.ico (32px PNG-in-ICO)
+// and public/apple-touch-icon.png (180px, opaque: iOS fills transparency with
+// black). Re-run when the logo changes.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -47,7 +30,6 @@ function wrapPngAsIco(png, size) {
 }
 
 async function mark(size) {
-  // Rendered at a high density so the vector edges stay crisp when scaled.
   return sharp(SOURCE, { density: 600 })
     .resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()

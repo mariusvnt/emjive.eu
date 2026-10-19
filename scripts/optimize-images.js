@@ -1,34 +1,10 @@
 #!/usr/bin/env node
-/* ==========================================================================
-   optimize-images — converts stray PNG/JPEG source art under assets/ to
-   WebP, the format everything else on this site already uses.
-
-   Same reasoning as scripts/optimize-models.js, for the other half of the
-   payload: art arrives from a camera or a render in whatever format the
-   tool that made it emits, and nothing downstream squeezes it. One product
-   photo set shipped as PNG was 8.4 MB for a page whose entire 3D model is
-   under 0.3 MB — a single x-ray backdrop at 6.38 MB, larger than every
-   model in the catalog put together after Draco.
-
-   Deliberately NOT part of scripts/auto-render.js: that script GENERATES
-   images (icons, top shots, swatches) and already writes WebP. This one
-   only touches art a human dropped in by hand, which auto-render never
-   looks at.
-
-   What it does not do: rewrite the paths in data/series/<slug>/products.json
-   that point at the files it converts. That's one hand edit per converted
-   file, and it's deliberate — a script that silently rewrites the catalog
-   while also deleting the original art is a worse trade than a script that
-   prints exactly which lines you need to change. It lists them at the end.
-
-   Usage:
-     npm run optimize-images -- --dry-run     report only, write nothing
-     npm run optimize-images                  convert every PNG/JPEG
-     npm run optimize-images -- <path> ...    only these files
-
-   Originals are DELETED once converted (git is the undo), because leaving
-   them would mean the repo carries both copies forever.
-   ========================================================================== */
+// Converts hand-added PNG/JPEG art under assets/ to WebP and deletes the
+// originals. Doesn't rewrite products.json paths: it prints the ones to change.
+//
+//   npm run optimize-images -- --dry-run     report only
+//   npm run optimize-images                  every PNG/JPEG
+//   npm run optimize-images -- <path> ...    only these files
 
 const { readdirSync, statSync, existsSync, unlinkSync } = require("node:fs");
 const { join, resolve, relative, dirname, basename, extname } = require("node:path");
@@ -36,16 +12,10 @@ const { join, resolve, relative, dirname, basename, extname } = require("node:pa
 const REPO_ROOT = resolve(__dirname, "..");
 const ASSETS_ROOT = join(REPO_ROOT, "assets");
 
-// Quality 82 is where WebP stops being distinguishable from the source for
-// photographic content at these sizes, and is the same figure
-// scripts/auto-render.js uses for its own generated output — one number
-// for the whole site rather than two that can drift.
+// Same quality as scripts/auto-render.js.
 const WEBP_QUALITY = 82;
 
-// Nothing on this site is displayed wider than a 4K hero, and a product
-// photo renders into a box a few hundred px across. Anything past this is
-// paying for pixels no layout can ever show. Applied only when a source
-// exceeds it — smaller art is never upscaled.
+// Larger than any layout shows; smaller art is never upscaled.
 const MAX_DIMENSION = 2048;
 
 function walk(dir, out) {
@@ -97,9 +67,7 @@ async function main() {
 
     let pipeline = sharp(file);
     if (tooBig) pipeline = pipeline.resize(MAX_DIMENSION, MAX_DIMENSION, { fit: "inside", withoutEnlargement: true });
-    // Alpha is load-bearing for most of this art (x-ray overlays, cutout
-    // product shots composited over the page background), so it's carried
-    // through rather than flattened.
+    // Alpha is kept: overlays and cutouts are composited over the page.
     const buffer = await pipeline.webp({ quality: WEBP_QUALITY, alphaQuality: 90, effort: 6 }).toBuffer();
 
     totalBefore += sizeBefore;

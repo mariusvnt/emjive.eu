@@ -11,9 +11,11 @@
 // wireframe too).
 //
 // A combined .stl is cut into its closed objects (scripts/stl.js) and each is
-// matched to an entry by volume, minimum box and triangle count (a print model
-// is the model subdivided 4x or 16x), refusing ambiguous assignments; written
-// to the entry's "stl" path.
+// paired with an entry by triangle count: a print model is its model
+// subdivided, so it has 4^k times the triangles of the exported model. Only
+// the objects a count can't settle (designs sharing a mesh) are measured and
+// matched by volume and minimum box, refusing ambiguous assignments. Each is
+// written to the entry's "stl" path.
 //
 // Written files then go through scripts/optimize-models.js; run
 // `npm run measure-models` afterwards.
@@ -158,9 +160,19 @@ async function modelTriangles(io, rel) {
   return Math.round(tris);
 }
 
+// Whether a print model of printTris triangles can be a model of modelTris
+// subdivided: 4, 16, 64... times as many.
+function subdivides(printTris, modelTris) {
+  if (!(modelTris > 0) || printTris <= modelTris || printTris % modelTris) return false;
+  let ratio = printTris / modelTris;
+  while (ratio % 4 === 0) ratio /= 4;
+  return ratio === 1;
+}
+
 // Cuts the combined .stl into objects, matches each to an entry and writes it
-// to its "stl" path. false on failure.
-async function splitPrintModels(file, entries, io, dryRun) {
+// to its "stl" path. exported: slug -> root node of this run's model export,
+// counted in place of the file on disk. false on failure.
+async function splitPrintModels(file, entries, exported, io, dryRun) {
   const { measureTriangles } = require("./measure-models");
   const stl = stlFile.readStl(file);
   const objects = stlFile.segmentStl(stl);
@@ -175,51 +187,71 @@ async function splitPrintModels(file, entries, io, dryRun) {
     console.error("  " + name + ": " + unnamed.join(", ") + " has no \"stl\" path in products.json — add one first");
     return false;
   }
-  const missingGeometry = catalog.filter((e) => !e.geometry).map((e) => e.label);
-  if (missingGeometry.length) {
-    console.error("  " + name + ": " + missingGeometry.join(", ") + " has no geometry yet — run `npm run measure-models` first");
-    return false;
-  }
   if (objects.length !== catalog.length) {
     console.error("  " + name + ": " + objects.length + " closed objects, but the catalog has " + catalog.length + " models");
     return false;
   }
 
-  console.log("  " + name + ": " + objects.length + " objects, " + stl.count + " triangles; measuring them...");
-  for (const object of objects) {
-    object.triangles = object.to - object.from;
-    const measured = await measureTriangles(stlFile.trianglesOf(stl, object.from, object.to));
-    object.volume = measured.volume.mm3 / 1000;
-    object.dims = measured.box.dimensions;
+  for (const object of objects) object.triangles = object.to - object.from;
+  for (const [slug, entry] of entries) {
+    entry.triangles = exported.has(slug) ? triangleCount(exported.get(slug).node) : await modelTriangles(io, entry.model);
   }
-  for (const entry of catalog) entry.triangles = await modelTriangles(io, entry.model);
 
-  const cost = objects.map((object) => catalog.map((entry) => matchCost(object, entry)));
-  const chosen = assign(cost);
-  const best = totalCost(cost, chosen);
-  // Each pair's lead over the best assignment without it.
-  const margins = chosen.map((j, i) => {
-    const without = cost.map((row) => row.slice());
-    without[i][j] = 1e9;
-    return totalCost(without, assign(without)) - best;
+  // A pair is settled by count when each is the other's only candidate.
+  const candidates = objects.map((object) => catalog.map((entry, j) => j).filter((j) => subdivides(object.triangles, catalog[j].triangles)));
+  const takers = catalog.map((entry, j) => objects.map((object, i) => i).filter((i) => candidates[i].includes(j)));
+  const chosen = new Array(objects.length);
+  candidates.forEach((list, i) => {
+    if (list.length === 1 && takers[list[0]].length === 1) chosen[i] = list[0];
   });
+  const restObjects = objects.map((object, i) => i).filter((i) => chosen[i] === undefined);
+  const taken = new Set(chosen.filter((j) => j !== undefined));
+  const restEntries = catalog.map((entry, j) => j).filter((j) => !taken.has(j));
+
+  console.log("  " + name + ": " + objects.length + " objects, " + stl.count + " triangles; " +
+    (objects.length - restObjects.length) + " paired by triangle count" +
+    (restObjects.length ? ", measuring the other " + restObjects.length + "..." : ""));
+  const margins = new Array(objects.length);
+  if (restObjects.length) {
+    const missingGeometry = restEntries.filter((j) => !catalog[j].geometry).map((j) => catalog[j].label);
+    if (missingGeometry.length) {
+      console.error("  " + name + ": " + missingGeometry.join(", ") + " has no geometry yet — run `npm run measure-models` first");
+      return false;
+    }
+    for (const i of restObjects) {
+      const measured = await measureTriangles(stlFile.trianglesOf(stl, objects[i].from, objects[i].to));
+      objects[i].volume = measured.volume.mm3 / 1000;
+      objects[i].dims = measured.box.dimensions;
+    }
+    const cost = restObjects.map((i) => restEntries.map((j) => matchCost(objects[i], catalog[j])));
+    const columnOf = assign(cost);
+    const best = totalCost(cost, columnOf);
+    columnOf.forEach((c, r) => {
+      chosen[restObjects[r]] = restEntries[c];
+      // Its lead over the best assignment without it.
+      const without = cost.map((row) => row.slice());
+      without[r][c] = 1e9;
+      margins[restObjects[r]] = totalCost(without, assign(without)) - best;
+    });
+  }
 
   const rows = objects.map((object, i) => {
     const entry = catalog[chosen[i]];
     const g = entry.geometry;
+    const measured = object.volume !== undefined;
     return {
       "stl object": i + 1 + " (" + object.triangles + " triangles)",
       entry: entry.label,
-      "print cm3": Number(object.volume.toFixed(3)),
-      "model cm3": g["volume-cm3"],
-      "print box mm": object.dims.map((d) => d.toFixed(1)).join(" x "),
-      "model box mm": g["dimensions-mm"].join(" x "),
       "x model triangles": entry.triangles ? Number((object.triangles / entry.triangles).toFixed(2)) : "-",
-      margin: Number(margins[i].toFixed(2))
+      "print cm3": measured ? Number(object.volume.toFixed(3)) : "-",
+      "model cm3": measured ? g["volume-cm3"] : "-",
+      "print box mm": measured ? object.dims.map((d) => d.toFixed(1)).join(" x ") : "-",
+      "model box mm": measured ? g["dimensions-mm"].join(" x ") : "-",
+      margin: measured ? Number(margins[i].toFixed(2)) : "by count"
     };
   });
   console.table(rows);
-  const doubtful = rows.filter((r) => r.margin < MATCH_MARGIN);
+  const doubtful = rows.filter((r) => typeof r.margin === "number" && r.margin < MATCH_MARGIN);
   if (doubtful.length) {
     console.error("  " + name + ": not sure enough which is which (" + doubtful.map((r) => r.entry).join(", ") +
       " could change places) — export the objects one by one and name the files after the entries");
@@ -415,7 +447,7 @@ async function main() {
   if (missing.length) console.log("Not in these files (left as they are): " + missing.join(", "));
 
   for (const file of printFiles) {
-    if (!(await splitPrintModels(file, entries, io, dryRun))) failed = true;
+    if (!(await splitPrintModels(file, entries, nodes.model, io, dryRun))) failed = true;
   }
 
   if (dryRun) {

@@ -8,7 +8,6 @@
 //   cover(host, ready)              hide host's <img>s behind a loader until `ready`
 //                                   settles and the loader has left
 //   coverWithin(host, target, ready)  the same with a shared loader on host
-//   imageReady(img)                 loaded (or failed) and decoded
 //   isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage   responsive images
 //   pageReady(), holdPage(), isPageReady()   the page's arrival loader
 //
@@ -37,7 +36,9 @@
   "use strict";
 
   var root = document.documentElement;
-  var reduceQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var H = window.EmjiveHelpers;
+  var clamp01 = H.clamp01;
+  var reduceQuery = H.reducedMotion;
 
   var DEFAULT_DELAY_MS = 150;
   var WATCHDOG_MS = 15000;
@@ -63,10 +64,6 @@
   /* "25%" -> 0.25 */
   function share(styles, name) {
     return parseFloat(styles.getPropertyValue(name)) / 100;
-  }
-
-  function clamp01(n) {
-    return Math.min(1, Math.max(0, n));
   }
 
   /* ---- timing, solved from the tokens ---- */
@@ -441,7 +438,7 @@
     var start = performance.now();
     (function step(now) {
       var p = Math.min(1, (now - start) / FINISH_RAMP_MS);
-      setRate(s, from + (FINISH_RATE - from) * p * p * (3 - 2 * p));
+      setRate(s, from + (FINISH_RATE - from) * H.smoothstep(0, 1, p));
       // Until full speed, or until destroy() cancels it.
       s.rampRaf = p < 1 ? requestAnimationFrame(step) : 0;
     })(start);
@@ -477,29 +474,6 @@
       else reevaluate(s);
     }
     return hold;
-  }
-
-  /* ---- helpers ---- */
-
-  function imageReady(img) {
-    return new Promise(function (resolve) {
-      function settle() {
-        // Decoded before the reveal, raced so a hung decode can't hold the loader.
-        if (img.decode) {
-          var timer = setTimeout(resolve, 1000);
-          img.decode().then(function () { clearTimeout(timer); resolve(); },
-            function () { clearTimeout(timer); resolve(); });
-        } else {
-          resolve();
-        }
-      }
-      // complete is true for loaded and broken images, false for an unstarted lazy one.
-      if (img.complete) settle();
-      else {
-        img.addEventListener("load", settle, { once: true });
-        img.addEventListener("error", resolve, { once: true });
-      }
-    });
   }
 
   /* ---- responsive images ----
@@ -563,15 +537,10 @@
     return !!conn && (!!conn.saveData || /(^|-)(2g|3g)$/.test(conn.effectiveType || ""));
   }
 
-  function whenIdle(fn) {
-    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(fn, { timeout: 3000 });
-    else setTimeout(fn, 200);
-  }
-
   function upgradeImage(img, hiSrc) {
     if (!img || !hiSrc || lowBandwidth()) return Promise.resolve(false);
-    return imageReady(img).then(function () {
-      return new Promise(function (resolve) { whenIdle(resolve); });
+    return H.imageReady(img).then(function () {
+      return new Promise(function (resolve) { H.whenIdle(resolve, 3000, 200); });
     }).then(function () {
       if (!img.isConnected || img.getAttribute("src") === hiSrc) return false;
       // Already sharp enough at its displayed size? A box without a size yet upgrades.
@@ -731,7 +700,6 @@
     mount: mount,
     cover: cover,
     coverWithin: coverWithin,
-    imageReady: imageReady,
     isPhone: isPhone,
     onPhoneChange: onPhoneChange,
     versions: versions,

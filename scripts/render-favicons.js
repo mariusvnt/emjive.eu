@@ -7,7 +7,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const sharp = require("sharp");
 
-const ROOT = path.resolve(__dirname, "..");
+const { ROOT } = require("./helpers");
 const SOURCE = path.join(ROOT, "assets", "logo_compact.svg");
 // --bg in css/style.css.
 const BACKGROUND = "#f8f8f8";

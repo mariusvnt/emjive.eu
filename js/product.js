@@ -6,6 +6,11 @@
 (function () {
   "use strict";
 
+  var H = window.EmjiveHelpers;
+  var el = H.el;
+  var clamp = H.clamp;
+  var invEase = H.invSmootherstep;
+
   var root = document.getElementById("productDetail");
   if (!root) return;
 
@@ -89,13 +94,6 @@
     // Marks the cost chart as played out.
     settleTimer: 0
   };
-
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
 
   // The model's loader, on the design frame (the model's box has no visible
   // edge): for the first load and each design swap. Counts only while the model
@@ -256,10 +254,7 @@
 
     // The arrival loader lifts once the first paint's picture is in, and
     // everything else waits for it so nothing competes for bandwidth.
-    var firstPaintReady = Promise.race([
-      feed.firstReady,
-      new Promise(function (resolve) { setTimeout(resolve, FIRST_PAINT_WAIT_MS); })
-    ]);
+    var firstPaintReady = Promise.race([feed.firstReady, H.wait(FIRST_PAINT_WAIT_MS)]);
     firstPaintReady.then(pageReady);
     // ...and once it's actually painted, not just downloaded.
     firstPaintReady
@@ -337,10 +332,7 @@
     // The high-res x-ray once the model is up (or after VIEWER_SETTLE_WAIT_MS), so
     // it never competes with the viewer's downloads.
     if (state.xraySrc && window.EmjiveLoader) {
-      Promise.race([
-        modelParts.viewerSettled,
-        new Promise(function (resolve) { setTimeout(resolve, VIEWER_SETTLE_WAIT_MS); })
-      ]).then(function () {
+      Promise.race([modelParts.viewerSettled, H.wait(VIEWER_SETTLE_WAIT_MS)]).then(function () {
         window.EmjiveLoader.upgradeImage(
           document.getElementById("productDesignXray"),
           window.EmjiveLoader.versions(state.xraySrc, true).hi
@@ -416,7 +408,7 @@
       });
     }
     var view = state.view;
-    var thumbSrc = (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || "";
+    var thumbSrc = H.assetFor(view, "icons", state.selectedMetal);
     if (thumbSrc) {
       thumb.src = thumbSrc;
       thumb.hidden = false;
@@ -477,7 +469,7 @@
       return function load() {
         if (started) return started;
         img.src = photo.src;
-        started = window.EmjiveLoader ? window.EmjiveLoader.imageReady(img) : Promise.resolve();
+        started = H.imageReady(img);
         if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
         started.then(function () {
           // The caption's ink is set before it shows (.is-loaded).
@@ -597,7 +589,7 @@
   var TRAIL_FRINGE_LEAD = 6; // rem of the photo above its bottom edge carrying the split
   var TRAIL_FRINGE_FULL = 14; // rem from its start to its widest
   function trailFringe(rem) {
-    return Math.pow(Math.max(0, Math.min(1, rem / TRAIL_FRINGE_FULL)), 1.8);
+    return Math.pow(H.clamp01(rem / TRAIL_FRINGE_FULL), 1.8);
   }
   // The picture multiplied into red, green and blue layers, each with its slip direction.
   function fringeChannels(source, width, height) {
@@ -785,7 +777,7 @@
     function showPoster() {
       box.innerHTML = "";
       state.posterImg = null;
-      var src = posterSrcFor(state.view, state.selectedMetal);
+      var src = H.posterFor(state.view, state.selectedMetal);
       if (!src) return;
       var poster = el("div", "size-modal__model-poster");
       var img = document.createElement("img");
@@ -836,7 +828,7 @@
       hintFetch(window.EmjiveSeries.hdriPath(state.seriesSlug));
       hintFetch(state.view.assets.model);
       window.EmjiveLoadViewer().then(function () {
-        whenIdle(attachViewer);
+        H.whenIdle(attachViewer, 1500, 0);
       }, replaceModelWithIcon);
     }
 
@@ -857,7 +849,7 @@
       box.innerHTML = "";
       state.posterImg = null;
       state.iconFallbackImg = null;
-      var src = state.view.assets && state.view.assets.icons && state.view.assets.icons[state.selectedMetal];
+      var src = H.assetFor(state.view, "icons", state.selectedMetal);
       if (!src) return;
       var img = document.createElement("img");
       img.className = "product-model__icon";
@@ -917,14 +909,6 @@
     };
   }
 
-  // The stand-in until the viewer is built: fallback-img (matching the live
-  // canvas's first frame), else the icon.
-  function posterSrcFor(view, metal) {
-    var assets = view.assets || {};
-    return (assets["fallback-img"] && assets["fallback-img"][metal]) ||
-      (assets.icons && assets.icons[metal]) || "";
-  }
-
   // Matches three's same-origin fetch(), so the viewer's request reuses this download.
   function hintFetch(href) {
     if (!href) return;
@@ -934,11 +918,6 @@
     link.crossOrigin = "anonymous";
     link.href = href;
     document.head.appendChild(link);
-  }
-
-  function whenIdle(fn) {
-    if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(fn, { timeout: 1500 });
-    else setTimeout(fn, 0);
   }
 
   /* ---- 2c. design options (design) ---- */
@@ -1086,9 +1065,9 @@
     renderLabelDesign(product);
     renderLabelThumb();
     if (state.iconFallbackImg) {
-      state.iconFallbackImg.src = (state.view.assets && state.view.assets.icons && state.view.assets.icons[state.selectedMetal]) || "";
+      state.iconFallbackImg.src = H.assetFor(state.view, "icons", state.selectedMetal);
     }
-    if (state.posterImg) state.posterImg.src = posterSrcFor(state.view, state.selectedMetal);
+    if (state.posterImg) state.posterImg.src = H.posterFor(state.view, state.selectedMetal);
     renderSpecs();
     preloadIcons(state.view);
     if (state.modelHandle && state.modelHandle.setProduct) {
@@ -1136,18 +1115,10 @@
   }
 
   // Re-tint after the text changes have painted: rebuilding materials can hold
-  // a phone's next frame. rAF precedes the paint, the timeout follows it.
-  var tintQueued = false;
-  function tintAfterPaint() {
-    if (tintQueued) return;
-    tintQueued = true;
-    requestAnimationFrame(function () {
-      setTimeout(function () {
-        tintQueued = false;
-        if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
-      }, 0);
-    });
-  }
+  // a phone's next frame.
+  var tintAfterPaint = H.afterPaint(function () {
+    if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
+  });
 
   function onMetalSelect(product, metal) {
     var firstPick = !state.metalPicked;
@@ -1165,10 +1136,10 @@
     var view = state.view;
     renderLabelThumb();
     if (state.iconFallbackImg) {
-      state.iconFallbackImg.src = (view.assets && view.assets.icons && view.assets.icons[metal]) || "";
+      state.iconFallbackImg.src = H.assetFor(view, "icons", metal);
     }
     // The poster too, if the viewer isn't in yet.
-    if (state.posterImg) state.posterImg.src = posterSrcFor(view, metal);
+    if (state.posterImg) state.posterImg.src = H.posterFor(view, metal);
     renderSpecs();
     renderPrinting();
     renderComposition();
@@ -1454,10 +1425,6 @@
     if (stages) stages.update();
   }
 
-  function clamp(x, lo, hi) {
-    return x < lo ? lo : x > hi ? hi : x;
-  }
-
   // The model's sweep span on screen (top, bottom): the viewer's own figures,
   // else the model box's (close enough to time the fades).
   function modelSpan() {
@@ -1489,7 +1456,7 @@
     // The browse's final pace relative to a straight line.
     var pace = 1 / (1 - a / 2);
     if (dist > 1) return base + room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
-    return base + room + dist * u * u * (3 - 2 * u);
+    return base + room + dist * H.smoothstep(0, 1, u);
   }
 
   // The browse progress at u through a stretch (js/product-stages.js entry()).
@@ -1497,18 +1464,6 @@
     var stages = window.EmjiveProductStages;
     if (stages && stages.entry) return stages.entry(u, a);
     return clamp(u, 0, 1);
-  }
-
-  // Inverse of ease() by bisection.
-  function invEase(y) {
-    var lo = 0;
-    var hi = 1;
-    for (var i = 0; i < 24; i++) {
-      var mid = (lo + hi) / 2;
-      if (ease(mid) < y) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
   }
 
   // Monotone cubic interpolation (Fritsch-Carlson) through (xs, ys) at x, so
@@ -1546,12 +1501,6 @@
     var u3 = u2 * u;
     return (2 * u3 - 3 * u2 + 1) * ys[seg] + (u3 - 2 * u2 + u) * w * m[seg] +
       (-2 * u3 + 3 * u2) * ys[seg + 1] + (u3 - u2) * w * m[seg + 1];
-  }
-
-  // Smootherstep, as in js/product-stages.js.
-  function ease(u) {
-    var x = clamp(u, 0, 1);
-    return x * x * x * (x * (x * 6 - 15) + 10);
   }
 
   // The stable small-viewport height (js/product-stages.js screenPx):
@@ -1820,8 +1769,7 @@
   // RING_DRAG_GAIN, reduced within RING_RESIST_MM of the end being approached.
   function dragGain(from, delta) {
     var toEnd = delta > 0 ? SIZE_MAX_MM - from : from - SIZE_MIN_MM;
-    var u = clamp(toEnd / RING_RESIST_MM, 0, 1);
-    var smooth = u * u * (3 - 2 * u);
+    var smooth = H.smoothstep(0, RING_RESIST_MM, toEnd);
     return RING_DRAG_GAIN * (RING_RESIST_END + (1 - RING_RESIST_END) * smooth);
   }
 
@@ -1833,7 +1781,6 @@
     var hit = document.getElementById("productSizeRingHit");
     if (!el || !hit) return;
     state.sizeRing = { el: el, hit: hit, rings: null, ticks: null };
-    var grabbed = null;
 
     var ruler = el.querySelector(".product-size-ring__ruler");
     if (ruler) {
@@ -1871,9 +1818,9 @@
       return Math.abs(mm - whole) <= RING_DETENT_MM ? whole : mm;
     }
 
-    function follow(e) {
+    function follow(e, grabbed) {
       var g = state.ringGeo;
-      if (!g || !grabbed) return;
+      if (!g) return;
       var distance = fingerAt(e);
       var delta = (distance - grabbed.distance) / g.perMm;
       grabbed.distance = distance;
@@ -1882,35 +1829,18 @@
       setSize(detent(grabbed.mm));
     }
 
-    hit.addEventListener("pointerdown", function (e) {
-      if ((e.pointerType === "mouse" && e.button !== 0) || !state.ringGeo) return;
-      e.preventDefault();
-      // Moves from the grabbed size; the circle doesn't jump to the finger.
-      grabbed = { id: e.pointerId, distance: fingerAt(e), mm: currentSize() };
+    H.dragPointer(hit, function (e) {
+      if (!state.ringGeo) return null;
       el.classList.add("is-held");
-      try { hit.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
+      // Moves from the grabbed size; the circle doesn't jump to the finger.
+      return { distance: fingerAt(e), mm: currentSize() };
+    }, follow, function () {
+      el.classList.remove("is-held");
     });
-    hit.addEventListener("pointermove", function (e) {
-      if (grabbed && e.pointerId === grabbed.id) follow(e);
-    });
-    function release(e) {
-      if (grabbed && e.pointerId === grabbed.id) {
-        grabbed = null;
-        el.classList.remove("is-held");
-      }
-    }
-    hit.addEventListener("pointerup", release);
-    hit.addEventListener("pointercancel", release);
 
     hit.addEventListener("keydown", function (e) {
       var step = e.shiftKey ? RING_KEY_FINE : RING_KEY_STEP;
-      var next = null;
-      if (e.key === "ArrowRight" || e.key === "ArrowUp") next = currentSize() + step;
-      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") next = currentSize() - step;
-      else if (e.key === "PageUp") next = currentSize() + RING_KEY_PAGE;
-      else if (e.key === "PageDown") next = currentSize() - RING_KEY_PAGE;
-      else if (e.key === "Home") next = SIZE_MIN_MM;
-      else if (e.key === "End") next = SIZE_MAX_MM;
+      var next = H.sliderKey(e, currentSize(), step, RING_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
       if (next === null) return;
       e.preventDefault();
       setSize(next);
@@ -2082,7 +2012,7 @@
         // Canonical form ("62.5" -> "62.50").
         size: size,
         price: window.EmjiveSelection.priceAt(product, state.selectedMetal, size),
-        image: (view.assets && view.assets.icons && view.assets.icons[state.selectedMetal]) || ""
+        image: H.assetFor(view, "icons", state.selectedMetal)
       };
       if (product.designs) item.design = state.designKey;
       window.EmjiveSelection.addItem(item);

@@ -223,7 +223,7 @@
       glideFrame = requestAnimationFrame(glideStep);
     }
     function startGlide(speed) {
-      if (Math.abs(speed) < GLIDE_MIN * 4 || global.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (Math.abs(speed) < GLIDE_MIN * 4 || global.EmjiveHelpers.reducedMotion.matches) return;
       glideSpeed = speed;
       glideTime = performance.now();
       glideFrame = requestAnimationFrame(glideStep);
@@ -440,14 +440,13 @@
         slide.loadImage = function () {
           if (!img.getAttribute("src")) {
             img.src = src;
-            if (global.EmjiveLoader) global.EmjiveLoader.imageReady(img).then(resolve);
-            else resolve();
+            global.EmjiveHelpers.imageReady(img).then(resolve);
           }
         };
       });
     } else {
       img.src = src;
-      ready = global.EmjiveLoader ? global.EmjiveLoader.imageReady(img) : null;
+      ready = global.EmjiveHelpers.imageReady(img);
     }
     // A loader covers the slide until the photo loads, then it fades in. With
     // opts.loaderHost the strip's shared loader counts this wait only while the

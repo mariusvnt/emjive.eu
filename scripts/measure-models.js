@@ -23,13 +23,11 @@
 "use strict";
 
 const { readFileSync, writeFileSync, existsSync } = require("node:fs");
-const { join, resolve } = require("node:path");
+const { join } = require("node:path");
 const { createHash } = require("node:crypto");
 const blocks = require("./json-tool-blocks");
 const stlFile = require("./stl");
-
-const REPO_ROOT = resolve(__dirname, "..");
-const SERIES_JSON_PATH = join(REPO_ROOT, "data", "series.json");
+const { ROOT, SERIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
 
 // Vertices closer than this (mm) are one: Draco decoding can split welded vertices.
 const WELD_EPSILON = 1e-4;
@@ -352,7 +350,7 @@ async function measureTriangles(tris) {
 // One model (and its print model): the "geometry" object and a summary row,
 // or null after an error message.
 async function measureFile(io, label, modelRel, stlRel) {
-  const modelPath = modelRel && join(REPO_ROOT, modelRel);
+  const modelPath = modelRel && join(ROOT, modelRel);
   if (!modelPath || !existsSync(modelPath)) {
     console.error("  " + label + ": model file missing (" + modelRel + ")");
     return null;
@@ -383,7 +381,7 @@ async function measureFile(io, label, modelRel, stlRel) {
   };
 
   if (stlRel) {
-    const stlPath = join(REPO_ROOT, stlRel);
+    const stlPath = join(ROOT, stlRel);
     if (!existsSync(stlPath)) {
       console.error("  " + label + ": print model missing (" + stlRel + ") — the print models are not in git: put the file back, or cut it from the export again with `npm run split-models`");
       return null;
@@ -411,19 +409,14 @@ async function measureFile(io, label, modelRel, stlRel) {
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
 
-  const { NodeIO } = await import("@gltf-transform/core");
-  const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
-  const draco3d = (await import("draco3dgltf")).default;
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ "draco3d.decoder": await draco3d.createDecoderModule() });
+  const io = await gltfIO();
 
-  const seriesIndex = JSON.parse(readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const rows = [];
   let failed = false;
 
   for (const series of seriesIndex.series || []) {
-    const productsPath = join(REPO_ROOT, series.products);
+    const productsPath = join(ROOT, series.products);
     let text = readFileSync(productsPath, "utf8");
     const data = JSON.parse(text);
 

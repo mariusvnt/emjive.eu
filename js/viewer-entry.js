@@ -48,8 +48,7 @@ if (when === "eager") {
     window.EmjiveLoadViewer().catch(function () {});
   };
   var startWhenIdle = function () {
-    if ("requestIdleCallback" in window) window.requestIdleCallback(start, { timeout: 2000 });
-    else setTimeout(start, 500);
+    window.EmjiveHelpers.whenIdle(start, 2000, 500);
   };
   if (window.EmjiveLoader && window.EmjiveLoader.isPageReady()) startWhenIdle();
   else window.addEventListener("emjive:pageready", startWhenIdle, { once: true });

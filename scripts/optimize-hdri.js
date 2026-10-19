@@ -15,10 +15,10 @@
 //   npm run optimize-hdri -- --width=512   another target width
 
 const { readdirSync, statSync, existsSync, readFileSync, writeFileSync } = require("node:fs");
-const { join, resolve, relative, dirname, basename } = require("node:path");
+const { join, resolve, dirname, basename } = require("node:path");
+const { ROOT, repoPath } = require("./helpers");
 
-const REPO_ROOT = resolve(__dirname, "..");
-const HDRI_DIR = join(REPO_ROOT, "assets", "hdri");
+const HDRI_DIR = join(ROOT, "assets", "hdri");
 
 const DEFAULT_TARGET_WIDTH = 1024;
 
@@ -329,7 +329,7 @@ function main() {
     return;
   }
 
-  const explicit = args.filter((a) => !a.startsWith("--")).map((p) => resolve(REPO_ROOT, p));
+  const explicit = args.filter((a) => !a.startsWith("--")).map((p) => resolve(ROOT, p));
   const files = explicit.length ? explicit : listHdris();
 
   if (!files.length) {
@@ -348,7 +348,7 @@ function main() {
   const pathUpdates = [];
 
   for (const file of files) {
-    const rel = relative(REPO_ROOT, file).replace(/\\/g, "/");
+    const rel = repoPath(file);
     if (!existsSync(file)) {
       console.error("  " + rel + " — not found");
       failures++;
@@ -418,7 +418,7 @@ function main() {
 
     const outName = targetNameFor(file, dstWidth);
     const outPath = join(dirname(file), outName);
-    const outRel = relative(REPO_ROOT, outPath).replace(/\\/g, "/");
+    const outRel = repoPath(outPath);
 
     console.log(
       "  " + rel + "\n" +

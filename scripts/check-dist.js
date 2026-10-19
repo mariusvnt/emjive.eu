@@ -7,10 +7,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { slugify } = require("./slugs");
+const { ROOT, SITE_ORIGIN, readJson, walk, exitOnProblems } = require("./helpers");
 
-const SITE_ORIGIN = "https://emjive.eu";
-
-const DIST = path.resolve(__dirname, "..", "dist");
+const DIST = path.join(ROOT, "dist");
 const problems = [];
 const fail = (message) => problems.push(message);
 
@@ -19,12 +18,6 @@ if (!fs.existsSync(path.join(DIST, "index.html"))) {
   process.exit(1);
 }
 
-function walk(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    return entry.isDirectory() ? walk(full) : [full];
-  });
-}
 const files = walk(DIST).map((f) => path.relative(DIST, f).split(path.sep).join("/"));
 const fileSet = new Set(files);
 
@@ -92,6 +85,10 @@ for (const page of pages) {
   if (sheet === -1) fail(page + ": no stylesheet link in <head>");
   else if (firstScript !== -1 && sheet > firstScript) fail(page + ": the stylesheet comes after the first <script> in <head>");
 
+  // Every script relies on window.EmjiveHelpers; modules run after the classic ones.
+  const classic = [...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]).filter((tag) => !/\btype="module"/.test(tag));
+  if (classic.length && !/\bsrc="js\/helpers\.js"/.test(classic[0])) fail(page + ": js/helpers.js is not its first classic <script>");
+
   // A page with data-products="eager" must carry the products.json preload
   // (injectLoadHints in vite.config.js).
   const htmlTag = (html.match(/<html\b[^>]*>/) || [""])[0];
@@ -124,7 +121,6 @@ for (const page of pages) {
 
 /* ---- items -------------------------------------------------------------- */
 
-const readJson = (rel) => JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", rel), "utf8"));
 const catalog = readJson("data/series.json");
 const items = [];
 for (const series of catalog.series) {
@@ -180,9 +176,5 @@ if (fileSet.has("sitemap.xml")) {
 
 /* ---- result ------------------------------------------------------------- */
 
-if (problems.length) {
-  console.error("check-dist: " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + "\n");
-  for (const p of problems) console.error("  - " + p);
-  process.exit(1);
-}
+exitOnProblems("check-dist", problems);
 console.log("check-dist: ok (" + pages.length + " pages, " + files.length + " files)");

@@ -20,6 +20,7 @@ Every rule that must hold in this repo, process and code alike, and the one plac
 
 ## Code
 
+- **Code meant for repeated or global use goes in the helper file, never written locally.** That is `js/helpers.js` (`window.EmjiveHelpers`) for the browser, the 3D modules and the dev pages included, and `scripts/helpers.js` for the Node tooling and `vite.config.js`. When a second file needs something another file defines for itself, move it to the helper file instead of copying it. `js/helpers.js` loads first on every page (`check-dist` checks), so no script guards it. Two things stay out of the helper files. An API owned by a module with its own state stays with that module: the selection, the series, the loader, the 3D `toolkit` in `js/three-viewer.js`, the JSON text surgery in `scripts/json-tool-blocks.js`. A value needed where the helper file can't reach (CSS, or both the browser and Node) is mirrored instead, under the rule below.
 - **A series' `hero.js` has no side effects when it loads, and never uses a bare import specifier.** It only assigns `window.EmjiveSeriesHero`, and Vite never sees it.
 - **Filtering hides what is already built; it never rebuilds it.** Rebuilding would recreate WebGL contexts.
 - **Never change `js/stack-scene.js` to match the viewers.** The wheel's drawing is the reference, and the wheel posters follow it.

@@ -8,13 +8,7 @@ import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
 import sharp from "sharp";
 import { slugify } from "./scripts/slugs.js";
-
-// For sitemap.xml; the same host as every page's og:url and canonical.
-const SITE_ORIGIN = "https://emjive.eu";
-
-// The smartphone query for responsive images; must match js/loader.js,
-// css/style.css and series/<slug>/hero.css (validate-data checks).
-const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
+import { SITE_ORIGIN, PHONE_QUERY, readJson } from "./scripts/helpers.js";
 
 // Vite only ships what it can trace, and most of this site's assets are named
 // in runtime data (products.json, series.json, hero bundles), while classic
@@ -165,7 +159,7 @@ function injectLoadHints() {
         const hasAttr = (name, value) =>
           new RegExp("\\bdata-" + name + "=\"" + value + "\"").test(htmlTag[0]);
 
-        const index = JSON.parse(readFileSync(resolve(__dirname, "data/series.json"), "utf8"));
+        const index = readJson("data/series.json");
         const series = index.series.find((s) => s.slug === index.featured);
         if (!series) return html;
 
@@ -205,11 +199,10 @@ function injectLoadHints() {
 // Every product with its series, from the site's own data; the address is
 // /<slug> (scripts/slugs.js).
 function readProducts() {
-  const read = (path) => JSON.parse(readFileSync(resolve(__dirname, path), "utf8"));
-  const index = read("data/series.json");
+  const index = readJson("data/series.json");
   const list = [];
   for (const series of index.series) {
-    for (const product of read(series.products).products) {
+    for (const product of readJson(series.products).products) {
       list.push({ product, series, slug: slugify(product.name), featured: series.slug === index.featured });
     }
   }

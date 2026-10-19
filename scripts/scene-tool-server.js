@@ -7,112 +7,35 @@
 
 const fs = require("fs");
 const path = require("path");
-const http = require("http");
+const blocks = require("./json-tool-blocks");
+const { ROOT, SERIES_JSON_PATH, findSeriesEntry, readJsonBody, sendJson, startToolServer } = require("./helpers");
 
-const ROOT = path.resolve(__dirname, "..");
-const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const THREE_VIEWER_PATH = path.join(ROOT, "js", "three-viewer.js");
 const PORT = 5200;
-
-const MIME = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".mjs": "text/javascript",
-  ".glb": "model/gltf-binary",
-  ".gltf": "model/gltf+json",
-  ".hdr": "application/octet-stream",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-  ".css": "text/css"
-};
-
-// ---- helpers ----
+const MAX_BODY_BYTES = 1e6;
 
 function isFiniteNumber(n) {
   return typeof n === "number" && Number.isFinite(n);
 }
 
-function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    var chunks = [];
-    var size = 0;
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > 1e6) {
-        req.destroy();
-        reject(new Error("request body too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => {
-      var raw = Buffer.concat(chunks).toString("utf8");
-      try {
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch (err) {
-        reject(new Error("invalid JSON body"));
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-function sendJson(res, status, obj) {
-  var body = JSON.stringify(obj);
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(body);
-}
-
-function findSeriesEntry(seriesIndex, seriesSlug) {
-  return (seriesIndex.series || []).find((s) => s.slug === seriesSlug) || null;
-}
-
 // ---- text patchers ----
-// Replace one field inside the block anchored on an "id"/"slug", without
-// re-serializing the file, so hand alignment survives. null if the field
-// isn't there: it must be added by hand first.
+// Replace one field without re-serializing the file, so hand alignment
+// survives. null if the field isn't there: it must be added by hand first.
 
 function updateCameraDefaultInText(text, productId, orbit) {
-  var idAnchor = '"id": "' + productId + '"';
-  var startIdx = text.indexOf(idAnchor);
-  if (startIdx === -1) return null;
-  var nextIdIdx = text.indexOf('"id": "', startIdx + idAnchor.length);
-  var blockEnd = nextIdIdx === -1 ? text.length : nextIdIdx;
-  var block = text.slice(startIdx, blockEnd);
-
-  var fieldPattern = /"3d-viewer-camera-default":\s*\{[^}]*\}/;
-  if (!fieldPattern.test(block)) return null;
+  var span = blocks.anchoredSpan(text, "id", productId);
   var newFieldText =
     '"3d-viewer-camera-default": { "rotation": ' + orbit.rotation +
     ', "tilt": ' + orbit.tilt + ', "zoom": ' + orbit.zoom + ', "roll": ' + orbit.roll + ' }';
-  var newBlock = block.replace(fieldPattern, newFieldText);
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
-}
-
-function updateSeriesHdriInText(text, seriesSlug, hdriKey) {
-  var slugAnchor = '"slug": "' + seriesSlug + '"';
-  var startIdx = text.indexOf(slugAnchor);
-  if (startIdx === -1) return null;
-  var nextSlugIdx = text.indexOf('"slug": "', startIdx + slugAnchor.length);
-  var blockEnd = nextSlugIdx === -1 ? text.length : nextSlugIdx;
-  var block = text.slice(startIdx, blockEnd);
-
-  var fieldPattern = /"hdri":\s*"[^"]*"/;
-  if (!fieldPattern.test(block)) return null;
-  var newBlock = block.replace(fieldPattern, '"hdri": "' + hdriKey + '"');
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+  return span && blocks.replaceInSpan(text, span, /"3d-viewer-camera-default":\s*\{[^}]*\}/, newFieldText);
 }
 
 // Top-level swatch fields; each update is optional.
 function updateSwatchSceneInText(text, updates) {
   var result = text;
   if (updates["swatch-hdri"] !== undefined) {
-    var hdriPattern = /"swatch-hdri":\s*"[^"]*"/;
-    if (!hdriPattern.test(result)) return null;
-    result = result.replace(hdriPattern, function () { return '"swatch-hdri": "' + updates["swatch-hdri"] + '"'; });
+    result = blocks.updateTopLevelScalarInText(result, "swatch-hdri", '"' + updates["swatch-hdri"] + '"');
+    if (!result) return null;
   }
   if (updates["swatch-blur"] !== undefined) {
     var blurPattern = /"swatch-blur":\s*-?[0-9.]+/;
@@ -137,22 +60,16 @@ function updateMetalPresetInText(text, metalKey, preset) {
   if (startIdx === -1) return null;
   var blockEndIdx = text.indexOf("};", startIdx);
   if (blockEndIdx === -1) return null;
-  var blockEnd = blockEndIdx + 2;
-  var block = text.slice(startIdx, blockEnd);
-
-  var fieldPattern = new RegExp(metalKey + ":\\s*\\{[^}]*\\}");
-  if (!fieldPattern.test(block)) return null;
   var newFieldText =
     metalKey + ": { baseColorFactor: [" + preset.r + " / 255, " + preset.g + " / 255, " + preset.b +
     " / 255, 1], metallicFactor: " + preset.metallicFactor + ", roughnessFactor: " + preset.roughnessFactor + " }";
-  var newBlock = block.replace(fieldPattern, newFieldText);
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+  return blocks.replaceInSpan(text, { start: startIdx, end: blockEndIdx + 2 }, new RegExp(metalKey + ":\\s*\\{[^}]*\\}"), newFieldText);
 }
 
 // ---- endpoints: each re-reads its file and writes only on a successful patch ----
 
 async function handleSaveProductCamera(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   var seriesSlug = body.seriesSlug;
   var productId = body.productId;
   if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
@@ -185,7 +102,7 @@ async function handleSaveProductCamera(req, res) {
 }
 
 async function handleSaveSeriesHdri(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   var seriesSlug = body.seriesSlug;
   var hdriKey = body.hdriKey;
   if (!seriesSlug || !hdriKey) return sendJson(res, 400, { error: "seriesSlug and hdriKey are required" });
@@ -197,7 +114,7 @@ async function handleSaveSeriesHdri(req, res) {
     return sendJson(res, 400, { error: "unknown hdri: " + hdriKey });
   }
 
-  var patched = updateSeriesHdriInText(seriesText, seriesSlug, hdriKey);
+  var patched = blocks.updateSeriesFieldInText(seriesText, seriesSlug, "hdri", '"' + hdriKey + '"');
   if (!patched) {
     return sendJson(res, 404, { error: "could not find series \"" + seriesSlug + "\"'s hdri field — add it by hand first" });
   }
@@ -208,7 +125,7 @@ async function handleSaveSeriesHdri(req, res) {
 
 // Only the angles: distance, fov and frame are solved (swatchOrbit in js/three-viewer.js).
 async function handleSaveSwatchCamera(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   if (![body.rotation, body.tilt, body.roll].every(isFiniteNumber)) {
     return sendJson(res, 400, { error: "rotation/tilt/roll must be finite numbers" });
   }
@@ -228,7 +145,7 @@ async function handleSaveSwatchCamera(req, res) {
 }
 
 async function handleSaveSwatchHdri(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   var hdriKey = body.hdriKey;
   if (!hdriKey) return sendJson(res, 400, { error: "hdriKey is required" });
 
@@ -248,7 +165,7 @@ async function handleSaveSwatchHdri(req, res) {
 
 // Gaussian sigma in pixels of the HDRI image.
 async function handleSaveSwatchBlur(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   if (!isFiniteNumber(body.blur) || body.blur < 0) {
     return sendJson(res, 400, { error: "blur must be a finite number, 0 or more" });
   }
@@ -264,7 +181,7 @@ async function handleSaveSwatchBlur(req, res) {
 }
 
 async function handleSaveMetalShader(req, res) {
-  var body = await readJsonBody(req);
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
   var metalKey = body.metalKey;
 
   var seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
@@ -303,60 +220,5 @@ const ROUTES = {
   "POST /api/save-metal-shader": handleSaveMetalShader
 };
 
-// ---- static files, including /node_modules for scene-tool.html's import map ----
-function serveStatic(req, res) {
-  var urlPath = decodeURIComponent(req.url.split("?")[0]);
-  if (urlPath === "/") urlPath = "/scene-tool.html";
-  var filePath = path.join(ROOT, urlPath);
-  var normalizedFile = path.resolve(filePath).replace(/\\/g, "/").toLowerCase();
-  var normalizedRoot = path.resolve(ROOT).replace(/\\/g, "/").toLowerCase();
-  if (!normalizedFile.startsWith(normalizedRoot)) {
-    res.writeHead(403);
-    res.end();
-    return;
-  }
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404);
-      res.end("not found: " + urlPath);
-      return;
-    }
-    res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
-    res.end(data);
-  });
-}
-
-// These servers write and delete repo files: loopback only, Host must be a
-// loopback name (DNS rebinding), and non-GET requests must come from this
-// origin (cross-site writes).
-const LOOPBACK = "127.0.0.1";
-function isLocalRequest(req) {
-  const host = String(req.headers.host || "");
-  const allowed = ["localhost:" + PORT, LOOPBACK + ":" + PORT];
-  if (!allowed.includes(host)) return false;
-  if (req.method === "GET" || req.method === "HEAD") return true;
-  const origin = req.headers.origin;
-  return !origin || allowed.some((h) => origin === "http://" + h);
-}
-
-const server = http.createServer((req, res) => {
-  if (!isLocalRequest(req)) {
-    res.writeHead(403, { "Content-Type": "text/plain" });
-    res.end("forbidden");
-    return;
-  }
-  var routeKey = req.method + " " + req.url.split("?")[0];
-  var handler = ROUTES[routeKey];
-  if (handler) {
-    handler(req, res).catch((err) => {
-      console.error(err);
-      sendJson(res, 500, { error: String((err && err.message) || err) });
-    });
-    return;
-  }
-  serveStatic(req, res);
-});
-
-server.listen(PORT, LOOPBACK, () => {
-  console.log("scene-tool — http://" + LOOPBACK + ":" + PORT + "/scene-tool.html");
-});
+// Static files include /node_modules, for scene-tool.html's import map.
+startToolServer({ name: "scene-tool", port: PORT, page: "scene-tool.html", routes: ROUTES });

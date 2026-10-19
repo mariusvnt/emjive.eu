@@ -35,27 +35,8 @@
   // How long a crossfading icon waits for its new picture before swapping anyway.
   var DECODE_WAIT_MS = 1000;
 
-  function wait(ms) {
-    return new Promise(function (resolve) { setTimeout(resolve, ms); });
-  }
-
-  // Resolves when `el`'s own `prop` transition ends, or after `ms`.
-  function transitionDone(el, prop, ms) {
-    return new Promise(function (resolve) {
-      var done = false;
-      function finish() {
-        if (done) return;
-        done = true;
-        el.removeEventListener("transitionend", onEnd);
-        resolve();
-      }
-      function onEnd(e) {
-        if (e.target === el && e.propertyName === prop) finish();
-      }
-      el.addEventListener("transitionend", onEnd);
-      setTimeout(finish, ms);
-    });
-  }
+  var H = global.EmjiveHelpers;
+  var transitionDone = H.transitionDone;
 
   // Fully decoded, so a crossfade never shows an empty frame.
   function decoded(src) {
@@ -63,7 +44,7 @@
     var img = new Image();
     img.src = src;
     var ready = img.decode ? img.decode().catch(function () {}) : null;
-    return Promise.race([ready, wait(DECODE_WAIT_MS)]);
+    return Promise.race([ready, H.wait(DECODE_WAIT_MS)]);
   }
 
   // Sequential swap: fade out (.is-swapping), apply(), fade in, so two values

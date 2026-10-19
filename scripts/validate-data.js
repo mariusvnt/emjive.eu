@@ -10,7 +10,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
 
-const ROOT = path.resolve(__dirname, "..");
+const { ROOT, PHONE_QUERY, exitOnProblems } = require("./helpers");
+
 const problems = [];
 
 function fail(where, message) {
@@ -65,12 +66,11 @@ function checkVariants(where, rel, suffixes) {
   }
 }
 
-// The phone query and crops must match across make-image-variants.js, the
-// CSS, js/loader.js and vite.config.js; a mismatch only shows as a quietly
-// misaligned layout.
+// The phone query and crops must match across scripts/ (helpers.js,
+// make-image-variants.js), the CSS and js/loader.js; a mismatch only shows as
+// a quietly misaligned layout.
 const { PHONE_CROP } = require("./make-image-variants");
 const { slugify, reservedNames } = require("./slugs");
-const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
 function checkPhoneConstants(file, expectedCrops) {
   if (!existsExactCase(file)) return;
@@ -610,17 +610,11 @@ if (index && existsExactCase("js/series.js")) {
 }
 
 checkPhoneConstants("css/style.css", { "xray-crop": PHONE_CROP.xray });
-for (const file of ["js/loader.js", "vite.config.js"]) {
-  if (existsExactCase(file) && !fs.readFileSync(path.join(ROOT, file), "utf8").includes(PHONE_QUERY)) {
-    fail(file, "does not contain the phone query " + PHONE_QUERY);
-  }
+if (existsExactCase("js/loader.js") && !fs.readFileSync(path.join(ROOT, "js/loader.js"), "utf8").includes(PHONE_QUERY)) {
+  fail("js/loader.js", "does not contain the phone query " + PHONE_QUERY);
 }
 
-if (problems.length) {
-  console.error("validate-data: " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + "\n");
-  for (const p of problems) console.error("  - " + p);
-  process.exit(1);
-}
+exitOnProblems("validate-data", problems);
 if (missingPrintModels) {
   console.log("validate-data: " + missingPrintModels + " print model(s) (assets.stl) are not on disk — they are not in git, so their measurements (geometry.print) were not checked against them");
 }

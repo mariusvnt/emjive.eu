@@ -33,11 +33,7 @@ var SHOT_VERTEX = [
   "}"
 ].join("\n");
 
-function clamp01(x) { return Math.max(0, Math.min(1, x)); }
-function smoothstep(a, b, x) {
-  var t = clamp01((x - a) / (b - a));
-  return t * t * (3 - 2 * t);
-}
+var H = window.EmjiveHelpers;
 
 export function createStackScene(options) {
   if (!toolkit) return null;
@@ -181,7 +177,7 @@ export function createStackScene(options) {
     entry.material.customProgramCacheKey = function () { return "emjive-stack-shot"; };
     root.traverse(function (node) {
       if (!node.isMesh) return;
-      disposeMaterial(node.material);
+      toolkit.disposeMaterial(node.material);
       node.material = entry.material;
       // Few models on screen, and off-screen ones must be uploaded before the pull-back reveals them.
       node.frustumCulled = false;
@@ -200,12 +196,6 @@ export function createStackScene(options) {
     entry.material = new T.SpriteMaterial({ map: texture, transparent: true, toneMapped: false });
     entry.sprite = new T.Sprite(entry.material);
     entry.holder.add(entry.sprite);
-  }
-
-  function pictureOf(product) {
-    var assets = product.assets || {};
-    var metal = product["default-metal"];
-    return (assets["fallback-img"] && assets["fallback-img"][metal]) || (assets.icons && assets.icons[metal]) || "";
   }
 
   function buildEntry(item) {
@@ -230,7 +220,7 @@ export function createStackScene(options) {
       spin: null
     };
     var model = item.product.assets && item.product.assets.model;
-    var picture = pictureOf(item.product);
+    var picture = H.posterFor(item.product, item.product["default-metal"]);
     var load = model
       ? loadModel(model).then(function (root) { setModel(entry, root); }, function (err) {
         console.error("emjive: a stack model failed to load", model, err);
@@ -302,7 +292,7 @@ export function createStackScene(options) {
     entry.group.position.set(pose.x / PX, -pose.y / PX, 0);
     if (pose.fromRing && pose.u < 1) {
       rotZ(pose.ringRot, tmpQ).multiply(qTop);
-      entry.group.quaternion.slerpQuaternions(tmpQ, entry.restQ, clamp01(pose.u));
+      entry.group.quaternion.slerpQuaternions(tmpQ, entry.restQ, H.clamp01(pose.u));
     } else {
       rotZ(pose.rot || 0, entry.group.quaternion).multiply(entry.restQ);
     }
@@ -319,7 +309,7 @@ export function createStackScene(options) {
   // u 0 to 0.5, as the top shot does.
   function placeOnHand(entry, pose) {
     if (!entry.clip) return;
-    var share = pose.fromRing && pose.u < 1 ? 1 - smoothstep(0, 0.5, pose.u) : 0;
+    var share = pose.fromRing && pose.u < 1 ? 1 - H.smoothstep(0, 0.5, pose.u) : 0;
     entry.shot.uShotAmount.value = share;
     if (share <= 0) {
       entry.clip.normal.copy(yAxis);
@@ -385,22 +375,10 @@ export function createStackScene(options) {
   }
 
   /* ---- teardown ---- */
-  function disposeMaterial(material) {
-    if (!material) return;
-    if (Array.isArray(material)) {
-      material.forEach(disposeMaterial);
-      return;
-    }
-    Object.keys(material).forEach(function (key) {
-      if (material[key] && material[key].isTexture) material[key].dispose();
-    });
-    material.dispose();
-  }
-
   function disposeObject(root) {
     root.traverse(function (node) {
       if (node.geometry) node.geometry.dispose();
-      if (node.material) disposeMaterial(node.material);
+      toolkit.disposeMaterial(node.material);
     });
   }
 

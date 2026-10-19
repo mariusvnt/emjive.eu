@@ -68,21 +68,18 @@
   // Glide to a new layout (filter, resize).
   var FLY_MS = 550;
 
-  var reducedMotion = window.matchMedia
-    ? window.matchMedia("(prefers-reduced-motion: reduce)")
-    : { matches: false };
+  var H = window.EmjiveHelpers;
+  var el = H.el;
+  var clamp = H.clamp;
+  var clamp01 = H.clamp01;
+  var lerp = H.lerp;
+  var easeInOutCubic = H.easeInOutCubic;
+  var easeOutCubic = H.easeOutCubic;
+  var smoothstep = H.smoothstep;
+  var reducedMotion = H.reducedMotion;
 
   var TAU = Math.PI * 2;
 
-  function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
-  function clamp01(x) { return clamp(x, 0, 1); }
-  function lerp(a, b, t) { return a + (b - a) * t; }
-  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-  function smoothstep(a, b, x) {
-    var t = clamp01((x - a) / (b - a));
-    return t * t * (3 - 2 * t);
-  }
   // An angle wrapped into (-PI, PI].
   function wrap(a) {
     a = (a + Math.PI) % TAU;
@@ -92,13 +89,6 @@
   // The angle of (x, y) about (cx, cy), clockwise from noon.
   function angleAbout(cx, cy, x, y) {
     return Math.atan2(x - cx, cy - y);
-  }
-
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
   }
 
   function mount(stage, options) {
@@ -168,9 +158,8 @@
     function buildItem(product) {
       var assets = product.assets || {};
       var metal = product["default-metal"];
-      var src = (assets.model && ((assets["wheel-poster"] && assets["wheel-poster"][metal]) ||
-        (assets["fallback-img"] && assets["fallback-img"][metal]))) ||
-        (assets.icons && assets.icons[metal]) || "";
+      var src = (assets.model && (H.assetFor(product, "wheel-poster", metal) || H.assetFor(product, "fallback-img", metal))) ||
+        H.assetFor(product, "icons", metal);
       var itemEl = el("div", "stack-item");
       itemEl.setAttribute("aria-hidden", "true");
       var img = el("img", "stack-item__img");
@@ -182,7 +171,7 @@
       img.draggable = false;
       itemEl.appendChild(img);
       var onHand = product["hero-hand-visibility"];
-      var topShot = onHand && onHand.visible && assets["top-shot"] && assets["top-shot"][metal];
+      var topShot = onHand && onHand.visible && H.assetFor(product, "top-shot", metal);
       var ringImg = null;
       if (topShot) {
         ringImg = el("img", "stack-item__ring");
@@ -651,11 +640,7 @@
       state.room = share;
       if (keep) {
         // Shrinking already pulled the visitor up; growing didn't. Either way, from the end.
-        var previous = root.style.scrollBehavior;
-        root.style.scrollBehavior = "auto";
-        window.scrollTo(0, Math.max(0, root.scrollHeight - root.clientHeight - fromEnd));
-        if (previous) root.style.scrollBehavior = previous;
-        else root.style.removeProperty("scroll-behavior");
+        H.jumpScroll(Math.max(0, root.scrollHeight - root.clientHeight - fromEnd));
         u += grown;
       }
       // Until the hero publishes again.
@@ -1078,15 +1063,10 @@
 
     function whenPageRevealed(fn) {
       if (window.EmjiveLoader && !window.EmjiveLoader.isPageReady()) {
-        window.addEventListener("emjive:pageready", function () { idle(fn); }, { once: true });
+        window.addEventListener("emjive:pageready", function () { H.whenIdle(fn, 2000, 300); }, { once: true });
       } else {
-        idle(fn);
+        H.whenIdle(fn, 2000, 300);
       }
-    }
-
-    function idle(fn) {
-      if ("requestIdleCallback" in window) window.requestIdleCallback(fn, { timeout: 2000 });
-      else setTimeout(fn, 300);
     }
 
     /* ---- page lifecycle ---- */

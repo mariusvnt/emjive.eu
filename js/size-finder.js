@@ -33,6 +33,9 @@
 
   if (!global.EmjiveSelection || !global.EmjiveFocusTrap) return;
 
+  var H = global.EmjiveHelpers;
+  var el = H.el;
+
   // ISO/IEC 7810 ID-1 (bank card): its long side is matched.
   var CARD_LONG_MM = 85.6;
   // The slider moves the top band evenly from touching the bottom band to just
@@ -191,22 +194,15 @@
 
   // Stored px per mm, or null if absent, from another screen or zoom, or implausible.
   function readCalibration() {
-    try {
-      var stored = JSON.parse(global.localStorage.getItem(CALIBRATION_KEY));
-      if (!stored || stored.v !== CALIBRATION_VERSION || stored.screen !== screenId()) return null;
-      var scale = Number(stored.scale);
-      return isFinite(scale) && scale >= SCALE_MIN && scale <= SCALE_MAX ? scale : null;
-    } catch (e) {
-      return null;
-    }
+    var stored = H.readStorageJson("localStorage", CALIBRATION_KEY);
+    if (!stored || stored.v !== CALIBRATION_VERSION || stored.screen !== screenId()) return null;
+    var scale = Number(stored.scale);
+    return isFinite(scale) && scale >= SCALE_MIN && scale <= SCALE_MAX ? scale : null;
   }
 
+  // Blocked or full storage: asked again next time.
   function saveCalibration(scale) {
-    try {
-      global.localStorage.setItem(CALIBRATION_KEY, JSON.stringify({ v: CALIBRATION_VERSION, scale: scale, screen: screenId() }));
-    } catch (e) {
-      // Blocked or full: asked again next time.
-    }
+    H.writeStorage("localStorage", CALIBRATION_KEY, JSON.stringify({ v: CALIBRATION_VERSION, scale: scale, screen: screenId() }));
   }
 
   // A size is the ring's inner circumference in mm, to a tenth.
@@ -274,13 +270,6 @@
     state.touched[1] = [false, false, false];
   }
 
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
   function button(label, className) {
     var btn = el("button", "size-finder__button" + (className ? " " + className : ""), label);
     btn.type = "button";
@@ -300,7 +289,6 @@
     root.appendChild(track);
     root.appendChild(thumb);
     var cfg = { min: 0, max: 1, step: 0.01, value: 0, text: null };
-    var drag = null;
 
     function render() {
       root.style.setProperty("--pos", String((cfg.value - cfg.min) / (cfg.max - cfg.min)));
@@ -321,35 +309,17 @@
       if (fire) onInput(value);
     }
 
-    thumb.addEventListener("pointerdown", function (e) {
-      if (e.button) return;
-      e.preventDefault();
-      drag = { id: e.pointerId, x: e.clientX, from: (cfg.value - cfg.min) / (cfg.max - cfg.min) };
-      thumb.setPointerCapture(e.pointerId);
+    H.dragPointer(thumb, function (e) {
       root.focus({ preventScroll: true });
-    });
-    thumb.addEventListener("pointermove", function (e) {
-      if (!drag || e.pointerId !== drag.id) return;
+      return { x: e.clientX, from: (cfg.value - cfg.min) / (cfg.max - cfg.min) };
+    }, function (e, drag) {
       var rail = track.getBoundingClientRect();
       var at = drag.from + (DRAG_GAIN * (e.clientX - drag.x)) / rail.width;
-      setValue(cfg.min + Math.max(0, Math.min(1, at)) * (cfg.max - cfg.min), true);
+      setValue(cfg.min + H.clamp01(at) * (cfg.max - cfg.min), true);
     });
-    function release(e) {
-      if (drag && e.pointerId === drag.id) drag = null;
-    }
-    thumb.addEventListener("pointerup", release);
-    thumb.addEventListener("pointercancel", release);
-    thumb.addEventListener("lostpointercapture", release);
 
     root.addEventListener("keydown", function (e) {
-      var big = (cfg.max - cfg.min) / 10;
-      var to = null;
-      if (e.key === "ArrowRight" || e.key === "ArrowUp") to = cfg.value + cfg.step;
-      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") to = cfg.value - cfg.step;
-      else if (e.key === "PageUp") to = cfg.value + big;
-      else if (e.key === "PageDown") to = cfg.value - big;
-      else if (e.key === "Home") to = cfg.min;
-      else if (e.key === "End") to = cfg.max;
+      var to = H.sliderKey(e, cfg.value, cfg.step, (cfg.max - cfg.min) / 10, cfg.min, cfg.max);
       if (to === null) return;
       e.preventDefault();
       setValue(to, true);
@@ -384,7 +354,6 @@
     hit.setAttribute("role", "slider");
     hit.setAttribute("aria-label", "Line " + (index + 1));
     hit.setAttribute("aria-valuemin", String(LINE_MIN_MM));
-    var drag = null;
 
     function render() {
       var px = linePx();
@@ -414,34 +383,17 @@
       onMove();
     }
 
-    hit.addEventListener("pointerdown", function (e) {
-      if (e.button) return;
-      e.preventDefault();
-      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, from: state.lines[pass()][index] };
-      hit.setPointerCapture(e.pointerId);
+    H.dragPointer(hit, function (e) {
       hit.focus({ preventScroll: true });
-    });
-    hit.addEventListener("pointermove", function (e) {
-      if (!drag || e.pointerId !== drag.id) return;
+      return { x: e.clientX, y: e.clientY, from: state.lines[pass()][index] };
+    }, function (e, drag) {
       var along = (DRAG_GAIN * ((e.clientX - drag.x) * nx + (e.clientY - drag.y) * ny)) / state.scale;
       setDistance(drag.from + along);
     });
-    function release(e) {
-      if (drag && e.pointerId === drag.id) drag = null;
-    }
-    hit.addEventListener("pointerup", release);
-    hit.addEventListener("pointercancel", release);
-    hit.addEventListener("lostpointercapture", release);
 
     hit.addEventListener("keydown", function (e) {
-      var now = state.lines[pass()][index];
       var step = linePx() / state.scale;
-      var to = null;
-      if (e.key === "ArrowRight" || e.key === "ArrowUp") to = now + step;
-      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") to = now - step;
-      else if (e.key === "PageUp") to = now + 10 * step;
-      else if (e.key === "PageDown") to = now - 10 * step;
-      else if (e.key === "Home") to = LINE_MIN_MM;
+      var to = H.sliderKey(e, state.lines[pass()][index], step, 10 * step, LINE_MIN_MM);
       if (to === null) return;
       e.preventDefault();
       setDistance(to);
@@ -513,7 +465,7 @@
       nodes.slider.setValue(sliderFromScale(scale));
       renderCard();
     }
-    if (global.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (H.reducedMotion.matches) {
       set(to);
       return;
     }

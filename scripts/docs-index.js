@@ -19,7 +19,7 @@ const path = require("node:path");
 const acorn = require("acorn");
 const postcss = require("postcss");
 
-const ROOT = path.resolve(__dirname, "..");
+const { ROOT } = require("./helpers");
 const OUT = "dev-guidelines/index.md";
 const CHECK = process.argv.includes("--check");
 

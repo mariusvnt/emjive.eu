@@ -19,6 +19,7 @@
   }
 }
 </script>
+<script src="js/helpers.js"></script>
 <script type="module" src="js/three-viewer.js"></script>
 <style>
   :root { color-scheme: light dark; }
@@ -214,6 +215,8 @@
 <script type="module">
 import * as THREE from "three";
 
+const { requestJson } = window.EmjiveHelpers;
+
 // As in js/three-viewer.js, for readCurrentOrbit().
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -246,7 +249,7 @@ init().catch((err) => {
 });
 
 async function init() {
-  state.seriesIndex = await fetchJson("data/series.json");
+  state.seriesIndex = await requestJson("data/series.json");
   await loadAllProducts();
   populateHdriSelect();
   populateModelSelect();
@@ -256,17 +259,10 @@ async function init() {
   await rebuildViewer();
 }
 
-function fetchJson(relPath) {
-  return fetch(relPath).then((res) => {
-    if (!res.ok) throw new Error("could not load " + relPath);
-    return res.json();
-  });
-}
-
 async function loadAllProducts() {
   const seriesList = state.seriesIndex.series || [];
   for (const s of seriesList) {
-    state.productsBySeriesSlug[s.slug] = await fetchJson(s.products);
+    state.productsBySeriesSlug[s.slug] = await requestJson(s.products);
   }
 }
 
@@ -650,24 +646,12 @@ function onResetCamera() {
   state.handle.setCameraOrbit(state.product["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 });
 }
 
-function postJson(url, body) {
-  return fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  }).then(async (res) => {
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
-    return data;
-  });
-}
-
 async function onSaveClick() {
   const results = [];
 
   async function attempt(label, url, body) {
     try {
-      const data = await postJson(url, body);
+      const data = await requestJson(url, body);
       results.push({ label, ok: true, detail: data });
     } catch (err) {
       results.push({ label, ok: false, detail: err.message });

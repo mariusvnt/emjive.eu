@@ -11,11 +11,7 @@
   // The drawer's rows need the order-row component.
   if (!window.EmjiveSelection || !window.EmjiveOrderRows) return;
 
-  function el(tag, className) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    return node;
-  }
+  var el = window.EmjiveHelpers.el;
 
   /* ---- DOM, built once ---- */
 

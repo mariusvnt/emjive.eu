@@ -57,8 +57,9 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 
 **Load order is a contract.**
 
-- Three scripts block in the `<head>`, each for a reason:
-  - `scroll-memory.js`, homepage only, first: the landing decision and the reserved height must be in place before the body is parsed.
+- Four scripts block in the `<head>`, each for a reason:
+  - `helpers.js`, first on every page: the shared helpers every other script uses, the head ones included.
+  - `scroll-memory.js`, homepage only, next: the landing decision and the reserved height must be in place before the body is parsed.
   - `loader.js`: the arrival cover must be up before the body is parsed, and every script uses it.
   - `series.js`: `window.EmjiveSeries` must exist before anything runs, and starting the series fetch at head-parse time is what the hero's no-flash arrival relies on.
 - Everything else is `defer`red, so it downloads in parallel and runs in document order. Where one script builds on another, that order matters. The index shows each page's script list in order.
@@ -72,6 +73,8 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 - **`CustomEvent`s on `window`** for state changes several scripts react to (the selection changing, the Modify sheet opening and closing).
 
 The index lists the event names and storage keys.
+
+**Shared code lives in one place, one per runtime.** The small utilities several scripts need (building elements, easing, waiting on a frame or a transition, web storage, slider keys, a product's pictures) are in `js/helpers.js`, and the Node tooling's (paths, catalog lookups, the dev servers' plumbing, the glTF reader) in `scripts/helpers.js`. There are two because neither runtime can load the other's. The 3D modules read the browser one too, which is why the dev pages and the render harness that load them include it.
 
 **Failure is a designed state, not an exception.**
 
@@ -132,7 +135,7 @@ Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden
 
 ## 6. Responsive images
 
-The big pictures (the hero, the item x-rays) come in up to four versions: desktop or phone, low or high resolution. The phone versions are **cropped** to the middle of the picture, because a phone only ever shows the middle. That's also why they are chosen in JavaScript from the phone query and not with `srcset`/`sizes`: `sizes` can't say "most of this is off-canvas". Low resolution comes first, and high resolution is swapped in once the page is idle. The crop fractions and the query live in several files (the image script, the stylesheets, the loader, the build), and `validate-data` checks that they agree.
+The big pictures (the hero, the item x-rays) come in up to four versions: desktop or phone, low or high resolution. The phone versions are **cropped** to the middle of the picture, because a phone only ever shows the middle. That's also why they are chosen in JavaScript from the phone query and not with `srcset`/`sizes`: `sizes` can't say "most of this is off-canvas". Low resolution comes first, and high resolution is swapped in once the page is idle. The crop fractions and the query live in several files (the image script, the stylesheets, the loader, the Node helpers), and `validate-data` checks that they agree.
 
 ## 7. Build, verify, deploy
 

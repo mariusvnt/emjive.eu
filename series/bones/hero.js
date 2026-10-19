@@ -62,11 +62,7 @@
       awaitingEnd = false;
       // Only from the top: a visitor who already scrolled stays put.
       if (tall && (window.pageYOffset || window.scrollY || 0) === 0) {
-        var previous = root.style.scrollBehavior;
-        root.style.scrollBehavior = "auto";
-        window.scrollTo(0, root.scrollHeight);
-        if (previous) root.style.scrollBehavior = previous;
-        else root.style.removeProperty("scroll-behavior");
+        window.EmjiveHelpers.jumpScroll(root.scrollHeight);
       }
       updateReveal();
     })();

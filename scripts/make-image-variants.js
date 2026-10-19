@@ -17,11 +17,11 @@
 //   npm run image-variants -- --series=<slug>
 // Also called by scripts/auto-render.js through makeVariants().
 
-const { readdirSync, statSync, existsSync, writeFileSync } = require("node:fs");
-const { join, resolve, relative, dirname, basename, extname } = require("node:path");
+const { statSync, existsSync, writeFileSync } = require("node:fs");
+const { join, dirname, basename, extname } = require("node:path");
+const { ROOT, repoPath, walk, argValue } = require("./helpers");
 
-const REPO_ROOT = resolve(__dirname, "..");
-const ASSETS_ROOT = join(REPO_ROOT, "assets", "series");
+const ASSETS_ROOT = join(ROOT, "assets", "series");
 
 // Share of the width a smartphone version keeps, around the centre. Mirrored
 // by --xray-crop (css/style.css) and --hero-crop (series/<slug>/hero.css);
@@ -54,15 +54,6 @@ const RULES = [
   { kind: "icons", pattern: /[\\/]products[\\/].*_icon_[a-z0-9-]+\.webp$/i, versions: [{ suffix: "128", width: 128, quality: 82 }] }
 ];
 
-function walk(dir, out) {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) walk(full, out);
-    else out.push(full);
-  }
-  return out;
-}
-
 function kb(bytes) {
   return (bytes / 1024).toFixed(0) + " KB";
 }
@@ -92,18 +83,18 @@ async function render(sharp, file, version) {
 async function makeVariants(options) {
   const opts = options || {};
   const root = opts.series ? join(ASSETS_ROOT, opts.series) : ASSETS_ROOT;
-  if (!existsSync(root)) throw new Error("No such series folder: " + relative(REPO_ROOT, root));
+  if (!existsSync(root)) throw new Error("No such series folder: " + repoPath(root));
   const rules = opts.kinds ? RULES.filter((r) => opts.kinds.includes(r.kind)) : RULES;
   const sharp = require("sharp");
 
   let made = 0;
   let skipped = 0;
-  for (const file of walk(root, []).sort()) {
+  for (const file of walk(root).sort()) {
     const rule = rules.find((r) => r.pattern.test(file));
     if (!rule) continue;
     for (const version of rule.versions) {
       const out = join(dirname(file), basename(file, extname(file)) + "_" + version.suffix + extname(file));
-      const rel = relative(REPO_ROOT, out).replace(/\\/g, "/");
+      const rel = repoPath(out);
       if (existsSync(out) && !opts.force) {
         skipped++;
         continue;
@@ -122,7 +113,7 @@ module.exports = { makeVariants, PHONE_CROP };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
-  const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
+  const seriesArg = argValue(args, "series");
   makeVariants({ dryRun: args.includes("--dry-run"), force: args.includes("--force"), series: seriesArg }).catch((err) => {
     console.error(err);
     process.exitCode = 1;

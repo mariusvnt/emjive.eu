@@ -12,10 +12,10 @@
 //   npm run optimize-models -- --simplify=0.5 also cut ~50% of triangles
 
 const { readdirSync, statSync, existsSync } = require("node:fs");
-const { join, resolve, relative } = require("node:path");
+const { join, resolve } = require("node:path");
+const { ROOT, repoPath, mb, gltfIO } = require("./helpers");
 
-const REPO_ROOT = resolve(__dirname, "..");
-const SERIES_ROOT = join(REPO_ROOT, "assets", "series");
+const SERIES_ROOT = join(ROOT, "assets", "series");
 
 // NORMAL is kept: without it three.js shades flat faces.
 const DROPPED_ATTRIBUTE_PREFIXES = ["TEXCOORD_", "COLOR_", "TANGENT", "_"];
@@ -35,10 +35,6 @@ function findProductModels() {
     }
   }
   return found;
-}
-
-function mb(bytes) {
-  return (bytes / 1048576).toFixed(2) + " MB";
 }
 
 function measure(document) {
@@ -102,7 +98,7 @@ async function main() {
   const explicit = args.filter((a) => !a.startsWith("--"));
 
   const files = explicit.length
-    ? explicit.map((p) => resolve(REPO_ROOT, p))
+    ? explicit.map((p) => resolve(ROOT, p))
     : findProductModels();
 
   if (!files.length) {
@@ -112,24 +108,16 @@ async function main() {
   }
 
   // ESM-only packages, hence dynamic imports.
-  const { NodeIO } = await import("@gltf-transform/core");
-  const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
   const { dedup, draco, prune, weld, simplify } = await import("@gltf-transform/functions");
-  const draco3d = (await import("draco3dgltf")).default;
   const meshoptimizer = simplifyRatio !== null ? await import("meshoptimizer") : null;
 
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({
-      "draco3d.decoder": await draco3d.createDecoderModule(),
-      "draco3d.encoder": await draco3d.createEncoderModule()
-    });
+  const io = await gltfIO({ encoder: true });
 
   let totalBefore = 0;
   let totalAfter = 0;
 
   for (const file of files) {
-    const rel = relative(REPO_ROOT, file).replace(/\\/g, "/");
+    const rel = repoPath(file);
     const sizeBefore = statSync(file).size;
     totalBefore += sizeBefore;
 

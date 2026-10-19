@@ -13,28 +13,13 @@
 
 const fs = require("fs");
 const path = require("path");
-const http = require("http");
 const blocks = require("./json-tool-blocks");
+const {
+  ROOT, SERIES_JSON_PATH, readJson, repoPath, findSeriesEntry, folderSlug, productFolder, catalogDrift,
+  readJsonBody, sendJson, startToolServer
+} = require("./helpers");
 
-const ROOT = path.resolve(__dirname, "..");
-const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const PORT = 5201;
-
-const MIME = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".mjs": "text/javascript",
-  ".glb": "model/gltf-binary",
-  ".gltf": "model/gltf+json",
-  ".hdr": "application/octet-stream",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-  ".css": "text/css"
-};
 
 const MODEL_EXTS = [".glb", ".gltf"];
 const IMAGE_EXTS = [".png", ".webp", ".jpg", ".jpeg"];
@@ -44,47 +29,12 @@ const IMAGE_EXTS = [".png", ".webp", ".jpg", ".jpeg"];
 // Base64 inflates ~33%: room for a model plus a batch of photos.
 const MAX_BODY_BYTES = 60 * 1024 * 1024;
 
-function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        req.destroy();
-        reject(new Error("request body too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      try {
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch (err) {
-        reject(new Error("invalid JSON body"));
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-function sendJson(res, status, obj) {
-  const body = JSON.stringify(obj);
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(body);
-}
-
 function toPosix(p) {
   return p.replace(/\\/g, "/");
 }
 
 function extOf(filename) {
   return path.extname(String(filename || "")).toLowerCase();
-}
-
-function findSeriesEntry(seriesIndex, seriesSlug) {
-  return (seriesIndex.series || []).find((s) => s.slug === seriesSlug) || null;
 }
 
 // Guards recursive deletes: slugs and categories come from hand-editable JSON,
@@ -98,14 +48,9 @@ function loadAllProductsData(seriesIndex) {
   const bySlug = {};
   for (const s of seriesIndex.series || []) {
     const absPath = path.join(ROOT, s.products);
-    bySlug[s.slug] = { absPath, data: JSON.parse(fs.readFileSync(absPath, "utf8")) };
+    bySlug[s.slug] = { absPath, data: readJson(absPath) };
   }
   return bySlug;
-}
-
-// A product's asset folder, from its current name and category (as in scripts/auto-render.js).
-function productFolder(seriesSlug, name, category) {
-  return "assets/series/" + seriesSlug + "/products/" + blocks.slug(name) + "_" + category;
 }
 
 // Next id within one series (ids restart per series), keeping the existing zero-padding.
@@ -115,48 +60,6 @@ function nextProductId(productsData) {
   const max = numeric.length ? Math.max.apply(null, numeric) : 0;
   const width = ids.reduce((w, id) => Math.max(w, id.length), 2);
   return String(max + 1).padStart(width, "0");
-}
-
-// Read-only drift warnings for GET /api/data (as auto-render.js warns).
-function collectDriftWarnings(seriesIndex, seriesData) {
-  const warnings = [];
-  const categoryVocabulary = Object.keys(seriesIndex.categories || {});
-  const hdriVocabulary = Object.keys(seriesIndex.hdris || {});
-
-  for (const entry of seriesIndex.series || []) {
-    for (const cat of entry.categories || []) {
-      if (!categoryVocabulary.includes(cat)) {
-        warnings.push('series "' + entry.slug + '" declares category "' + cat + '" which isn\'t in data/series.json\'s top-level "categories"');
-      }
-    }
-    const productsData = (seriesData[entry.slug] || {}).products;
-    if (productsData) {
-      for (const product of productsData.products || []) {
-        if (!(entry.categories || []).includes(product.category)) {
-          warnings.push('[' + entry.slug + '] ' + product.name + ' is category "' + product.category + '", which that series doesn\'t declare — it won\'t be reachable by any filter');
-        }
-      }
-    }
-    if (!entry.hdri || !hdriVocabulary.includes(entry.hdri)) {
-      warnings.push('series "' + entry.slug + '" declares hdri "' + entry.hdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
-    }
-  }
-
-  const swatchHdri = seriesIndex["swatch-hdri"];
-  if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
-    warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
-  }
-  const swatchBlur = seriesIndex["swatch-blur"];
-  if (swatchBlur !== undefined && !(typeof swatchBlur === "number" && isFinite(swatchBlur) && swatchBlur >= 0)) {
-    warnings.push('top-level "swatch-blur" is ' + JSON.stringify(swatchBlur) + ", not a number of pixels (0 or more)");
-  }
-  const swatchCamera = seriesIndex["swatch-camera"];
-  if (swatchCamera !== undefined) {
-    const ok = swatchCamera && typeof swatchCamera === "object" &&
-      ["rotation", "tilt", "roll"].every((k) => typeof swatchCamera[k] === "number" && isFinite(swatchCamera[k]));
-    if (!ok) warnings.push('top-level "swatch-camera" is ' + JSON.stringify(swatchCamera) + ", not { rotation, tilt, roll } of numbers");
-  }
-  return warnings;
 }
 
 // ---- asset path safety ----
@@ -204,24 +107,23 @@ function moveAssetFile(oldRel, newRel, moved, warnings) {
 // with its next product id, and drift warnings ----
 
 async function handleGetData(req, res) {
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesData = {};
+  const productsBySlug = {};
   for (const s of seriesIndex.series || []) {
-    const productsAbsPath = path.join(ROOT, s.products);
-    const productsData = JSON.parse(fs.readFileSync(productsAbsPath, "utf8"));
-    let manifestData = null;
-    const manifestAbsPath = path.join(ROOT, s.manifest);
-    if (fs.existsSync(manifestAbsPath)) manifestData = JSON.parse(fs.readFileSync(manifestAbsPath, "utf8"));
+    const productsData = readJson(s.products);
+    const manifestData = fs.existsSync(path.join(ROOT, s.manifest)) ? readJson(s.manifest) : null;
     seriesData[s.slug] = { products: productsData, manifest: manifestData, nextProductId: nextProductId(productsData) };
+    productsBySlug[s.slug] = productsData;
   }
-  const driftWarnings = collectDriftWarnings(seriesIndex, seriesData);
+  const driftWarnings = catalogDrift(seriesIndex, productsBySlug);
   sendJson(res, 200, { seriesIndex, seriesData, driftWarnings });
 }
 
 // ---- global parameters ----
 
 async function handleGlobalFeatured(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   if (body.featured === undefined) return sendJson(res, 400, { error: "featured is required" });
 
   const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
@@ -250,7 +152,7 @@ function findCategoryUsages(seriesIndex, key) {
 }
 
 async function handleGlobalCategory(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const key = String(body.key || "").trim();
   if (!key) return sendJson(res, 400, { error: "key is required" });
 
@@ -296,7 +198,7 @@ function findHdriUsages(seriesIndex, key) {
 }
 
 async function handleGlobalHdri(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const key = String(body.key || "").trim();
 
   const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
@@ -338,7 +240,7 @@ async function handleGlobalHdri(req, res) {
 }
 
 async function handleGlobalMetal(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const metal = String(body.metal || "").trim();
   if (!metal || !/^[a-z0-9-]+$/.test(metal)) return sendJson(res, 400, { error: "metal must be a lowercase kebab-case name" });
 
@@ -420,7 +322,7 @@ async function handleGlobalMetal(req, res) {
 // ---- series ----
 
 async function handleSeriesEdit(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const fields = body.fields || {};
   if (!seriesSlug) return sendJson(res, 400, { error: "seriesSlug is required" });
@@ -457,7 +359,7 @@ async function handleSeriesEdit(req, res) {
 }
 
 async function handleSeriesAdd(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const slugValue = String(body.slug || "").trim();
   const name = String(body.name || "").trim();
   const year = String(body.year || "").trim();
@@ -541,7 +443,7 @@ async function handleSeriesAdd(req, res) {
 // Deletes a series' data, hero bundle and assets, and its block. Refused for
 // the featured or last series.
 async function handleSeriesRemove(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const slugValue = body.slug;
   if (!slugValue) return sendJson(res, 400, { error: "slug is required" });
   if (!isSafeSlugSegment(slugValue)) return sendJson(res, 400, { error: "unsafe slug: " + slugValue });
@@ -565,7 +467,7 @@ async function handleSeriesRemove(req, res) {
   ].forEach((dir) => {
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
-      deleted.push(path.relative(ROOT, dir).replace(/\\/g, "/"));
+      deleted.push(repoPath(dir));
     }
   });
 
@@ -579,14 +481,14 @@ async function handleSeriesRemove(req, res) {
 // ---- products ----
 
 async function handleProductAdd(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const name = String(body.name || "").trim();
   const category = body.category;
   if (!seriesSlug) return sendJson(res, 400, { error: "seriesSlug is required" });
   if (!name || !category) return sendJson(res, 400, { error: "name and category are required" });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -614,7 +516,7 @@ async function handleProductAdd(req, res) {
     if (body.modelFile && body.modelFile.filename) {
       const ext = extOf(body.modelFile.filename);
       if (!MODEL_EXTS.includes(ext)) return sendJson(res, 400, { error: "model file must be .glb or .gltf" });
-      const dest = folder + "/" + blocks.slug(name) + "_gltf" + ext;
+      const dest = folder + "/" + folderSlug(name) + "_gltf" + ext;
       writeBase64File(dest, body.modelFile.contentBase64);
       assets.model = dest;
       written.push(dest);
@@ -622,7 +524,7 @@ async function handleProductAdd(req, res) {
     if (body.xrayFile && body.xrayFile.filename) {
       const ext = extOf(body.xrayFile.filename);
       if (!IMAGE_EXTS.includes(ext)) return sendJson(res, 400, { error: "xray file must be a png/webp/jpg image" });
-      const dest = folder + "/" + blocks.slug(name) + "_xray" + ext;
+      const dest = folder + "/" + folderSlug(name) + "_xray" + ext;
       writeBase64File(dest, body.xrayFile.contentBase64);
       assets.xray = dest;
       written.push(dest);
@@ -669,12 +571,12 @@ async function handleProductAdd(req, res) {
 }
 
 async function handleProductEdit(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -751,7 +653,7 @@ async function handleProductEdit(req, res) {
     if (body.modelFile && body.modelFile.filename) {
       const ext = extOf(body.modelFile.filename);
       if (!MODEL_EXTS.includes(ext)) return sendJson(res, 400, { error: "model file must be .glb or .gltf" });
-      const dest = newFolder + "/" + blocks.slug(nextName) + "_gltf" + ext;
+      const dest = newFolder + "/" + folderSlug(nextName) + "_gltf" + ext;
       writeBase64File(dest, body.modelFile.contentBase64);
       merged.assets.model = dest;
       written.push(dest);
@@ -760,7 +662,7 @@ async function handleProductEdit(req, res) {
     if (body.xrayFile && body.xrayFile.filename) {
       const ext = extOf(body.xrayFile.filename);
       if (!IMAGE_EXTS.includes(ext)) return sendJson(res, 400, { error: "xray file must be a png/webp/jpg image" });
-      const dest = newFolder + "/" + blocks.slug(nextName) + "_xray" + ext;
+      const dest = newFolder + "/" + folderSlug(nextName) + "_xray" + ext;
       writeBase64File(dest, body.xrayFile.contentBase64);
       merged.assets.xray = dest;
       written.push(dest);
@@ -789,12 +691,12 @@ async function handleProductEdit(req, res) {
 
 // Deletes a product's asset folder and its block.
 async function handleProductRemove(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
 
@@ -824,7 +726,7 @@ async function handleProductRemove(req, res) {
 }
 
 async function handleProductRemovePhoto(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   const photoPath = body.photoPath;
@@ -832,7 +734,7 @@ async function handleProductRemovePhoto(req, res) {
     return sendJson(res, 400, { error: "seriesSlug, productId and photoPath are required" });
   }
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -862,7 +764,7 @@ async function handleProductRemovePhoto(req, res) {
 
 // A photo's caption (assets.photos[i].description), matched by src.
 async function handleProductUpdatePhotoDescription(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   const photoPath = body.photoPath;
@@ -870,7 +772,7 @@ async function handleProductUpdatePhotoDescription(req, res) {
     return sendJson(res, 400, { error: "seriesSlug, productId and photoPath are required" });
   }
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -902,7 +804,7 @@ async function handleProductUpdatePhotoDescription(req, res) {
 // stage uploads for Save).
 
 async function handleProductReplaceAsset(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   const assetKey = body.assetKey;
@@ -910,7 +812,7 @@ async function handleProductReplaceAsset(req, res) {
   if (assetKey !== "model" && assetKey !== "xray") return sendJson(res, 400, { error: 'assetKey must be "model" or "xray"' });
   if (!body.filename || !body.contentBase64) return sendJson(res, 400, { error: "filename and contentBase64 are required" });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -927,7 +829,7 @@ async function handleProductReplaceAsset(req, res) {
 
   const folder = productFolder(seriesSlug, current.name, current.category);
   const suffix = assetKey === "model" ? "_gltf" : "_xray";
-  const dest = folder + "/" + blocks.slug(current.name) + suffix + ext;
+  const dest = folder + "/" + folderSlug(current.name) + suffix + ext;
 
   try {
     writeBase64File(dest, body.contentBase64);
@@ -953,14 +855,14 @@ async function handleProductReplaceAsset(req, res) {
 }
 
 async function handleProductRemoveAsset(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   const assetKey = body.assetKey;
   if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
   if (assetKey !== "model" && assetKey !== "xray") return sendJson(res, 400, { error: 'assetKey must be "model" or "xray"' });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -991,7 +893,7 @@ async function handleProductRemoveAsset(req, res) {
 
 // Replaces a photo at the same index, so the carousel order holds.
 async function handleProductReplacePhoto(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   const seriesSlug = body.seriesSlug;
   const productId = body.productId;
   const oldPhotoPath = body.oldPhotoPath;
@@ -1000,7 +902,7 @@ async function handleProductReplacePhoto(req, res) {
   }
   if (!body.filename || !body.contentBase64) return sendJson(res, 400, { error: "filename and contentBase64 are required" });
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
   if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
   const metals = seriesIndex.metals || [];
@@ -1047,7 +949,7 @@ async function handleProductReplacePhoto(req, res) {
 // ---- file primitives ----
 
 async function handleSaveFile(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   try {
     writeBase64File(body.destPath, body.contentBase64);
   } catch (err) {
@@ -1057,7 +959,7 @@ async function handleSaveFile(req, res) {
 }
 
 async function handleDeleteFile(req, res) {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
   if (!isAllowedAssetDestPath(body.path)) return sendJson(res, 400, { error: "path not allowed: " + body.path });
   const absPath = path.join(ROOT, body.path);
   if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
@@ -1085,60 +987,4 @@ const ROUTES = {
   "POST /api/delete-file": handleDeleteFile
 };
 
-// ---- static files ----
-function serveStatic(req, res) {
-  let urlPath = decodeURIComponent(req.url.split("?")[0]);
-  if (urlPath === "/") urlPath = "/json-tool.html";
-  const filePath = path.join(ROOT, urlPath);
-  const normalizedFile = path.resolve(filePath).replace(/\\/g, "/").toLowerCase();
-  const normalizedRoot = path.resolve(ROOT).replace(/\\/g, "/").toLowerCase();
-  if (!normalizedFile.startsWith(normalizedRoot)) {
-    res.writeHead(403);
-    res.end();
-    return;
-  }
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404);
-      res.end("not found: " + urlPath);
-      return;
-    }
-    res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
-    res.end(data);
-  });
-}
-
-// These servers write and delete repo files: loopback only, Host must be a
-// loopback name (DNS rebinding), and non-GET requests must come from this
-// origin (cross-site writes).
-const LOOPBACK = "127.0.0.1";
-function isLocalRequest(req) {
-  const host = String(req.headers.host || "");
-  const allowed = ["localhost:" + PORT, LOOPBACK + ":" + PORT];
-  if (!allowed.includes(host)) return false;
-  if (req.method === "GET" || req.method === "HEAD") return true;
-  const origin = req.headers.origin;
-  return !origin || allowed.some((h) => origin === "http://" + h);
-}
-
-const server = http.createServer((req, res) => {
-  if (!isLocalRequest(req)) {
-    res.writeHead(403, { "Content-Type": "text/plain" });
-    res.end("forbidden");
-    return;
-  }
-  const routeKey = req.method + " " + req.url.split("?")[0];
-  const handler = ROUTES[routeKey];
-  if (handler) {
-    handler(req, res).catch((err) => {
-      console.error(err);
-      sendJson(res, 500, { error: String((err && err.message) || err) });
-    });
-    return;
-  }
-  serveStatic(req, res);
-});
-
-server.listen(PORT, LOOPBACK, () => {
-  console.log("json-tool — http://" + LOOPBACK + ":" + PORT + "/json-tool.html");
-});
+startToolServer({ name: "json-tool", port: PORT, page: "json-tool.html", routes: ROUTES });

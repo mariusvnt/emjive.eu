@@ -25,6 +25,11 @@
 (function () {
   "use strict";
 
+  var H = window.EmjiveHelpers;
+  var clamp01 = H.clamp01;
+  var ease = H.smootherstep;
+  var invEase = H.invSmootherstep;
+
   // Too short to pin title, model and controls (a phone on its side): a plain
   // column instead. Same query as the "flow" block in css/style.css.
   var FLOW_QUERY = "(max-height: 560px)";
@@ -58,28 +63,6 @@
   // The mirror ramp: full pace, easing to rest over the last `a` (the feed's).
   function exit(u, a) {
     return 1 - entry(1 - u, a);
-  }
-
-  // Inverse of ease() by bisection (ease is increasing).
-  function invEase(y) {
-    var lo = 0;
-    var hi = 1;
-    for (var i = 0; i < 30; i++) {
-      var mid = (lo + hi) / 2;
-      if (ease(mid) < y) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  }
-
-  function clamp01(x) {
-    return x < 0 ? 0 : x > 1 ? 1 : x;
-  }
-
-  // Perlin's smootherstep: zero speed and acceleration at both ends.
-  function ease(u) {
-    var t = clamp01(u);
-    return t * t * t * (t * (t * 6 - 15) + 10);
   }
 
   // The screen height as the pin counts it (svh), stable while the browser's
@@ -295,7 +278,7 @@
     var restarting = false;
     function restart() {
       if (restarting) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (H.reducedMotion.matches) {
         window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         return;
       }

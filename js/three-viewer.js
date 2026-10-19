@@ -23,6 +23,8 @@ export { toolkit };
 (function () {
   "use strict";
 
+  var H = window.EmjiveHelpers;
+
   // ---- Draco decoding ----
   // ONE decoder for the page: a DRACOLoader per load is the most-reported cause
   // of Draco failing on iOS Safari (three.js#22445), each spawning its own
@@ -244,7 +246,7 @@ export { toolkit };
       var x = componentAt(u, x1, x2) - t;
       var dx = 3 * (1 - u) * (1 - u) * x1 + 6 * (1 - u) * u * (x2 - x1) + 3 * u * u * (1 - x2);
       if (Math.abs(dx) < 1e-6) break;
-      u = Math.max(0, Math.min(1, u - x / dx));
+      u = H.clamp01(u - x / dx);
     }
     return componentAt(u, y1, y2);
   }
@@ -457,14 +459,9 @@ export { toolkit };
 
   // ---- session-wide nudge suppression ----
   // Once the visitor has dragged any viewer this session, no viewer nudges.
-  // sessionStorage, so a new visit gets the hint again.
+  // sessionStorage, so a new visit gets the hint again; per page where it's unavailable.
   var INTERACTION_SEEN_KEY = "emjive_model_interacted";
-  var interactionSuppressed = false;
-  try {
-    interactionSuppressed = sessionStorage.getItem(INTERACTION_SEEN_KEY) === "1";
-  } catch (e) {
-    // Unavailable (private browsing): per-page only.
-  }
+  var interactionSuppressed = H.readStorage("sessionStorage", INTERACTION_SEEN_KEY) === "1";
   // Live viewers' cancelNudge functions. Each closes over its whole viewer
   // (scene, renderer, geometry), so dispose() must unregister it or every viewer
   // ever built stays in memory.
@@ -481,11 +478,7 @@ export { toolkit };
     allCancelNudgeFns.slice().forEach(function (cancel) {
       cancel();
     });
-    try {
-      sessionStorage.setItem(INTERACTION_SEEN_KEY, "1");
-    } catch (e) {
-      // Worst case: not remembered on the next page.
-    }
+    H.writeStorage("sessionStorage", INTERACTION_SEEN_KEY, "1");
   }
 
   var POST_INERTIA_PAUSE = 420; // ms of stillness after stopping, before easing back
@@ -514,7 +507,7 @@ export { toolkit };
   // A live MediaQueryList, read per frame and per timer, so an OS toggle applies
   // without a listener to clean up. Local rather than shared: scene-tool.html
   // loads this module without js/series.js.
-  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reducedMotion = H.reducedMotion;
 
   // ---- the spin ----
   // How a model turns under a drag and comes home: TrackballControls rotation
@@ -869,22 +862,7 @@ export { toolkit };
     }
     renderer.domElement.addEventListener("webglcontextlost", handleContextLost, false);
 
-    // Frees a model's GPU resources; also used for models arriving after
-    // dispose(). Material.dispose() doesn't free its textures, so those are
-    // disposed explicitly.
-    function disposeMaterial(material) {
-      if (!material) return;
-      if (Array.isArray(material)) {
-        material.forEach(disposeMaterial);
-        return;
-      }
-      Object.keys(material).forEach(function (key) {
-        var value = material[key];
-        if (value && value.isTexture) value.dispose();
-      });
-      material.dispose();
-    }
-
+    // Frees a model's GPU resources; also used for models arriving after dispose().
     function disposeObject3D(root) {
       if (!root) return;
       root.traverse(function (node) {
@@ -1563,8 +1541,8 @@ export { toolkit };
       // for the size circle), 0..1 each. May be set before the model arrives.
       setBlueprint: function (sweep, fit) {
         if (!blueprint) return;
-        sweep = Math.max(0, Math.min(1, Number(sweep) || 0));
-        fit = Math.max(0, Math.min(1, Number(fit) || 0));
+        sweep = H.clamp01(Number(sweep) || 0);
+        fit = H.clamp01(Number(fit) || 0);
         if (sweep === blueprintSweep && fit === blueprintFit) return;
         blueprintSweep = sweep;
         blueprintFit = fit;
@@ -1871,7 +1849,7 @@ export { toolkit };
       var now = performance.now();
       if (idleOn && now >= idleAt && !spin.isBusy() && !reducedMotion.matches) {
         var ramp = Math.min(1, (now - idleAt) / 1000 / IDLE_SPIN_RAMP);
-        var angle = IDLE_SPIN_SPEED * ramp * ramp * (3 - 2 * ramp) * dt;
+        var angle = IDLE_SPIN_SPEED * H.smoothstep(0, 1, ramp) * dt;
         // About the default view's up, so the camera's up is the axis and holds still.
         camera.position.applyAxisAngle(home.up, angle);
         camera.up.copy(home.up);
@@ -1911,6 +1889,20 @@ export { toolkit };
     };
   }
 
+  // Material.dispose() doesn't free its textures, so those are disposed explicitly.
+  function disposeMaterial(material) {
+    if (!material) return;
+    if (Array.isArray(material)) {
+      material.forEach(disposeMaterial);
+      return;
+    }
+    Object.keys(material).forEach(function (key) {
+      var value = material[key];
+      if (value && value.isTexture) value.dispose();
+    });
+    material.dispose();
+  }
+
   toolkit = {
     loadModelFile: function (src, onLoad, onError) {
       preloadDracoDecoder();
@@ -1943,6 +1935,7 @@ export { toolkit };
       return orbitOrientation(product && product["3d-viewer-camera-default"]);
     },
     spinFor: spinFor,
+    disposeMaterial: disposeMaterial,
     // For the ?mem=1 read-out (js/viewer-entry.js).
     trackRenderer: function (renderer) { liveRenderers.push(renderer); },
     untrackRenderer: function (renderer) {

@@ -225,7 +225,10 @@
 
 <footer>Camera angle / HDRI live preview lives in <code>npm run scene-tool</code>, not here.</footer>
 
+<script src="js/helpers.js"></script>
 <script type="module">
+const { requestJson } = window.EmjiveHelpers;
+
 const state = {
   seriesIndex: null,
   seriesData: {},
@@ -279,20 +282,8 @@ async function init() {
 
 // ---- fetch/save plumbing ----
 
-function fetchJson(url, options) {
-  return fetch(url, options).then(async (res) => {
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
-    return data;
-  });
-}
-
-function postJson(url, body) {
-  return fetchJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-}
-
 async function loadData() {
-  const data = await fetchJson("/api/data");
+  const data = await requestJson("/api/data");
   state.seriesIndex = data.seriesIndex;
   state.seriesData = data.seriesData;
   state.driftWarnings = data.driftWarnings || [];
@@ -392,7 +383,7 @@ function wireGlobalPanel() {
     if (!file || !destPath) return;
     try {
       const contentBase64 = await fileToBase64(file);
-      await postJson("/api/save-file", { destPath, contentBase64 });
+      await requestJson("/api/save-file", { destPath, contentBase64 });
       setStatus(els.hdriStatus, true, 'Replaced "' + hdriReplaceTargetKey + '".');
       await refreshAfterSave();
     } catch (err) { setStatus(els.hdriStatus, false, err.message); }
@@ -400,7 +391,7 @@ function wireGlobalPanel() {
 
   els.featuredSaveBtn.addEventListener("click", async () => {
     try {
-      await postJson("/api/global/featured", { featured: els.featuredSelect.value });
+      await requestJson("/api/global/featured", { featured: els.featuredSelect.value });
       setStatus(els.featuredStatus, true, "Saved.");
       await refreshAfterSave();
     } catch (err) { setStatus(els.featuredStatus, false, err.message); }
@@ -412,7 +403,7 @@ function wireGlobalPanel() {
     const unit = els.categoryUnitInput.value.trim();
     if (!key) { setStatus(els.categoryStatus, false, "key is required"); return; }
     try {
-      await postJson("/api/global/category", { mode: "add", key, sizes, unit });
+      await requestJson("/api/global/category", { mode: "add", key, sizes, unit });
       els.categoryKeyInput.value = "";
       els.categorySizesInput.value = "";
       els.categoryUnitInput.value = "";
@@ -425,7 +416,7 @@ function wireGlobalPanel() {
     const metal = els.metalInput.value.trim();
     if (!metal) { setStatus(els.metalStatus, false, "metal name is required"); return; }
     try {
-      const result = await postJson("/api/global/metal", { metal });
+      const result = await requestJson("/api/global/metal", { metal });
       els.metalInput.value = "";
       setStatus(els.metalStatus, true, result.reminder || "Added.");
       await refreshAfterSave();
@@ -448,8 +439,8 @@ function wireGlobalPanel() {
     try {
       const contentBase64 = await fileToBase64(file);
       const destPath = "assets/hdri/" + file.name;
-      await postJson("/api/save-file", { destPath, contentBase64 });
-      await postJson("/api/global/hdri", { mode: "add", key, path: destPath });
+      await requestJson("/api/save-file", { destPath, contentBase64 });
+      await requestJson("/api/global/hdri", { mode: "add", key, path: destPath });
       state.hdriDropped = null;
       els.hdriKeyInput.value = "";
       els.hdriInfo.textContent = "";
@@ -480,7 +471,7 @@ function renderGlobalPanel() {
       const sizes = row.querySelector(".cat-sizes").value.split(",").map((s) => s.trim()).filter(Boolean);
       const unit = row.querySelector(".cat-unit").value.trim();
       try {
-        await postJson("/api/global/category", { mode: "edit", key, sizes, unit });
+        await requestJson("/api/global/category", { mode: "edit", key, sizes, unit });
         setStatus(els.categoryStatus, true, 'Saved "' + key + '".');
         await refreshAfterSave();
       } catch (err) { setStatus(els.categoryStatus, false, err.message); }
@@ -488,7 +479,7 @@ function renderGlobalPanel() {
     row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
       if (!confirm('Remove category "' + key + '"? This cannot be undone.')) return;
       try {
-        await postJson("/api/global/category", { mode: "remove", key });
+        await requestJson("/api/global/category", { mode: "remove", key });
         setStatus(els.categoryStatus, true, 'Removed "' + key + '".');
         await refreshAfterSave();
       } catch (err) { setStatus(els.categoryStatus, false, err.message); }
@@ -504,7 +495,7 @@ function renderGlobalPanel() {
     chip.querySelector("button").addEventListener("click", async () => {
       if (!confirm('Remove metal "' + m + '"? This strips it from every product\'s specs/assets too. This cannot be undone.')) return;
       try {
-        const result = await postJson("/api/global/metal", { mode: "remove", metal: m });
+        const result = await requestJson("/api/global/metal", { mode: "remove", metal: m });
         setStatus(els.metalStatus, true, result.reminder || "Removed.");
         await refreshAfterSave();
       } catch (err) { setStatus(els.metalStatus, false, err.message); }
@@ -527,7 +518,7 @@ function renderGlobalPanel() {
     row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
       if (!confirm('Remove HDRI "' + key + '"? This deletes the .hdr file too. This cannot be undone.')) return;
       try {
-        await postJson("/api/global/hdri", { mode: "remove", key });
+        await requestJson("/api/global/hdri", { mode: "remove", key });
         setStatus(els.hdriStatus, true, 'Removed "' + key + '".');
         await refreshAfterSave();
       } catch (err) { setStatus(els.hdriStatus, false, err.message); }
@@ -555,7 +546,7 @@ function wireSeriesPanel() {
     const seriesSlug = els.seriesEditSelect.value;
     const categories = Array.from(els.seriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
     try {
-      await postJson("/api/series/edit", {
+      await requestJson("/api/series/edit", {
         seriesSlug,
         fields: { name: els.seriesNameInput.value, year: els.seriesYearInput.value, hdri: els.seriesHdriSelect.value, categories }
       });
@@ -570,7 +561,7 @@ function wireSeriesPanel() {
     const label = entry ? entry.name : slugValue;
     if (!confirm('Remove series "' + label + '"? This deletes ALL of its data, products, and assets. This cannot be undone.')) return;
     try {
-      await postJson("/api/series/remove", { slug: slugValue });
+      await requestJson("/api/series/remove", { slug: slugValue });
       setStatus(els.seriesEditStatus, true, "Removed.");
       await refreshAfterSave();
     } catch (err) { setStatus(els.seriesEditStatus, false, err.message); }
@@ -579,7 +570,7 @@ function wireSeriesPanel() {
   els.seriesAddCreateBtn.addEventListener("click", async () => {
     const categories = Array.from(els.newSeriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
     try {
-      const result = await postJson("/api/series/add", {
+      const result = await requestJson("/api/series/add", {
         slug: els.newSeriesSlugInput.value.trim(),
         name: els.newSeriesNameInput.value.trim(),
         year: els.newSeriesYearInput.value.trim(),
@@ -669,7 +660,7 @@ function wireProductsPanel() {
     if (!file || !photoReplaceTargetPath) return;
     try {
       const contentBase64 = await fileToBase64(file);
-      await postJson("/api/product/replace-photo", {
+      await requestJson("/api/product/replace-photo", {
         seriesSlug: state.products.seriesSlug,
         productId: state.products.productId,
         oldPhotoPath: photoReplaceTargetPath,
@@ -698,7 +689,7 @@ async function replaceAssetImmediate(assetKey, inputEl) {
   if (!file) return;
   try {
     const contentBase64 = await fileToBase64(file);
-    await postJson("/api/product/replace-asset", {
+    await requestJson("/api/product/replace-asset", {
       seriesSlug: state.products.seriesSlug,
       productId: state.products.productId,
       assetKey,
@@ -713,7 +704,7 @@ async function replaceAssetImmediate(assetKey, inputEl) {
 async function removeAsset(assetKey, label) {
   if (!confirm("Remove the " + label + "? This cannot be undone.")) return;
   try {
-    await postJson("/api/product/remove-asset", {
+    await requestJson("/api/product/remove-asset", {
       seriesSlug: state.products.seriesSlug,
       productId: state.products.productId,
       assetKey
@@ -726,7 +717,7 @@ async function removeAsset(assetKey, label) {
 async function removePhoto(photoPath) {
   if (!confirm("Remove this photo? This cannot be undone.")) return;
   try {
-    await postJson("/api/product/remove-photo", {
+    await requestJson("/api/product/remove-photo", {
       seriesSlug: state.products.seriesSlug,
       productId: state.products.productId,
       photoPath
@@ -738,7 +729,7 @@ async function removePhoto(photoPath) {
 
 async function updatePhotoDescription(photoPath, description) {
   try {
-    await postJson("/api/product/update-photo-description", {
+    await requestJson("/api/product/update-photo-description", {
       seriesSlug: state.products.seriesSlug,
       productId: state.products.productId,
       photoPath,
@@ -754,7 +745,7 @@ async function removeProduct() {
   if (!product) return;
   if (!confirm('Remove product "' + product.name + '"? This deletes its asset folder too. This cannot be undone.')) return;
   try {
-    await postJson("/api/product/remove", {
+    await requestJson("/api/product/remove", {
       seriesSlug: state.products.seriesSlug,
       productId: state.products.productId
     });
@@ -986,9 +977,9 @@ async function onProductSave() {
     if (state.products.mode === "edit") {
       payload.productId = state.products.productId;
       payload.fields = { name, category, description, defaultMetal, perMetalSpecs, heroHandVisibility, cameraDefault };
-      result = await postJson("/api/product/edit", payload);
+      result = await requestJson("/api/product/edit", payload);
     } else {
-      result = await postJson("/api/product/add", payload);
+      result = await requestJson("/api/product/add", payload);
     }
 
     setStatus(els.productStatus, true, "Saved.");

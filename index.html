@@ -36,7 +36,10 @@
 
 <link rel="stylesheet" href="css/style.css" />
 
-<!-- First blocking script: reserves the previous document height before
+<!-- First: the helpers every script uses (window.EmjiveHelpers). -->
+<script src="js/helpers.js"></script>
+
+<!-- Blocking: reserves the previous document height before
      <body> parses, so the saved scroll offset is reachable on first paint.
      After the stylesheet, whose .emjive-restoring-scroll rules it needs. -->
 <script src="js/scroll-memory.js"></script>

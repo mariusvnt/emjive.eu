@@ -439,7 +439,7 @@
           if (gridFirst) {
             upgradeHeroImages(slot);
           } else if (heroImgs.length && window.EmjiveLoader) {
-            Promise.all(heroImgs.map(window.EmjiveLoader.imageReady)).then(function () {
+            Promise.all(heroImgs.map(window.EmjiveHelpers.imageReady)).then(function () {
               pageReady();
               upgradeHeroImages(slot);
             });

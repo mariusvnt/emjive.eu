@@ -8,12 +8,7 @@
 (function () {
   "use strict";
 
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  var el = window.EmjiveHelpers.el;
 
   function mount(container, opts) {
     var metals = opts.metals || [];

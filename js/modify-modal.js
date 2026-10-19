@@ -38,12 +38,8 @@
   // The Undo offer's length, from the Unselect, regardless of focus or pointer.
   var UNDO_MS = 4000;
 
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  var H = window.EmjiveHelpers;
+  var el = H.el;
 
   // An element, or a function returning one.
   function resolve(want) {
@@ -190,39 +186,13 @@
     cancelLeave: null
   };
 
-  function assetFor(kind, metal) {
-    var assets = state.product && state.product.assets;
-    return (assets && assets[kind] && assets[kind][metal]) || "";
-  }
-
   function iconSrc(metal) {
-    return assetFor("icons", metal);
+    return H.assetFor(state.product, "icons", metal);
   }
 
   // The viewer's own poster image, so the swap moves nothing; the icon only without one.
   function posterSrc(metal) {
-    return assetFor("fallback-img", metal) || iconSrc(metal);
-  }
-
-  // fn once el's `prop` transition ends, or after ms (background tab). Returns a cancel.
-  function afterTransition(el, prop, ms, fn) {
-    var done = false;
-    var timer = setTimeout(finish, ms);
-    function onEnd(e) {
-      if (e.target === el && e.propertyName === prop) finish();
-    }
-    function cancel() {
-      done = true;
-      el.removeEventListener("transitionend", onEnd);
-      clearTimeout(timer);
-    }
-    function finish() {
-      if (done) return;
-      cancel();
-      fn();
-    }
-    el.addEventListener("transitionend", onEnd);
-    return cancel;
+    return H.posterFor(state.product, metal);
   }
 
   // "modify", "select", or "saved" (band growing and fading, layout kept).
@@ -264,7 +234,7 @@
       return;
     }
     setStripMode("saved");
-    state.cancelLeave = afterTransition(saveBand, "opacity", SAVE_LEAVE_MS, function () {
+    state.cancelLeave = H.afterTransition(saveBand, "opacity", SAVE_LEAVE_MS, function () {
       state.cancelLeave = null;
       handBack();
     });
@@ -299,19 +269,10 @@
   }
 
   // Re-tint after the row's new label has painted: rebuilding materials can
-  // hold a phone's next frame. rAF precedes the paint, the timeout follows it;
-  // picks meanwhile just use the current metal.
-  var tintQueued = false;
-  function tintAfterPaint() {
-    if (tintQueued) return;
-    tintQueued = true;
-    requestAnimationFrame(function () {
-      setTimeout(function () {
-        tintQueued = false;
-        if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
-      }, 0);
-    });
-  }
+  // hold a phone's next frame. Picks meanwhile just use the current metal.
+  var tintAfterPaint = H.afterPaint(function () {
+    if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
+  });
 
   function selectMetal(metal) {
     if (metal === state.selectedMetal) return;
@@ -395,7 +356,7 @@
       }, function () {});
       return;
     }
-    state.cancelViewerBuild = afterTransition(sheet, "transform", SLIDE_IN_MS, function () {
+    state.cancelViewerBuild = H.afterTransition(sheet, "transform", SLIDE_IN_MS, function () {
       state.cancelViewerBuild = null;
       buildViewer();
     });
@@ -719,7 +680,6 @@
     // Added as its default design; choosing another is the product page's job.
     product = window.EmjiveSeries.resolveDesign(product).view;
     var metal = product["default-metal"];
-    var icons = (product.assets && product.assets.icons) || {};
     var lastSize = "";
     var selection = window.EmjiveSelection.getSelection();
     for (var i = selection.length - 1; i >= 0; i--) {
@@ -736,7 +696,7 @@
       metal: metal,
       size: lastSize,
       price: window.EmjiveSelection.priceAt(product, metal, lastSize),
-      image: icons[metal] || ""
+      image: H.assetFor(product, "icons", metal)
     };
     if (product.designKey) item.design = product.designKey;
     var opts = {};

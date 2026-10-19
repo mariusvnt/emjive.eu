@@ -52,24 +52,14 @@
 
   function readAll() {
     if (memoryItems) return memoryItems.slice();
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      var parsed = JSON.parse(raw);
-      if (!parsed || parsed.v !== STORAGE_VERSION || !Array.isArray(parsed.items)) return [];
-      return sanitizeItems(parsed.items);
-    } catch (e) {
-      return [];
-    }
+    var parsed = window.EmjiveHelpers.readStorageJson("localStorage", STORAGE_KEY);
+    if (!parsed || parsed.v !== STORAGE_VERSION || !Array.isArray(parsed.items)) return [];
+    return sanitizeItems(parsed.items);
   }
 
   function writeAll(items) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_VERSION, items: items }));
-      memoryItems = null;
-    } catch (e) {
-      memoryItems = items.slice();
-    }
+    var stored = window.EmjiveHelpers.writeStorage("localStorage", STORAGE_KEY, JSON.stringify({ v: STORAGE_VERSION, items: items }));
+    memoryItems = stored ? null : items.slice();
   }
 
   // Another tab changed the cart ("storage" fires only in other documents, so

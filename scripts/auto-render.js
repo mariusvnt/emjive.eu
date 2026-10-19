@@ -37,9 +37,12 @@ const http = require("http");
 const puppeteer = require("puppeteer-core");
 const sharp = require("sharp");
 const { makeVariants } = require("./make-image-variants");
+const blocks = require("./json-tool-blocks");
+const {
+  ROOT, SERIES_JSON_PATH, readJson, repoPath, argValue, folderSlug, productFolder, isSwatchCamera,
+  catalogDrift, serveStatic
+} = require("./helpers");
 
-const ROOT = path.resolve(__dirname, "..");
-const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
 const PORT = 5199;
 
 const ICON_SIZE = 512;
@@ -81,22 +84,7 @@ function findChrome() {
   );
 }
 
-const MIME = {
-  ".html": "text/html",
-  ".js": "text/javascript",
-  ".mjs": "text/javascript",
-  ".glb": "model/gltf-binary",
-  ".gltf": "model/gltf+json",
-  ".hdr": "application/octet-stream",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-  ".css": "text/css"
-};
-
-// A minimal page loading the site's own js/three-viewer.js and
+// A minimal page loading the site's own js/helpers.js, js/three-viewer.js and
 // js/stack-scene.js, with an import map onto node_modules (no bundler here).
 // Harness-only viewer options: `transparentBackground` (alpha to crop
 // against) and `static` (no idle animation shifting the framing before the
@@ -111,6 +99,7 @@ const HARNESS_HTML = `<!doctype html>
   }
 }
 </script>
+<script src="js/helpers.js"></script>
 <script type="module" src="js/three-viewer.js"></script>
 <style>
   html, body { margin: 0; background: transparent; }
@@ -356,29 +345,12 @@ const HARNESS_HTML = `<!doctype html>
 function startServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      const urlPath = decodeURIComponent(req.url.split("?")[0]);
-      if (urlPath === "/__render__.html") {
+      if (req.url.split("?")[0] === "/__render__.html") {
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end(HARNESS_HTML);
         return;
       }
-      const filePath = path.join(ROOT, urlPath);
-      const normalizedFile = path.resolve(filePath).replace(/\\/g, "/").toLowerCase();
-      const normalizedRoot = path.resolve(ROOT).replace(/\\/g, "/").toLowerCase();
-      if (!normalizedFile.startsWith(normalizedRoot)) {
-        res.writeHead(403);
-        res.end();
-        return;
-      }
-      fs.readFile(filePath, (err, data) => {
-        if (err) {
-          res.writeHead(404);
-          res.end("not found: " + urlPath);
-          return;
-        }
-        res.writeHead(200, { "Content-Type": MIME[path.extname(filePath)] || "application/octet-stream" });
-        res.end(data);
-      });
+      serveStatic(req, res);
     });
     server.listen(PORT, () => resolve(server));
   });
@@ -463,61 +435,34 @@ async function renderSwatches(page, wantedMetals, hdriRelPath, blurPx, camera) {
   }
 }
 
-function slug(name) {
-  return String(name).trim().toLowerCase().replace(/\s+/g, "-");
-}
-
 function deleteIfExists(absPath) {
   if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
 }
 
-// Replaces one metal's path in a product's "<blockKey>": {...} map, in the raw
-// text (hand alignment survives). The product is found by "id", the map within
-// its block, which runs to the next "id": (so a design entry is keyed "key",
-// never "id"). null if not found (the caller warns).
-function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPath) {
-  const idAnchor = `"id": "${product.id}"`;
-  const startIdx = text.indexOf(idAnchor);
-  if (startIdx === -1) return null;
-  const nextIdIdx = text.indexOf('"id": "', startIdx + idAnchor.length);
-  const blockEnd = nextIdIdx === -1 ? text.length : nextIdIdx;
-  const block = text.slice(startIdx, blockEnd);
-
-  const blockPattern = new RegExp(`"${blockKey}":\\s*\\{[^}]*\\}`);
-  const blockMatch = block.match(blockPattern);
-  if (!blockMatch) return null;
-  const matchedBlock = blockMatch[0];
-  const metalKeyPattern = new RegExp(`("${metal}":\\s*)"[^"]*"`);
-  if (!metalKeyPattern.test(matchedBlock)) return null;
-  const newMatchedBlock = matchedBlock.replace(metalKeyPattern, `$1"${newRelPath}"`);
-  const newBlock = block.replace(matchedBlock, newMatchedBlock);
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+// Replaces one metal's path in the first "<blockKey>": {...} map within span,
+// in the raw text (hand alignment survives). null if not found (the caller warns).
+function updateMetalFieldInSpan(text, span, blockKey, metal, newRelPath) {
+  if (!span) return null;
+  const map = new RegExp(`"${blockKey}":\\s*\\{[^}]*\\}`).exec(text.slice(span.start, span.end));
+  if (!map) return null;
+  const start = span.start + map.index;
+  return blocks.replaceInSpan(text, { start, end: start + map[0].length }, new RegExp(`("${metal}":\\s*)"[^"]*"`), `$1"${newRelPath}"`);
 }
 
-// The same for a non-default design's map, found by its "key" inside the
-// product's "designs" list.
-function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal, newRelPath) {
-  const idAnchor = `"id": "${product.id}"`;
-  const productStart = text.indexOf(idAnchor);
-  if (productStart === -1) return null;
-  const nextIdIdx = text.indexOf('"id": "', productStart + idAnchor.length);
-  const productEnd = nextIdIdx === -1 ? text.length : nextIdIdx;
-  const listIdx = text.indexOf('"list": [', productStart);
-  if (listIdx === -1 || listIdx > productEnd) return null;
-  const keyAnchor = `"key": "${designKey}"`;
-  const startIdx = text.indexOf(keyAnchor, listIdx);
-  if (startIdx === -1 || startIdx > productEnd) return null;
-  const nextKeyIdx = text.indexOf('"key": "', startIdx + keyAnchor.length);
-  const blockEnd = nextKeyIdx === -1 || nextKeyIdx > productEnd ? productEnd : nextKeyIdx;
-  const block = text.slice(startIdx, blockEnd);
+// A product's map: its block runs to the next "id": (so a design entry is
+// keyed "key", never "id").
+function updateProductMetalFieldInText(text, product, blockKey, metal, newRelPath) {
+  return updateMetalFieldInSpan(text, blocks.anchoredSpan(text, "id", product.id), blockKey, metal, newRelPath);
+}
 
-  const blockPattern = new RegExp(`"${blockKey}":\\s*\\{[^}]*\\}`);
-  const blockMatch = block.match(blockPattern);
-  if (!blockMatch) return null;
-  const metalKeyPattern = new RegExp(`("${metal}":\\s*)"[^"]*"`);
-  if (!metalKeyPattern.test(blockMatch[0])) return null;
-  const newBlock = block.replace(blockMatch[0], blockMatch[0].replace(metalKeyPattern, `$1"${newRelPath}"`));
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+// A non-default design's map, found by its "key" inside the product's "designs" list.
+function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal, newRelPath) {
+  const productSpan = blocks.anchoredSpan(text, "id", product.id);
+  if (!productSpan) return null;
+  const listIdx = text.indexOf('"list": [', productSpan.start);
+  if (listIdx === -1 || listIdx > productSpan.end) return null;
+  const span = blocks.anchoredSpan(text, "key", designKey, listIdx, productSpan.end);
+  return updateMetalFieldInSpan(text, span, blockKey, metal, newRelPath);
 }
 
 // A product shown as one of its designs: the design's model and renders, the
@@ -534,97 +479,19 @@ function designView(product, design) {
   });
 }
 
-// A product's render folder, from the series layout (the <slug>_<category>
-// convention), not from wherever its model sits.
-function productFolder(seriesSlug, product) {
-  return "assets/series/" + seriesSlug + "/products/" + slug(product.name) + "_" + product.category;
-}
-
-// Both drifts fail silently on the site: a series category outside the global
-// vocabulary gives a dead filter button, a product outside its series'
-// categories vanishes under any filter.
-function warnCategoryDrift(seriesIndex, targets) {
-  const vocabulary = Object.keys(seriesIndex.categories || {});
-  for (const entry of seriesIndex.series) {
-    for (const cat of entry.categories || []) {
-      if (!vocabulary.includes(cat)) {
-        console.warn(
-          "  warning: series \"" + entry.slug + "\" declares category \"" + cat +
-          "\" which isn't in data/series.json's top-level \"categories\""
-        );
-      }
-    }
-  }
-  for (const target of targets) {
-    const declared = (seriesIndex.series.find((s) => s.slug === target.slug) || {}).categories || [];
-    for (const product of target.data.products) {
-      if (!declared.includes(product.category)) {
-        console.warn(
-          "  warning: [" + target.slug + "] " + product.name + " is category \"" + product.category +
-          "\", which that series doesn't declare — it won't be reachable by any filter"
-        );
-      }
-    }
-  }
-}
-
-// Checks every series, regardless of --series.
-function warnHdriDrift(seriesIndex) {
-  const vocabulary = Object.keys(seriesIndex.hdris || {});
-  for (const entry of seriesIndex.series) {
-    if (!entry.hdri || !vocabulary.includes(entry.hdri)) {
-      console.warn(
-        "  warning: series \"" + entry.slug + "\" declares hdri \"" + entry.hdri +
-        "\" which isn't in data/series.json's top-level \"hdris\""
-      );
-    }
-  }
-}
-
-// The swatch fields scene-tool.html writes.
-function warnSwatchSceneDrift(seriesIndex) {
-  const hdriVocabulary = Object.keys(seriesIndex.hdris || {});
-  const swatchHdri = seriesIndex["swatch-hdri"];
-  if (swatchHdri && !hdriVocabulary.includes(swatchHdri)) {
-    console.warn(
-      "  warning: top-level \"swatch-hdri\" is \"" + swatchHdri +
-      "\" which isn't in data/series.json's top-level \"hdris\""
-    );
-  }
-  const blur = seriesIndex["swatch-blur"];
-  if (blur !== undefined && !(typeof blur === "number" && isFinite(blur) && blur >= 0)) {
-    console.warn(
-      "  warning: top-level \"swatch-blur\" is " + JSON.stringify(blur) +
-      ", not a number of pixels (0 or more) - the swatch will render with no blur"
-    );
-  }
-  const camera = seriesIndex["swatch-camera"];
-  if (camera !== undefined && !isSwatchCamera(camera)) {
-    console.warn(
-      "  warning: top-level \"swatch-camera\" is " + JSON.stringify(camera) +
-      ", not { rotation, tilt, roll } of numbers - the swatch will render with the default camera"
-    );
-  }
-}
-
-function isSwatchCamera(camera) {
-  return !!camera && typeof camera === "object" &&
-    ["rotation", "tilt", "roll"].every((k) => typeof camera[k] === "number" && isFinite(camera[k]));
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
-  const seriesArg = (args.find((a) => a.startsWith("--series=")) || "").split("=")[1];
+  const seriesArg = argValue(args, "series");
   // Product slugs, comma-separated.
-  const productArg = (args.find((a) => a.startsWith("--product=")) || "").split("=")[1];
+  const productArg = argValue(args, "product");
   const onlyProducts = productArg ? productArg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null;
   const swatchesOnly = args.includes("--swatches-only");
   const wheelPostersOnly = args.includes("--wheel-posters-only");
   // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
     if (seriesArg) {
-      const known = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8")).series.map((s) => s.slug);
+      const known = readJson(SERIES_JSON_PATH).series.map((s) => s.slug);
       if (!known.includes(seriesArg)) {
         throw new Error("Unknown series: " + seriesArg + " — must be one of: " + known.join(", "));
       }
@@ -634,7 +501,7 @@ async function main() {
     return;
   }
 
-  const seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  const seriesIndex = readJson(SERIES_JSON_PATH);
   const allMetals = seriesIndex.metals || [];
   const allHdris = seriesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
@@ -665,7 +532,7 @@ async function main() {
     return { slug: s.slug, absPath, raw, text: raw, data: JSON.parse(raw), hdri: allHdris[s.hdri] };
   });
   if (onlyProducts) {
-    const known = new Set(targets.flatMap((t) => t.data.products.map((p) => slug(p.name))));
+    const known = new Set(targets.flatMap((t) => t.data.products.map((p) => folderSlug(p.name))));
     const unknownProducts = onlyProducts.filter((p) => !known.has(p));
     if (unknownProducts.length) throw new Error("Unknown product(s): " + unknownProducts.join(", ") + " — must be among: " + [...known].join(", "));
   }
@@ -673,9 +540,9 @@ async function main() {
   console.log("auto-render — metal(s): " + metals.join(", ") +
     " — series: " + targets.map((t) => t.slug).join(", ") +
     (onlyProducts ? " — product(s): " + onlyProducts.join(", ") : ""));
-  warnCategoryDrift(seriesIndex, targets);
-  warnHdriDrift(seriesIndex);
-  warnSwatchSceneDrift(seriesIndex);
+  // Every series' categories and HDRI, the selected series' products.
+  const drift = catalogDrift(seriesIndex, Object.fromEntries(targets.map((t) => [t.slug, t.data])));
+  for (const warning of drift) console.warn("  warning: " + warning);
 
   const chromePath = findChrome();
   const server = await startServer();
@@ -722,11 +589,11 @@ async function main() {
       console.log("\n--- " + metal + " ---");
 
       for (const target of targets) {
-        const rel = path.relative(ROOT, target.absPath).replace(/\\/g, "/");
+        const rel = repoPath(target.absPath);
 
         for (const product of target.data.products) {
-          if (onlyProducts && !onlyProducts.includes(slug(product.name))) continue;
-          const folder = productFolder(target.slug, product);
+          if (onlyProducts && !onlyProducts.includes(folderSlug(product.name))) continue;
+          const folder = productFolder(target.slug, product.name, product.category);
 
           // The model is the one asset this tool doesn't write; outside the predicted
           // folder means a renamed directory or a missed move.
@@ -738,7 +605,7 @@ async function main() {
             );
           }
 
-          const wheelRelPath = folder + "/" + slug(product.name) + "_wheel-poster_" + metal + ".webp";
+          const wheelRelPath = folder + "/" + folderSlug(product.name) + "_wheel-poster_" + metal + ".webp";
           const wheelAbsPath = path.join(ROOT, wheelRelPath);
 
           console.log("  wheel poster: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + wheelRelPath);
@@ -762,9 +629,9 @@ async function main() {
           }
           if (wheelPostersOnly) continue;
 
-          const fallbackRelPath = folder + "/" + slug(product.name) + "_fallback-img_" + metal + ".webp";
+          const fallbackRelPath = folder + "/" + folderSlug(product.name) + "_fallback-img_" + metal + ".webp";
           const fallbackAbsPath = path.join(ROOT, fallbackRelPath);
-          const relOutPath = folder + "/" + slug(product.name) + "_icon_" + metal + ".webp";
+          const relOutPath = folder + "/" + folderSlug(product.name) + "_icon_" + metal + ".webp";
           const absOutPath = path.join(ROOT, relOutPath);
 
           console.log("  fallback-img: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + fallbackRelPath);
@@ -805,7 +672,7 @@ async function main() {
             }
           }
 
-          const topShotRelPath = folder + "/" + slug(product.name) + "_top-shot_" + metal + ".webp";
+          const topShotRelPath = folder + "/" + folderSlug(product.name) + "_top-shot_" + metal + ".webp";
           const topShotAbsPath = path.join(ROOT, topShotRelPath);
 
           console.log("  top shot: [" + target.slug + "] " + product.name + " (" + metal + ") -> " + topShotRelPath);
@@ -833,7 +700,7 @@ async function main() {
           const designs = product.designs;
           for (const design of (designs && designs.list) || []) {
             if (design.key === designs.default) continue;
-            const base = folder + "/" + slug(product.name) + "-" + slug(design.key);
+            const base = folder + "/" + folderSlug(product.name) + "-" + folderSlug(design.key);
             const view = designView(product, design);
             const designFallbackRel = base + "_fallback-img_" + metal + ".webp";
             const designIconRel = base + "_icon_" + metal + ".webp";
@@ -867,8 +734,7 @@ async function main() {
     for (const target of targets) {
       if (target.text !== target.raw) {
         fs.writeFileSync(target.absPath, target.text, "utf8");
-        console.log("\nUpdated " + path.relative(ROOT, target.absPath).replace(/\\/g, "/") +
-          " asset paths.");
+        console.log("\nUpdated " + repoPath(target.absPath) + " asset paths.");
       }
     }
 

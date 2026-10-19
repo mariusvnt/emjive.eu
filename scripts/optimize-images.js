@@ -6,11 +6,11 @@
 //   npm run optimize-images                  every PNG/JPEG
 //   npm run optimize-images -- <path> ...    only these files
 
-const { readdirSync, statSync, existsSync, unlinkSync } = require("node:fs");
-const { join, resolve, relative, dirname, basename, extname } = require("node:path");
+const { statSync, existsSync, unlinkSync } = require("node:fs");
+const { join, resolve, dirname, basename, extname } = require("node:path");
+const { ROOT, repoPath, walk, mb } = require("./helpers");
 
-const REPO_ROOT = resolve(__dirname, "..");
-const ASSETS_ROOT = join(REPO_ROOT, "assets");
+const ASSETS_ROOT = join(ROOT, "assets");
 
 // Same quality as scripts/auto-render.js.
 const WEBP_QUALITY = 82;
@@ -18,28 +18,14 @@ const WEBP_QUALITY = 82;
 // Larger than any layout shows; smaller art is never upscaled.
 const MAX_DIMENSION = 2048;
 
-function walk(dir, out) {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    const stat = statSync(full);
-    if (stat.isDirectory()) walk(full, out);
-    else if (/\.(png|jpe?g)$/i.test(name)) out.push(full);
-  }
-  return out;
-}
-
-function mb(bytes) {
-  return (bytes / 1048576).toFixed(2) + " MB";
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
   const explicit = args.filter((a) => !a.startsWith("--"));
 
   const files = explicit.length
-    ? explicit.map((p) => resolve(REPO_ROOT, p))
-    : existsSync(ASSETS_ROOT) ? walk(ASSETS_ROOT, []) : [];
+    ? explicit.map((p) => resolve(ROOT, p))
+    : existsSync(ASSETS_ROOT) ? walk(ASSETS_ROOT).filter((f) => /\.(png|jpe?g)$/i.test(f)) : [];
 
   if (!files.length) {
     console.log("No PNG/JPEG files found under assets/ — nothing to do.");
@@ -52,9 +38,9 @@ async function main() {
   const renames = [];
 
   for (const file of files) {
-    const rel = relative(REPO_ROOT, file).replace(/\\/g, "/");
+    const rel = repoPath(file);
     const outPath = join(dirname(file), basename(file, extname(file)) + ".webp");
-    const outRel = relative(REPO_ROOT, outPath).replace(/\\/g, "/");
+    const outRel = repoPath(outPath);
 
     if (existsSync(outPath)) {
       console.log(rel + "\n    skipped — " + outRel + " already exists");

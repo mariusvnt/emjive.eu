@@ -17,10 +17,7 @@
   var VIEW_KEY = "emjive_gallery_view";
 
   var html = document.documentElement;
-
-  function readLocal(name) {
-    try { return window.localStorage.getItem(name); } catch (e) { return null; }
-  }
+  var H = window.EmjiveHelpers;
 
   /* ---- the landing ----
      1. The entry's saved state (Back, reload): the exact layout left.
@@ -38,10 +35,8 @@
 
   function decideLanding(saved) {
     var landing = !saved && !cameFromThisSite();
-    if (landing) {
-      try { window.localStorage.removeItem(VIEW_KEY); } catch (e) { /* blocked: nothing was kept */ }
-    }
-    var view = saved && saved.view ? saved.view : readLocal(VIEW_KEY);
+    if (landing) H.removeStorage("localStorage", VIEW_KEY);
+    var view = saved && saved.view ? saved.view : H.readStorage("localStorage", VIEW_KEY);
     if (view !== "grid") view = "stack";
     var hero;
     if (saved && saved.hero) hero = saved.hero;
@@ -110,15 +105,7 @@
 
   // This entry's record: { y, h, hero, view, wheel }.
   function readEntry() {
-    try {
-      var raw = window.sessionStorage.getItem(STORAGE_PREFIX + key);
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : null;
-    } catch (e) {
-      // Throws in Safari private mode.
-      return null;
-    }
+    return H.readStorageJson("sessionStorage", STORAGE_PREFIX + key);
   }
 
   // Only an entry with an offset to return to is a restore.
@@ -141,15 +128,13 @@
   // The height makes the offset reachable on the next load (beginRestore).
   function save() {
     if (restoring) return; // mid-restore: not the visitor's position
-    try {
-      window.sessionStorage.setItem(STORAGE_PREFIX + key, JSON.stringify({
-        y: Math.round(window.pageYOffset || window.scrollY || 0),
-        h: Math.round(html.scrollHeight),
-        hero: landing.hero,
-        view: landing.view,
-        wheel: wheel
-      }));
-    } catch (e) { /* private mode / quota */ }
+    H.writeStorage("sessionStorage", STORAGE_PREFIX + key, JSON.stringify({
+      y: Math.round(window.pageYOffset || window.scrollY || 0),
+      h: Math.round(html.scrollHeight),
+      hero: landing.hero,
+      view: landing.view,
+      wheel: wheel
+    }));
   }
 
   var saveTimer = 0;
@@ -168,22 +153,6 @@
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") save();
   });
-
-  /* ---- scrolling ---- */
-
-  // Override html's smooth scroll-behavior inline, or the restore animates.
-  // behavior: "instant" is wrapped as older browsers throw on it.
-  function applyScroll(y) {
-    var previous = html.style.scrollBehavior;
-    html.style.scrollBehavior = "auto";
-    try {
-      window.scrollTo({ top: y, left: 0, behavior: "instant" });
-    } catch (e) {
-      window.scrollTo(0, y);
-    }
-    if (previous) html.style.scrollBehavior = previous;
-    else html.style.removeProperty("scroll-behavior");
-  }
 
   /* ---- the restore window ---- */
 
@@ -210,7 +179,7 @@
     rafId = 0;
     if (!restoring) return;
     // document.body can still be null on the first frames.
-    if (document.body && !userTookOver) applyScroll(targetY);
+    if (document.body && !userTookOver) H.jumpScroll(targetY);
     if (expired()) {
       endRestore();
       return;
@@ -259,10 +228,6 @@
      The gallery stays visibility: hidden during the restore (css/style.css), so
      its pictures appear complete. Everything races the deadline. */
 
-  function timeout(ms) {
-    return new Promise(function (resolve) { setTimeout(resolve, ms); });
-  }
-
   // Polls the document height: one outcome instead of three load signals.
   function heightReady() {
     return new Promise(function (resolve) {
@@ -273,17 +238,6 @@
     });
   }
 
-  function decoded(img) {
-    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-    if (typeof img.decode === "function") {
-      return img.decode().catch(function () { /* a broken src isn't ours to handle */ });
-    }
-    return new Promise(function (resolve) {
-      img.addEventListener("load", resolve, { once: true });
-      img.addEventListener("error", resolve, { once: true });
-    });
-  }
-
   // The gallery pictures on screen at the restored offset (none in the hero).
   function visibleFigureImages() {
     var viewportHeight = window.innerHeight || 0;
@@ -291,7 +245,7 @@
     var out = [];
     for (var i = 0; i < all.length; i++) {
       var rect = all[i].getBoundingClientRect();
-      if (rect.bottom > 0 && rect.top < viewportHeight) out.push(decoded(all[i]));
+      if (rect.bottom > 0 && rect.top < viewportHeight) out.push(H.imageReady(all[i]));
     }
     if (document.fonts && document.fonts.ready) out.push(document.fonts.ready);
     return out;
@@ -315,8 +269,8 @@
     heightReady()
       .then(function () {
         if (!restoring) return;
-        if (!userTookOver) applyScroll(targetY);
-        return Promise.race([Promise.all(visibleFigureImages()), timeout(SETTLE_MS)]);
+        if (!userTookOver) H.jumpScroll(targetY);
+        return Promise.race([Promise.all(visibleFigureImages()), H.wait(SETTLE_MS)]);
       })
       .then(function () {
         if (!restoring) return;
@@ -328,7 +282,7 @@
         // before the gallery shows.
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
-            if (!userTookOver) applyScroll(targetY);
+            if (!userTookOver) H.jumpScroll(targetY);
             endRestore();
           });
         });
@@ -342,7 +296,7 @@
   window.addEventListener("pageshow", function (event) {
     if (!event.persisted) return;
     var entry = readSaved();
-    if (entry) applyScroll(entry.y);
+    if (entry) H.jumpScroll(entry.y);
   });
 
   /* ---- go ---- */
@@ -383,7 +337,7 @@
       if (contentReadyCalled) return;
       contentReadyCalled = true;
       if (!restoring) return;
-      if (!userTookOver) applyScroll(targetY);
+      if (!userTookOver) H.jumpScroll(targetY);
       settle();
     }
   };

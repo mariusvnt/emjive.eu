@@ -9,33 +9,33 @@ The repo's structure, generated from the code. Each description is the first sen
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
 - [archives.html](../archives.html) — Archives (/archives): every series across the brand's lifetime.
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [creation-process.html](../creation-process.html) — Creation process (/creation-process).
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [index.html](../index.html) — The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the list.
-  - scripts: js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #products
 - [json-tool.html](../json-tool.html) — Dev-only page (not built), served by scripts/json-tool-server.js (npm run json-tool): edit data/series.json's globals, series and products, with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray, photos).
-  - scripts: inline (module)
+  - scripts: js/helpers.js (blocking), inline (module)
   - landmarks: #panel-global, #panel-series, #panel-products
 - [launch-order.html](../launch-order.html) — The order page (/launch-order): the selection's checkout review, up to a "Proceed to checkout" stub.
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
   - landmarks: #main
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
-  - scripts: js/loader.js (blocking), inline (blocking)
+  - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product, and the landing for legacy ?id= links.
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productPrinting
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the metal's shader live, then save the ticked parts (HDRI, camera, shader).
-  - scripts: js/three-viewer.js (module), inline (module)
+  - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
   - landmarks: #hdriSection, #cameraSection, #shaderSection, #saveSection
 - [series.html](../series.html) — A series' design manifest (/series?series=<slug>).
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #seriesManifest
 - [terms.html](../terms.html) — Terms and conditions (/terms).
-  - scripts: js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/carousel.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - **[css/](../css/)** — The site's one stylesheet.
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a series' hero.css is injected after it.
@@ -50,8 +50,10 @@ The repo's structure, generated from the code. Each description is the first sen
   - [gallery.js](../js/gallery.js) — Homepage gallery (index.html): one of two views, data-gallery-view on <html> (set in the <head> by js/scroll-memory.js).
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
+  - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
+    - sets `EmjiveHelpers` { el, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
-    - sets `EmjiveLoader` { mount, cover, coverWithin, imageReady, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
+    - sets `EmjiveLoader` { mount, cover, coverWithin, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
   - [metal-picker.js](../js/metal-picker.js) — Metal picker: one swatch square per metal, a dot on the selected one, its name beside it.
     - sets `EmjiveMetalPicker` { mount }
@@ -121,8 +123,10 @@ The repo's structure, generated from the code. Each description is the first sen
   - [auto-render.js](../scripts/auto-render.js) — Re-renders the product images and metal swatches through the site's own viewer code (js/three-viewer.js, js/stack-scene.js) in headless Chrome with a real GPU (for MSAA; the startup log names the WebGL renderer).
   - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the series.json preload, noindex pages, link preview images, per-item pages, clean URLs and the sitemap.
   - [docs-index.js](../scripts/docs-index.js) — Generates dev-guidelines/index.md: the repo's tree down to each file's public surface, described by the code's own header comments.
-  - [json-tool-blocks.js](../scripts/json-tool-blocks.js) — Pure text helpers for scripts/json-tool-server.js (no fs/http): inserting, patching and removing entries in hand-aligned JSON without re-serializing, and rendering whole product/series blocks in canonical formatting.
-    - exports `esc`, `num`, `slug`, `geometryLine`, `insertBeforeArrayClose`, `insertBeforeObjectClose`, `appendToInlineStringArray`, `updateTopLevelScalarInText`, `updateObjectEntryInText`, `removeObjectEntryInText`, `removeFromInlineStringArray`, `updateSeriesFieldInText`, `findBlockSpanByAnchor`, `findProductBlockSpan`, `replaceProductBlockInText`, `removeArrayEntryInText`, `removeProductBlockInText`, `removeSeriesBlockInText`, `renderProductBlock`, `renderSeriesBlock`
+  - [helpers.js](../scripts/helpers.js) — Shared helpers for the Node tooling (scripts/ and vite.config.js): the repo's paths and constants, file and argument plumbing, catalog lookups and drift checks, the glTF reader, and the dev tools' loopback server.
+    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
+  - [json-tool-blocks.js](../scripts/json-tool-blocks.js) — Pure text helpers for the tools that edit the data files (no fs/http): inserting, patching and removing entries in hand-aligned JSON without re-serializing, and rendering whole product/series blocks in canonical formatting.
+    - exports `esc`, `num`, `geometryLine`, `insertBeforeArrayClose`, `insertBeforeObjectClose`, `appendToInlineStringArray`, `updateTopLevelScalarInText`, `updateObjectEntryInText`, `removeObjectEntryInText`, `removeFromInlineStringArray`, `updateSeriesFieldInText`, `anchoredSpan`, `replaceInSpan`, `findBlockSpanByAnchor`, `findProductBlockSpan`, `replaceProductBlockInText`, `removeArrayEntryInText`, `removeProductBlockInText`, `removeSeriesBlockInText`, `renderProductBlock`, `renderSeriesBlock`
   - [json-tool-server.js](../scripts/json-tool-server.js) — Dev server for json-tool.html (npm run json-tool): edits data/series.json's globals, series and products, and files dropped hand-owned assets (model, x-ray, photos) into the right folders.
   - [make-image-variants.js](../scripts/make-image-variants.js) — Writes the size variants of the site's big images (see js/loader.js).
     - exports `makeVariants`, `PHONE_CROP`
@@ -161,6 +165,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
 | `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
+| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/carousel.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/metal-picker.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js` |
 | `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/selection-bar.js`, `series/bones/hero.js` |
 | `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/carousel.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |

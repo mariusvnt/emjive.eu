@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Pure text helpers for scripts/json-tool-server.js (no fs/http): inserting,
-// patching and removing entries in hand-aligned JSON without re-serializing,
-// and rendering whole product/series blocks in canonical formatting.
+// Pure text helpers for the tools that edit the data files (no fs/http):
+// inserting, patching and removing entries in hand-aligned JSON without
+// re-serializing, and rendering whole product/series blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
 // wheel-poster, top-shot) from the on-disk product, never from form input.
 
@@ -40,10 +40,6 @@ function geometryLine(g, indent) {
         ', "stl-sha1": "' + esc(print["stl-sha1"]) + '" }'
       : "") +
     ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
-}
-
-function slug(name) {
-  return String(name).trim().toLowerCase().replace(/\s+/g, "-");
 }
 
 // ---- bracket matching ----
@@ -204,16 +200,28 @@ function updateObjectEntryInText(text, openAnchor, key, newValueText) {
 // Patches one field (name/year/hdri, or the flat categories array) of a
 // series, field by field so its hand-authored "hero" is never rewritten.
 function updateSeriesFieldInText(text, seriesSlug, fieldName, newValueText) {
-  const slugAnchor = '"slug": "' + seriesSlug + '"';
-  const startIdx = text.indexOf(slugAnchor);
-  if (startIdx === -1) return null;
-  const nextSlugIdx = text.indexOf('"slug": "', startIdx + slugAnchor.length);
-  const blockEnd = nextSlugIdx === -1 ? text.length : nextSlugIdx;
-  const block = text.slice(startIdx, blockEnd);
+  const span = anchoredSpan(text, "slug", seriesSlug);
   const fieldPattern = new RegExp('"' + fieldName + '":\\s*(\\[[^\\]]*\\]|"[^"]*")');
-  if (!fieldPattern.test(block)) return null;
-  const newBlock = block.replace(fieldPattern, '"' + fieldName + '": ' + newValueText);
-  return text.slice(0, startIdx) + newBlock + text.slice(blockEnd);
+  return span && replaceInSpan(text, span, fieldPattern, '"' + fieldName + '": ' + newValueText);
+}
+
+// The span from `"key": "value"` to the next `"key": "` (or `end`): an
+// entry's fields, bounded by its next sibling's anchor. null if the anchor
+// isn't in [from, end].
+function anchoredSpan(text, key, value, from, end) {
+  const limit = end === undefined ? text.length : end;
+  const anchor = '"' + key + '": "' + value + '"';
+  const start = text.indexOf(anchor, from || 0);
+  if (start === -1 || start > limit) return null;
+  const next = text.indexOf('"' + key + '": "', start + anchor.length);
+  return { start, end: next === -1 || next > limit ? limit : next };
+}
+
+// The first match of `pattern` within span replaced; null without a match.
+function replaceInSpan(text, span, pattern, replacement) {
+  const block = text.slice(span.start, span.end);
+  if (!pattern.test(block)) return null;
+  return text.slice(0, span.start) + block.replace(pattern, replacement) + text.slice(span.end);
 }
 
 // The full { ... } span of a block whose first field is
@@ -406,7 +414,6 @@ function renderSeriesBlock(s) {
 module.exports = {
   esc,
   num,
-  slug,
   geometryLine,
   insertBeforeArrayClose,
   insertBeforeObjectClose,
@@ -416,6 +423,8 @@ module.exports = {
   removeObjectEntryInText,
   removeFromInlineStringArray,
   updateSeriesFieldInText,
+  anchoredSpan,
+  replaceInSpan,
   findBlockSpanByAnchor,
   findProductBlockSpan,
   replaceProductBlockInText,

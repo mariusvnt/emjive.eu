@@ -26,16 +26,8 @@
   // Longest the arrival loader waits on the list's first tiles.
   var FIRST_TILES_MS = 4000;
 
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function writeLocal(name, value) {
-    try { window.localStorage.setItem(name, value); } catch (e) { /* blocked: the default comes back next visit */ }
-  }
+  var H = window.EmjiveHelpers;
+  var el = H.el;
 
   function view() {
     return html.getAttribute("data-gallery-view") === "grid" ? "grid" : "stack";
@@ -52,19 +44,6 @@
 
   function hero() {
     return window.EmjiveSeriesHero && window.EmjiveSeriesHero.setMode ? window.EmjiveSeriesHero : null;
-  }
-
-  // Instant regardless of scroll-behavior: the jump happens under the veil.
-  function jumpTo(top) {
-    var previous = html.style.scrollBehavior;
-    html.style.scrollBehavior = "auto";
-    try {
-      window.scrollTo({ top: top, left: 0, behavior: "instant" });
-    } catch (e) {
-      window.scrollTo(0, top);
-    }
-    if (previous) html.style.scrollBehavior = previous;
-    else html.style.removeProperty("scroll-behavior");
   }
 
   var state = {
@@ -162,11 +141,12 @@
     throughVeil(function () {
       html.setAttribute("data-gallery-view", next);
       html.setAttribute("data-hero", "skip");
-      writeLocal(VIEW_KEY, next);
+      // Blocked storage: the default comes back next visit.
+      H.writeStorage("localStorage", VIEW_KEY, next);
       remember({ view: next, hero: "skip" });
       if (state.stack) state.stack.setActive(next === "stack");
       // The page is tall again by now (the attributes above).
-      jumpTo(next === "stack" ? html.scrollHeight : 0);
+      H.jumpScroll(next === "stack" ? html.scrollHeight : 0);
       if (hero()) hero().setMode();
       placeEmptyMessage();
       syncControls();
@@ -348,8 +328,7 @@
     var assets = product.assets || {};
     var metal = product["default-metal"];
     var name = product.name || "";
-    var first = (assets.model && assets["fallback-img"] && assets["fallback-img"][metal]) ||
-      (assets.icons && assets.icons[metal]);
+    var first = (assets.model && H.assetFor(product, "fallback-img", metal)) || H.assetFor(product, "icons", metal);
     var firstImg = null;
     if (first) {
       firstImg = card(first, name, "grid-tile__card--model");
@@ -375,7 +354,7 @@
     tile.addEventListener("click", function () { openProduct(product); });
 
     if (firstImg && window.EmjiveLoader) {
-      window.EmjiveLoader.cover(frame, window.EmjiveLoader.imageReady(firstImg));
+      window.EmjiveLoader.cover(frame, H.imageReady(firstImg));
     }
     return { product: product, el: tile, firstImg: firstImg };
   }
@@ -397,11 +376,8 @@
     var waits = state.tiles.filter(function (tile) {
       if (!tile.firstImg || tile.el.hidden) return false;
       return tile.el.getBoundingClientRect().top < top;
-    }).map(function (tile) { return window.EmjiveLoader.imageReady(tile.firstImg); });
-    Promise.race([
-      Promise.all(waits),
-      new Promise(function (resolve) { setTimeout(resolve, FIRST_TILES_MS); })
-    ]).then(function () { window.EmjiveLoader.pageReady(); });
+    }).map(function (tile) { return H.imageReady(tile.firstImg); });
+    Promise.race([Promise.all(waits), H.wait(FIRST_TILES_MS)]).then(function () { window.EmjiveLoader.pageReady(); });
   }
 
   /* ---- filtering ----

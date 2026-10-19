@@ -24,14 +24,13 @@
 
 "use strict";
 
-const { readFileSync, existsSync, mkdirSync } = require("node:fs");
+const { existsSync, mkdirSync } = require("node:fs");
 const { join, resolve, dirname } = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { slugify } = require("./slugs");
 const stlFile = require("./stl");
+const { ROOT, SERIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
 
-const REPO_ROOT = resolve(__dirname, "..");
-const SERIES_JSON_PATH = join(REPO_ROOT, "data", "series.json");
 const WIRE_SUFFIX = /-wireframes?$/i;
 // How far (mm) two bounding boxes may differ and still be the same pose.
 const BOUNDS_TOLERANCE_MM = 0.1;
@@ -44,7 +43,7 @@ const COUNT_WEIGHT = 5;
 // Every model the catalog expects, keyed by node slug:
 // { label, model, wireframe, stl, geometry } (repo-relative paths, "" if unset).
 function catalogEntries() {
-  const index = JSON.parse(readFileSync(SERIES_JSON_PATH, "utf8"));
+  const index = readJson(SERIES_JSON_PATH);
   const entries = new Map();
   function add(slug, entry) {
     if (entries.has(slug)) {
@@ -53,7 +52,7 @@ function catalogEntries() {
     entries.set(slug, entry);
   }
   for (const series of index.series || []) {
-    const data = JSON.parse(readFileSync(join(REPO_ROOT, series.products), "utf8"));
+    const data = readJson(series.products);
     for (const product of data.products || []) {
       const assets = product.assets || {};
       const designs = product.designs;
@@ -145,7 +144,7 @@ function matchCost(object, entry) {
 }
 
 async function modelTriangles(io, rel) {
-  const path = rel && join(REPO_ROOT, rel);
+  const path = rel && join(ROOT, rel);
   if (!path || !existsSync(path)) return 0;
   const document = await io.read(path);
   let tris = 0;
@@ -230,7 +229,7 @@ async function splitPrintModels(file, entries, io, dryRun) {
   if (dryRun) return true;
   objects.forEach((object, i) => {
     const entry = catalog[chosen[i]];
-    const target = join(REPO_ROOT, entry.stl);
+    const target = join(ROOT, entry.stl);
     mkdirSync(dirname(target), { recursive: true });
     stlFile.writeStl(target, stlFile.sliceStl(stl, object.from, object.to, "emjive print model " + entry.label));
     console.log("  wrote " + entry.stl);
@@ -294,13 +293,9 @@ async function main() {
     if (!existsSync(file)) throw new Error("No such file: " + file);
   }
 
-  const { NodeIO, Document, Logger } = await import("@gltf-transform/core");
-  const { ALL_EXTENSIONS } = await import("@gltf-transform/extensions");
+  const { Document, Logger } = await import("@gltf-transform/core");
   const { copyToDocument, prune, getBounds } = await import("@gltf-transform/functions");
-  const draco3d = (await import("draco3dgltf")).default;
-  const io = new NodeIO()
-    .registerExtensions(ALL_EXTENSIONS)
-    .registerDependencies({ "draco3d.decoder": await draco3d.createDecoderModule() });
+  const io = await gltfIO();
 
   const entries = catalogEntries();
 
@@ -355,7 +350,7 @@ async function main() {
         failed = true;
         continue;
       }
-      const targetAbs = join(REPO_ROOT, targetRel);
+      const targetAbs = join(ROOT, targetRel);
       const { target, node, scene } = isolate(src);
       let note = "";
 
@@ -428,7 +423,7 @@ async function main() {
   } else if (written.length && optimize) {
     console.log("\nOptimizing the " + written.length + " written files...");
     const run = spawnSync(process.execPath, [join(__dirname, "optimize-models.js"), ...written], {
-      cwd: REPO_ROOT,
+      cwd: ROOT,
       stdio: "inherit"
     });
     if (run.status !== 0) failed = true;

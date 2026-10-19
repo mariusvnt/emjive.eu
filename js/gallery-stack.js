@@ -5,8 +5,8 @@
 //
 // Landed, the circle is a plate to turn: the product at the top is focused
 // (larger, its model self-turning and draggable like a viewer's, its name a
-// button to its page). A tap on another turns it to the top; a drag turns the
-// plate, which coasts and settles on a product.
+// button to its page, as is a tap on it). A tap on another turns it to the
+// top; a drag turns the plate, which coasts and settles on a product.
 //
 // Two renderings of the same layout:
 //   3D     js/stack-scene.js (lazy, three.js), taking over once loaded, the
@@ -984,7 +984,8 @@
       if (!d.moved) {
         stopMotion();
         var item = cancelled ? null : pick(e.clientX, e.clientY);
-        if (item && item !== state.focus) turnToItem(item);
+        if (item && item === state.focus) goToFocus();
+        else if (item) turnToItem(item);
         else render();
         return;
       }
@@ -1007,9 +1008,26 @@
       if (inBand(t.clientX, t.clientY)) e.preventDefault();
     }, { passive: false });
 
-    goEl.addEventListener("click", function () {
+    function goToFocus() {
       if (state.focus) window.location.href = state.focus.href;
+    }
+    goEl.addEventListener("click", goToFocus);
+
+    // A tap on the focused model opens its page; a drag only turns it.
+    var spinTap = null;
+    spinEl.addEventListener("pointerdown", function (e) {
+      spinTap = e.button > 0 ? null : { id: e.pointerId, x: e.clientX, y: e.clientY };
     });
+    spinEl.addEventListener("pointermove", function (e) {
+      if (spinTap && e.pointerId === spinTap.id &&
+        Math.sqrt(Math.pow(e.clientX - spinTap.x, 2) + Math.pow(e.clientY - spinTap.y, 2)) > TAP_SLOP) spinTap = null;
+    });
+    spinEl.addEventListener("pointerup", function (e) {
+      var tap = spinTap && e.pointerId === spinTap.id;
+      spinTap = null;
+      if (tap) goToFocus();
+    });
+    spinEl.addEventListener("pointercancel", function () { spinTap = null; });
 
     // The list's links are hidden, so a keyboard on one is shown on the wheel:
     // it lands (the page's end) and turns to that product, and the centre

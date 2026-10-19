@@ -35,7 +35,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | --- | --- |
 | Series, products, prices, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
-| Default camera angle, a series' HDRI, the swatch scene, the metal shaders (`METAL_PRESETS`) | `scene-tool` |
+| Default camera angle, a series' HDRI, the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | `geometry` | `measure-models` |
 | Icons, fallback images, wheel posters, top shots (paths and files) | `auto-render` |
 
@@ -133,9 +133,8 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 ### Add a metal
 
-`json-tool` adds it to the `metals` list and reminds you of the rest, which is by hand:
+`json-tool` adds it to the `metals` list, with a neutral grey shader to tune in `scene-tool`, and reminds you of the rest, which is by hand:
 
-- its `METAL_PRESETS` entry in `js/three-viewer.js`;
 - its `metal-costs`, `metal-composition` and `metal-technology` in `data/series.json`;
 - a price in every product;
 - a swatch rule for its square in `css/style.css`.

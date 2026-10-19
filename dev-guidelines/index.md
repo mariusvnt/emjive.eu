@@ -84,7 +84,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - exports `createStackScene`
   - [three-viewer.js](../js/three-viewer.js) — The 3D viewer (three.js + TrackballControls): free pole-crossing rotation, release inertia, a leveling drift, an idle nudge hint and an ease back to the default pose.
     - sets `EmjiveMem` { cpuGeometryBytes, dracoWorkers, liveRenderers, gpuObjects }
-    - sets `EmjiveModelViewer` { METAL_PRESETS, swatchOrbit }
+    - sets `EmjiveModelViewer` { setMetalShaders, swatchOrbit }
     - exports `toolkit`
   - [viewer-entry.js](../js/viewer-entry.js) — Lazy 3D viewer loader: the only 3D code pages load up front.
     - sets `EmjiveLoadStack`
@@ -99,7 +99,7 @@ The repo's structure, generated from the code. Each description is the first sen
       - sets `EmjiveSeriesHero` { init, onProducts, isStyled, refresh, rings, orbit, setZoom, setEntranceRoom, setMode }
 - **[data/](../data/)** — The catalog, fetched client-side: the series index and one folder per series.
   - [series.json](../data/series.json)
-    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `printing-technologies`, `categories`, `hdris`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
+    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `printing-technologies`, `categories`, `hdris`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
   - **[data/series/](../data/series/)** — One folder per series: its products and its design manifest.
     - **[data/series/bones/](../data/series/bones/)**
       - [manifest.json](../data/series/bones/manifest.json)
@@ -136,7 +136,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [optimize-images.js](../scripts/optimize-images.js) — Converts hand-added PNG/JPEG art under assets/ to WebP and deletes the originals.
   - [optimize-models.js](../scripts/optimize-models.js) — Shrinks the product .glb files in place.
   - [render-favicons.js](../scripts/render-favicons.js) — Rasterises assets/logo_compact.svg into public/favicon.ico (32px PNG-in-ICO) and public/apple-touch-icon.png (180px, opaque: iOS fills transparency with black).
-  - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders through the real viewer, saved by text-patching the source files in place.
+  - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders through the real viewer, saved by text-patching the data files in place.
   - [slugs.js](../scripts/slugs.js) — An item's URL slug (emjive.eu/<slug>), for the build side.
     - exports `slugify`, `reservedNames`, `PAGE_ROUTES`
   - [split-models.js](../scripts/split-models.js) — Splits combined Blender exports into the per-model .glb files the site loads.
@@ -181,7 +181,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `series/bones/hero.js` |
 | `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
 | `EmjiveSelectionBar` | `js/selection-bar.js` | — |
-| `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js` |
+| `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/three-viewer.js` |
 | `EmjiveSeriesHero` | `series/bones/hero.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/series.js` |
 | `EmjiveSizeFinder` | `js/size-finder.js` | `js/modify-modal.js`, `js/product.js` |
 

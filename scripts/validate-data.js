@@ -90,7 +90,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "printing-technologies", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "printing-technologies", "categories", "hdris", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -109,6 +109,20 @@ const indexSchema = {
     },
     "metal-technology": strMap,
     "metal-composition": strMap,
+    // js/three-viewer.js metalMaterial(): a base colour (0-255 per channel) and two 0-1 factors.
+    "metal-shaders": {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        required: ["color", "metalness", "roughness"],
+        additionalProperties: false,
+        properties: {
+          color: { type: "array", items: { type: "integer", minimum: 0, maximum: 255 }, minItems: 3, maxItems: 3 },
+          metalness: { type: "number", minimum: 0, maximum: 1 },
+          roughness: { type: "number", minimum: 0, maximum: 1 }
+        }
+      }
+    },
     "printing-technologies": {
       type: "object",
       additionalProperties: {
@@ -493,6 +507,12 @@ if (index && validate("data/series.json", indexSchema, index)) {
   }
   for (const metal of Object.keys(index["metal-composition"])) {
     if (!metals.has(metal)) fail("data/series.json", 'metal-composition has unknown metal "' + metal + '"');
+  }
+  for (const metal of metals) {
+    if (!index["metal-shaders"][metal]) fail("data/series.json", 'metal-shaders has no "' + metal + '"');
+  }
+  for (const metal of Object.keys(index["metal-shaders"])) {
+    if (!metals.has(metal)) fail("data/series.json", 'metal-shaders has unknown metal "' + metal + '"');
   }
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);

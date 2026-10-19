@@ -84,7 +84,7 @@ The index lists the event names and storage keys.
 
 ## 4. The 3D layer
 
-**One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `METAL_PRESETS`, which is why the model optimizer strips textures.
+**One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `data/series.json`'s `metal-shaders`, which is why the model optimizer strips textures. The module stays series-unaware all the same: on the site it reads the shaders from the loaded index, and the tools, which don't load it, hand them over.
 
 **Free rotation.** The viewers use `TrackballControls`, so a model can be turned over its poles. The extra code around it handles what that freedom costs: a drift that levels "up" so it doesn't flip at a pole, spherical easing back to the default pose, and inertia that brakes cleanly.
 
@@ -130,6 +130,7 @@ Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden
 - One `h1` and a distinct `<title>` per page, and a skip link to `<main>`.
 - One `:focus-visible` ring for the whole site. It positions its element, so already-positioned controls keep their own position.
 - The bottom sheets trap focus and lock the page.
+- The wheel is a picture, so its keyboard and screen-reader path is a hidden list of links. A keyboard on that list drives the wheel itself, so the focus can be seen.
 - Closed panels leave the tab order, and status changes go through live regions.
 - Reduced motion is honoured in three places that don't know about each other: the stylesheet, the viewers and the loader.
 

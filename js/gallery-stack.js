@@ -788,6 +788,10 @@
         syncSceneFocus();
         // Arriving on the wheel is where a stale layout would show.
         if (landed) checkLayout();
+        if (landed && keyboardItem && state.L) {
+          turnToItem(keyboardItem);
+          keyboardItem = null;
+        }
       }
       render();
     }
@@ -960,6 +964,27 @@
 
     goEl.addEventListener("click", function () {
       if (state.focus) window.location.href = state.focus.href;
+    });
+
+    // The list's links are hidden, so a keyboard on one is shown on the wheel:
+    // it lands (the page's end) and turns to that product, and the centre
+    // button, which names it, carries the focus ring.
+    var keyboardItem = null;
+    listEl.addEventListener("focusin", function (e) {
+      if (!e.target.matches(":focus-visible")) return;
+      var item = state.items.find(function (it) { return it.listItem.contains(e.target); });
+      if (!item) return;
+      orbitEl.classList.add("is-list-focus");
+      if (landed && state.L) {
+        turnToItem(item);
+      } else {
+        keyboardItem = item;
+        H.jumpScroll(document.documentElement.scrollHeight);
+      }
+    });
+    listEl.addEventListener("focusout", function () {
+      orbitEl.classList.remove("is-list-focus");
+      keyboardItem = null;
     });
 
     /* ---- new layouts ---- */

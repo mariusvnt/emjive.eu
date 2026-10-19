@@ -5,8 +5,8 @@
 // used by scripts/auto-render.js and scene-tool.html.
 //
 // An ES module because it imports "three" (resolved by Vite). The classic
-// scripts only call window.EmjiveModelViewer after a fetch resolves, by which
-// time this module has run.
+// scripts reach window.EmjiveModelViewer through window.EmjiveLoadViewer()
+// (js/viewer-entry.js), which resolves once this module has run.
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -124,22 +124,29 @@ export { toolkit };
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
-  // PBR presets replacing every model's own materials; keys match
-  // data/series.json's "metals" (unknown -> steel). The single source of truth,
-  // also used by scripts/auto-render.js; scene-tool-server.js patches this literal.
-  var METAL_PRESETS = {
-    steel: { baseColorFactor: [120 / 255, 120 / 255, 135 / 255, 1], metallicFactor: 1, roughnessFactor: 0.15 },
-    silver: { baseColorFactor: [240 / 255, 240 / 255, 240 / 255, 1], metallicFactor: 1.0, roughnessFactor: 0.09 },
-    bronze: { baseColorFactor: [255 / 255, 156 / 255, 41 / 255, 1], metallicFactor: 0.95, roughnessFactor: 0.08 }
-  };
+  // The PBR material replacing every model's own, per metal: data/series.json's
+  // "metal-shaders". Read from the loaded index on the site; the tools, which
+  // don't load js/series.js, hand it over with setMetalShaders().
+  var metalShaders = null;
+  var FALLBACK_SHADER = { color: [128, 128, 128], metalness: 1, roughness: 0.2 };
 
-  function metalToStandardMaterialParams(metalKey) {
-    var preset = METAL_PRESETS[metalKey] || METAL_PRESETS.steel;
-    return {
-      color: new THREE.Color(preset.baseColorFactor[0], preset.baseColorFactor[1], preset.baseColorFactor[2]),
-      metalness: preset.metallicFactor,
-      roughness: preset.roughnessFactor
-    };
+  function shaderFor(metalKey) {
+    var series = window.EmjiveSeries;
+    var all = metalShaders || (series && series.index && series.index["metal-shaders"]) || {};
+    return all[metalKey] || FALLBACK_SHADER;
+  }
+
+  // Always a fresh material, so a glTF's own maps never survive. DoubleSide:
+  // the thin open bands show their back faces at some angles.
+  function metalMaterial(metalKey) {
+    var shader = shaderFor(metalKey);
+    return new THREE.MeshStandardMaterial({
+      // The channels are linear factors, applied as they are.
+      color: new THREE.Color(shader.color[0] / 255, shader.color[1] / 255, shader.color[2] / 255),
+      metalness: shader.metalness,
+      roughness: shader.roughness,
+      side: THREE.DoubleSide
+    });
   }
 
   // ---- blueprint (options.blueprint, the product page's specs stage) ----
@@ -1068,16 +1075,8 @@ export { toolkit };
       if (!modelRoot) return;
       modelRoot.traverse(function (node) {
         if (!node.isMesh) return;
-        var params = metalToStandardMaterialParams(currentMetal);
-        // Always a fresh material, so the glTF's own maps never survive. DoubleSide:
-        // the thin open bands show their back faces at some angles.
         var previous = node.material;
-        node.material = new THREE.MeshStandardMaterial({
-          color: params.color,
-          metalness: params.metalness,
-          roughness: params.roughness,
-          side: THREE.DoubleSide
-        });
+        node.material = metalMaterial(currentMetal);
         if (blueprint) blueprintMaterial(node.material);
         // The replaced material is freed.
         disposeMaterial(previous);
@@ -1717,7 +1716,8 @@ export { toolkit };
       renderer.render(scene, camera);
     }
 
-    (function animate(now) {
+    // Started by rAF, not called: every frame needs rAF's timestamp for its dt.
+    requestAnimationFrame(function animate(now) {
       if (isDisposed) return; // torn down: stop for good
       requestAnimationFrame(animate);
 
@@ -1766,15 +1766,18 @@ export { toolkit };
       }
 
       drawIfChanged();
-    })();
+    });
 
     return handle;
   }
 
   window.EmjiveModelViewer = buildThreeViewer;
-  // scene-tool.html only: the live METAL_PRESETS object, which applyMetal()
-  // re-reads, so the tool's sliders can mutate it in place to preview.
-  window.EmjiveModelViewer.METAL_PRESETS = METAL_PRESETS;
+  // The tools' "metal-shaders" (scene-tool.html, the render harness). Kept by
+  // reference and re-read by applyMetal(), so the scene tool's sliders preview
+  // by mutating it in place.
+  window.EmjiveModelViewer.setMetalShaders = function (shaders) {
+    metalShaders = shaders || null;
+  };
   // The swatch camera for { rotation, tilt, roll } (tools and the render harness).
   window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
 
@@ -1909,15 +1912,7 @@ export { toolkit };
       loadModelFile(src, onLoad, onError);
     },
     loadEnvironment: loadEnvironment,
-    metalMaterial: function (metalKey) {
-      var params = metalToStandardMaterialParams(metalKey);
-      return new THREE.MeshStandardMaterial({
-        color: params.color,
-        metalness: params.metalness,
-        roughness: params.roughness,
-        side: THREE.DoubleSide
-      });
-    },
+    metalMaterial: metalMaterial,
     // The viewers' renderer settings, so models look the same in the wheel.
     configureRenderer: function (renderer, maxPixelRatio) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio || 2));

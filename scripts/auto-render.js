@@ -27,7 +27,7 @@
 // scene-tool.html's swatch mode). products.json paths are patched in place;
 // replaced files are deleted. Afterwards the icons' 128px thumbnails are rewritten.
 //
-// Re-run for every metal after changing METAL_PRESETS, the swatch camera or an HDRI.
+// Re-run for every metal after changing "metal-shaders", the swatch camera or an HDRI.
 
 "use strict";
 
@@ -567,6 +567,8 @@ async function main() {
       waitUntil: "networkidle0",
       timeout: 30000
     });
+    // The harness loads no js/series.js, so the viewer is handed the shaders.
+    await page.evaluate((shaders) => window.EmjiveModelViewer.setMetalShaders(shaders), seriesIndex["metal-shaders"]);
 
     // Flags a software rasterizer (no real MSAA).
     const renderer = await page.evaluate(() => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Shrinks the product .glb files in place:
 //   1. strips textures and TEXCOORD/COLOR/TANGENT attributes: js/three-viewer.js
-//      replaces every material with a METAL_PRESETS one, so they are never
+//      replaces every material with a "metal-shaders" one, so they are never
 //      used (remove this step if the viewer ever honours a model's own maps);
 //   2. weld(), 3. prune() + dedup(), 4. draco() (14-bit positions).
 // simplify() changes the silhouette the renders are made from, so it is opt-in.

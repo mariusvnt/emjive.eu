@@ -998,6 +998,12 @@ body:has(.site-header__menu.is-open) .gallery-control {
 @media (hover: hover) {
   .stack-orbit__go:hover { opacity: 0.6; }
 }
+/* A product's link in the hidden list has keyboard focus (js/gallery-stack.js):
+   the button naming it shows the ring. */
+.stack-orbit.is-list-focus .stack-orbit__go {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
 
 /* ---- the list ----
    One product per row, no 3D. The index column (subgrid, so it aligns down

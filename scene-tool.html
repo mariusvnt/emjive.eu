@@ -250,6 +250,8 @@ init().catch((err) => {
 
 async function init() {
   state.seriesIndex = await requestJson("data/series.json");
+  state.seriesIndex["metal-shaders"] = state.seriesIndex["metal-shaders"] || {};
+  window.EmjiveModelViewer.setMetalShaders(state.seriesIndex["metal-shaders"]);
   await loadAllProducts();
   populateHdriSelect();
   populateModelSelect();
@@ -415,30 +417,35 @@ function updateMetalButtonStates() {
   });
 }
 
+// The selected metal's entry in "metal-shaders", the object the viewer reads
+// (setMetalShaders in init); a metal without one starts from a neutral grey.
+function currentShader() {
+  const shaders = state.seriesIndex["metal-shaders"];
+  if (!shaders[state.metal]) shaders[state.metal] = { color: [128, 128, 128], metalness: 1, roughness: 0.2 };
+  return shaders[state.metal];
+}
+
 function populateShaderControls() {
-  const preset = window.EmjiveModelViewer.METAL_PRESETS[state.metal];
-  if (!preset) return;
+  if (!state.metal) return;
+  const shader = currentShader();
   els.shaderMetalLabel.textContent = state.metal;
-  const r = Math.round(preset.baseColorFactor[0] * 255);
-  const g = Math.round(preset.baseColorFactor[1] * 255);
-  const b = Math.round(preset.baseColorFactor[2] * 255);
-  els.colorInput.value = rgbToHex(r, g, b);
-  els.metalnessInput.value = preset.metallicFactor;
-  els.roughnessInput.value = preset.roughnessFactor;
-  els.metalnessReadout.textContent = preset.metallicFactor.toFixed(2);
-  els.roughnessReadout.textContent = preset.roughnessFactor.toFixed(2);
+  els.colorInput.value = rgbToHex(shader.color[0], shader.color[1], shader.color[2]);
+  els.metalnessInput.value = shader.metalness;
+  els.roughnessInput.value = shader.roughness;
+  els.metalnessReadout.textContent = shader.metalness.toFixed(2);
+  els.roughnessReadout.textContent = shader.roughness.toFixed(2);
 }
 
 function onShaderInputChange() {
-  const preset = window.EmjiveModelViewer.METAL_PRESETS[state.metal];
-  if (!preset) return;
+  if (!state.metal) return;
+  const shader = currentShader();
   const rgb = hexToRgb(els.colorInput.value);
-  preset.baseColorFactor = [rgb.r / 255, rgb.g / 255, rgb.b / 255, 1];
-  preset.metallicFactor = parseFloat(els.metalnessInput.value);
-  preset.roughnessFactor = parseFloat(els.roughnessInput.value);
-  els.metalnessReadout.textContent = preset.metallicFactor.toFixed(2);
-  els.roughnessReadout.textContent = preset.roughnessFactor.toFixed(2);
-  // METAL_PRESETS is the viewer's live object, so applyMetal() with the same key re-reads it.
+  shader.color = [rgb.r, rgb.g, rgb.b];
+  shader.metalness = parseFloat(els.metalnessInput.value);
+  shader.roughness = parseFloat(els.roughnessInput.value);
+  els.metalnessReadout.textContent = shader.metalness.toFixed(2);
+  els.roughnessReadout.textContent = shader.roughness.toFixed(2);
+  // Edited in place, so applyMetal() with the same key re-reads it.
   if (state.handle) state.handle.applyMetal(state.metal);
 }
 
@@ -693,11 +700,9 @@ async function onSaveClick() {
     const rgb = hexToRgb(els.colorInput.value);
     await attempt("Metal shader (" + state.metal + ")", "/api/save-metal-shader", {
       metalKey: state.metal,
-      r: rgb.r,
-      g: rgb.g,
-      b: rgb.b,
-      metallicFactor: parseFloat(els.metalnessInput.value),
-      roughnessFactor: parseFloat(els.roughnessInput.value)
+      color: [rgb.r, rgb.g, rgb.b],
+      metalness: parseFloat(els.metalnessInput.value),
+      roughness: parseFloat(els.roughnessInput.value)
     });
   }
 

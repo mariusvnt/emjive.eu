@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Dev server for scene-tool.html (npm run scene-tool): live preview of product
 // cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders
-// through the real viewer, saved by text-patching the source files in place.
+// through the real viewer, saved by text-patching the data files in place.
 
 "use strict";
 
@@ -10,7 +10,6 @@ const path = require("path");
 const blocks = require("./json-tool-blocks");
 const { ROOT, SERIES_JSON_PATH, findSeriesEntry, readJsonBody, sendJson, startToolServer } = require("./helpers");
 
-const THREE_VIEWER_PATH = path.join(ROOT, "js", "three-viewer.js");
 const PORT = 5200;
 const MAX_BODY_BYTES = 1e6;
 
@@ -52,18 +51,13 @@ function updateSwatchSceneInText(text, updates) {
   return result;
 }
 
-// Patches one metal in js/three-viewer.js's METAL_PRESETS, bounded to that
-// object literal.
-function updateMetalPresetInText(text, metalKey, preset) {
-  var startAnchor = "var METAL_PRESETS = {";
-  var startIdx = text.indexOf(startAnchor);
-  if (startIdx === -1) return null;
-  var blockEndIdx = text.indexOf("};", startIdx);
-  if (blockEndIdx === -1) return null;
-  var newFieldText =
-    metalKey + ": { baseColorFactor: [" + preset.r + " / 255, " + preset.g + " / 255, " + preset.b +
-    " / 255, 1], metallicFactor: " + preset.metallicFactor + ", roughnessFactor: " + preset.roughnessFactor + " }";
-  return blocks.replaceInSpan(text, { start: startIdx, end: blockEndIdx + 2 }, new RegExp(metalKey + ":\\s*\\{[^}]*\\}"), newFieldText);
+// One metal's entry in data/series.json's "metal-shaders", added if the metal has none yet.
+function updateMetalShaderInText(text, metalKey, shader) {
+  var anchor = '"metal-shaders": {';
+  var value = '{ "color": [' + shader.color.join(", ") + '], "metalness": ' + shader.metalness +
+    ', "roughness": ' + shader.roughness + " }";
+  return blocks.updateObjectEntryInText(text, anchor, metalKey, value) ||
+    blocks.insertBeforeObjectClose(text, anchor, '    "' + metalKey + '": ' + value);
 }
 
 // ---- endpoints: each re-reads its file and writes only on a successful patch ----
@@ -184,31 +178,31 @@ async function handleSaveMetalShader(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
   var metalKey = body.metalKey;
 
-  var seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var seriesIndex = JSON.parse(text);
   if (!(seriesIndex.metals || []).includes(metalKey)) {
     return sendJson(res, 400, { error: "unknown metal: " + metalKey });
   }
-  var r = body.r, g = body.g, b = body.b;
-  var metallicFactor = body.metallicFactor, roughnessFactor = body.roughnessFactor;
-  if (![r, g, b].every(isFiniteNumber) || [r, g, b].some((n) => n < 0 || n > 255)) {
-    return sendJson(res, 400, { error: "r/g/b must be finite numbers between 0 and 255" });
+  var color = body.color;
+  if (!Array.isArray(color) || color.length !== 3 || !color.every(isFiniteNumber) || color.some((n) => n < 0 || n > 255)) {
+    return sendJson(res, 400, { error: "color must be three finite numbers between 0 and 255" });
   }
-  if (![metallicFactor, roughnessFactor].every(isFiniteNumber) || [metallicFactor, roughnessFactor].some((n) => n < 0 || n > 1)) {
-    return sendJson(res, 400, { error: "metallicFactor/roughnessFactor must be finite numbers between 0 and 1" });
+  if (![body.metalness, body.roughness].every(isFiniteNumber) || [body.metalness, body.roughness].some((n) => n < 0 || n > 1)) {
+    return sendJson(res, 400, { error: "metalness/roughness must be finite numbers between 0 and 1" });
   }
 
-  var text = fs.readFileSync(THREE_VIEWER_PATH, "utf8");
-  var preset = {
-    r: Math.round(r), g: Math.round(g), b: Math.round(b),
-    metallicFactor: metallicFactor, roughnessFactor: roughnessFactor
+  var shader = {
+    color: color.map(Math.round),
+    metalness: Math.round(body.metalness * 100) / 100,
+    roughness: Math.round(body.roughness * 100) / 100
   };
-  var patched = updateMetalPresetInText(text, metalKey, preset);
+  var patched = updateMetalShaderInText(text, metalKey, shader);
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find METAL_PRESETS." + metalKey + " in js/three-viewer.js" });
+    return sendJson(res, 404, { error: 'could not find "metal-shaders" in data/series.json — add it by hand first' });
   }
 
-  fs.writeFileSync(THREE_VIEWER_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { metalKey: metalKey, preset: preset } });
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { metalKey: metalKey, shader: shader } });
 }
 
 const ROUTES = {

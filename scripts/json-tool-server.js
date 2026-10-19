@@ -271,6 +271,7 @@ async function handleGlobalMetal(req, res) {
     // validate-data rejects entries for metals not in the list.
     patched = blocks.removeObjectEntryInText(patched, '"metal-costs": {', metal) || patched;
     patched = blocks.removeObjectEntryInText(patched, '"metal-composition": {', metal) || patched;
+    patched = blocks.removeObjectEntryInText(patched, '"metal-shaders": {', metal) || patched;
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
     // Re-render every product block against the new metals list, which drops the
@@ -294,24 +295,27 @@ async function handleGlobalMetal(req, res) {
       ok: true,
       reminder:
         'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s per-metal-specs/icons/' +
-        "fallback-img/top-shot. Still worth doing by hand if you want a full cleanup (harmless if left, just dead code): " +
-        "remove METAL_PRESETS." + metal + " from js/three-viewer.js and the .product-metals__option[data-metal=\"" + metal +
-        '"] rule from css/style.css.'
+        "fallback-img/top-shot, and its metal-costs, metal-composition and metal-shaders entries. Still worth doing " +
+        "by hand if you want a full cleanup (harmless if left, just dead code): remove the " +
+        '.product-metals__option[data-metal="' + metal + '"] rule from css/style.css.'
     });
   }
 
   if (exists) return sendJson(res, 409, { error: "metal already exists: " + metal });
 
-  const patched = blocks.appendToInlineStringArray(text, '"metals": [', metal);
+  let patched = blocks.appendToInlineStringArray(text, '"metals": [', metal);
   if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
+  // A neutral starting shader, tuned afterwards in scene-tool.
+  patched = blocks.insertBeforeObjectClose(patched, '"metal-shaders": {',
+    '    "' + metal + '": { "color": [128, 128, 128], "metalness": 1, "roughness": 0.2 }') || patched;
   fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
 
   sendJson(res, 200, {
     ok: true,
     reminder:
-      'Added "' + metal + '" to data/series.json\'s metals list. Still needed by hand: a METAL_PRESETS.' + metal +
-      ' entry in js/three-viewer.js, and a .product-metals__option[data-metal="' + metal + '"] rule in css/style.css ' +
-      "— this tool does not touch either file — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
+      'Added "' + metal + '" to data/series.json\'s metals list, with a neutral grey under "metal-shaders" to tune in ' +
+      'scene-tool. Still needed by hand: a .product-metals__option[data-metal="' + metal + '"] rule in css/style.css ' +
+      "— this tool does not touch it — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
       "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it), a \"" + metal +
       '" entry under "metal-composition" and one under "metal-technology". ' +
       "Existing products won't have a \"" + metal +

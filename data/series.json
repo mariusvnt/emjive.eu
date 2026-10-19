@@ -17,6 +17,12 @@
     "bronze": "CuSn10 bronze (90% copper, 10% tin)"
   },
 
+  "metal-shaders": {
+    "steel":  { "color": [120, 120, 135], "metalness": 1,    "roughness": 0.15 },
+    "silver": { "color": [240, 240, 240], "metalness": 1,    "roughness": 0.09 },
+    "bronze": { "color": [255, 156, 41],  "metalness": 0.95, "roughness": 0.08 }
+  },
+
   "printing-technologies": {
     "binder-jetting": {
       "name": "HP Metal Binder Jetting",

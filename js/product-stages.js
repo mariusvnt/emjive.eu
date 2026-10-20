@@ -18,9 +18,9 @@
 // and calls onChange({ toDesign, toSpecs, leave, along, ramp, stage }); `along`
 // is linear through the design stretch and the transition to specs, `ramp`
 // the design stretch's ease-in share.
-// Returns { scrollToStage(index), restart(), update() }. Keyboard focus
+// Returns { scrollToStage(index), update() }. Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
-// scrolls there. restart() fades out, jumps to the top and fades back in.
+// scrolls there.
 
 (function () {
   "use strict";
@@ -271,29 +271,6 @@
       if (index !== -1) scrollToStage(index);
     });
 
-    /* ---- back to the start ---- */
-
-    // The veil fade is CSS's; instant under reduced motion.
-    var VEIL_MS = 550;
-    var restarting = false;
-    function restart() {
-      if (restarting) return;
-      if (H.reducedMotion.matches) {
-        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-        return;
-      }
-      restarting = true;
-      stageEl.classList.add("is-veiled");
-      setTimeout(function () {
-        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-        update();
-        requestAnimationFrame(function () {
-          stageEl.classList.remove("is-veiled");
-          setTimeout(function () { restarting = false; }, VEIL_MS);
-        });
-      }, VEIL_MS);
-    }
-
     window.addEventListener("scroll", requestUpdate, { passive: true });
     window.addEventListener("resize", requestUpdate);
     if (typeof flow.addEventListener === "function") flow.addEventListener("change", requestUpdate);
@@ -301,7 +278,7 @@
     window.addEventListener("pageshow", requestUpdate);
     update();
 
-    return { scrollToStage: scrollToStage, restart: restart, update: requestUpdate };
+    return { scrollToStage: scrollToStage, update: requestUpdate };
   }
 
   window.EmjiveProductStages = { mount: mount, screenPx: screenPx, entry: entry };

@@ -132,13 +132,13 @@
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 12 A8 8 0 1 1 15.5 4.8 M13 1.6 L15.5 4.8 L12 6.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
 
-            <!-- Specs: the model's front and side views, a row above it, with its
-                 x, y and z dimensions marked on them and labelled at the chosen
-                 size; a tap turns the model to a view (js/product.js
-                 renderPlanViews). -->
+            <!-- Specs: the model's front and side views, either side of it in a
+                 row of tiles, with its x, y and z dimensions marked on them and
+                 labelled at the chosen size; a tap turns the model to a view
+                 (js/product.js renderPlanViews). -->
             <div class="product-plans" id="productPlans" data-stage-owner="specs" role="group" aria-label="Plan views" hidden></div>
 
-            <!-- Under the model: label | value rows for the current stage. -->
+            <!-- Under the model (in specs, under the tile row): label | value rows for the current stage. -->
             <div class="product-below">
 
               <!-- Design: one row per design option (js/product.js renderDesigns;
@@ -163,26 +163,35 @@
                 </section>
               </div>
 
-              <!-- Specs: the size field, the size tape that scales the model
-                   (js/product.js wireSizeTape) and the "Find my size" button.
-                   Hidden for unitless categories. -->
-              <div class="product-size" id="productSize" data-stage-owner="specs" hidden>
-                <div class="product-size__controls">
-                  <span class="product-size__field">
-                    <span class="size-modal__custom-underline">
-                      <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" aria-label="Size" />
-                      <span class="size-modal__custom-unit" id="productSizeUnit"></span>
-                    </span>
-                  </span>
-                </div>
-                <div class="product-size-tape" id="productSizeTape" role="slider" tabindex="0" aria-label="Size">
-                  <span class="product-size-tape__window" aria-hidden="true"></span>
-                  <span class="product-size-tape__needle" aria-hidden="true"></span>
-                </div>
-                <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
-              </div>
-
               <div class="product-below__stage">
+                <!-- Specs' first cluster, a "Size" row: the size field, then the
+                     size tape beside it, a slider that scales the model
+                     (js/product.js wireSizeTape), then "Find my size", on the
+                     same line when the value column has the room, else on its
+                     own. Hidden for unitless categories. -->
+                <div class="product-logistics__block product-size" id="productSize" data-stage-owner="specs" hidden>
+                  <label class="product-logistics__title product-size__label" for="productSizeInput">Size</label>
+                  <div class="product-size__value">
+                    <div class="product-size__line">
+                      <div class="product-size__controls">
+                        <span class="product-size__field">
+                          <span class="size-modal__custom-underline">
+                            <input class="size-modal__custom-input" id="productSizeInput" type="text" inputmode="decimal" autocomplete="off" />
+                            <span class="size-modal__custom-unit" id="productSizeUnit"></span>
+                          </span>
+                        </span>
+                      </div>
+                      <div class="product-size-tape" id="productSizeTape" role="slider" tabindex="0" aria-label="Size">
+                        <span class="product-size-tape__window" aria-hidden="true"></span>
+                        <span class="product-size-tape__needle" aria-hidden="true"></span>
+                      </div>
+                      <span class="product-size__finder">
+                        <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Production cost chart (js/product.js renderSpecs; animates in on .is-built),
                      then static shipping and returns. -->
                 <section class="product-logistics" aria-labelledby="productLogisticsHeading">
@@ -215,9 +224,6 @@
                     <p>Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
                   </div>
                 </section>
-
-                <!-- Back to the first stage (js/product-stages.js restart()). -->
-                <button class="product-restart" id="productRestart" type="button" data-stage-owner="specs">Back to photos</button>
               </div>
 
             </div>

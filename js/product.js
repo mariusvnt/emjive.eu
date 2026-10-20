@@ -776,7 +776,8 @@
         // false: no loader (reduced motion).
         loader: loadHold || false,
         // Only a centred circle is the model's to drag (radius leaving a quarter of
-        // the width as margin); presses outside scroll the page.
+        // the width as margin); presses outside scroll the page. Specs shrinks it
+        // (--hit-scale in css/style.css, which assumes this margin).
         hitCircle: 0.25,
         onAway: setModelAway,
         // Also fires for a lost WebGL context, possibly long after loading (iOS
@@ -1280,8 +1281,8 @@
 
   /* ---- plan views (specs) ---- */
 
-  // The model's front and side views (scripts/auto-render.js), a row above
-  // it, each picture centred in its tile, its labels hanging off it. They carry lines, one per axis they measure (x
+  // The model's front and side views (scripts/auto-render.js), the outer
+  // tiles of a row with the model in the middle, each picture centred in its tile, its labels hanging off it. They carry lines, one per axis they measure (x
   // and y on the front, z on the side; EmjiveHelpers.PLAN_VIEWS), each
   // running between the picture's two farthest points along its axis, at the
   // height (or column) of one of them, with the axis's letter past the end that
@@ -1290,8 +1291,8 @@
   // measureMark). Beside each letter, its length at the chosen size in cm. The pictures are drawn in their design's plan
   // frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
   // (--plan-cw, --plan-ratio: its
-  // share of a tile's square and its proportions); they keep one scale whatever the
-  // size (CSS, from --plan-max). A tap turns the model to the view for
+  // share of a tile's square and its proportions); they scale with the chosen
+  // size as the model does (--plan-f, syncPlanSizes). A tap turns the model to the view for
   // PLAN_HOLD_MS before it eases back; the view stays pressed until then
   // (setModelAway). Hidden without the pictures or the frame.
   var PLAN_HOLD_MS = 2000;
@@ -1409,6 +1410,34 @@
       reach.style.setProperty("--reach-from", Math.min(found.at, found.far).toFixed(4));
       reach.style.setProperty("--reach-len", Math.abs(found.far - found.at).toFixed(4));
     });
+    centrePlanGroup(name);
+  }
+
+  // Centres a view's picture and labels together across its tile (upright,
+  // the picture stays level with the model): the picture, and all drawn on
+  // it, moves (translate) by half what its labels and lengths reach past it
+  // on one side more than the other. Re-run whenever they change size: the
+  // marks, the lengths, the size, the screen, the font.
+  function centrePlanGroup(name) {
+    var view = state.planViews && state.planViews[name];
+    if (!view) return;
+    var box = view.pic.getBoundingClientRect();
+    if (!box.width) return;
+    var l = 0, r = box.width;
+    view.marks.forEach(function (mark) {
+      if (!mark.classList.contains("is-cut")) return;
+      var label = mark.firstChild;
+      [label, label.lastChild].forEach(function (part) {
+        var p = part.getBoundingClientRect();
+        if (!p.width) return;
+        l = Math.min(l, p.left - box.left);
+        r = Math.max(r, p.right - box.left);
+      });
+    });
+    view.pic.style.translate = ((box.width - l - r) / 2).toFixed(1) + "px 0px";
+  }
+  function centrePlanGroups() {
+    if (state.planViews) Object.keys(state.planViews).forEach(centrePlanGroup);
   }
 
   function buildPlanViews(host) {
@@ -1465,7 +1494,6 @@
     state.planFrame = frame && names.every(function (name) { return paths[name]; }) ? frame : null;
     host.hidden = !state.planFrame;
     if (!state.planFrame) return;
-    host.style.setProperty("--plan-max", Math.max(1, SIZE_MAX_MM / SIZE_BASE_MM).toFixed(4));
     host.style.setProperty("--plan-cw", (frame.crop.w / frame.tile).toFixed(4));
     host.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
     if (!state.planViews) state.planViews = buildPlanViews(host);
@@ -1482,11 +1510,13 @@
     syncPlanSizes();
   }
 
-  // Each measure at the chosen size: its axis of the model's box in cm,
-  // beside its letter and in the view's label.
+  // The pictures at the chosen size (--plan-f), and each measure at it: its
+  // axis of the model's box in cm, beside its letter and in the view's label.
   function syncPlanSizes() {
     var frame = state.planFrame;
     if (!frame || !state.planViews) return;
+    var host = document.getElementById("productPlans");
+    if (host) host.style.setProperty("--plan-f", state.sizeFactor.toFixed(4));
     Object.keys(H.PLAN_VIEWS).forEach(function (name) {
       var view = state.planViews[name];
       var said = frame.views[name].measures.map(function (measure, i) {
@@ -1496,6 +1526,7 @@
       });
       view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view" + (said.length ? ", " + said.join(", ") : ""));
     });
+    centrePlanGroups();
   }
 
   // The view whose window is running ("" for none).
@@ -1531,14 +1562,6 @@
         if (state.modelHandle) state.modelHandle.returnHome();
       });
     }
-    // The end of specs: back to the first stage (no loop).
-    var restart = document.getElementById("productRestart");
-    if (restart) {
-      restart.addEventListener("click", function () {
-        restart.blur();
-        stages.restart();
-      });
-    }
     var resizeQueued = false;
     window.addEventListener("resize", function () {
       if (resizeQueued) return;
@@ -1546,9 +1569,11 @@
       requestAnimationFrame(function () {
         resizeQueued = false;
         fitSizeTape();
+        centrePlanGroups();
         refreshStage();
       });
     });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(centrePlanGroups);
   }
 
   function onStageChange(stage) {
@@ -1618,13 +1643,18 @@
   // --bars-h (a probe), stable as the page moves.
   var barsHeightProbe = null;
   function barsTopPx() {
-    if (!barsHeightProbe) {
-      barsHeightProbe = el("div", null);
-      barsHeightProbe.setAttribute("aria-hidden", "true");
-      barsHeightProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--bars-h)";
-      stageEl.appendChild(barsHeightProbe);
-    }
+    if (!barsHeightProbe) barsHeightProbe = lengthProbe(stageEl, "width:0;height:var(--bars-h)");
     return screenHeight() - barsHeightProbe.offsetHeight;
+  }
+
+  // An invisible box in `host` sized by CSS lengths (`size`, a width and a
+  // height), so their px can be read off it.
+  function lengthProbe(host, size) {
+    var probe = el("div", null);
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;" + size;
+    host.appendChild(probe);
+    return probe;
   }
 
   // The show's current browse offset (its transform), so measurements can undo it.
@@ -1639,12 +1669,7 @@
   // The design stretch's browse distance (--room-1, found by fitDesignRoom), read off a probe.
   var designRoomProbe = null;
   function designRoomPx() {
-    if (!designRoomProbe) {
-      designRoomProbe = el("div", null);
-      designRoomProbe.setAttribute("aria-hidden", "true");
-      designRoomProbe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:0;height:var(--room-1)";
-      document.getElementById("productStage").appendChild(designRoomProbe);
-    }
+    if (!designRoomProbe) designRoomProbe = lengthProbe(document.getElementById("productStage"), "width:0;height:var(--room-1)");
     return designRoomProbe.offsetHeight;
   }
 
@@ -1776,9 +1801,7 @@
     if (!(ratio >= 0)) ratio = 0.5;
     fitDesignRoom();
     var room = designRoomPx();
-    // The model's specs place: from the title bar, SPECS_TOP_REM blank, the
-    // plan views, SPECS_GAP_REM, then the model itself (SPECS_MODEL_REACH of
-    // its box above its middle, not the box); `place` is how far up its middle is from rest
+    // The model's specs place: the tile row's middle (specsRowMiddle); `place` is how far up its middle is from rest
     // (tile middle less the current browse; negative when it sits lower than rest).
     var place = 0;
     // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
@@ -1791,10 +1814,7 @@
       // The model's approximate half-height at its fitted size.
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = remPx();
-      var narrow = narrowScreen();
-      var plans = document.getElementById("productPlans");
-      var views = plans && !plans.hidden ? plans.getBoundingClientRect().height : 0;
-      var middle = (titleBar ? titleBar.getBoundingClientRect().bottom : 0) + ((narrow ? SPECS_TOP_REM_NARROW : SPECS_TOP_REM) + SPECS_GAP_REM) * rem + views + (narrow ? SPECS_MODEL_REACH_NARROW : SPECS_MODEL_REACH) * modelBoxEl.getBoundingClientRect().width;
+      var middle = specsRowMiddle(titleBar ? titleBar.getBoundingClientRect().bottom : 0);
       place = box.top + box.height / 2 + browsed - middle;
       hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
     }
@@ -1871,7 +1891,7 @@
   var browseRoom = 0;
   function fitBrowse(stageEl) {
     var room = 0;
-    var blocks = stageEl.querySelectorAll(".product-logistics__block, .product-restart");
+    var blocks = stageEl.querySelectorAll(".product-logistics__block");
     var bar = document.getElementById("productSelectBar");
     if (!state.flow && blocks.length && bar) {
       var clear = BROWSE_CLEAR_REM * remPx();
@@ -1886,7 +1906,7 @@
   function applyStageToViewer() {
     syncPosters();
     if (!state.modelHandle) return;
-    state.modelHandle.setFitZoom(narrowScreen() ? SPECS_ZOOM_NARROW : 1);
+    state.modelHandle.setFitZoom(specsZoom());
     state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeFactor);
   }
@@ -1908,28 +1928,38 @@
     specs.hidden = false;
     state.posterImg.style.opacity = (1 - state.fit).toFixed(3);
     specs.style.opacity = state.fit.toFixed(3);
-    var zoom = narrowScreen() ? SPECS_ZOOM_NARROW : 1;
+    var zoom = specsZoom();
     specs.style.transform = "scale(" + (1 + (state.sizeFactor * zoom - 1) * state.fit).toFixed(4) + ")";
   }
 
-  // Specs, from the title bar: this much blank, the plan views, then this gap
-  // above the model (css/style.css, the plan views' top: the same gap).
-  // Narrow screens (the stylesheet's 640px) have less blank and a model zoomed
-  // in (the box is smaller there), which its reach follows.
-  function narrowScreen() {
-    return window.matchMedia("(max-width: 640px)").matches;
+  // Specs' tile row (css/style.css, the design frame): the picture square
+  // (the probe's width) and the tile's height (its height); the blank it keeps
+  // at least under the title bar (--specs-top, the other probe).
+  var specsRowProbe = null;
+  var specsTopProbe = null;
+  function specsProbe() {
+    if (!specsRowProbe) specsRowProbe = lengthProbe(designFrameEl, "width:var(--plan-tile);height:var(--plan-cell-h)");
+    return specsRowProbe;
   }
-  var SPECS_ZOOM_NARROW = 1.25;
-  var SPECS_TOP_REM = 4.5;
-  var SPECS_TOP_REM_NARROW = 3;
-  var SPECS_GAP_REM = 3;
-  // How far the drawn model reaches above and below its box's middle at the
-  // base size, as a share of the box: the largest of the models' (0.28 above,
-  // 0.29 below, measured from every model and design), rounded, so a gap
-  // never closes (--model-reach in css/style.css, the same); narrow screens
-  // take it tighter.
-  var SPECS_MODEL_REACH = 0.28;
-  var SPECS_MODEL_REACH_NARROW = 0.25;
+  // The tile row's top on arrival: SPECS_ROW_TOP of the screen down, raised
+  // by SPECS_ROW_RAISE_REM, and at least --specs-top under the title bar.
+  var SPECS_ROW_TOP = 0.36;
+  var SPECS_ROW_RAISE_REM = 9;
+  function specsRowMiddle(titleBottom) {
+    if (!specsTopProbe) specsTopProbe = lengthProbe(designFrameEl, "width:0;height:var(--specs-top)");
+    var top = Math.max(SPECS_ROW_TOP * screenHeight() - SPECS_ROW_RAISE_REM * remPx(), titleBottom + specsTopProbe.offsetHeight);
+    return top + specsProbe().offsetHeight / 2;
+  }
+
+  // The fitted model's zoom in specs: its box's canvas brought down so the
+  // drawing, SPECS_MODEL_SHARE of the box at the largest size, fills the
+  // picture square; smaller sizes shrink it as they shrink the outlines.
+  function specsZoom() {
+    var box = modelBoxEl ? modelBoxEl.offsetWidth : 0;
+    var square = designFrameEl ? specsProbe().offsetWidth : 0;
+    return box > 0 && square > 0 ? square / (box * SPECS_MODEL_SHARE) : 1;
+  }
+  var SPECS_MODEL_SHARE = 0.66;
   // Where design holds it: a third down, then DESIGN_GAP_REM lower. The model's
   // half-height as a share of its tile.
   var DESIGN_ANCHOR = 1 / 3;
@@ -1962,29 +1992,29 @@
 
   /* ---- the size tape ---- */
 
-  // A mark every mm, tapePxPerMm apart (a fifth less on narrow screens, where
-  // the tape is drawn smaller: fitSizeTape), a long one every TAPE_MAJOR_MM.
-  var TAPE_PX_PER_MM_WIDE = 10;
-  var TAPE_PX_PER_MM_NARROW = 8;
-  var tapePxPerMm = TAPE_PX_PER_MM_WIDE;
+  // A slider drawn as a tape measure: a mark every mm from SIZE_MIN_MM (left
+  // end) to SIZE_MAX_MM (right end) across its width, a long one every
+  // TAPE_MAJOR_MM, and the needle travelling along them to the size.
   var TAPE_MAJOR_MM = 5;
   // Key steps in mm: arrows, Shift+arrows, PageUp/PageDown.
   var TAPE_KEY_STEP = 0.5;
   var TAPE_KEY_FINE = 0.1;
   var TAPE_KEY_PAGE = 5;
-  // A release faster than TAPE_FLING_MIN px/ms (read over the drag's last
-  // TAPE_SAMPLE_MS) glides on, slowing with time constant TAPE_GLIDE_MS, to the
-  // whole mm nearest where it would stop.
-  var TAPE_FLING_MIN = 0.2;
-  var TAPE_SAMPLE_MS = 100;
-  var TAPE_GLIDE_MS = 325;
+  var TAPE_TOUCH_SLOP_PX = 6;
+  // A drag moves the size by the finger's travel times a gain that falls
+  // with its speed (smoothed over TAPE_SPEED_MS): 1 at TAPE_FAST_PX_MS and
+  // over, TAPE_FINE_GAIN at TAPE_SLOW_PX_MS and under, for fine settings.
+  var TAPE_FAST_PX_MS = 0.2;
+  var TAPE_SLOW_PX_MS = 0.03;
+  var TAPE_FINE_GAIN = 0.2;
+  var TAPE_SPEED_MS = 60;
 
-  // Slides the strip so the size sits under the needle. Runs on any size change.
+  // Moves the needle to the size (--tape-at, its share of the way). Runs on any size change.
   function syncSizeTape() {
     var tape = state.sizeTape;
     if (!tape) return;
     var mm = clamp(state.sizeFactor * SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM);
-    tape.strip.style.transform = "translateX(" + (-(mm - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px)";
+    tape.el.style.setProperty("--tape-at", ((mm - SIZE_MIN_MM) / (SIZE_MAX_MM - SIZE_MIN_MM)).toFixed(4));
     var given = state.sizeText !== "";
     var now = given ? state.sizeText : String(SIZE_BASE_MM);
     tape.el.classList.toggle("is-unset", !given);
@@ -1992,39 +2022,35 @@
     tape.el.setAttribute("aria-valuetext", now + " mm");
   }
 
-  // Lays the strip at the screen's pitch (tapePxPerMm): its width and where its
-  // marks fall, then slides it to the size. Runs on wiring and on a resize.
+  // Lays the marks at the tape's pitch (its width over the range): their
+  // spacing and where they fall. Runs whenever the tape's width changes.
   function fitSizeTape() {
     var tape = state.sizeTape;
     if (!tape) return;
-    tapePxPerMm = narrowScreen() ? TAPE_PX_PER_MM_NARROW : TAPE_PX_PER_MM_WIDE;
+    var pitch = tape.el.clientWidth / (SIZE_MAX_MM - SIZE_MIN_MM);
+    if (!(pitch > 0)) return;
     var major = Math.ceil(SIZE_MIN_MM / TAPE_MAJOR_MM) * TAPE_MAJOR_MM;
-    tape.strip.style.width = ((SIZE_MAX_MM - SIZE_MIN_MM) * tapePxPerMm + 1) + "px";
-    tape.strip.style.setProperty("--tape-mm", tapePxPerMm + "px");
-    tape.strip.style.setProperty("--tape-major", TAPE_MAJOR_MM * tapePxPerMm + "px");
-    tape.strip.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px");
-    tape.strip.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px");
-    syncSizeTape();
+    tape.pitch = pitch;
+    tape.marks.style.setProperty("--tape-mm", pitch.toFixed(3) + "px");
+    tape.marks.style.setProperty("--tape-major", (TAPE_MAJOR_MM * pitch).toFixed(3) + "px");
+    tape.marks.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * pitch).toFixed(2) + "px");
+    tape.marks.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * pitch).toFixed(2) + "px");
   }
 
-  // The tape: a strip of mm marks from SIZE_MIN_MM (left) to SIZE_MAX_MM
-  // under a fixed needle. A drag moves the needle along it with the finger,
-  // so the strip slides the other way: dragging right raises the size by the
-  // finger's travel, kept unrounded so slow drags accumulate; a fling glides
-  // on. Vertical swipes stay the page's (touch-action). The field and the
+  // The tape as a slider: a mouse press puts the needle under the pointer; a
+  // drag then moves it with the pointer, more finely as it slows (the gain);
+  // a touch drags it sideways (vertical swipes stay the page's, touch-action,
+  // and leave the size alone) or, as a tap, puts it there. The field and the
   // model follow.
   function wireSizeTape(field) {
     var el = document.getElementById("productSizeTape");
     if (!el) return;
-
-    // The marks are two repeating backgrounds, offset onto whole mm and onto
-    // TAPE_MAJOR_MM multiples, counted from the strip's left end (SIZE_MIN_MM).
-    var strip = H.el("span", "product-size-tape__strip");
-    el.querySelector(".product-size-tape__window").appendChild(strip);
+    var marks = el.querySelector(".product-size-tape__window");
     el.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
     el.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
 
-    state.sizeTape = { el: el, strip: strip };
+    state.sizeTape = { el: el, marks: marks, pitch: 0 };
+    if (window.ResizeObserver) new ResizeObserver(fitSizeTape).observe(el);
     fitSizeTape();
 
     function setSize(mm) {
@@ -2038,68 +2064,63 @@
       return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
     }
 
-    // Eases from `from` towards `to` (rounded to a whole mm in range) with
-    // time constant TAPE_GLIDE_MS, ending on it.
-    var glideFrame = 0;
-    function stopGlide() {
-      cancelAnimationFrame(glideFrame);
-      glideFrame = 0;
+    // The size under a pointer at x, the ends holding past the tape.
+    function sizeAt(x) {
+      var r = el.getBoundingClientRect();
+      return SIZE_MIN_MM + clamp((x - r.left) / r.width, 0, 1) * (SIZE_MAX_MM - SIZE_MIN_MM);
     }
-    function glide(from, to) {
-      var target = clamp(Math.round(to), SIZE_MIN_MM, SIZE_MAX_MM);
-      var start = performance.now();
-      function step(now) {
-        var mm = from + (target - from) * (1 - Math.exp(-(now - start) / TAPE_GLIDE_MS));
-        if (Math.abs(target - mm) < 0.05) {
-          glideFrame = 0;
-          setSize(target);
+
+    // Registered before dragPointer's, so a touch the page took for a scroll
+    // (pointercancel) is marked before its end runs.
+    var held = null;
+    el.addEventListener("pointercancel", function () {
+      if (held) held.cancelled = true;
+    });
+    H.dragPointer(el, function (e) {
+      el.classList.add("is-held");
+      held = { touch: e.pointerType !== "mouse", x: e.clientX, y: e.clientY, moved: false, scroll: false, cancelled: false, mm: currentSize(), lastX: e.clientX, lastT: e.timeStamp, speed: TAPE_FAST_PX_MS };
+      if (!held.touch) {
+        held.mm = sizeAt(e.clientX);
+        setSize(held.mm);
+      }
+      return held;
+    }, function (e, drag) {
+      if (drag.scroll) return;
+      // A touch is a drag once it has gone TAPE_TOUCH_SLOP_PX mostly sideways,
+      // else a scroll the page is taking: the drift on its way leaves the size alone.
+      if (drag.touch && !drag.moved) {
+        var ax = Math.abs(e.clientX - drag.x);
+        var ay = Math.abs(e.clientY - drag.y);
+        if (Math.max(ax, ay) < TAPE_TOUCH_SLOP_PX) return;
+        if (ay >= ax) {
+          drag.scroll = true;
           return;
         }
-        setSize(mm);
-        glideFrame = requestAnimationFrame(step);
       }
-      glideFrame = requestAnimationFrame(step);
-    }
-
-    // The finger's speed in px/ms over the drag's last TAPE_SAMPLE_MS (at
-    // least its last two moves, which a slow frame can coalesce) up to the
-    // release, so a pause before letting go brings it down.
-    function releaseSpeed(drag) {
-      var now = performance.now();
-      var recent = drag.samples.filter(function (s) { return now - s.t <= TAPE_SAMPLE_MS; });
-      if (recent.length < 2) recent = drag.samples.slice(-2);
-      if (recent.length < 2) return 0;
-      return (recent[recent.length - 1].x - recent[0].x) / (now - recent[0].t);
-    }
-
-    H.dragPointer(el, function (e) {
-      stopGlide();
-      el.classList.add("is-held");
-      return { x: e.clientX, mm: currentSize(), samples: [{ t: performance.now(), x: e.clientX }] };
-    }, function (e, drag) {
-      var dx = e.clientX - drag.x;
-      drag.x = e.clientX;
-      drag.samples.push({ t: performance.now(), x: e.clientX });
-      if (drag.samples.length > 20) drag.samples.shift();
-      if (dx === 0) return;
-      drag.mm = clamp(drag.mm + dx / tapePxPerMm, SIZE_MIN_MM, SIZE_MAX_MM);
+      drag.moved = true;
+      // The events' own times: a busy frame that delays handling doesn't read as a slow finger.
+      var dt = Math.max(1, e.timeStamp - drag.lastT);
+      var dx = e.clientX - drag.lastX;
+      drag.lastX = e.clientX;
+      drag.lastT = e.timeStamp;
+      if (dx === 0 || !state.sizeTape.pitch) return;
+      drag.speed += (Math.abs(dx) / dt - drag.speed) * (1 - Math.exp(-dt / TAPE_SPEED_MS));
+      var gain = TAPE_FINE_GAIN + (1 - TAPE_FINE_GAIN) * H.smoothstep(TAPE_SLOW_PX_MS, TAPE_FAST_PX_MS, drag.speed);
+      drag.mm = clamp(drag.mm + dx / state.sizeTape.pitch * gain, SIZE_MIN_MM, SIZE_MAX_MM);
       setSize(drag.mm);
     }, function (drag) {
       el.classList.remove("is-held");
-      var speed = releaseSpeed(drag);
-      if (Math.abs(speed) >= TAPE_FLING_MIN && !H.reducedMotion.matches) {
-        glide(drag.mm, drag.mm + speed * TAPE_GLIDE_MS / tapePxPerMm);
-      }
+      if (drag.touch && !drag.moved && !drag.scroll && !drag.cancelled) setSize(sizeAt(drag.x));
+      held = null;
     });
 
-    // A sideways trackpad swipe moves the needle with the fingers, as a drag
-    // does (deltaX is against them); vertical wheels are left to the page.
+    // A sideways trackpad swipe moves the needle with the fingers (deltaX is
+    // against them); vertical wheels are left to the page.
     el.addEventListener("wheel", function (e) {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || !state.sizeTape.pitch) return;
       e.preventDefault();
-      stopGlide();
       var px = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
-      setSize(currentSize() - px / tapePxPerMm);
+      setSize(currentSize() - px / state.sizeTape.pitch);
     }, { passive: false });
 
     el.addEventListener("keydown", function (e) {
@@ -2107,7 +2128,6 @@
       var next = H.sliderKey(e, currentSize(), step, TAPE_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
       if (next === null) return;
       e.preventDefault();
-      stopGlide();
       setSize(next);
     });
   }
@@ -2137,13 +2157,13 @@
     var guide = info["size-guide"];
     var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
     finderToggle.hidden = !hasFinder;
-    // The finder's result goes in as if typed.
-    function openFinder(toggle, input) {
+    // The finder's result goes in as if typed: the sheet's way, or `format`'s.
+    function openFinder(toggle, input, format) {
       window.EmjiveSizeFinder.open({
         guide: guide,
         returnFocus: toggle,
         onFill: function (size) {
-          input.value = window.EmjiveSelection.normalizeSize(size);
+          input.value = format ? format(size) : window.EmjiveSelection.normalizeSize(size);
           input.dispatchEvent(new Event("input", { bubbles: true }));
         }
       });
@@ -2182,13 +2202,18 @@
     // The specs stage's "Find my size".
     var specsFinderToggle = document.getElementById("productSizeFinderToggle");
     specsFinderToggle.hidden = !hasFinder;
-    specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize); });
+    // The specs field shows one decimal, as the tape writes it ("62.0").
+    function oneDecimal(size) {
+      var mm = parseFloat(window.EmjiveSelection.normalizeSize(size));
+      return isFinite(mm) ? mm.toFixed(1) : "";
+    }
+    specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize, oneDecimal); });
     // The first time specs comes in, the field starts at the model's size, within the range.
     state.seedSize = function () {
       state.sizeSeeded = true;
       state.seedSize = null;
       if (specsSize.value !== "") return;
-      specsSize.value = String(clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM));
+      specsSize.value = clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
       setModelSize(specsSize.value);
     };
     window.EmjiveSelection.syncSizeField(specsSize, product);

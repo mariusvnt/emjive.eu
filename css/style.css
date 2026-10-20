@@ -29,8 +29,7 @@
   --button-font-size: calc(0.75rem * var(--text-scale));
   --button-letter-spacing: 0.05rem;
   --button-text-transform: uppercase;
-  /* Secondary buttons ("Find my size", "Go to page", "Back to photos", the
-     view toggle): the same recipe scaled by --button-secondary-scale. */
+  /* Secondary buttons ("Find my size", "Go to page", the view toggle): the same recipe scaled by --button-secondary-scale. */
   --button-secondary-scale: 0.7;
   --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
   --button-secondary-letter-spacing: calc(var(--button-letter-spacing) * var(--button-secondary-scale));
@@ -382,8 +381,8 @@ button, input, textarea {
   height: 100%;
 }
 /* With options.hitCircle only a centred circle takes drags (an overlay
-   clipped to --hit-r; clip-path clips hit-testing); the rest belongs to the
-   page's touch scrolling. */
+   clipped to --hit-r, times a page's --hit-scale; clip-path clips
+   hit-testing); the rest belongs to the page's touch scrolling. */
 .emjive-3d-viewer.has-hit-circle {
   touch-action: inherit;
   cursor: inherit;
@@ -394,8 +393,8 @@ button, input, textarea {
   z-index: 1;
   touch-action: none;
   cursor: grab;
-  -webkit-clip-path: circle(var(--hit-r, 37.5%) at 50% 50%);
-  clip-path: circle(var(--hit-r, 37.5%) at 50% 50%);
+  -webkit-clip-path: circle(calc(var(--hit-r, 37.5%) * var(--hit-scale, 1)) at 50% 50%);
+  clip-path: circle(calc(var(--hit-r, 37.5%) * var(--hit-scale, 1)) at 50% 50%);
 }
 .emjive-3d-viewer__hit:active {
   cursor: grabbing;
@@ -1795,12 +1794,15 @@ body:has(.order-checkout-bar:not([hidden])) {
   --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
   --specs-on: var(--s-in);
   --lift: 0px;
-  /* The specs column's two vertical gaps: between rows, and between clusters
-     (model and size; picker, weight and printing; costs; shipping and
-     returns). A cluster's first row carries --gap-extra. */
+  /* The columns' two vertical gaps: between rows, and between clusters
+     (design's options and material; specs' tile row, size, costs, shipping
+     and returns). A cluster's first row carries --gap-extra. */
   --gap-row: 1.25rem;
   --gap-group: 4rem;
   --gap-extra: calc(var(--gap-group) - var(--gap-row));
+  /* Specs' least blank between the title bar and the tile row, which sits a
+     little below the screen's first third (read by js/product.js). */
+  --specs-top: 4.5rem;
   /* Browsing (js/product-stages.js): --browse-0/1/2 are the progress through
      each stage's stretch. Inspiration moves the feed by --feed-room
      (js/product.js fitFeed). Design moves the show by --room-1 (until the last
@@ -1826,6 +1828,11 @@ body:has(.order-checkout-bar:not([hidden])) {
      stretch (--end-hold, else as long as the design stretch). */
   height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
 }
+@media (max-width: 640px) {
+  .product-stage {
+    --specs-top: 3rem;
+  }
+}
 .product-stage__pin {
   position: sticky;
   top: var(--stage-top);
@@ -1833,14 +1840,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-/* restart() ("Back to photos"): the stage fades to the background and back. */
-.product-stage__pin {
-  transition: opacity 0.55s ease;
-}
-.product-stage.is-veiled .product-stage__pin {
-  opacity: 0;
-  pointer-events: none;
 }
 .product-stage__pin > .product-detail__label-bar {
   flex: 0 0 auto;
@@ -1871,7 +1870,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    outright, so they take no taps and show no loader. */
 .product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__controls,
 .product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__finder-toggle,
-.product-stage[data-stage="specs"] :is(.product-options, .product-metals) {
+.product-stage[data-stage="specs"] :is(.product-options, .product-option__choices, .product-metals) {
   pointer-events: none;
 }
 .product-stage.is-feed-gone .product-feed,
@@ -2312,7 +2311,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    A full-width band (100vw) as tall as the model's tile (--tile: at most
    560px, 4rem narrower than the screen, no taller than the show). It holds
    the model over its x-ray and everything placed against it: picker, design
-   options, the specs column. Not a container: --tile reads 100vw and the
+   options, the plan views, the specs column. Not a container: --tile reads 100vw and the
    show's 100cqh. */
 .product-design-frame {
   position: relative;
@@ -2324,33 +2323,53 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   --model-size: calc(var(--tile) * 0.75);
   /* The page's left edge for anchored content (the picker, the column). */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
-  /* The content's left inset from the screen (a wide screen's margin plus the
-     page margin), in vw so it doesn't depend on the box it's used in. */
-  --inset-x: calc(max(0px, calc(50vw - var(--max) / 2)) + var(--edge-px));
   /* The model box's bottom from the frame's top, rising with the lift; design's controls hang from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
-  /* The gap under the model before the picker. */
+  /* The gap under the model before design's controls. */
   --model-gap: 3rem;
-  /* How far the drawn model reaches above and below its box's middle at the
-     base size (SPECS_MODEL_REACH in js/product.js, the same). */
-  --model-reach: calc(var(--model-size) * 0.28);
-  /* The drawn model's bottom, from the frame's top (its middle is --lift above the tile's). */
-  --reach-bottom: calc(var(--tile) / 2 - var(--lift) + var(--model-reach));
-  /* Where the specs column starts: the same gap under the model as above it
-     (SPECS_GAP_REM in js/product.js). */
-  --below-top: calc(var(--reach-bottom) + 3rem - 0rem);
+  /* The gap under specs' tile row before the information. */
+  --row-gap-below: 9rem;
+  /* Specs' row of three touching tiles, front view | model | side view, all
+     --plan-cell-w x --plan-cell-h: a picture square (--plan-tile) with
+     --plan-room on each side for the horizontal labels and --plan-room-y
+     above and below for the vertical ones, the row never wider than the page
+     margins. The square grows with the screen (--plan-p: 0 at 400px and
+     under, 1 at 1280px and over, linear between; tan(atan2(a, b)) is the
+     unitless a / b): 1.2 x a third of the row less 2rem up to 400px (the
+     tiles spanning the margins), then from there (6.6rem) to 12.5rem at
+     1280px, the smaller of the two so it never shrinks. A view and its labels
+     are centred across their tile as one group (js/product.js
+     centrePlanGroup). The row's middle is the model's (--lift above the tile's). */
+  --plan-text: 0.5rem;
+  --plan-p: clamp(0, tan(atan2(100vw - 400px, 880px)), 1);
+  --plan-row-w: calc(100vw - 2 * var(--edge-px));
+  --plan-tile: min(1.2 * (var(--plan-row-w) / 3 - 2rem), 6.6rem + 5.9rem * var(--plan-p));
+  --plan-room: calc(1rem + 1.9rem * var(--plan-p));
+  --plan-room-y: calc(var(--plan-text) + 0.4rem);
+  --plan-cell-w: min(var(--plan-row-w) / 3, var(--plan-tile) + 2 * var(--plan-room));
+  --plan-cell-h: calc(var(--plan-tile) + 2 * var(--plan-room-y));
+  /* Where the specs column starts: --row-gap-below under the tile row. */
+  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--row-gap-below));
+}
+@media (min-width: 641px) {
+  .product-design-frame {
+    --plan-text: 0.7rem;
+  }
 }
 @media (max-width: 640px) {
   .product-design-frame {
-    --model-reach: calc(var(--model-size) * 0.25);
     --model-size: calc(var(--tile) * 0.66);
   }
 }
 
 /* The model's box, centred and raised by the lift. During the way to design
    it's cut at the band (--model-cut from js/product.js; negative margins so
-   overhangs aren't cut). In specs it greys and shrinks (js/three-viewer.js).
-   Only the viewer's circle takes drags. A non-live model (poster, icon) greys too. */
+   overhangs aren't cut). In specs it greys and is the tile row's middle
+   tile: the model shrinks to the picture square inside its box (the fit
+   zoom, js/product.js specsZoom); the box keeps its size so the canvas never
+   resizes. Only the viewer's circle takes drags, in specs no wider than the
+   picture square (0.75: the circle's share of the box, hitCircle in
+   js/product.js). A non-live model (poster, icon) greys too. */
 .product-model {
   position: absolute;
   z-index: 1;
@@ -2360,6 +2379,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: var(--model-size);
   transform: translate(-50%, calc(-50% - var(--lift)));
   clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
+  --hit-scale: calc(1 + (tan(atan2(var(--plan-tile), var(--model-size) * 0.75)) - 1) * var(--s-in));
 }
 /* The reset button, centred above the model's box: shown once the model is
    turned off its pose (.is-away), fading with design; tappable only in design. */
@@ -2586,58 +2606,94 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-option__choice[aria-disabled="true"] {
   cursor: default;
 }
-/* The specs size: the field (the sheet's own, iOS no-zoom included) centred
-   under the model, the size tape under it, then "Find my size". Fades with
-   specs. */
+/* The specs size, the information's first cluster (a logistics block):
+   "Size" | the field (the sheet's own, iOS no-zoom included), the size tape
+   beside it and "Find my size": against the value column's right edge when
+   the line has the room, else on the column's next row. Fades with specs. */
 .product-size {
-  position: relative;
-  /* Centred on the screen, measured from the column's left. */
-  left: calc(50vw - var(--inset-x));
-  transform: translateX(-50%);
-  align-self: flex-start;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
+  align-items: start;
   opacity: var(--specs-on);
 }
 .product-size[hidden] {
   display: none;
 }
+/* On the field's line: its line box (12px at 1.4, whatever --text-scale
+   does to the label), lowered by the input's 0.3rem padding. Over
+   .product-logistics__title, which comes later. */
+.product-logistics__title.product-size__label {
+  padding-top: 0.3rem;
+  line-height: calc(12px * 1.4);
+}
+/* The value column, the container its line's room is read against. */
+.product-size__value {
+  min-width: 0;
+  container: size-value / inline-size;
+}
+/* The field, then the tape taking the line's rest (up to its cap); "Find my
+   size" breaks onto a row of its own (its wrapper a whole line) unless the
+   column holds the field, the tape at its cap and the button (the query's
+   width, measured with their gaps), where it moves to the line's end. */
+.product-size__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: var(--gap-row);
+}
+.product-size__finder {
+  flex: 0 0 100%;
+  display: flex;
+}
+.product-size__finder:has(> [hidden]) {
+  display: none;
+}
+@container size-value (min-width: 24rem) {
+  .product-size__finder {
+    flex: none;
+    margin-left: auto;
+  }
+}
+/* The room the field gives up against the sheets' (below) goes to the gap
+   before the tape. */
 .product-size__controls {
+  flex: none;
+  margin-right: calc(2.4rem - 1.875rem);
   pointer-events: auto;
   display: flex;
-  justify-content: center;
-  /* Lowered onto the tape by the room the underline left (its padding and
-     border), the tape and what follows staying put. */
-  margin: 0.375rem 0 -0.375rem;
+}
+/* One decimal here ("62.5"), not the sheets' two: the text and a caret's
+   room. Against the unit, whatever its digits. */
+.product-size__field .size-modal__custom-input {
+  --size-input-width: 1.875rem;
+  text-align: right;
 }
 .product-size__field {
   position: relative;
   flex: none;
   display: flex;
 }
-/* No underline here, the tape under it says it's adjustable; transparent, not
-   none, so nothing moves. */
+/* No underline here, the tape beside it says it's adjustable; transparent,
+   not none, so nothing moves. */
 .product-size__field .size-modal__custom-underline {
   border-bottom-color: transparent;
 }
 
 /* ---- the size tape (js/product.js wireSizeTape) ----
-   mm marks swiped sideways under a fixed needle, under the size field. The
-   strip (a mark every mm, a long one every --tape-major) slides under the
-   needle and fades out towards both ends. */
+   A slider drawn as a tape measure: mm marks fixed across its width, from
+   the smallest size at the left end to the largest at the right (a mark
+   every --tape-mm, a long one every --tape-major, laid out by
+   js/product.js fitSizeTape), and the needle travelling along them to the
+   size (--tape-at, its share of the way). */
 .product-size-tape {
   position: relative;
-  flex: none;
-  width: min(14.4rem, calc(100vw - 2 * var(--edge-px)));
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 14.4rem;
   height: 1.75rem;
-  /* 2rem to "Find my size", the column's gap included. */
-  margin-bottom: calc(2rem - 0.6rem);
   color: var(--category-col);
   pointer-events: none;
   touch-action: pan-y;
-  cursor: grab;
+  cursor: pointer;
   outline: none;
   -webkit-user-select: none;
   user-select: none;
@@ -2655,19 +2711,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-size-tape.is-held {
   cursor: grabbing;
 }
+/* Half a mark past each end, so the end marks show whole. */
 .product-size-tape__window {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 35%, #000 65%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 35%, #000 65%, transparent);
-}
-/* Its left end (the smallest size) starts on the needle; script slides it. */
-.product-size-tape__strip {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(50% - 0.5px);
+  left: -0.5px;
+  right: -0.5px;
   opacity: 0.45;
   background-image:
     linear-gradient(to right, currentColor 1px, transparent 1px),
@@ -2676,9 +2726,22 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   background-position: var(--tape-major-x) center, var(--tape-minor-x) center;
   background-repeat: repeat-x;
 }
+/* The two end marks, taller than the long ones. */
+.product-size-tape__window::before,
+.product-size-tape__window::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 0.75rem;
+  margin-top: -0.375rem;
+  background: currentColor;
+}
+.product-size-tape__window::before { left: 0; }
+.product-size-tape__window::after { right: 0; }
 .product-size-tape__needle {
   position: absolute;
-  left: 50%;
+  left: calc(var(--tape-at, 0.5) * 100%);
   top: 50%;
   width: 2px;
   height: 0.875rem;
@@ -2686,15 +2749,19 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   border-radius: 1px;
   background: var(--category-col);
 }
-/* A fifth smaller on phones (js/product.js fitSizeTape tightens the marks'
-   pitch to match). */
+/* A fifth smaller on phones. */
 @media (max-width: 640px) {
   .product-size-tape {
-    width: min(11.52rem, calc(100vw - 2 * var(--edge-px)));
+    max-width: 11.52rem;
     height: 1.4rem;
   }
-  .product-size-tape__strip {
+  .product-size-tape__window {
     background-size: var(--tape-major) 0.4rem, var(--tape-mm) 0.2rem;
+  }
+  .product-size-tape__window::before,
+  .product-size-tape__window::after {
+    height: 0.6rem;
+    margin-top: -0.3rem;
   }
   .product-size-tape__needle {
     height: 0.7rem;
@@ -2831,13 +2898,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   A row of two touching tiles, the front view and the side view, centred
-   above the model on every screen, 4.5rem under the title bar and 3rem above
-   the drawn model (SPECS_TOP_REM, SPECS_GAP_REM in js/product.js). It rises
-   with the lift. A tile is a square (a third of the model's box, 5rem at most, so
-   the row clears the title bar) plus --plan-room on each side, where the
-   labels hang; its picture, cropped alike for both views (--plan-cw,
-   --plan-ratio from js/product.js), is centred in it. On the picture, a solid line per measured axis between the
+   The tile row's outer tiles (the design frame's --plan-cell-w x
+   --plan-cell-h), the front view and the side view; the middle one is the
+   model's, left empty here. The row is centred on the screen, its middle on
+   the model's (a little below the screen's first third, js/product.js
+   specsRowMiddle), rising with the lift. A tile's picture, cropped alike for both views (--plan-cw,
+   --plan-ratio from js/product.js), is centred across it together with its
+   labels (translate, js/product.js centrePlanGroup) and upright on its own,
+   level with the model. On the picture, a solid line per measured axis between the
    drawing's two farthest points (--cut-from,
    --cut-to, --cut-at, shares of the picture, set once js/product.js has read
    it; .is-vertical for a vertical axis), the axis's label past its end on the
@@ -2845,9 +2913,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    on to the outline point. A label is the axis's letter, then its length at
    the chosen size, 0.5rem apart: beside a horizontal line, past its end;
    above or below a vertical one, the letter centred on the line. The
-   pictures keep one scale whatever the size (--plan-f: a fifth over the
-   reference size's on phones, the largest size's from 641px wide,
-   --plan-max from js/product.js); only the lengths follow the size.
+   pictures scale with the chosen size as the model does (--plan-f, the size
+   over the base size, from js/product.js setModelSize).
    Everything is in the outline's colour, the lines at 0.4
    (--plan-mark-alpha) and the reaches at half strength (--plan-line-alpha); phones draw it finer and smaller. A dot marks
    the view whose window is running (aria-pressed). Fades with specs;
@@ -2855,34 +2922,29 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-plans {
   --plan-line: 0.5px;
   --plan-dash: 3px;
-  --plan-text: 0.5rem;
-  --plan-f: 1.2;
+  --plan-f: 1;
   --plan-line-alpha: 0.5;
   --plan-mark-alpha: 0.4;
-  --plan-room: 1.6rem;
-  /* The tile's square: a third of the model's box, no more than 5rem. */
-  --plan-tile: min(calc(var(--model-size) / 3), 5rem);
   position: absolute;
   z-index: 2;
   left: 50%;
-  /* The model's middle less its drawn height above it, the gap (SPECS_GAP_REM in js/product.js) and the row. */
-  top: calc(var(--tile) / 2 - var(--lift) - var(--model-reach) - 3rem - var(--plan-tile));
-  width: calc((var(--plan-tile) + var(--plan-room) * 2) * 2);
-  height: var(--plan-tile);
+  top: calc(var(--tile) / 2 - var(--lift) - var(--plan-cell-h) / 2);
+  width: calc(var(--plan-cell-w) * 3);
+  height: var(--plan-cell-h);
   transform: translateX(-50%);
   display: flex;
   flex-direction: row;
+  justify-content: space-between;
   /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
   color: var(--category-col);
   opacity: var(--specs-on);
+  /* Over the model's tile: only the pictures take taps, the model its drags. */
+  pointer-events: none;
 }
 @media (min-width: 641px) {
   .product-plans {
     --plan-line: 1px;
     --plan-dash: 4px;
-    --plan-text: 0.7rem;
-    --plan-f: var(--plan-max, 1);
-    --plan-room: 2.9rem;
   }
 }
 .product-plans[hidden] {
@@ -2890,7 +2952,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .product-plan {
   position: relative;
-  flex: 1 1 0;
+  flex: 0 0 var(--plan-cell-w);
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -3075,16 +3137,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* Under the size: costs, shipping and returns. */
+/* Specs' information under the tile row: size, costs, shipping and returns. */
 .product-below__stage {
   display: flex;
   flex-direction: column;
   gap: var(--gap-row);
-}
-/* Specs: the size controls' last block, then 3rem before the information
-   (the column's gap is already there). */
-.product-size:not([hidden]) + .product-below__stage {
-  margin-top: calc(3rem - var(--gap-row));
 }
 .product-below__stage > * {
   min-width: 0;
@@ -3100,8 +3157,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   pointer-events: none;
   opacity: var(--specs-on);
 }
-/* The costs, and shipping with returns, are separate clusters. */
-.product-logistics > .product-costs,
+/* The size, the costs, and shipping with returns, are separate clusters
+   (with no size, the costs open the information). */
+.product-size:not([hidden]) + .product-logistics,
 .product-logistics > .product-costs + .product-logistics__block {
   margin-top: var(--gap-extra);
 }
@@ -3201,37 +3259,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition: left var(--resize) ease, width var(--resize) ease;
   transition-delay: 0s;
 }
-/* "Back to photos" (js/product-stages.js restart()), a secondary button
-   centred under the tables; tappable only in specs. */
-.product-restart {
-  position: relative;
-  align-self: flex-start;
-  /* Centred on the screen like the size field, well under the specs. */
-  left: calc(50vw - var(--inset-x));
-  transform: translateX(-50%);
-  margin: calc(var(--gap-group) * 1.5) 0 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-secondary-font-size);
-  letter-spacing: var(--button-secondary-letter-spacing);
-  text-transform: var(--button-text-transform);
-  line-height: 1.4;
-  color: var(--black);
-  white-space: nowrap;
-  cursor: pointer;
-  opacity: var(--specs-on);
-  pointer-events: none;
-  transition: opacity var(--fade-quick) ease;
-}
-.product-stage[data-stage="specs"] .product-restart {
-  pointer-events: auto;
-}
-@media (hover: hover) {
-  .product-stage[data-stage="specs"] .product-restart:hover { opacity: 0.6; }
-}
 .product-logistics p {
   margin: 0;
   font-family: var(--font-main);
@@ -3316,12 +3343,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     position: static;
     opacity: 1;
   }
+  /* The two plan tiles alone: the model keeps its own place here. */
   .product-plans {
     top: 0;
+    width: calc(var(--plan-cell-w) * 2);
     opacity: 1;
-  }
-  .product-size:not([hidden]) + .product-below__stage {
-    margin-top: 0;
   }
   .product-plan__pic {
     pointer-events: auto;
@@ -3332,9 +3358,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-logistics {
     opacity: 1;
   }
-  .product-restart {
-    opacity: 1;
-    pointer-events: auto;
+  .product-below__stage {
     margin-bottom: 3rem;
   }
   .product-size-tape {
@@ -3547,7 +3571,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 
 /* ---- "Find my size" ----
    Opens js/size-finder.js; a secondary button. Beside the size field in the
-   sheets, under it in specs. */
+   sheets, after the size tape or under it in specs. */
 .size-modal__finder-toggle,
 .product-size__finder-toggle {
   align-self: flex-end;
@@ -3579,6 +3603,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal__finder-toggle {
   margin-left: auto;
 }
+/* On the product page: in the size row's value column (.product-size__finder places it). */
 .product-size__finder-toggle {
   align-self: center;
   padding: 0;

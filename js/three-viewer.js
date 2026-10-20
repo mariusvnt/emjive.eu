@@ -804,24 +804,25 @@ export { toolkit };
   // in, the same in every 3D scene whatever the HDRI: its sun (addSun()) and its
   // colour management (configureRenderer()). The HDRI only adds reflections.
 
-  // Blender's AgX view with its "AgX - High Contrast" look, as CustomToneMapping.
-  // Blender forms the image through a 3D LUT that material shaders can't hold,
-  // so this keeps three.js's AgX frame (same inset matrix as Blender's "AgX Log"
-  // space, same outset) and swaps its sigmoid for Blender's measured grey
-  // response. Greys match Blender to under a level of 255, metal colours within
-  // a few; only saturated primaries drift.
+  // Blender's AgX view with no look, as CustomToneMapping. Blender forms the
+  // image through a 3D LUT that material shaders can't hold, so this keeps
+  // three.js's AgX frame (same inset matrix as Blender's "AgX Log" space, same
+  // outset) and swaps its sigmoid for Blender's measured grey response. Greys
+  // match Blender to under a level of 255, metal colours within a few; only
+  // saturated primaries drift.
   // AGX_CURVE: Blender's display (sRGB-encoded) value for grey per quarter stop
-  // of scene light from -9.5 to +2.5 EV, the look's contrast included, read from
-  // Blender's OpenColorIO config. The look's saturation is applied before it.
+  // of scene light from -12.5 to +4.5 EV, read from Blender's OpenColorIO config.
   var AGX_TONE_MAPPING_GLSL = [
-    "const float AGX_CURVE[ 49 ] = float[ 49 ](",
-    "  0.00000, 0.00004, 0.00016, 0.00040, 0.00081, 0.00145, 0.00239, 0.00375,",
-    "  0.00566, 0.00827, 0.01179, 0.01648, 0.02289, 0.03139, 0.04250, 0.05529,",
-    "  0.06961, 0.08585, 0.10390, 0.12397, 0.14627, 0.17197, 0.20096, 0.23331,",
-    "  0.26928, 0.30938, 0.35481, 0.40397, 0.45576, 0.50876, 0.55971, 0.60728,",
-    "  0.65171, 0.69297, 0.73104, 0.76508, 0.79626, 0.82487, 0.85108, 0.87486,",
-    "  0.89618, 0.91580, 0.93383, 0.95041, 0.96539, 0.97911, 0.99155, 1.00000,",
-    "  1.00000",
+    "const float AGX_CURVE[ 69 ] = float[ 69 ](",
+    "  0.00000, 0.00001, 0.00003, 0.00010, 0.00022, 0.00041, 0.00069, 0.00107,",
+    "  0.00159, 0.00226, 0.00316, 0.00428, 0.00572, 0.00751, 0.00974, 0.01254,",
+    "  0.01590, 0.02018, 0.02520, 0.03167, 0.03930, 0.04822, 0.05776, 0.06799,",
+    "  0.07927, 0.09105, 0.10447, 0.11831, 0.13409, 0.15071, 0.16907, 0.18904,",
+    "  0.21039, 0.23434, 0.25916, 0.28766, 0.31701, 0.34964, 0.38371, 0.41999,",
+    "  0.45735, 0.49542, 0.53211, 0.56840, 0.60197, 0.63473, 0.66515, 0.69410,",
+    "  0.72138, 0.74664, 0.77096, 0.79284, 0.81417, 0.83333, 0.85178, 0.86877,",
+    "  0.88474, 0.89983, 0.91367, 0.92710, 0.93912, 0.95086, 0.96156, 0.97183,",
+    "  0.98142, 0.99024, 0.99855, 1.00000, 1.00000",
     ");",
     "vec3 CustomToneMapping( vec3 color ) {",
     "  const mat3 AgXInsetMatrix = mat3(",
@@ -837,9 +838,8 @@ export { toolkit };
     "  color *= toneMappingExposure;",
     "  color = AgXInsetMatrix * ( LINEAR_SRGB_TO_LINEAR_REC2020 * color );",
     "  vec3 ev = log2( max( color, 1e-10 ) );",
-    "  ev = mix( vec3( dot( ev, vec3( 0.2126, 0.7152, 0.0722 ) ) ), ev, 0.95 );",
-    "  vec3 t = clamp( ( ev + 9.5 ) * 4.0, 0.0, 48.0 );",
-    "  vec3 i = min( floor( t ), vec3( 47.0 ) );",
+    "  vec3 t = clamp( ( ev + 12.5 ) * 4.0, 0.0, 68.0 );",
+    "  vec3 i = min( floor( t ), vec3( 67.0 ) );",
     "  vec3 d;",
     "  for ( int c = 0; c < 3; c ++ ) {",
     "    int k = int( i[ c ] );",

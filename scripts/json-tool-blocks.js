@@ -46,9 +46,9 @@ function geometryLine(g, indent) {
     ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
 }
 
-// A "plan-views" map on one line: { "top": ..., "front": ..., "side": ... }.
+// A "plan-views" map on one line: { "front": ..., "side": ... }.
 function planViewsLine(map) {
-  return "{ " + ["top", "front", "side"].map((v) => '"' + v + '": "' + esc((map || {})[v] || "") + '"').join(", ") + " }";
+  return "{ " + ["front", "side"].map((v) => '"' + v + '": "' + esc((map || {})[v] || "") + '"').join(", ") + " }";
 }
 
 // ---- bracket matching ----

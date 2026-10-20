@@ -24,9 +24,9 @@
 //                 wireframe in --category-col, fitted, at the reference size),
 //                 framed like fallback-img: the poster on a page opened in specs.
 //                 Metal-free, so one per product and per non-default design
-//   plan-views    512px each, the specs stage's top, front and side views: the
+//   plan-views    512px each, the specs stage's front and side views: the
 //                 model in outline, --category-col on transparent, cropped to
-//                 the content of the largest of the three (one crop and scale
+//                 the content of the larger of the two (one crop and scale
 //                 for all, EmjiveHelpers.planFrame in js/helpers.js). Also per
 //                 non-default design
 // Per metal, for every product (the picker shows any metal):
@@ -520,14 +520,14 @@ async function renderSpecsPoster(page, product, outPath, hdriRelPath, lineColor)
 
 // The plan views, with the specs poster's supersampling.
 const PLAN_VIEW_SIZE = ICON_SIZE;
-const PLAN_VIEW_NAMES = ["top", "front", "side"];
+const PLAN_VIEW_NAMES = ["front", "side"];
 async function renderPlanView(page, product, viewName, outPath, lineColor) {
   await page.setViewport({ width: PLAN_VIEW_SIZE, height: PLAN_VIEW_SIZE, deviceScaleFactor: CAPTURE_SCALE });
   await page.evaluate((p, v, s, c) => window.__renderPlanView(p, v, s, c), product, viewName, PLAN_VIEW_SIZE, lineColor);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
   const handle = await page.$("#target");
   const buffer = await handle.screenshot({ omitBackground: true });
-  // Cropped, about the centre, to the rectangle all three views share
+  // Cropped, about the centre, to the rectangle both views share
   // (EmjiveHelpers.planFrame), so the scale is the same across them.
   const frame = await page.evaluate((p) => window.EmjiveHelpers.planFrame(p), product);
   const pxPerMm = PLAN_VIEW_SIZE / frame.render;
@@ -630,7 +630,7 @@ function updateDesignSpecsPosterInText(text, product, designKey, newRelPath) {
     blocks.replaceInSpan(text, span, /(\n([ \t]*)"fallback-img":\s*\{[^}]*\})/, `$1,\n$2"specs-poster": "${newRelPath}"`);
 }
 
-// The "plan-views" map, inline: { "top": ..., "front": ..., "side": ... }.
+// The "plan-views" map, inline: { "front": ..., "side": ... }.
 function planViewsLine(paths) {
   return "{ " + PLAN_VIEW_NAMES.map((v) => `"${v}": "${paths[v]}"`).join(", ") + " }";
 }
@@ -872,7 +872,7 @@ async function main() {
     if (!wheelPostersOnly && !handPostersOnly && !specsPostersOnly) {
       console.log("\n--- plan views ---");
       const lineColor = categoryColour();
-      // The three views of one model as <base>_plan-<view>.webp; replaced files are deleted.
+      // The views of one model as <base>_plan-<view>.webp; replaced files are deleted.
       const renderPlanViews = async (view, base, label) => {
         const paths = {};
         for (const viewName of PLAN_VIEW_NAMES) {
@@ -883,14 +883,14 @@ async function main() {
         return paths;
       };
       const dropReplaced = (oldPaths, paths) => {
-        for (const viewName of PLAN_VIEW_NAMES) {
-          const oldRel = oldPaths && oldPaths[viewName];
-          if (oldRel && path.resolve(path.join(ROOT, oldRel)) !== path.resolve(path.join(ROOT, paths[viewName]))) {
+        for (const viewName of Object.keys(oldPaths || {})) {
+          const oldRel = oldPaths[viewName];
+          if (oldRel && (!paths[viewName] || path.resolve(path.join(ROOT, oldRel)) !== path.resolve(path.join(ROOT, paths[viewName])))) {
             deleteIfExists(path.join(ROOT, oldRel));
           }
         }
       };
-      const samePaths = (a, b) => !!a && PLAN_VIEW_NAMES.every((v) => a[v] === b[v]);
+      const samePaths = (a, b) => !!a && Object.keys(a).length === PLAN_VIEW_NAMES.length && PLAN_VIEW_NAMES.every((v) => a[v] === b[v]);
       for (const target of targets) {
         for (const product of target.data.products) {
           if (onlyProducts && !onlyProducts.includes(folderSlug(product.name))) continue;

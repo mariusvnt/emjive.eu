@@ -293,12 +293,12 @@
   // scripts/auto-render.js draws them, js/product.js marks their measurements,
   // js/three-viewer.js turns the live model to them. `eye` is the camera's
   // side, `up` the drawing's up. As on a technical drawing: front looks
-  // through the finger hole (+Z), top looks down with the front at the bottom,
-  // side is from the right.
+  // through the finger hole (+Z), side is from the right. `measures` lists
+  // the axes (0, 1, 2: x, y, z) a view carries a measurement of: x and y on
+  // the front, z on the side.
   var PLAN_VIEWS = {
-    top: { eye: [0, 1, 0], up: [0, 0, -1] },
-    front: { eye: [0, 0, 1], up: [0, 1, 0] },
-    side: { eye: [1, 0, 0], up: [0, 1, 0] }
+    front: { eye: [0, 0, 1], up: [0, 1, 0], measures: [0, 1] },
+    side: { eye: [1, 0, 0], up: [0, 1, 0], measures: [2] }
   };
   // The share of a tile the model's longest extent fills at its largest size.
   var PLAN_FILL = 0.64;
@@ -308,14 +308,12 @@
   // A product's plan views from geometry["axis-box"], null without it. All
   // three are drawn at one scale, centred on the box and cropped to one
   // rectangle, `crop` mm: the largest drawing's width and height plus the
-  // stroke's room. Each view measures one of the box's three axes, the
-  // three views one each (length, width and depth), the choice putting the
-  // measured side over the other in as many views as possible. Its drawing
-  // is w x h mm (along `right`, and `up`); `axis` (0, 1, 2: x, y, z) is the
-  // axis it measures, `horizontal` whether that is the `right` one. `size` is
-  // the box's x, y and z, mm. `render` is the square, mm across, the renderer
-  // draws before cropping; `tile` the square, mm across, a tile of the column
-  // stands for (the drawing's scale on the page).
+  // stroke's room. A view's drawing is w x h mm (along `right`, and `up`);
+  // `measures` lists what it measures, each { axis, horizontal }: the axis
+  // (0, 1, 2: x, y, z) and whether it runs along `right` (else along `up`).
+  // `size` is the box's x, y and z, mm. `render` is the square, mm across, the
+  // renderer draws before cropping; `tile` the square, mm across, a tile of
+  // the column stands for (the drawing's scale on the page).
   function planFrame(product) {
     var box = product && product.geometry && product.geometry["axis-box"];
     var size = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
@@ -327,34 +325,16 @@
     var rightOf = function (u, e) {
       return [u[1] * e[2] - u[2] * e[1], u[2] * e[0] - u[0] * e[2], u[0] * e[1] - u[1] * e[0]];
     };
-    var axisOf = function (v) {
-      return v[0] !== 0 ? 0 : v[1] !== 0 ? 1 : 2;
-    };
-    var names = Object.keys(PLAN_VIEWS);
-    var axes = names.map(function (name) {
-      var e = PLAN_VIEWS[name].eye;
-      var u = PLAN_VIEWS[name].up;
-      return [axisOf(rightOf(u, e)), axisOf(u)];
-    });
-    // Which of each view's two axes it measures: every axis once.
-    var chosen = null;
-    for (var mask = 0; mask < 8; mask++) {
-      var picks = names.map(function (name, i) { return (mask >> i) & 1; });
-      var used = picks.map(function (k, i) { return axes[i][k]; });
-      if (used.indexOf(0) === -1 || used.indexOf(1) === -1 || used.indexOf(2) === -1) continue;
-      var wins = 0;
-      picks.forEach(function (k, i) {
-        if (size[axes[i][k]] >= size[axes[i][1 - k]]) wins++;
-      });
-      if (!chosen || wins > chosen.wins) chosen = { picks: picks, wins: wins };
-    }
     var views = {};
-    names.forEach(function (name, i) {
+    Object.keys(PLAN_VIEWS).forEach(function (name) {
       var e = PLAN_VIEWS[name].eye;
       var u = PLAN_VIEWS[name].up;
       var right = rightOf(u, e);
       views[name] = {
-        eye: e, up: u, right: right, axis: axes[i][chosen.picks[i]], horizontal: chosen.picks[i] === 0,
+        eye: e, up: u, right: right,
+        measures: PLAN_VIEWS[name].measures.map(function (axis) {
+          return { axis: axis, horizontal: right[axis] !== 0 };
+        }),
         w: along(right), h: along(u)
       };
     });

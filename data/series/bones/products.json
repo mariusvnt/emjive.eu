@@ -38,7 +38,7 @@
         "xray": "assets/series/bones/products/furcula_ring/furcula_xray.webp",
         "hand-poster": "assets/series/bones/products/furcula_ring/furcula_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/furcula_ring/furcula_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/furcula_ring/furcula_plan-top.webp", "front": "assets/series/bones/products/furcula_ring/furcula_plan-front.webp", "side": "assets/series/bones/products/furcula_ring/furcula_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/furcula_ring/furcula_plan-front.webp", "side": "assets/series/bones/products/furcula_ring/furcula_plan-side.webp" },
         "photos": [
           { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "furcula.ring.steel.62" },
           { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "furcula.ring.steel.62" }
@@ -82,7 +82,7 @@
         "xray": "assets/series/bones/products/foramen_ring/foramen_xray.webp",
         "hand-poster": "assets/series/bones/products/foramen_ring/foramen_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/foramen_ring/foramen_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/foramen_ring/foramen_plan-top.webp", "front": "assets/series/bones/products/foramen_ring/foramen_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/foramen_ring/foramen_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -111,7 +111,7 @@
               "bronze": "assets/series/bones/products/foramen_ring/foramen-straight_fallback-img_bronze.webp"
             },
             "specs-poster": "assets/series/bones/products/foramen_ring/foramen-straight_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/foramen_ring/foramen-straight_plan-top.webp", "front": "assets/series/bones/products/foramen_ring/foramen-straight_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen-straight_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/foramen_ring/foramen-straight_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen-straight_plan-side.webp" }
           }
         ]
       }
@@ -153,7 +153,7 @@
         "xray": "assets/series/bones/products/disc_ring/disc_xray.webp",
         "hand-poster": "assets/series/bones/products/disc_ring/disc_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/disc_ring/disc_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/disc_ring/disc_plan-top.webp", "front": "assets/series/bones/products/disc_ring/disc_plan-front.webp", "side": "assets/series/bones/products/disc_ring/disc_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/disc_ring/disc_plan-front.webp", "side": "assets/series/bones/products/disc_ring/disc_plan-side.webp" },
         "photos": []
       }
     },
@@ -194,7 +194,7 @@
         "xray": "assets/series/bones/products/marrow_ring/marrow_xray.webp",
         "hand-poster": "assets/series/bones/products/marrow_ring/marrow_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/marrow_ring/marrow_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/marrow_ring/marrow_plan-top.webp", "front": "assets/series/bones/products/marrow_ring/marrow_plan-front.webp", "side": "assets/series/bones/products/marrow_ring/marrow_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/marrow_ring/marrow_plan-front.webp", "side": "assets/series/bones/products/marrow_ring/marrow_plan-side.webp" },
         "photos": []
       }
     },
@@ -235,7 +235,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/suture_ring/suture_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/suture_ring/suture_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/suture_ring/suture_plan-top.webp", "front": "assets/series/bones/products/suture_ring/suture_plan-front.webp", "side": "assets/series/bones/products/suture_ring/suture_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/suture_ring/suture_plan-front.webp", "side": "assets/series/bones/products/suture_ring/suture_plan-side.webp" },
         "photos": []
       }
     },
@@ -276,7 +276,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/cartilage_ring/cartilage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/cartilage_ring/cartilage_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/cartilage_ring/cartilage_plan-top.webp", "front": "assets/series/bones/products/cartilage_ring/cartilage_plan-front.webp", "side": "assets/series/bones/products/cartilage_ring/cartilage_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/cartilage_ring/cartilage_plan-front.webp", "side": "assets/series/bones/products/cartilage_ring/cartilage_plan-side.webp" },
         "photos": []
       }
     },
@@ -317,7 +317,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -339,7 +339,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-123_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-side.webp" }
           },
           {
             "key": "12",
@@ -352,7 +352,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-12_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-side.webp" }
           },
           {
             "key": "1L2",
@@ -365,7 +365,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-side.webp" }
           },
           {
             "key": "23",
@@ -378,7 +378,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-23_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-side.webp" }
           },
           {
             "key": "2L3",
@@ -391,7 +391,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-side.webp" }
           },
           {
             "key": "13",
@@ -404,7 +404,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-13_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-side.webp" }
           },
           {
             "key": "1",
@@ -417,7 +417,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-side.webp" }
           },
           {
             "key": "2",
@@ -430,7 +430,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-side.webp" }
           },
           {
             "key": "3",
@@ -443,7 +443,7 @@
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-3_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-side.webp" }
           }
         ]
       }
@@ -481,7 +481,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/joint_ring/joint_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/joint_ring/joint_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/joint_ring/joint_plan-top.webp", "front": "assets/series/bones/products/joint_ring/joint_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/joint_ring/joint_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint_plan-side.webp" },
         "photos": []
       }
     },
@@ -514,7 +514,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/omoplates_ring/omoplates_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/omoplates_ring/omoplates_plan-top.webp", "front": "assets/series/bones/products/omoplates_ring/omoplates_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/omoplates_ring/omoplates_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -535,7 +535,7 @@
             "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates-dual_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-top.webp", "front": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-side.webp" }
           }
         ]
       }
@@ -569,7 +569,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/jaw_ring/jaw_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/jaw_ring/jaw_specs-poster.webp",
-        "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw_plan-side.webp" },
+        "plan-views": { "front": "assets/series/bones/products/jaw_ring/jaw_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -590,7 +590,7 @@
             "icons": { "steel": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/jaw_ring/jaw-overhand_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-side.webp" }
           },
           {
             "key": "small",
@@ -603,7 +603,7 @@
             "icons": { "steel": "assets/series/bones/products/jaw_ring/jaw-small_icon_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-small_icon_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-small_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_bronze.webp" },
             "specs-poster": "assets/series/bones/products/jaw_ring/jaw-small_specs-poster.webp",
-            "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw-small_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw-small_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-small_plan-side.webp" }
+            "plan-views": { "front": "assets/series/bones/products/jaw_ring/jaw-small_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-small_plan-side.webp" }
           }
         ]
       }

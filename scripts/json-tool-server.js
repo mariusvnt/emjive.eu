@@ -70,7 +70,7 @@ const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+
 // A product folder, checked before a recursive delete.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
-const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|specs-poster|plan-(?:top|front|side))[_.]/;
+const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|specs-poster|plan-(?:front|side))[_.]/;
 
 function isAllowedAssetDestPath(destPath) {
   if (typeof destPath !== "string" || !destPath) return false;

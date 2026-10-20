@@ -1293,86 +1293,136 @@
 
   /* ---- plan views (specs) ---- */
 
-  // The model's top, front and side views (scripts/auto-render.js), a column
-  // against its box. Each tile holds the picture and, on it, a dashed line
-  // across the widest cross-section along the axis that view measures, with
-  // that axis's letter at its end (placed once the picture is in:
-  // measureCut). Under the three, a caption gives x, y and z at the chosen
-  // size in cm. The pictures are drawn in their design's plan frame
-  // (EmjiveHelpers.planFrame), each measuring a different axis, and cropped to
-  // one rectangle for the three (--plan-cw, --plan-ratio: its share of a tile
-  // and its proportions); they keep one scale whatever the size (CSS, from
-  // --plan-max). A tap turns the model to the view for PLAN_HOLD_MS before it
-  // eases back; the view stays pressed until then (setModelAway). Hidden
-  // without the pictures or the frame.
+  // The model's front and side views (scripts/auto-render.js), a column
+  // against its box. They carry dashed lines, one per axis they measure (x
+  // and y on the front, z on the side; EmjiveHelpers.PLAN_VIEWS), each
+  // running between the picture's two farthest points along its axis, at the
+  // height (or column) of one of them, with the axis's letter past the end that
+  // is on the outline; an end off the outline gets a solid line reaching on
+  // to the outline point it stands for (placed once the picture is in:
+  // measureMark). Under the views, a caption gives x, y and z
+  // at the chosen size in cm. The pictures are drawn in their design's plan
+  // frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
+  // (--plan-cw, --plan-ratio: its
+  // share of a tile and its proportions); they keep one scale whatever the
+  // size (CSS, from --plan-max). A tap turns the model to the view for
+  // PLAN_HOLD_MS before it eases back; the view stays pressed until then
+  // (setModelAway). Hidden without the pictures or the frame.
   var PLAN_HOLD_MS = 2000;
   var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
   var PLAN_AXES = ["x", "y", "z"];
   // A picture's pixel counts as drawn from this alpha (of 255).
   var PLAN_DRAWN_ALPHA = 60;
+  // How far, in picture pixels, a line's end may sit from the drawing and
+  // still count as on the outline.
+  var PLAN_ON_PX = 2;
 
-  // Where the picture is widest along its measured axis: for each row (a
-  // horizontal axis) or column (a vertical one), the span between its first
-  // and last drawn pixel; the row or column with the longest span (the middle
-  // one of those within a pixel of it) is the cross-section. { from, to, at }
-  // as shares of the picture's width and height (or height and width), null if
-  // the picture can't be read.
-  var planCutCanvas = null;
-  function measureCut(img, horizontal) {
+  // A picture's alpha, read once on a shared canvas: { w, h, data }, null if
+  // it can't be read.
+  var planPixelCanvas = null;
+  function readPlanPicture(img) {
     var w = img.naturalWidth;
     var h = img.naturalHeight;
     if (!w || !h) return null;
-    var data;
     try {
-      if (!planCutCanvas) planCutCanvas = document.createElement("canvas");
-      planCutCanvas.width = w;
-      planCutCanvas.height = h;
-      var ctx = planCutCanvas.getContext("2d", { willReadFrequently: true });
+      if (!planPixelCanvas) planPixelCanvas = document.createElement("canvas");
+      planPixelCanvas.width = w;
+      planPixelCanvas.height = h;
+      var ctx = planPixelCanvas.getContext("2d", { willReadFrequently: true });
       ctx.drawImage(img, 0, 0);
-      data = ctx.getImageData(0, 0, w, h).data;
+      return { w: w, h: h, data: ctx.getImageData(0, 0, w, h).data };
     } catch (err) {
       return null;
     }
-    var lines = horizontal ? h : w;
-    var across = horizontal ? w : h;
-    var first = [];
-    var last = [];
-    var longest = -1;
-    for (var i = 0; i < lines; i++) {
-      var lo = -1;
-      var hi = -1;
-      for (var j = 0; j < across; j++) {
-        var alpha = data[((horizontal ? i * w + j : j * w + i) << 2) + 3];
-        if (alpha < PLAN_DRAWN_ALPHA) continue;
-        if (lo === -1) lo = j;
-        hi = j;
-      }
-      first.push(lo);
-      last.push(hi);
-      if (lo !== -1) longest = Math.max(longest, hi - lo);
-    }
-    if (longest < 0) return null;
-    var widest = [];
-    for (var k = 0; k < lines; k++) {
-      if (first[k] !== -1 && last[k] - first[k] >= longest - 1) widest.push(k);
-    }
-    var at = widest[widest.length >> 1];
-    return { from: first[at] / across, to: (last[at] + 1) / across, at: (at + 0.5) / lines };
   }
 
-  // Lays a view's dashed line and letter on its picture; both stay hidden
+  // The dashed line for one axis of a picture, `horizontal` (along its width)
+  // or not: from the drawing's first drawn pixel to its last along that axis,
+  // at the row (or column) of one of those two extreme points, the middle of
+  // the run of rows reaching it. The line takes the extreme whose far end
+  // still lands on the drawing; with neither or both, the right one of a
+  // horizontal line and the top one of a vertical line. { from, to, at } as
+  // shares of the picture, `labelTo` whether the letter sits at the `to` end
+  // (the end on the drawing); `far`, when the other end is off the drawing,
+  // the share along the lines of the drawing's extreme point it stands for,
+  // else null.
+  function measureMark(picture, horizontal) {
+    var w = picture.w;
+    var data = picture.data;
+    var lines = horizontal ? picture.h : w;
+    var across = horizontal ? w : picture.h;
+    var drawn = function (a, l) {
+      if (a < 0 || a >= across || l < 0 || l >= lines) return false;
+      return data[((horizontal ? l * w + a : a * w + l) << 2) + 3] >= PLAN_DRAWN_ALPHA;
+    };
+    var near = function (a, l) {
+      for (var da = -PLAN_ON_PX; da <= PLAN_ON_PX; da++) {
+        for (var dl = -PLAN_ON_PX; dl <= PLAN_ON_PX; dl++) if (drawn(a + da, l + dl)) return true;
+      }
+      return false;
+    };
+    var lo = across;
+    var hi = -1;
+    for (var l = 0; l < lines; l++) {
+      for (var a = 0; a < across; a++) {
+        if (!drawn(a, l)) continue;
+        if (a < lo) lo = a;
+        if (a > hi) hi = a;
+      }
+    }
+    if (hi < 0) return null;
+    var ends = [lo, hi];
+    var picks = ends.map(function (end, k) {
+      var best = { start: 0, len: 0 };
+      var run = 0;
+      for (var i = 0; i < lines; i++) {
+        var on = false;
+        for (var d = -PLAN_ON_PX; d <= PLAN_ON_PX && !on; d++) on = drawn(end + d, i);
+        run = on ? run + 1 : 0;
+        if (run > best.len) best = { start: i - run + 1, len: run };
+      }
+      var at = best.start + ((best.len - 1) >> 1);
+      return { k: k, at: at, reach: near(ends[1 - k], at) };
+    });
+    var prefer = horizontal ? 1 : 0;
+    var pick = picks[prefer];
+    if (picks[1 - prefer].reach && !pick.reach) pick = picks[1 - prefer];
+    return {
+      from: lo / across,
+      to: (hi + 1) / across,
+      at: (pick.at + 0.5) / lines,
+      labelTo: pick.k === 1,
+      far: pick.reach ? null : (picks[1 - pick.k].at + 0.5) / lines
+    };
+  }
+
+  // Lays a view's dashed lines and letters on its picture, and the reach
+  // from a line end off the drawing to its extreme point; they stay hidden
   // until the picture has been read.
-  function placeCut(name) {
+  function placeMarks(name) {
     var view = state.planViews && state.planViews[name];
     var drawing = state.planFrame && state.planFrame.views[name];
     if (!view || !drawing) return;
-    var cut = view.img.getAttribute("src") ? measureCut(view.img, drawing.horizontal) : null;
-    view.pic.classList.toggle("is-cut", !!cut);
-    view.pic.classList.toggle("is-vertical", !drawing.horizontal);
-    if (!cut) return;
-    view.pic.style.setProperty("--cut-from", cut.from.toFixed(4));
-    view.pic.style.setProperty("--cut-to", cut.to.toFixed(4));
-    view.pic.style.setProperty("--cut-at", cut.at.toFixed(4));
+    var picture = view.marks.length && view.img.getAttribute("src") ? readPlanPicture(view.img) : null;
+    drawing.measures.forEach(function (measure, i) {
+      var mark = view.marks[i];
+      var reach = view.reaches[i];
+      var found = picture && measureMark(picture, measure.horizontal);
+      mark.classList.toggle("is-cut", !!found);
+      mark.classList.toggle("is-vertical", !measure.horizontal);
+      reach.classList.toggle("is-cut", !!found && found.far !== null);
+      reach.classList.toggle("is-vertical", !measure.horizontal);
+      if (!found) return;
+      mark.classList.toggle("is-label-to", found.labelTo);
+      mark.style.setProperty("--cut-from", found.from.toFixed(4));
+      mark.style.setProperty("--cut-to", found.to.toFixed(4));
+      mark.style.setProperty("--cut-at", found.at.toFixed(4));
+      if (found.far === null) return;
+      reach.classList.toggle("is-end-to", !found.labelTo);
+      reach.style.setProperty("--reach-x", (found.labelTo ? found.from : found.to).toFixed(4));
+      reach.style.setProperty("--reach-from", Math.min(found.at, found.far).toFixed(4));
+      reach.style.setProperty("--reach-len", Math.abs(found.far - found.at).toFixed(4));
+    });
   }
 
   function buildPlanViews(host) {
@@ -1388,14 +1438,20 @@
       img.alt = "";
       img.decoding = "async";
       img.draggable = false;
-      img.addEventListener("load", function () { placeCut(name); });
+      img.addEventListener("load", function () { placeMarks(name); });
       pic.appendChild(img);
-      var cut = el("span", "product-plan__cut");
-      cut.setAttribute("aria-hidden", "true");
-      pic.appendChild(cut);
-      var axis = el("span", "product-plan__axis");
-      axis.setAttribute("aria-hidden", "true");
-      pic.appendChild(axis);
+      var reaches = [];
+      var marks = H.PLAN_VIEWS[name].measures.map(function () {
+        var reach = el("span", "product-plan__reach");
+        reach.setAttribute("aria-hidden", "true");
+        pic.appendChild(reach);
+        reaches.push(reach);
+        var mark = el("span", "product-plan__mark");
+        mark.setAttribute("aria-hidden", "true");
+        mark.appendChild(el("span", "product-plan__axis"));
+        pic.appendChild(mark);
+        return mark;
+      });
       button.appendChild(pic);
       button.addEventListener("click", function () {
         if (!state.modelHandle || !state.modelHandle.showView) return;
@@ -1403,7 +1459,7 @@
         markPlanView(name);
       });
       host.appendChild(button);
-      views[name] = { button: button, pic: pic, img: img, axis: axis };
+      views[name] = { button: button, pic: pic, img: img, marks: marks, reaches: reaches };
     });
     var caption = el("p", "product-plans__caption");
     state.planCaption = PLAN_AXES.map(function (letter) {
@@ -1433,13 +1489,16 @@
     if (!state.planViews) state.planViews = buildPlanViews(host);
     names.forEach(function (name) {
       var view = state.planViews[name];
-      var letter = PLAN_AXES[frame.views[name].axis];
-      view.axis.textContent = letter;
-      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view, measuring " + letter);
+      var letters = frame.views[name].measures.map(function (measure, i) {
+        var letter = PLAN_AXES[measure.axis];
+        view.marks[i].lastChild.textContent = letter;
+        return letter;
+      });
+      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view" + (letters.length ? ", measuring " + letters.join(" and ") : ""));
       if (!state.planImagesOn) return;
       // A picture already in (a design change that kept it) fires no load.
       if (view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
-      else placeCut(name);
+      else placeMarks(name);
     });
     syncPlanSizes();
   }
@@ -1449,7 +1508,7 @@
     var frame = state.planFrame;
     if (!frame || !state.planViews) return;
     PLAN_AXES.forEach(function (letter, i) {
-      var text = (frame.size[i] * state.sizeFactor / 10).toFixed(2) + " cm";
+      var text = (frame.size[i] * state.sizeFactor / 10).toFixed(1) + " cm";
       if (state.planCaption[i].textContent !== text) state.planCaption[i].textContent = text;
     });
   }
@@ -1870,7 +1929,7 @@
   var DESIGN_GAP_REM = 4.5;
   var SPECS_HALF_HEIGHT = 0.13;
   // The extra gap above the model in specs.
-  var SPECS_GAP_REM = 5.5;
+  var SPECS_GAP_REM = 8;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize scales
   // the model, specs and tape to a typed size (none: the base), clamped to

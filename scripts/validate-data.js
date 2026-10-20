@@ -227,7 +227,7 @@ const indexSchema = {
 
 const metalMap = { type: "object", additionalProperties: str };
 // The specs stage's outline views (scripts/auto-render.js).
-const planViewsSchema = { type: "object", required: ["top", "front", "side"], properties: { top: str, front: str, side: str } };
+const planViewsSchema = { type: "object", required: ["front", "side"], properties: { front: str, side: str } };
 
 // Written by `npm run measure-models`; on a product and on each non-default design.
 const geometrySchema = {
@@ -498,7 +498,7 @@ function checkDesigns(label, product, metals) {
     checkPath(at + " model", design.model);
     checkPath(at + " wireframe", design.wireframe);
     checkPath(at + " specs-poster", design["specs-poster"]);
-    for (const view of ["top", "front", "side"]) checkPath(at + " plan-views." + view, (design["plan-views"] || {})[view]);
+    for (const view of ["front", "side"]) checkPath(at + " plan-views." + view, (design["plan-views"] || {})[view]);
     for (const field of ["icons", "fallback-img"]) {
       for (const metal of metals) {
         if (!design[field][metal]) fail(at, field + ' has no "' + metal + '"');
@@ -651,7 +651,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         checkPath(label + " assets.xray", product.assets.xray);
         checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);
         checkPath(label + " assets.specs-poster", product.assets["specs-poster"]);
-        for (const view of ["top", "front", "side"]) checkPath(label + " assets.plan-views." + view, product.assets["plan-views"][view]);
+        for (const view of ["front", "side"]) checkPath(label + " assets.plan-views." + view, product.assets["plan-views"][view]);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));
       }

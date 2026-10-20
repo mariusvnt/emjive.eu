@@ -89,9 +89,11 @@
     metalPicked: false,
     // The size tape's elements (wireSizeTape).
     sizeTape: null,
-    // The plan views' elements by view name, the design's frame
-    // (EmjiveHelpers.planFrame), and whether their pictures may load yet.
+    // The plan views' elements by view name, their caption's three lines, the
+    // design's frame (EmjiveHelpers.planFrame), and whether the pictures may
+    // load yet.
     planViews: null,
+    planCaption: null,
     planFrame: null,
     planImagesOn: false,
     // The model's lift on its way into specs, px (refreshStage).
@@ -1292,19 +1294,86 @@
   /* ---- plan views (specs) ---- */
 
   // The model's top, front and side views (scripts/auto-render.js), a column
-  // against its box. Each is a stack in its tile: the picture, then the
-  // dimension (a line under it and its figure). The pictures are drawn in
-  // their design's plan frame (EmjiveHelpers.planFrame), turned so the
-  // measured side (one of the model's three axes, a different one in each
-  // view) is horizontal, and cropped to one
-  // rectangle for the three (--plan-cw, --plan-ratio: its share of a tile and
-  // its proportions); they keep one scale whatever the size (CSS, from
-  // --plan-max). The line is the measured side's length (--plan-w, a share of
-  // a tile), the figure that side at the chosen size in cm. A tap turns the
-  // model to the view for PLAN_HOLD_MS before it eases back; the view stays
-  // pressed until then (setModelAway). Hidden without the pictures or the frame.
+  // against its box. Each tile holds the picture and, on it, a dashed line
+  // across the widest cross-section along the axis that view measures, with
+  // that axis's letter at its end (placed once the picture is in:
+  // measureCut). Under the three, a caption gives x, y and z at the chosen
+  // size in cm. The pictures are drawn in their design's plan frame
+  // (EmjiveHelpers.planFrame), each measuring a different axis, and cropped to
+  // one rectangle for the three (--plan-cw, --plan-ratio: its share of a tile
+  // and its proportions); they keep one scale whatever the size (CSS, from
+  // --plan-max). A tap turns the model to the view for PLAN_HOLD_MS before it
+  // eases back; the view stays pressed until then (setModelAway). Hidden
+  // without the pictures or the frame.
   var PLAN_HOLD_MS = 2000;
   var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
+  var PLAN_AXES = ["x", "y", "z"];
+  // A picture's pixel counts as drawn from this alpha (of 255).
+  var PLAN_DRAWN_ALPHA = 60;
+
+  // Where the picture is widest along its measured axis: for each row (a
+  // horizontal axis) or column (a vertical one), the span between its first
+  // and last drawn pixel; the row or column with the longest span (the middle
+  // one of those within a pixel of it) is the cross-section. { from, to, at }
+  // as shares of the picture's width and height (or height and width), null if
+  // the picture can't be read.
+  var planCutCanvas = null;
+  function measureCut(img, horizontal) {
+    var w = img.naturalWidth;
+    var h = img.naturalHeight;
+    if (!w || !h) return null;
+    var data;
+    try {
+      if (!planCutCanvas) planCutCanvas = document.createElement("canvas");
+      planCutCanvas.width = w;
+      planCutCanvas.height = h;
+      var ctx = planCutCanvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      data = ctx.getImageData(0, 0, w, h).data;
+    } catch (err) {
+      return null;
+    }
+    var lines = horizontal ? h : w;
+    var across = horizontal ? w : h;
+    var first = [];
+    var last = [];
+    var longest = -1;
+    for (var i = 0; i < lines; i++) {
+      var lo = -1;
+      var hi = -1;
+      for (var j = 0; j < across; j++) {
+        var alpha = data[((horizontal ? i * w + j : j * w + i) << 2) + 3];
+        if (alpha < PLAN_DRAWN_ALPHA) continue;
+        if (lo === -1) lo = j;
+        hi = j;
+      }
+      first.push(lo);
+      last.push(hi);
+      if (lo !== -1) longest = Math.max(longest, hi - lo);
+    }
+    if (longest < 0) return null;
+    var widest = [];
+    for (var k = 0; k < lines; k++) {
+      if (first[k] !== -1 && last[k] - first[k] >= longest - 1) widest.push(k);
+    }
+    var at = widest[widest.length >> 1];
+    return { from: first[at] / across, to: (last[at] + 1) / across, at: (at + 0.5) / lines };
+  }
+
+  // Lays a view's dashed line and letter on its picture; both stay hidden
+  // until the picture has been read.
+  function placeCut(name) {
+    var view = state.planViews && state.planViews[name];
+    var drawing = state.planFrame && state.planFrame.views[name];
+    if (!view || !drawing) return;
+    var cut = view.img.getAttribute("src") ? measureCut(view.img, drawing.horizontal) : null;
+    view.pic.classList.toggle("is-cut", !!cut);
+    view.pic.classList.toggle("is-vertical", !drawing.horizontal);
+    if (!cut) return;
+    view.pic.style.setProperty("--cut-from", cut.from.toFixed(4));
+    view.pic.style.setProperty("--cut-to", cut.to.toFixed(4));
+    view.pic.style.setProperty("--cut-at", cut.at.toFixed(4));
+  }
 
   function buildPlanViews(host) {
     var views = {};
@@ -1319,22 +1388,33 @@
       img.alt = "";
       img.decoding = "async";
       img.draggable = false;
+      img.addEventListener("load", function () { placeCut(name); });
       pic.appendChild(img);
-      var dim = el("span", "product-plan__dim");
-      dim.setAttribute("aria-hidden", "true");
-      var figure = el("span", "product-plan__figure");
-      dim.appendChild(el("span", "product-plan__line"));
-      dim.appendChild(figure);
+      var cut = el("span", "product-plan__cut");
+      cut.setAttribute("aria-hidden", "true");
+      pic.appendChild(cut);
+      var axis = el("span", "product-plan__axis");
+      axis.setAttribute("aria-hidden", "true");
+      pic.appendChild(axis);
       button.appendChild(pic);
-      button.appendChild(dim);
       button.addEventListener("click", function () {
         if (!state.modelHandle || !state.modelHandle.showView) return;
         state.modelHandle.showView(name, PLAN_HOLD_MS);
         markPlanView(name);
       });
       host.appendChild(button);
-      views[name] = { button: button, img: img, figure: figure };
+      views[name] = { button: button, pic: pic, img: img, axis: axis };
     });
+    var caption = el("p", "product-plans__caption");
+    state.planCaption = PLAN_AXES.map(function (letter) {
+      var line = el("span", "product-plans__line");
+      line.appendChild(el("span", "product-plans__letter", letter));
+      var value = el("span", "product-plans__value");
+      line.appendChild(value);
+      caption.appendChild(line);
+      return value;
+    });
+    host.appendChild(caption);
     return views;
   }
 
@@ -1353,24 +1433,24 @@
     if (!state.planViews) state.planViews = buildPlanViews(host);
     names.forEach(function (name) {
       var view = state.planViews[name];
-      var drawing = frame.views[name];
-      view.button.style.setProperty("--plan-w", (drawing.w / frame.tile).toFixed(4));
-      if (state.planImagesOn && view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
+      var letter = PLAN_AXES[frame.views[name].axis];
+      view.axis.textContent = letter;
+      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view, measuring " + letter);
+      if (!state.planImagesOn) return;
+      // A picture already in (a design change that kept it) fires no load.
+      if (view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
+      else placeCut(name);
     });
     syncPlanSizes();
   }
 
-  // Each figure at the chosen size: the measured side in cm.
+  // The caption at the chosen size: each axis of the model's box in cm.
   function syncPlanSizes() {
     var frame = state.planFrame;
     if (!frame || !state.planViews) return;
-    Object.keys(state.planViews).forEach(function (name) {
-      var view = state.planViews[name];
-      var drawing = frame.views[name];
-      var text = (drawing.w * state.sizeFactor / 10).toFixed(2) + " cm";
-      if (view.figure.textContent === text) return;
-      view.figure.textContent = text;
-      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view, " + text);
+    PLAN_AXES.forEach(function (letter, i) {
+      var text = (frame.size[i] * state.sizeFactor / 10).toFixed(2) + " cm";
+      if (state.planCaption[i].textContent !== text) state.planCaption[i].textContent = text;
     });
   }
 

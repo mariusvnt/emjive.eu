@@ -2828,19 +2828,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
    A column hugging the model box's right edge, as tall as the box and rising
-   with the lift: three square tiles (top, front, side) touching each other.
-   Each tile is a stack, centred as a whole: the picture, then the dimension
-   (a line the measured side's long, and its figure under it). The pictures
-   are turned and cropped alike (--plan-cw, --plan-ratio from js/product.js),
-   so the three stacks have one shape and line up. They keep one scale
+   with the lift: three tiles (top, front, side) touching each other, the
+   caption under them. Each tile centres its picture, cropped alike for the
+   three (--plan-cw, --plan-ratio from js/product.js). On it, a dashed line
+   across the widest cross-section along the measured axis (--cut-from,
+   --cut-to, --cut-at, shares of the picture, set once js/product.js has read
+   it; .is-vertical for a vertical axis) with the axis's letter just past its
+   end. The caption (x, y and z at the chosen size) has the letters at the
+   column's left and the values at its right. The pictures keep one scale
    whatever the size (--plan-f: a fifth over the reference size's on phones,
    the largest size's from the desktop width, --plan-max from js/product.js);
-   only the figures follow the size. The line is in the outline's colour, and
+   only the caption follows the size. Everything is in the outline's colour;
    phones draw it finer and smaller. A dot marks the view whose window is
    running (aria-pressed). Fades with specs; tappable only in it. */
 .product-plans {
-  --plan-dim-gap: 4px;
   --plan-line: 0.5px;
+  --plan-dash: 3px;
   --plan-text: 0.5rem;
   --plan-f: 1.2;
   position: absolute;
@@ -2851,12 +2854,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   height: var(--model-size);
   display: flex;
   flex-direction: column;
+  /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
+  color: var(--category-col);
   opacity: var(--specs-on);
 }
 @media (min-width: 641px) {
   .product-plans {
-    --plan-dim-gap: 8px;
     --plan-line: 1px;
+    --plan-dash: 4px;
     --plan-text: 0.7rem;
     --plan-f: var(--plan-max, 1);
   }
@@ -2872,14 +2877,13 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   padding: 0;
   border: none;
   background: none;
-  /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
-  color: var(--category-col);
+  color: inherit;
+  overflow: visible;
   cursor: pointer;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
   transition: opacity var(--fade-quick) ease;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
@@ -2903,6 +2907,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   background: var(--category-col);
 }
 .product-plan__pic {
+  position: relative;
   flex: none;
   display: block;
   width: calc(var(--plan-cw) * var(--plan-f) * 100%);
@@ -2916,27 +2921,59 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   user-select: none;
   -webkit-user-select: none;
 }
-/* The line is a filled box, not a border: a border's width is snapped to
-   whole device pixels, a box's isn't. */
-.product-plan__dim {
-  flex: none;
-  width: 100%;
-  margin-top: var(--plan-dim-gap);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* The line is a gradient, not a dashed border: a border's width is snapped to
+   whole device pixels, a box's isn't. Hidden until the picture has been read
+   (.is-cut). */
+.product-plan__cut,
+.product-plan__axis {
+  position: absolute;
+  visibility: hidden;
 }
-.product-plan__line {
-  width: calc(var(--plan-w) * var(--plan-f) * 100%);
+.product-plan__pic.is-cut :is(.product-plan__cut, .product-plan__axis) {
+  visibility: visible;
+}
+.product-plan__cut {
+  left: calc(var(--cut-from) * 100%);
+  top: calc(var(--cut-at) * 100% - var(--plan-line) / 2);
+  width: calc((var(--cut-to) - var(--cut-from)) * 100%);
   height: var(--plan-line);
-  background: currentColor;
+  background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
 }
-.product-plan__figure {
-  margin-top: 3px;
+.product-plan__axis {
+  left: calc(var(--cut-to) * 100% + 0.2rem);
+  top: calc(var(--cut-at) * 100%);
+  transform: translateY(-50%);
   font-family: var(--font-main);
   font-size: var(--plan-text);
   line-height: 1;
+}
+.product-plan__pic.is-vertical .product-plan__cut {
+  left: calc(var(--cut-at) * 100% - var(--plan-line) / 2);
+  top: calc(var(--cut-from) * 100%);
+  width: var(--plan-line);
+  height: calc((var(--cut-to) - var(--cut-from)) * 100%);
+  background: repeating-linear-gradient(to bottom, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
+}
+.product-plan__pic.is-vertical .product-plan__axis {
+  left: calc(var(--cut-at) * 100%);
+  top: calc(var(--cut-from) * 100% - 0.2rem);
+  transform: translate(-50%, -100%);
+}
+.product-plans__caption {
+  flex: none;
+  align-self: stretch;
+  margin: 0;
+  padding-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-main);
+  font-size: var(--plan-text);
+  line-height: 1.4;
   white-space: nowrap;
+}
+.product-plans__line {
+  display: flex;
+  justify-content: space-between;
 }
 
 /* ---- specs: the weight at the chosen size ----

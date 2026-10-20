@@ -290,11 +290,11 @@
   /* ---- plan views ---- */
 
   // The specs stage's outline views of a model, in its own frame:
-  // scripts/auto-render.js draws them, js/product.js lays out their dimension
-  // lines, js/three-viewer.js turns the live model to them. `eye` is the
-  // camera's side, `up` the drawing's up. Front looks through the finger hole
-  // (+Z), top looks down with the front at the bottom, side is from the right.
-  // planFrame turns each a quarter where that puts its measured axis across.
+  // scripts/auto-render.js draws them, js/product.js marks their measurements,
+  // js/three-viewer.js turns the live model to them. `eye` is the camera's
+  // side, `up` the drawing's up. As on a technical drawing: front looks
+  // through the finger hole (+Z), top looks down with the front at the bottom,
+  // side is from the right.
   var PLAN_VIEWS = {
     top: { eye: [0, 1, 0], up: [0, 0, -1] },
     front: { eye: [0, 0, 1], up: [0, 1, 0] },
@@ -311,11 +311,11 @@
   // stroke's room. Each view measures one of the box's three axes, the
   // three views one each (length, width and depth), the choice putting the
   // measured side over the other in as many views as possible. Its drawing
-  // is w x h mm (along `right`, and `up`), turned a quarter, if need be, so
-  // that w, the measured side, lies across; `eye` and `up` are the turned
-  // view's, which the live model turns to as well. `render` is the square, mm
-  // across, the renderer draws before cropping; `tile` the square, mm across,
-  // a tile of the column stands for (the drawing's scale on the page).
+  // is w x h mm (along `right`, and `up`); `axis` (0, 1, 2: x, y, z) is the
+  // axis it measures, `horizontal` whether that is the `right` one. `size` is
+  // the box's x, y and z, mm. `render` is the square, mm across, the renderer
+  // draws before cropping; `tile` the square, mm across, a tile of the column
+  // stands for (the drawing's scale on the page).
   function planFrame(product) {
     var box = product && product.geometry && product.geometry["axis-box"];
     var size = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
@@ -353,12 +353,10 @@
       var e = PLAN_VIEWS[name].eye;
       var u = PLAN_VIEWS[name].up;
       var right = rightOf(u, e);
-      // Measuring the up axis: the old right becomes up.
-      if (chosen.picks[i] === 1) {
-        u = right;
-        right = rightOf(u, e);
-      }
-      views[name] = { eye: e, up: u, right: right, w: along(right), h: along(u) };
+      views[name] = {
+        eye: e, up: u, right: right, axis: axes[i][chosen.picks[i]], horizontal: chosen.picks[i] === 0,
+        w: along(right), h: along(u)
+      };
     });
     var longest = Math.max(size[0], size[1], size[2]);
     var crop = { w: 0, h: 0 };
@@ -370,6 +368,7 @@
     crop.h += 2 * PLAN_PAD * longest;
     return {
       center: box.center.map(Number),
+      size: size,
       crop: crop,
       render: Math.max(crop.w, crop.h) * 1.1,
       tile: longest * maxFactor / PLAN_FILL,

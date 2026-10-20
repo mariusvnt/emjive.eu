@@ -30,8 +30,8 @@
 // scene-tool.html's swatch mode). products.json paths are patched in place;
 // replaced files are deleted. Afterwards the icons' 128px thumbnails are rewritten.
 //
-// Re-run for every metal after changing "metal-shaders", the swatch camera or an
-// HDRI, and with --hand-posters-only after changing "hand-shader".
+// Re-run for every metal after changing "metal-shaders", the swatch camera, an
+// HDRI, the "sun", the "hdri-blur" or the "reflection-detail", and with --hand-posters-only after changing "hand-shader".
 
 "use strict";
 
@@ -55,7 +55,7 @@ const FALLBACK_IMG_SIZE = ICON_SIZE;
 // The wheel and hand posters: the model's box in the wheel's maths
 // (js/stack-scene.js), at the wheel renderer's MAX_PIXEL_RATIO.
 const STACK_POSTER_SIZE = ICON_SIZE;
-const STACK_POSTER_SCALE = 1.5;
+const STACK_POSTER_SCALE = 2;
 // Captured through the biggest square inside the sphere's disc (swatchOrbit
 // in js/three-viewer.js); saved at 3x the picker's 1.5rem squares
 // (--metal-square), sharp on a 3x screen.
@@ -486,6 +486,9 @@ async function main() {
     // The harness loads no js/series.js, so the viewer is handed the shaders.
     await page.evaluate((shaders) => window.EmjiveModelViewer.setMetalShaders(shaders), seriesIndex["metal-shaders"]);
     await page.evaluate((settings) => window.EmjiveModelViewer.setHandShader(settings), seriesIndex["hand-shader"]);
+    await page.evaluate((settings) => window.EmjiveModelViewer.setSun(settings), seriesIndex.sun);
+    await page.evaluate((deg) => window.EmjiveModelViewer.setHdriBlur(deg), seriesIndex["hdri-blur"]);
+    await page.evaluate((levels) => window.EmjiveModelViewer.setReflectionDetail(levels), seriesIndex["reflection-detail"]);
 
     // Flags a software rasterizer (no real MSAA).
     const renderer = await page.evaluate(() => {

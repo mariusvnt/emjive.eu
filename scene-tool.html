@@ -1,9 +1,11 @@
 <!--
   Dev-only page (not built), served by scripts/scene-tool-server.js
   (npm run scene-tool): preview a product or the swatch scene under a chosen
-  HDRI and metal, set the camera by dragging or typing, tune the metal's
-  shader live, then save the ticked parts (HDRI, camera, shader). The swatch
-  scene's settings are its HDRI, blur and camera angles; distance and frame
+  HDRI and metal, set the camera by dragging or typing, tune the HDRI blur,
+  the sun, the reflection detail and the metal's shader live, then save the
+  ticked parts (HDRI, camera, blur, detail, sun, shader). The blur, the sun and
+  the detail are the same in every scene, in both modes. The swatch scene's own
+  settings are its HDRI, an extra blur and camera angles; distance and frame
   are solved.
 -->
 <!doctype html>
@@ -70,6 +72,7 @@
   .slider-row input[type="range"] { flex: 1; }
   .slider-row output { width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
   button { cursor: pointer; }
+  .controls label.check-row { flex-direction: row; align-items: center; gap: 6px; }
   #saveSection { gap: 8px; }
   #saveSection label { flex-direction: row; align-items: center; gap: 6px; }
   #saveBtn { align-self: flex-start; padding: 6px 16px; font-weight: 600; }
@@ -133,10 +136,30 @@
       <label>HDRI
         <select id="hdriSelect"></select>
       </label>
-      <div class="angle-row" id="blurRow" hidden>
+      <div class="angle-row">
         <span>Blur</span>
+        <input type="range" id="hdriBlurSlider" min="0" max="10" step="0.1">
+        <input type="number" id="hdriBlurInput" min="0" step="0.1"><span>&deg;</span>
+      </div>
+      <div class="angle-row">
+        <span>Detail</span>
+        <input type="range" id="detailSlider" min="0" max="4" step="0.25">
+        <input type="number" id="detailInput" min="0" step="0.25"><span>levels</span>
+      </div>
+      <div class="angle-row" id="blurRow" hidden>
+        <span>Swatch blur</span>
         <input type="range" id="blurSlider" min="0" max="30" step="0.5">
         <input type="number" id="blurInput" min="0" step="0.5"><span>px</span>
+      </div>
+    </section>
+
+    <section id="sunSection">
+      <h2>Sun</h2>
+      <label class="check-row"><input type="checkbox" id="sunOnInput"> On</label>
+      <div class="angle-row">
+        <span>Strength</span>
+        <input type="range" id="sunStrengthSlider" min="0" max="40" step="0.5">
+        <input type="number" id="sunStrengthInput" min="0" step="0.5">
       </div>
     </section>
 
@@ -197,6 +220,9 @@
       <h2>Save</h2>
       <label id="saveHdriLabel"><input type="checkbox" id="saveHdri"> HDRI</label>
       <label><input type="checkbox" id="saveCamera"> <span id="saveCameraLabel">Camera</span></label>
+      <label><input type="checkbox" id="saveHdriBlur"> Blur</label>
+      <label><input type="checkbox" id="saveDetail"> Reflection detail</label>
+      <label><input type="checkbox" id="saveSun"> Sun</label>
       <label><input type="checkbox" id="saveShader"> Metal shader</label>
       <div>
         <button type="button" id="saveBtn">Save</button>
@@ -240,7 +266,9 @@ const els = {};
   "rotationInput", "tiltInput", "zoomInput", "rollInput", "rotationSlider", "tiltSlider", "rollSlider", "zoomRow", "blurRow", "blurSlider", "blurInput",
   "resetCameraBtn", "saveCameraLabel",
   "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
-  "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults"
+  "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults",
+  "sunOnInput", "sunStrengthSlider", "sunStrengthInput", "saveSun", "hdriBlurSlider", "hdriBlurInput", "saveHdriBlur",
+  "detailSlider", "detailInput", "saveDetail"
 ].forEach((id) => { els[id] = document.getElementById(id); });
 
 init().catch((err) => {
@@ -252,8 +280,17 @@ async function init() {
   state.seriesIndex = await requestJson("data/series.json");
   state.seriesIndex["metal-shaders"] = state.seriesIndex["metal-shaders"] || {};
   window.EmjiveModelViewer.setMetalShaders(state.seriesIndex["metal-shaders"]);
+  state.seriesIndex.sun = state.seriesIndex.sun || { on: true, strength: 12 };
+  window.EmjiveModelViewer.setSun(state.seriesIndex.sun);
+  window.EmjiveModelViewer.setHdriBlur(savedHdriBlur());
+  window.EmjiveModelViewer.setReflectionDetail(savedDetail());
+  els.detailInput.value = savedDetail();
+  els.detailSlider.value = savedDetail();
   await loadAllProducts();
   populateHdriSelect();
+  populateSunControls();
+  els.hdriBlurInput.value = savedHdriBlur();
+  els.hdriBlurSlider.value = savedHdriBlur();
   populateModelSelect();
   populateMetalButtons();
   wireEvents();
@@ -349,7 +386,22 @@ function wireEvents() {
   els.tiltInput.addEventListener("change", onOrbitInputChange);
   els.zoomInput.addEventListener("change", onOrbitInputChange);
   els.rollInput.addEventListener("change", onOrbitInputChange);
-  // The blur needs a new environment: rebuild once the value settles, not per step.
+  // A blur needs a new environment: rebuild once the value settles, not per step.
+  els.hdriBlurSlider.addEventListener("input", () => { els.hdriBlurInput.value = els.hdriBlurSlider.value; });
+  els.hdriBlurSlider.addEventListener("change", onHdriBlurChange);
+  els.hdriBlurInput.addEventListener("change", () => {
+    els.hdriBlurSlider.value = els.hdriBlurInput.value;
+    onHdriBlurChange();
+  });
+  // Live: applyMetal() makes a fresh material, no rebuild.
+  els.detailSlider.addEventListener("input", () => {
+    els.detailInput.value = els.detailSlider.value;
+    onDetailChange();
+  });
+  els.detailInput.addEventListener("input", () => {
+    els.detailSlider.value = els.detailInput.value;
+    onDetailChange();
+  });
   els.blurSlider.addEventListener("input", () => { els.blurInput.value = els.blurSlider.value; });
   els.blurSlider.addEventListener("change", onBlurChange);
   els.blurInput.addEventListener("change", () => {
@@ -362,6 +414,15 @@ function wireEvents() {
       els[field].value = els[slider].value;
       onOrbitInputChange();
     });
+  });
+  els.sunOnInput.addEventListener("change", onSunInputChange);
+  els.sunStrengthSlider.addEventListener("input", () => {
+    els.sunStrengthInput.value = els.sunStrengthSlider.value;
+    onSunInputChange();
+  });
+  els.sunStrengthInput.addEventListener("input", () => {
+    els.sunStrengthSlider.value = els.sunStrengthInput.value;
+    onSunInputChange();
   });
   els.resetCameraBtn.addEventListener("click", onResetCamera);
   els.saveBtn.addEventListener("click", onSaveClick);
@@ -378,6 +439,32 @@ function savedSwatchCamera() {
 function savedSwatchBlur() {
   const saved = state.seriesIndex["swatch-blur"];
   return typeof saved === "number" && saved >= 0 ? saved : 0;
+}
+
+// Every scene's HDRI blur, sigma in degrees.
+function savedHdriBlur() {
+  const saved = state.seriesIndex["hdri-blur"];
+  return typeof saved === "number" && saved >= 0 ? saved : 0;
+}
+
+function onHdriBlurChange() {
+  const deg = parseFloat(els.hdriBlurInput.value);
+  if (!Number.isFinite(deg) || deg < 0) return;
+  window.EmjiveModelViewer.setHdriBlur(deg);
+  rebuildViewer();
+}
+
+// Every metal's reflection detail: environment levels read finer.
+function savedDetail() {
+  const saved = state.seriesIndex["reflection-detail"];
+  return typeof saved === "number" && saved >= 0 ? saved : 0;
+}
+
+function onDetailChange() {
+  const levels = parseFloat(els.detailInput.value);
+  if (!Number.isFinite(levels) || levels < 0) return;
+  window.EmjiveModelViewer.setReflectionDetail(levels);
+  if (state.handle) state.handle.applyMetal(state.metal);
 }
 
 function onBlurChange() {
@@ -400,6 +487,28 @@ function syncSliders() {
   if (document.activeElement !== els.rotationSlider) els.rotationSlider.value = els.rotationInput.value;
   if (document.activeElement !== els.tiltSlider) els.tiltSlider.value = els.tiltInput.value;
   if (document.activeElement !== els.rollSlider) els.rollSlider.value = els.rollInput.value;
+}
+
+// The "sun" object the viewer reads (setSun in init), edited in place and
+// re-read by applySun(): no rebuild.
+function populateSunControls() {
+  const sun = state.seriesIndex.sun;
+  els.sunOnInput.checked = sun.on;
+  els.sunStrengthInput.value = sun.strength;
+  els.sunStrengthSlider.value = sun.strength;
+  els.sunStrengthSlider.disabled = !sun.on;
+  els.sunStrengthInput.disabled = !sun.on;
+}
+
+function onSunInputChange() {
+  const strength = parseFloat(els.sunStrengthInput.value);
+  if (!Number.isFinite(strength) || strength < 0) return;
+  const sun = state.seriesIndex.sun;
+  sun.on = els.sunOnInput.checked;
+  sun.strength = strength;
+  els.sunStrengthSlider.disabled = !sun.on;
+  els.sunStrengthInput.disabled = !sun.on;
+  if (state.handle) state.handle.applySun();
 }
 
 function onMetalButtonClick(metal) {
@@ -499,7 +608,7 @@ async function rebuildViewer() {
     els.statusMessage.textContent =
       "Swatch scene: one sphere under the HDRI. The metal buttons change the sphere's metal, as each swatch render does; " +
       "the frame is the biggest square inside its disc, exactly what is saved as the swatch. " +
-      "Set the HDRI, its blur (a gaussian, in pixels of the HDRI image) and the camera's rotation, tilt and roll round the sphere; the rest is solved.";
+      "Set the HDRI, its extra blur (a gaussian in pixels of the HDRI image, on top of Blur) and the camera's rotation, tilt and roll round the sphere; the rest is solved.";
   }
 
   const hdriKey = els.hdriSelect.value;
@@ -694,6 +803,23 @@ async function onSaveClick() {
       await attempt("Swatch HDRI blur", "/api/save-swatch-blur", { blur: state.swatchBlur });
       if (results[results.length - 1].ok) state.seriesIndex["swatch-blur"] = state.swatchBlur;
     }
+  }
+
+  if (els.saveHdriBlur.checked) {
+    const deg = parseFloat(els.hdriBlurInput.value);
+    await attempt("Blur", "/api/save-hdri-blur", { blur: deg });
+    if (results[results.length - 1].ok) state.seriesIndex["hdri-blur"] = deg;
+  }
+
+  if (els.saveDetail.checked) {
+    const levels = parseFloat(els.detailInput.value);
+    await attempt("Reflection detail", "/api/save-reflection-detail", { levels });
+    if (results[results.length - 1].ok) state.seriesIndex["reflection-detail"] = levels;
+  }
+
+  if (els.saveSun.checked) {
+    const sun = state.seriesIndex.sun;
+    await attempt("Sun", "/api/save-sun", { on: sun.on, strength: sun.strength });
   }
 
   if (els.saveShader.checked) {

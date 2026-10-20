@@ -66,12 +66,16 @@
   },
 
   "hdris": {
-    "studio":         "assets/hdri/studio_kontrast_04_1k.hdr",
-    "blue-pure-sky":  "assets/hdri/autumn_field_puresky_1k.hdr",
-    "white-room":     "assets/hdri/white-room_2k.hdr"
+    "studio":             "assets/hdri/studio_kontrast_04_1k.hdr",
+    "contrasted-studio":  "assets/hdri/studio_small_08_2k.hdr",
+    "unfinished-office":  "assets/hdri/unfinished_office_1k.hdr"
   },
 
-  "swatch-hdri": "studio",
+  "sun": { "on": false, "strength": 12 },
+  "hdri-blur": 2,
+  "reflection-detail": 2,
+
+  "swatch-hdri": "contrasted-studio",
   "swatch-blur": 30,
   "swatch-camera": { "rotation": 170, "tilt": 142, "roll": 24 },
 

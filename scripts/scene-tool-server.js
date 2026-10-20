@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Dev server for scene-tool.html (npm run scene-tool): live preview of product
-// cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders
-// through the real viewer, saved by text-patching the data files in place.
+// cameras, series and swatch HDRIs, the HDRI blur, swatch blur and camera, the
+// sun, reflection detail and metal shaders through the real viewer, saved by
+// text-patching the data files in place.
 
 "use strict";
 
@@ -174,6 +175,61 @@ async function handleSaveSwatchBlur(req, res) {
   return sendJson(res, 200, { ok: true, saved: { "swatch-blur": blur } });
 }
 
+// Every scene's HDRI blur: gaussian sigma in degrees.
+async function handleSaveHdriBlur(req, res) {
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (!isFiniteNumber(body.blur) || body.blur < 0) {
+    return sendJson(res, 400, { error: "blur must be a finite number, 0 or more" });
+  }
+  var blur = Math.round(body.blur * 100) / 100;
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var blurPattern = /"hdri-blur":\s*-?[0-9.]+/;
+  if (!blurPattern.test(text)) {
+    return sendJson(res, 404, { error: 'could not find "hdri-blur" in data/series.json — add it by hand first' });
+  }
+  var patched = text.replace(blurPattern, function () { return '"hdri-blur": ' + blur; });
+
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { "hdri-blur": blur } });
+}
+
+// Every metal's reflection detail: environment levels read finer.
+async function handleSaveReflectionDetail(req, res) {
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (!isFiniteNumber(body.levels) || body.levels < 0) {
+    return sendJson(res, 400, { error: "levels must be a finite number, 0 or more" });
+  }
+  var levels = Math.round(body.levels * 100) / 100;
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var levelsPattern = /"reflection-detail":\s*[0-9.]+/;
+  if (!levelsPattern.test(text)) {
+    return sendJson(res, 404, { error: 'could not find "reflection-detail" in data/series.json — add it by hand first' });
+  }
+  var patched = text.replace(levelsPattern, function () { return '"reflection-detail": ' + levels; });
+
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { "reflection-detail": levels } });
+}
+
+async function handleSaveSun(req, res) {
+  var body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (typeof body.on !== "boolean" || !isFiniteNumber(body.strength) || body.strength < 0) {
+    return sendJson(res, 400, { error: "on must be a boolean and strength a finite number, 0 or more" });
+  }
+  var sun = { on: body.on, strength: Math.round(body.strength * 100) / 100 };
+  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var sunPattern = /"sun":\s*\{[^{}]*\}/;
+  if (!sunPattern.test(text)) {
+    return sendJson(res, 404, { error: 'could not find "sun" in data/series.json — add it by hand first' });
+  }
+  var patched = text.replace(sunPattern, function () {
+    return '"sun": { "on": ' + sun.on + ', "strength": ' + sun.strength + " }";
+  });
+
+  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { sun: sun } });
+}
+
 async function handleSaveMetalShader(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
   var metalKey = body.metalKey;
@@ -211,6 +267,9 @@ const ROUTES = {
   "POST /api/save-swatch-camera": handleSaveSwatchCamera,
   "POST /api/save-swatch-hdri": handleSaveSwatchHdri,
   "POST /api/save-swatch-blur": handleSaveSwatchBlur,
+  "POST /api/save-hdri-blur": handleSaveHdriBlur,
+  "POST /api/save-reflection-detail": handleSaveReflectionDetail,
+  "POST /api/save-sun": handleSaveSun,
   "POST /api/save-metal-shader": handleSaveMetalShader
 };
 

@@ -120,7 +120,7 @@ export { toolkit };
   // Fallback only: callers pass options.hdri from data/series.json's "hdris"
   // (this module is series-unaware, and the render harness never loads js/series.js).
   // The one HDRI path outside data/series.json: keep it in step with the file.
-  var DEFAULT_HDRI_SRC = "assets/hdri/studio_kontrast_04_1k.hdr";
+  var DEFAULT_HDRI_SRC = "assets/hdri/studio_small_08_2k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -134,7 +134,6 @@ export { toolkit };
   // "hand-shader", read like "metal-shaders" (the tools use setHandShader()).
   var handShader = null;
   var FALLBACK_HAND_SHADER = { edge: 10, face: 41, falloff: 0.7, sheen: 56, "sheen-from": 0.4, "sheen-to": 0.9, "sheen-roughness": 0.3, "fade-top": 0.65, "fade-bottom": 0.3 };
-
   function handShaderSettings() {
     var series = window.EmjiveSeries;
     return handShader || (series && series.index && series.index["hand-shader"]) || FALLBACK_HAND_SHADER;
@@ -146,6 +145,30 @@ export { toolkit };
     return all[metalKey] || FALLBACK_SHADER;
   }
 
+  // ---- reflection detail ----
+  // three.js reads a reflection from the environment level whose cube face is
+  // 2^mip px, mip = -2 * log2(1.16 * roughness): about 32px at roughness 0.15,
+  // whatever the HDRI's resolution, which shows its texel grid on polished
+  // metal. data/series.json's "reflection-detail" reads that many levels finer
+  // (each doubles the resolution); the HDRI blur stands in for the softness
+  // the coarser level carried. Read like "metal-shaders" (the tools use
+  // setReflectionDetail()); patched once, before any shader compiles.
+  var reflectionDetailOverride = null;
+  var MIP_STUB = "float mip = clamp( roughnessToMip( roughness ), cubeUV_m0, CUBEUV_MAX_MIP );";
+  if (THREE.ShaderChunk.cube_uv_reflection_fragment.indexOf(MIP_STUB) !== -1) {
+    THREE.ShaderChunk.cube_uv_reflection_fragment = THREE.ShaderChunk.cube_uv_reflection_fragment.replace(MIP_STUB,
+      "#ifndef EMJIVE_MIP_BIAS\n#define EMJIVE_MIP_BIAS 0.0\n#endif\n" +
+      "float mip = clamp( roughnessToMip( roughness ) + EMJIVE_MIP_BIAS, cubeUV_m0, CUBEUV_MAX_MIP );");
+  } else {
+    console.error("emjive: three.js's textureCubeUV mip line not found; reflection detail is off");
+  }
+
+  function reflectionDetail() {
+    var series = window.EmjiveSeries;
+    var levels = reflectionDetailOverride !== null ? reflectionDetailOverride : series && series.index && series.index["reflection-detail"];
+    return typeof levels === "number" && levels > 0 ? levels : 0;
+  }
+
   // Always a fresh material, so a glTF's own maps never survive. DoubleSide:
   // the thin open bands show their back faces at some angles.
   function metalMaterial(metalKey) {
@@ -155,7 +178,8 @@ export { toolkit };
       color: new THREE.Color(shader.color[0] / 255, shader.color[1] / 255, shader.color[2] / 255),
       metalness: shader.metalness,
       roughness: shader.roughness,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
+      defines: { EMJIVE_MIP_BIAS: reflectionDetail().toFixed(2) }
     });
   }
 
@@ -423,11 +447,32 @@ export { toolkit };
     if (document.visibilityState === "hidden") releaseHdrSources();
   });
 
+  // The studio's gaussian blur of the HDRI, every scene's: data/series.json's
+  // "hdri-blur", sigma in degrees (so it means the same at any HDRI width),
+  // read like "metal-shaders" (the tools use setHdriBlur()).
+  var hdriBlurOverride = null;
+
+  function hdriBlurDeg() {
+    var series = window.EmjiveSeries;
+    var deg = hdriBlurOverride !== null ? hdriBlurOverride : series && series.index && series.index["hdri-blur"];
+    return typeof deg === "number" && deg > 0 ? deg : 0;
+  }
+
+  // fromScene()'s blur is a true gaussian only up to sigma * 2 * size / PI < 20 / 3
+  // texels (PMREMGenerator's MAX_SAMPLES); past that it clips. So a blurred
+  // environment is built at the largest cube size its sigma fits, never above
+  // the HDRI's own (a quarter of its width): the blur hides the coarser texels.
+  function blurredCubeSize(sigmaRad, width) {
+    var fit = Math.pow(2, Math.floor(Math.log2((20 / 3) * Math.PI / (2 * sigmaRad) - 1e-6)));
+    return Math.max(32, Math.min(fit, width / 4));
+  }
+
   // isStale(): the viewer was torn down while this loaded; resolve null rather
   // than render PMREM into a dead context.
-  // blurPx (optional): a gaussian blur of the HDRI, sigma in HDRI pixels
-  // ("swatch-blur"). fromEquirectangular() can't blur, so the HDRI becomes a
-  // scene background through fromScene(), whose sigma is in radians.
+  // blurPx (optional): an extra gaussian blur, sigma in HDRI pixels
+  // ("swatch-blur"), combined with "hdri-blur". fromEquirectangular() can't
+  // blur, so then the HDRI becomes a scene background through fromScene(),
+  // whose sigma is in radians.
   function loadEnvironment(renderer, hdriSrc, isStale, blurPx) {
     var src = hdriSrc || DEFAULT_HDRI_SRC;
     var pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -460,12 +505,15 @@ export { toolkit };
         // The caller owns the whole render target (pmremGenerator.dispose() frees only
         // its scratch resources).
         var renderTarget;
-        if (blurPx > 0) {
-          // A full turn of longitude is image.width px; cube faces a quarter of that, as fromEquirectangular() makes them.
+        // A full turn of longitude is image.width px. Gaussians combine in quadrature.
+        var studioSigma = (hdriBlurDeg() * Math.PI) / 180;
+        var extraSigma = blurPx > 0 ? (blurPx * 2 * Math.PI) / image.width : 0;
+        var sigma = Math.sqrt(studioSigma * studioSigma + extraSigma * extraSigma);
+        if (sigma > 0) {
           equirect.mapping = THREE.EquirectangularReflectionMapping;
           var blurScene = new THREE.Scene();
           blurScene.background = equirect;
-          renderTarget = pmremGenerator.fromScene(blurScene, (blurPx * 2 * Math.PI) / image.width, 0.1, 100, { size: Math.max(64, image.width / 4) });
+          renderTarget = pmremGenerator.fromScene(blurScene, sigma, 0.1, 100, { size: blurredCubeSize(sigma, image.width) });
         } else {
           renderTarget = pmremGenerator.fromEquirectangular(equirect);
         }
@@ -751,6 +799,110 @@ export { toolkit };
     };
   }
 
+  // ---- the studio ----
+  // The lighting and image formation of the Blender studio the models are shot
+  // in, the same in every 3D scene whatever the HDRI: its sun (addSun()) and its
+  // colour management (configureRenderer()). The HDRI only adds reflections.
+
+  // Blender's AgX view with its "AgX - High Contrast" look, as CustomToneMapping.
+  // Blender forms the image through a 3D LUT that material shaders can't hold,
+  // so this keeps three.js's AgX frame (same inset matrix as Blender's "AgX Log"
+  // space, same outset) and swaps its sigmoid for Blender's measured grey
+  // response. Greys match Blender to under a level of 255, metal colours within
+  // a few; only saturated primaries drift.
+  // AGX_CURVE: Blender's display (sRGB-encoded) value for grey per quarter stop
+  // of scene light from -9.5 to +2.5 EV, the look's contrast included, read from
+  // Blender's OpenColorIO config. The look's saturation is applied before it.
+  var AGX_TONE_MAPPING_GLSL = [
+    "const float AGX_CURVE[ 49 ] = float[ 49 ](",
+    "  0.00000, 0.00004, 0.00016, 0.00040, 0.00081, 0.00145, 0.00239, 0.00375,",
+    "  0.00566, 0.00827, 0.01179, 0.01648, 0.02289, 0.03139, 0.04250, 0.05529,",
+    "  0.06961, 0.08585, 0.10390, 0.12397, 0.14627, 0.17197, 0.20096, 0.23331,",
+    "  0.26928, 0.30938, 0.35481, 0.40397, 0.45576, 0.50876, 0.55971, 0.60728,",
+    "  0.65171, 0.69297, 0.73104, 0.76508, 0.79626, 0.82487, 0.85108, 0.87486,",
+    "  0.89618, 0.91580, 0.93383, 0.95041, 0.96539, 0.97911, 0.99155, 1.00000,",
+    "  1.00000",
+    ");",
+    "vec3 CustomToneMapping( vec3 color ) {",
+    "  const mat3 AgXInsetMatrix = mat3(",
+    "    vec3( 0.856627153315983, 0.137318972929847, 0.11189821299995 ),",
+    "    vec3( 0.0951212405381588, 0.761241990602591, 0.0767994186031903 ),",
+    "    vec3( 0.0482516061458583, 0.101439036467562, 0.811302368396859 )",
+    "  );",
+    "  const mat3 AgXOutsetMatrix = mat3(",
+    "    vec3( 1.1271005818144368, - 0.1413297634984383, - 0.14132976349843826 ),",
+    "    vec3( - 0.11060664309660323, 1.157823702216272, - 0.11060664309660294 ),",
+    "    vec3( - 0.016493938717834573, - 0.016493938717834257, 1.2519364065950405 )",
+    "  );",
+    "  color *= toneMappingExposure;",
+    "  color = AgXInsetMatrix * ( LINEAR_SRGB_TO_LINEAR_REC2020 * color );",
+    "  vec3 ev = log2( max( color, 1e-10 ) );",
+    "  ev = mix( vec3( dot( ev, vec3( 0.2126, 0.7152, 0.0722 ) ) ), ev, 0.95 );",
+    "  vec3 t = clamp( ( ev + 9.5 ) * 4.0, 0.0, 48.0 );",
+    "  vec3 i = min( floor( t ), vec3( 47.0 ) );",
+    "  vec3 d;",
+    "  for ( int c = 0; c < 3; c ++ ) {",
+    "    int k = int( i[ c ] );",
+    "    d[ c ] = mix( AGX_CURVE[ k ], AGX_CURVE[ k + 1 ], t[ c ] - i[ c ] );",
+    "  }",
+    // Display value -> the power-2.2 space AgX's outset works in.
+    "  vec3 lin = mix( d / 12.92, pow( ( d + 0.055 ) / 1.055, vec3( 2.4 ) ), step( 0.04045, d ) );",
+    "  color = AgXOutsetMatrix * pow( lin, vec3( 1.0 / 2.2 ) );",
+    "  color = pow( max( vec3( 0.0 ), color ), vec3( 2.2 ) );",
+    "  return clamp( LINEAR_REC2020_TO_LINEAR_SRGB * color, 0.0, 1.0 );",
+    "}"
+  ].join("\n");
+  var CUSTOM_TONE_MAPPING_STUB = "vec3 CustomToneMapping( vec3 color ) { return color; }";
+  // Patched once, before any shader compiles. Plain AgX if three.js's stub moved.
+  var TONE_MAPPING = THREE.AgXToneMapping;
+  if (THREE.ShaderChunk.tonemapping_pars_fragment.indexOf(CUSTOM_TONE_MAPPING_STUB) !== -1) {
+    THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(CUSTOM_TONE_MAPPING_STUB, AGX_TONE_MAPPING_GLSL);
+    TONE_MAPPING = THREE.CustomToneMapping;
+  } else {
+    console.error("emjive: three.js's CustomToneMapping stub not found; falling back to plain AgX");
+  }
+
+  // Every renderer's output settings (viewers, the wheel, the render harness),
+  // so a model looks the same wherever it is drawn.
+  // Never below 2x, whatever the screen: on a 1x screen that's 2x2
+  // supersampling, which also smooths the small, bright highlights on metal.
+  var MIN_PIXEL_RATIO = 2;
+
+  function configureRenderer(renderer, maxPixelRatio) {
+    renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, MIN_PIXEL_RATIO), maxPixelRatio || 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = TONE_MAPPING;
+    renderer.toneMappingExposure = 1;
+  }
+
+  // The studio's sun, straight down: data/series.json's "sun" ({ on, strength },
+  // strength in Blender's units), read like "metal-shaders" (the tools use
+  // setSun()). A DirectionalLight's intensity is irradiance, the unit of
+  // Blender's sun strength. Down is world -Y, which the viewers (camera
+  // orbiting) and the wheel (camera fixed) share.
+  var sunOverride = null;
+  var FALLBACK_SUN = { on: true, strength: 12 };
+
+  function sunSettings() {
+    var series = window.EmjiveSeries;
+    return sunOverride || (series && series.index && series.index.sun) || FALLBACK_SUN;
+  }
+
+  // Added even when off, so switching it (applySun) never recompiles shaders.
+  function addSun(scene) {
+    var sun = new THREE.DirectionalLight(0xffffff, 0);
+    sun.position.set(0, 1, 0);
+    applySun(sun);
+    scene.add(sun);
+    return sun;
+  }
+
+  function applySun(sun) {
+    var settings = sunSettings();
+    sun.intensity = settings.on ? settings.strength : 0;
+  }
+
   // Builds a viewer for a product and returns a handle (metal swaps keep the
   // loaded model and the camera). options.onReady fires once the model is
   // loaded, framed and painted; options.onError when the model or HDRI never
@@ -801,12 +953,7 @@ export { toolkit };
     // Canvas memory is width * height * pixelRatio^2 * 4 bytes, doubled by MSAA,
     // and iOS Safari caps the page's total; callers with several viewers pass a
     // lower maxPixelRatio.
-    var maxPixelRatio = typeof options.maxPixelRatio === "number" ? options.maxPixelRatio : 2;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
-    renderer.setClearColor(0x000000, 0);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1;
+    configureRenderer(renderer, options.maxPixelRatio);
     // The wireframe's clipping plane needs this.
     if (blueprint) renderer.localClippingEnabled = true;
     renderer.domElement.className = "emjive-3d-viewer__canvas";
@@ -861,6 +1008,7 @@ export { toolkit };
     }
 
     var scene = new THREE.Scene();
+    var sun = addSun(scene);
     var camera = new THREE.PerspectiveCamera(30, 1, 0.01, 1000);
 
     // Read by both async load chains: a viewer disposed before its downloads
@@ -1562,6 +1710,11 @@ export { toolkit };
         frameCamera(orbitConfig);
         renderer.render(scene, camera);
       },
+      // Re-reads the sun's settings (the scene tool edits them in place).
+      applySun: function () {
+        applySun(sun);
+        invalidate();
+      },
       // Another model in this viewer, camera kept (swapModel).
       setProduct: swapModel,
       // Blueprint viewers only: the metal -> grey sweep and the fit (the shrink
@@ -1825,7 +1978,21 @@ export { toolkit };
   window.EmjiveModelViewer.setHandShader = function (settings) {
     handShader = settings || null;
   };
-  // The swatch camera for { rotation, tilt, roll } (tools and the render harness).
+  // The tools' "sun" (scene-tool.html, the render harness), kept by reference
+  // like "metal-shaders": the scene tool previews by editing it, then applySun().
+  window.EmjiveModelViewer.setSun = function (settings) {
+    sunOverride = settings || null;
+  };
+  // The tools' "hdri-blur" (scene-tool.html, the render harness); applies to
+  // environments built afterwards.
+  window.EmjiveModelViewer.setHdriBlur = function (deg) {
+    hdriBlurOverride = typeof deg === "number" ? deg : null;
+  };
+  // The tools' "reflection-detail" (scene-tool.html, the render harness);
+  // applies to materials made afterwards (applyMetal() makes a fresh one).
+  window.EmjiveModelViewer.setReflectionDetail = function (levels) {
+    reflectionDetailOverride = typeof levels === "number" ? levels : null;
+  };  // The swatch camera for { rotation, tilt, roll } (tools and the render harness).
   window.EmjiveModelViewer.swatchOrbit = swatchOrbit;
 
   // The orientation of a product's default orbit camera, as frameCamera()
@@ -1967,16 +2134,10 @@ export { toolkit };
       loadModelFile(src, onLoad, onError);
     },
     loadEnvironment: loadEnvironment,
+    addSun: addSun,
     metalMaterial: metalMaterial,
     handShader: handShaderSettings,
-    // The viewers' renderer settings, so models look the same in the wheel.
-    configureRenderer: function (renderer, maxPixelRatio) {
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio || 2));
-      renderer.setClearColor(0x000000, 0);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1;
-    },
+    configureRenderer: configureRenderer,
     // The default orbit's vertical fov and zoom (1 = bounding sphere fits exactly): what frames a fallback-img.
     defaultFraming: function (product) {
       var orbit = parseOrbitConfig(product && product["3d-viewer-camera-default"]);

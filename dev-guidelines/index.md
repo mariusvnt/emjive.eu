@@ -28,9 +28,9 @@ The repo's structure, generated from the code. Each description is the first sen
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product, and the landing for legacy ?id= links.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productPrinting
-- [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the metal's shader live, then save the ticked parts (HDRI, camera, shader).
+- [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
   - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
-  - landmarks: #hdriSection, #cameraSection, #shaderSection, #saveSection
+  - landmarks: #hdriSection, #sunSection, #cameraSection, #shaderSection, #saveSection
 - [series.html](../series.html) — A series' design manifest (/series?series=<slug>).
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #seriesManifest
@@ -81,7 +81,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - exports `createStackScene`
   - [three-viewer.js](../js/three-viewer.js) — The 3D viewer (three.js + TrackballControls): free pole-crossing rotation, release inertia, a leveling drift, an idle nudge hint and an ease back to the default pose.
     - sets `EmjiveMem` { cpuGeometryBytes, dracoWorkers, liveRenderers, gpuObjects }
-    - sets `EmjiveModelViewer` { setMetalShaders, setHandShader, swatchOrbit }
+    - sets `EmjiveModelViewer` { setMetalShaders, setHandShader, setSun, setHdriBlur, setReflectionDetail, swatchOrbit }
     - exports `toolkit`
   - [viewer-entry.js](../js/viewer-entry.js) — Lazy 3D viewer loader: the only 3D code pages load up front.
     - sets `EmjiveLoadStack`
@@ -96,7 +96,7 @@ The repo's structure, generated from the code. Each description is the first sen
       - sets `EmjiveSeriesHero` { init, onProducts, isStyled, refresh, wipeTop, rings, orbit, setZoom, setEntranceRoom, setMode }
 - **[data/](../data/)** — The catalog, fetched client-side: the series index and one folder per series.
   - [series.json](../data/series.json)
-    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `hand-shader`, `printing-technologies`, `categories`, `hdris`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
+    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `hand-shader`, `printing-technologies`, `categories`, `hdris`, `sun`, `hdri-blur`, `reflection-detail`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
   - **[data/series/](../data/series/)** — One folder per series: its products and its design manifest.
     - **[data/series/bones/](../data/series/bones/)**
       - [manifest.json](../data/series/bones/manifest.json)
@@ -133,7 +133,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [optimize-images.js](../scripts/optimize-images.js) — Converts hand-added PNG/JPEG art under assets/ to WebP and deletes the originals.
   - [optimize-models.js](../scripts/optimize-models.js) — Shrinks the product .glb files in place.
   - [render-favicons.js](../scripts/render-favicons.js) — Rasterises assets/logo_compact.svg into public/favicon.ico (32px PNG-in-ICO) and public/apple-touch-icon.png (180px, opaque: iOS fills transparency with black).
-  - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, series and swatch HDRIs, swatch blur and camera, and metal shaders through the real viewer, saved by text-patching the data files in place.
+  - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, series and swatch HDRIs, the HDRI blur, swatch blur and camera, the sun, reflection detail and metal shaders through the real viewer, saved by text-patching the data files in place.
   - [slugs.js](../scripts/slugs.js) — An item's URL slug (emjive.eu/<slug>), for the build side.
     - exports `slugify`, `reservedNames`, `PAGE_ROUTES`
   - [split-models.js](../scripts/split-models.js) — Splits combined Blender exports into the per-model .glb files the site loads.

@@ -2,8 +2,8 @@
 // WebGL context, one environment map). js/gallery-stack.js owns the layout and
 // interaction and drives this through createStackScene()'s handle (setPoses).
 // A lazy module chunk (window.EmjiveLoadStack); three-viewer.js's toolkit
-// supplies the decoder, HDR cache, metals, renderer settings, camera
-// orientation and the viewers' spin (toolkit.spinFor).
+// supplies the decoder, HDR cache, the studio's sun, metals, renderer settings,
+// camera orientation and the viewers' spin (toolkit.spinFor).
 //
 // Coordinates: one world unit is PX CSS px; screen point (x, y) is at
 // (x / PX, -y / PX); an orthographic camera down -Z sees exactly the screen.
@@ -18,7 +18,7 @@ import { toolkit } from "./three-viewer.js";
 
 // CSS pixels per world unit.
 var PX = 100;
-var MAX_PIXEL_RATIO = 1.5;
+var MAX_PIXEL_RATIO = 2;
 // dt cap (a tab coming back).
 var MAX_DT = 1 / 15;
 // A clipping plane's constant that cuts nothing.
@@ -91,6 +91,7 @@ export function createStackScene(options) {
   options.host.insertBefore(canvas, options.host.firstChild);
 
   var scene = new T.Scene();
+  toolkit.addSun(scene);
   var camera = new T.OrthographicCamera(0, 1, 0, -1, 0.1, 400);
   camera.position.set(0, 0, 200);
 

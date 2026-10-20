@@ -86,6 +86,8 @@ The index lists the event names and storage keys.
 
 **One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `data/series.json`'s `metal-shaders`, which is why the model optimizer strips textures. The module stays series-unaware all the same: on the site it reads the shaders from the loaded index, and the tools, which don't load it, hand them over.
 
+**One studio for every scene, matched to Blender.** The models are shot in a Blender studio, and every scene reproduces it the same way whatever the HDRI: Blender's AgX view with its "High Contrast" look, a sun, a blur of the HDRI and a reflection detail, all set once in `data/series.json` and tuned in `scene-tool`. The HDRI only supplies what the metal reflects. Blender forms its image through a 3D lookup table that material shaders can't hold, so the colour is three.js's AgX frame with Blender's measured grey response swapped in. The blur and the detail answer the same problem: three.js reads a reflection from a level of the environment map as coarse as the metal's roughness allows, which on polished metal shows that level's texels. Reading finer levels removes the grid, and blurring the HDRI gives back the softness the coarse level carried.
+
 **Free rotation.** The viewers use `TrackballControls`, so a model can be turned over its poles. The extra code around it handles what that freedom costs: a drift that levels "up" so it doesn't flip at a pole, spherical easing back to the default pose, and inertia that brakes cleanly.
 
 **Lazy.** The pages load only `viewer-entry.js` up front, and three.js plus the viewer (by far the largest download) come after the first paint. A page that never draws a model never fetches it unless a Modify sheet opens. The item page starts its model, HDRI and chunk itself once its first paint is in: hinting them in the `<head>` was measured to delay the largest picture.
@@ -97,7 +99,7 @@ The index lists the event names and storage keys.
 - **Low-poly models.** A small file can still decode to a lot of geometry.
 - **Geometry freed after the first draw.** The JavaScript copy is released once the GPU holds its own.
 - **One shared Draco loader.** A loader per model is a known cause of Draco failing on iOS, and its idle workers are ended.
-- **Capped pixel ratios.** The canvas budget is page-wide.
+- **Fixed pixel ratios.** Every canvas draws at the same density whatever the screen: supersampled on low-density screens, which also tames bright highlights on metal, and capped on phones, since the canvas budget is page-wide.
 - **Disposal that is idempotent and survives late async loads.** A model arriving after teardown is freed on the spot.
 
 `?mem=1` on any address shows the live counters, since a phone can't be inspected from the development machine.

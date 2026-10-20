@@ -13,7 +13,7 @@ Everything about the catalog's items: how the data is organised, where their fil
 - **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/series.json`.
   - **Categories** own sizing: the unit the size field asks for, and the size guide. A series picks the categories it sells.
   - **Metals** are global, because the 3D materials are global.
-  - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship.
+  - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
 - **Prices follow the size.** A product has one price per metal at a reference size, and every price on the site scales with the size (computed in `js/selection.js`). `0` means "TBD".
 - **Weight and cost are derived, never typed.** They come from the measured volume of the piece as it is printed, times each metal's constants (`metal-costs`). Nothing per-metal is stored that could go stale. The printed piece, not the 3D model on the page, is what is made, and the two can differ.
 
@@ -35,7 +35,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | --- | --- |
 | Series, products, prices, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
-| Default camera angle, a series' HDRI, the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
+| Default camera angle, a series' HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
 | Icons, fallback images, wheel posters, hand posters (paths and files) | `auto-render` |
@@ -91,13 +91,13 @@ From a Blender export to a shippable item, in the order that works. None of thes
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
-Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI or the wheel's drawing, re-render what used it.
+Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings or the wheel's drawing, re-render what used it.
 
 ## 5. Tools
 
 - **`npm run json-tool`** (local page): edits the global settings and adds, edits or removes a series or a product, with drag-and-drop for the hand-owned files (model, x-ray, photos). It files them where the conventions say. It never writes what another tool owns (renders, `geometry`, the `designs` block), never runs another tool, and only reminds you what to run next. Every removal is confirmed, and is blocked while something still depends on what it removes.
-- **`npm run scene-tool`** (local page): previews a product or the swatch sphere through the real viewer, to set a product's default camera, a series' HDRI, the swatch scene and the metal shaders, then saves the ticked parts into the source files.
-- **`optimize-images`, `optimize-hdri`**: occasional squeezers for heavy hand-added art. `optimize-images` converts stray PNG/JPEG to WebP and prints the paths to update. `optimize-hdri` halves an oversized HDRI into a new file, since the file name carries the width.
+- **`npm run scene-tool`** (local page): previews a product or the swatch sphere through the real viewer, to set a product's default camera, a series' HDRI, the studio (sun, HDRI blur, reflection detail), the swatch scene and the metal shaders, then saves the ticked parts into the source files.
+- **`optimize-images`, `optimize-hdri`**: occasional squeezers for heavy hand-added art. `optimize-images` converts stray PNG/JPEG to WebP and prints the paths to update. `optimize-hdri` shrinks an oversized HDRI into a new file, since the file name carries the width.
 - **`render-favicons`**: the favicons, from the compact logo. Re-run only if the logo changes.
 
 Both local pages run their own small servers on loopback only, and both are kept out of the build.
@@ -143,13 +143,13 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.
 
-### Tune a camera, a metal, an HDRI or the swatches
+### Tune a camera, a metal, an HDRI, the studio or the swatches
 
 In `scene-tool`, then re-render what used it.
 
 ### Add an HDRI
 
-`json-tool`'s Global tab (drop the file, name it). Halve it first with `optimize-hdri` if it is wider than 1024px: the models never show it, only reflect it.
+`json-tool`'s Global tab (drop the file, name it), as a Radiance `.hdr` (convert an `.exr` in Blender first). Shrink it with `optimize-hdri` if it is wider than the tool's default width: the models never show it, only reflect it, and the environment's sharpest level is a quarter of its width, so narrower reflects blocky and wider only costs download and memory.
 
 ### Remove anything
 

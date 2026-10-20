@@ -356,8 +356,6 @@
     if (!state.isOpen || !slide || state.modelHandle) return;
     var handle = window.EmjiveModelViewer(state.product, state.selectedMetal, {
       hdri: window.EmjiveSeries.hdriPath(state.slug),
-      // iOS budgets canvas memory per page, and this can open over the wheel.
-      maxPixelRatio: 1.5,
       // The viewer's box has no visible edge.
       loaderBleed: true,
       onError: function () { restorePoster(handle); }

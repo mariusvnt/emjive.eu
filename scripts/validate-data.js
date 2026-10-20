@@ -90,7 +90,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "series"],
+  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "sun", "hdri-blur", "reflection-detail", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -176,6 +176,17 @@ const indexSchema = {
       }
     },
     hdris: strMap,
+    // js/three-viewer.js addSun(): the studio's sun, strength in Blender's units.
+    sun: {
+      type: "object",
+      required: ["on", "strength"],
+      additionalProperties: false,
+      properties: { on: { type: "boolean" }, strength: { type: "number", minimum: 0 } }
+    },
+    // js/three-viewer.js hdriBlurDeg(): every scene's HDRI blur, sigma in degrees.
+    "hdri-blur": { type: "number", minimum: 0 },
+    // js/three-viewer.js reflectionDetail(): environment levels read finer, every metal.
+    "reflection-detail": { type: "number", minimum: 0 },
     "swatch-hdri": str,
     "swatch-blur": num,
     "swatch-camera": {

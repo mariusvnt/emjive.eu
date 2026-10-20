@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Downsamples the Radiance .hdr environment maps. They only feed PMREM (top
-// level 256px a side), so 1024 wide loses nothing visible.
+// Downsamples the Radiance .hdr environment maps. They only feed PMREM, whose
+// sharpest level is a quarter of the width a side: polished metal shows those
+// texels, so narrower than 2048 reflects blocky, and wider costs download and
+// GPU memory per viewer.
 //
 // Hand-rolled RGBE codec: sharp's libvips is built without Radiance support.
 // The box filter runs in LINEAR space, never on RGBE bytes: the shared
@@ -10,7 +12,7 @@
 // data/series.json paths to update; never overwrites the source.
 //
 //   npm run optimize-hdri -- --dry-run     report only
-//   npm run optimize-hdri                  every .hdr wider than 1024
+//   npm run optimize-hdri                  every .hdr wider than 2048
 //   npm run optimize-hdri -- <path.hdr>    only this one
 //   npm run optimize-hdri -- --width=512   another target width
 
@@ -20,7 +22,7 @@ const { ROOT, repoPath } = require("./helpers");
 
 const HDRI_DIR = join(ROOT, "assets", "hdri");
 
-const DEFAULT_TARGET_WIDTH = 1024;
+const DEFAULT_TARGET_WIDTH = 2048;
 
 /* ---- Radiance RGBE decoding ----
      #?RADIANCE          magic

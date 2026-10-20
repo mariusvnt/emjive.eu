@@ -3,7 +3,7 @@
 // inserting, patching and removing entries in hand-aligned JSON without
 // re-serializing, and rendering whole product/series blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
-// wheel-poster, hand-poster, specs-poster) from the on-disk product, never from form input.
+// wheel-poster, hand-poster, specs-poster, plan-views) from the on-disk product, never from form input.
 
 "use strict";
 
@@ -28,6 +28,7 @@ function bool(b) {
 function geometryLine(g, indent) {
   const triple = (v) => "[" + (v || []).map(num).join(", ") + "]";
   const box = g["min-box"];
+  const axisBox = g["axis-box"];
   const print = g.print;
   return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
     ', "dimensions-mm": ' + triple(g["dimensions-mm"]) +
@@ -35,11 +36,19 @@ function geometryLine(g, indent) {
       ? ', "min-box": { "center": ' + triple(box.center) +
         ', "axes": [' + (box.axes || []).map(triple).join(", ") + "] }"
       : "") +
+    (axisBox
+      ? ', "axis-box": { "center": ' + triple(axisBox.center) + ', "size": ' + triple(axisBox.size) + " }"
+      : "") +
     (print
       ? ', "print": { "volume-cm3": ' + num(print["volume-cm3"]) + ', "dimensions-mm": ' + triple(print["dimensions-mm"]) +
         ', "stl-sha1": "' + esc(print["stl-sha1"]) + '" }'
       : "") +
     ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
+}
+
+// A "plan-views" map on one line: { "top": ..., "front": ..., "side": ... }.
+function planViewsLine(map) {
+  return "{ " + ["top", "front", "side"].map((v) => '"' + v + '": "' + esc((map || {})[v] || "") + '"').join(", ") + " }";
 }
 
 // ---- bracket matching ----
@@ -309,7 +318,8 @@ function renderDesignsBlock(designs, metals) {
       ...(d.stl ? [pad + '"stl": "' + esc(d.stl) + '",'] : []),
       pad + '"icons": ' + metalLine(d.icons) + ",",
       pad + '"fallback-img": ' + metalLine(d["fallback-img"]) + ",",
-      pad + '"specs-poster": "' + esc(d["specs-poster"]) + '"',
+      pad + '"specs-poster": "' + esc(d["specs-poster"]) + '",',
+      pad + '"plan-views": ' + planViewsLine(d["plan-views"]),
       "          }"
     ].join("\n");
   });
@@ -380,6 +390,7 @@ function renderProductBlock(p, metals) {
     '        "xray": "' + esc(assets.xray) + '",',
     '        "hand-poster": "' + esc(assets["hand-poster"]) + '",',
     '        "specs-poster": "' + esc(assets["specs-poster"]) + '",',
+    '        "plan-views": ' + planViewsLine(assets["plan-views"]) + ",",
     '        "photos": ' + photos,
     p.designs ? "      }," : "      }",
     ...(p.designs ? [renderDesignsBlock(p.designs, metals)] : []),

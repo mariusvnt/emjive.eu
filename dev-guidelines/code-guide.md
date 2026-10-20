@@ -44,7 +44,9 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 Filtering hides what is already built and never rebuilds it (see rules.md).
 
-**The product page is a three-stage scroll show**: inspiration (description and photos), then design (the model, the metal, the design options), then specs (the model as a blueprint, the size, dimensions, weight, cost). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
+**The product page is a three-stage scroll show**: inspiration (description and photos), then design (the model, the metal, the design options), then specs (the model as a blueprint beside three outline views of it, the size, weight, cost). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
+
+**The specs stage tells the size with plan views.** Three rendered outline drawings (top, front, side) stand against the model, each measuring a different one of the model's three axes, so together they give its length, width and depth. They are pictures, not viewers, drawn at one scale that follows the screen, not the chosen size: only their figures follow the size. Their geometry (which axis each measures, how they are turned and cropped) is computed in one place, `EmjiveHelpers.planFrame`, that the render tool, the page and the live viewer all read, so a drawing, its dimension line and the model's turn to it can't disagree.
 
 **The Modify sheet is on every page**, opened from the floating selection bar's drawer or from the order list, and it shows the item's live 3D model. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk.
 

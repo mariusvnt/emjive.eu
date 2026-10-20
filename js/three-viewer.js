@@ -596,6 +596,7 @@ export { toolkit };
   //   autoReturn()    optional, default true: false leaves a released model where
   //                   it is; only goHome(true) brings it back
   //   onAway(away)    optional: turned off its default pose (true) or back/returning (false)
+  //   wake()          optional: restart the caller's loop (goTo's hold ends on a timer)
   //
   // The damping seed assumes 60fps; step() re-derives the per-frame factor from
   // SPIN_DECAY_LAMBDA and the real dt, so the spin-down is frame-rate independent
@@ -623,6 +624,11 @@ export { toolkit };
     var resetTweenStartTime = 0;
     var resetTweenFromPosition = new THREE.Vector3();
     var resetTweenFromUp = new THREE.Vector3();
+    // goTo(): the pose the tween heads for instead of home ({ position, up }),
+    // then the stillness held there before the ease back.
+    var tweenPose = null;
+    var holdMs = 0;
+    var holdTimeoutId = null;
     var lastAngularSpeed = 0; // rad/s, the previous frame's spin rate (progressive braking)
     // Whether the eye stands more than AWAY_ANGLE off the default pose (reported via onAway).
     var away = false;
@@ -647,9 +653,14 @@ export { toolkit };
       waitingForSettle = false;
       homeWhenSettled = false;
       resetTweenActive = false;
+      tweenPose = null;
       if (pauseTimeoutId) {
         clearTimeout(pauseTimeoutId);
         pauseTimeoutId = null;
+      }
+      if (holdTimeoutId) {
+        clearTimeout(holdTimeoutId);
+        holdTimeoutId = null;
       }
     }
 
@@ -667,21 +678,33 @@ export { toolkit };
     // One frame; dt in seconds.
     function step(dt) {
       var home = options.home();
+      // Holding a goTo() pose: nothing moves, not even the drift.
+      if (holdTimeoutId) return;
       if (resetTweenActive) {
         var t = Math.min(1, (performance.now() - resetTweenStartTime) / ROLLBACK_DURATION);
         var eased = cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
+        var to = tweenPose || home;
 
         fromDirection.copy(resetTweenFromPosition).sub(controls.target).normalize();
-        toDirection.copy(home.position).sub(controls.target).normalize();
+        toDirection.copy(to.position).sub(controls.target).normalize();
         slerpVectors(tweenDirection, fromDirection, toDirection, eased);
         camera.position.copy(tweenDirection).multiplyScalar(home.radius).add(controls.target);
 
-        slerpVectors(camera.up, resetTweenFromUp, home.up, eased);
+        slerpVectors(camera.up, resetTweenFromUp, to.up, eased);
         camera.lookAt(controls.target);
         if (t >= 1) {
           resetTweenActive = false;
-          setAway(false);
-          if (options.onHome) options.onHome();
+          if (tweenPose) {
+            tweenPose = null;
+            holdTimeoutId = setTimeout(function () {
+              holdTimeoutId = null;
+              beginHome();
+              if (options.wake) options.wake();
+            }, holdMs);
+          } else {
+            setAway(false);
+            if (options.onHome) options.onHome();
+          }
         }
         return;
       }
@@ -761,11 +784,14 @@ export { toolkit };
       }
       beginHome();
     }
-    function beginHome() {
-      // Discard TrackballControls' stored release momentum, or it resumes at the home pose.
+    // Discards TrackballControls' stored release momentum, or it resumes after a tween.
+    function dropMomentum() {
       controls._lastAngle = 0;
       controls._movePrev.copy(controls._moveCurr);
       lastAngularSpeed = 0;
+    }
+    function beginHome() {
+      dropMomentum();
       var home = options.home();
       fromDirection.copy(camera.position).sub(controls.target).normalize();
       toDirection.copy(home.position).sub(controls.target).normalize();
@@ -782,10 +808,26 @@ export { toolkit };
       resetTweenActive = true;
     }
 
+    // Turns to `pose` ({ position, up }, at the home radius), holds it for
+    // `ms`, then eases home. A drag or another goTo() replaces it.
+    function goTo(pose, ms) {
+      if (isDragging) return;
+      cancelReturn();
+      dropMomentum();
+      tweenPose = pose;
+      holdMs = ms;
+      setAway(true);
+      resetTweenFromPosition.copy(camera.position);
+      resetTweenFromUp.copy(camera.up);
+      resetTweenStartTime = performance.now();
+      resetTweenActive = true;
+    }
+
     return {
       step: step,
       cancelReturn: cancelReturn,
       goHome: goHome,
+      goTo: goTo,
       isAway: function () { return away; },
       // Not at rest in its default pose: dragging, coasting, pausing or easing back.
       isBusy: function () {
@@ -1158,7 +1200,8 @@ export { toolkit };
       pauseScale: function () { return rollbackPauseScale; },
       autoReturn: function () { return autoReturn; },
       onAway: options.onAway,
-      onHome: function () { scheduleIdleNudge(); }
+      onHome: function () { scheduleIdleNudge(); },
+      wake: function () { startLoop(); }
     });
 
     var defaultOrbit = product["3d-viewer-camera-default"] || DEFAULT_ORBIT;
@@ -1782,6 +1825,20 @@ export { toolkit };
       returnHome: function () {
         cancelNudge();
         spin.goHome(true);
+        invalidate();
+      },
+      // Blueprint viewers: turn to one of the specs stage's plan views, as
+      // drawn (EmjiveHelpers.planFrame), hold it for holdMs, then ease back.
+      // Even under reduced motion: the visitor asked.
+      showView: function (name, holdMs) {
+        var frame = H.planFrame(product);
+        var view = (frame && frame.views[name]) || H.PLAN_VIEWS[name];
+        if (!blueprint || !view || !modelLoaded) return;
+        cancelNudge();
+        spin.goTo({
+          position: new THREE.Vector3().fromArray(view.eye).multiplyScalar(defaultRadius).add(controls.target),
+          up: new THREE.Vector3().fromArray(view.up)
+        }, holdMs);
         invalidate();
       },
       // Out of sight: no drawing or nudge until resumed (then one redraw, in case the canvas was discarded).

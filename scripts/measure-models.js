@@ -3,6 +3,7 @@
 // line in products.json, touching nothing else:
 //
 //   "geometry": { "volume-cm3", "dimensions-mm", "min-box": { center, axes },
+//                 "axis-box": { center, size },
 //                 "print": { "volume-cm3", "dimensions-mm", "stl-sha1" }, "model-sha1" }
 //
 //   volume-cm3     enclosed volume; models are in mm. Summed per shell as
@@ -10,6 +11,8 @@
 //   dimensions-mm  minimum-volume bounding box extents, longest first (pose-independent)
 //   min-box        that box's centre and unit axes in scene space (axes[k] runs
 //                  along dimensions-mm[k]); the wheel's hit boxes (js/stack-scene.js)
+//   axis-box       the scene-space axis-aligned box's centre and size: the plan
+//                  views' frame and dimensions (EmjiveHelpers.planFrame)
 //   model-sha1, stl-sha1   checked by validate-data.js against the files, so a
 //                  changed model must be re-measured
 //   print          the same, on the .stl: what is made and priced
@@ -306,12 +309,13 @@ async function minimumBox(positions) {
     return big < 0 ? a.map((x) => -x) : a.slice();
   });
   const center = [0, 1, 2].map((d) => best.axes.reduce((s, a, k) => s + a[d] * best.mids[k], 0));
+  const aligned = boxFor(hullPoints, [1, 0, 0], [0, 1, 0], [0, 0, 1]);
   return {
     dimensions: order.map((k) => best.extents[k]),
     axes,
     center,
     volume: best.volume,
-    axisAlignedVolume: boxFor(hullPoints, [1, 0, 0], [0, 1, 0], [0, 0, 1]).volume
+    axisAligned: { center: aligned.mids, size: aligned.extents, volume: aligned.volume }
   };
 }
 
@@ -369,13 +373,17 @@ async function measureFile(io, label, modelRel, stlRel) {
       center: box.center.map((c) => Number(c.toFixed(3))),
       axes: box.axes.map((a) => a.map((x) => Number(x.toFixed(5))))
     },
+    "axis-box": {
+      center: box.axisAligned.center.map((c) => Number(c.toFixed(3))),
+      size: box.axisAligned.size.map((d) => Number(d.toFixed(2)))
+    },
     "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
   };
   const row = {
     product: label,
     "volume cm3": geometry["volume-cm3"],
     "box mm": geometry["dimensions-mm"].join(" x "),
-    "box/aabb": (box.volume / box.axisAlignedVolume).toFixed(2),
+    "box/aabb": (box.volume / box.axisAligned.volume).toFixed(2),
     shells: volume.shells,
     "open edges": volume.openEdges
   };

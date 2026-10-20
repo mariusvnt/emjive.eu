@@ -1,7 +1,7 @@
 // The product page's three-stage show: a tall track (.product-stage) holding
 // one sticky stage, where scrolling steps inspiration (description and photo
-// feed) -> design (model, metal, design options) -> specs (blueprint model,
-// size, dimensions, costs). Each stage is a stretch the show browses through,
+// feed) -> design (model, metal, design options) -> specs (blueprint model and
+// its plan views, size, costs). Each stage is a stretch the show browses through,
 // with eased transitions between them.
 //
 // Track order: inspiration stretch (--feed-hold), transition (--stage-step-in),

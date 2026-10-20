@@ -27,10 +27,12 @@
   var MODEL_FROM = 0;
   var resetEl = document.getElementById("productModelReset");
 
-  // The reset button shows while the model is turned off its pose.
+  // The reset button shows while the model is turned off its pose; a plan
+  // view's window ends as the model starts back.
   function setModelAway(away) {
     state.modelAway = !!away;
     if (resetEl) resetEl.classList.toggle("is-away", state.modelAway);
+    if (!state.modelAway) markPlanView("");
   }
 
   var state = {
@@ -87,6 +89,11 @@
     metalPicked: false,
     // The size tape's elements (wireSizeTape).
     sizeTape: null,
+    // The plan views' elements by view name, the design's frame
+    // (EmjiveHelpers.planFrame), and whether their pictures may load yet.
+    planViews: null,
+    planFrame: null,
+    planImagesOn: false,
     // The model's lift on its way into specs, px (refreshStage).
     lift: 0,
     // Whether the specs size has its starting value (62).
@@ -243,6 +250,7 @@
     renderDesigns(product);
     renderMetalOptions(product);
     renderSpecs();
+    renderPlanViews();
     renderPrinting();
     renderComposition();
     wireSelectButton(product);
@@ -324,10 +332,13 @@
     xray.hidden = false;
   }
 
-  // After the first paint: other metals' icons, the rest of the feed, the viewer and the x-ray.
+  // After the first paint: other metals' icons, the rest of the feed, the plan
+  // views, the viewer and the x-ray.
   function loadRemainingAssets(product, feed, modelParts) {
     preloadIcons(state.view);
     feed.loadRest();
+    state.planImagesOn = true;
+    renderPlanViews();
     modelParts.mountViewer();
     startXray(product);
     // The high-res x-ray once the model is up (or after VIEWER_SETTLE_WAIT_MS), so
@@ -1095,6 +1106,7 @@
     if (state.posterImg) state.posterImg.src = H.posterFor(state.view, state.selectedMetal);
     syncPosters();
     renderSpecs();
+    renderPlanViews();
     preloadIcons(state.view);
     if (state.modelHandle && state.modelHandle.setProduct) {
       if (state.swapHold) state.swapHold.done();
@@ -1190,21 +1202,17 @@
     return "€ " + amount.toFixed(2);
   }
 
-  // Dimensions (cm), weight (g) and the cost chart at the chosen size: weight
-  // and cost scale with the factor cubed. Uses the design's print geometry
-  // (geometry.print, from its STL) when measured: that's what is made and priced.
+  // Weight (g) and the cost chart at the chosen size, both scaling with the
+  // factor cubed. Uses the design's print geometry (geometry.print, from its
+  // STL) when measured: that's what is made and priced.
   function renderSpecs() {
     var geometry = (state.view && state.view.geometry) || {};
     var printed = geometry.print || geometry;
-    var dims = printed["dimensions-mm"];
     var f = state.sizeFactor;
     var volume = printed["volume-cm3"] * f * f * f;
     var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
     var dl = document.getElementById("productSpecs");
     dl.innerHTML = "";
-    var haveDims = Array.isArray(dims) && dims.length === 3 && dims.every(function (d) { return typeof d === "number" && isFinite(d); });
-    appendSpec(dl, "dimensions", "Dimensions", haveDims ?
-      dims.map(function (d) { return (Math.round(d * f * 10 + 1e-6) / 100).toFixed(2); }).join(" × ") + " cm" : "TBD");
     appendSpec(dl, "weight", "Weight", costs ? costs.weight.toFixed(1) + " g" : "TBD");
 
     var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
@@ -1279,6 +1287,99 @@
     group.appendChild(el("dt", null, label));
     group.appendChild(el("dd", null, value));
     dl.appendChild(group);
+  }
+
+  /* ---- plan views (specs) ---- */
+
+  // The model's top, front and side views (scripts/auto-render.js), a column
+  // against its box. Each is a stack in its tile: the picture, then the
+  // dimension (a line under it and its figure). The pictures are drawn in
+  // their design's plan frame (EmjiveHelpers.planFrame), turned so the
+  // measured side (one of the model's three axes, a different one in each
+  // view) is horizontal, and cropped to one
+  // rectangle for the three (--plan-cw, --plan-ratio: its share of a tile and
+  // its proportions); they keep one scale whatever the size (CSS, from
+  // --plan-max). The line is the measured side's length (--plan-w, a share of
+  // a tile), the figure that side at the chosen size in cm. A tap turns the
+  // model to the view for PLAN_HOLD_MS before it eases back; the view stays
+  // pressed until then (setModelAway). Hidden without the pictures or the frame.
+  var PLAN_HOLD_MS = 2000;
+  var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
+
+  function buildPlanViews(host) {
+    var views = {};
+    Object.keys(H.PLAN_VIEWS).forEach(function (name) {
+      var button = el("button", "product-plan");
+      button.type = "button";
+      button.setAttribute("data-view", name);
+      button.setAttribute("aria-pressed", "false");
+      var pic = el("span", "product-plan__pic");
+      var img = document.createElement("img");
+      img.className = "product-plan__img";
+      img.alt = "";
+      img.decoding = "async";
+      img.draggable = false;
+      pic.appendChild(img);
+      var dim = el("span", "product-plan__dim");
+      dim.setAttribute("aria-hidden", "true");
+      var figure = el("span", "product-plan__figure");
+      dim.appendChild(el("span", "product-plan__line"));
+      dim.appendChild(figure);
+      button.appendChild(pic);
+      button.appendChild(dim);
+      button.addEventListener("click", function () {
+        if (!state.modelHandle || !state.modelHandle.showView) return;
+        state.modelHandle.showView(name, PLAN_HOLD_MS);
+        markPlanView(name);
+      });
+      host.appendChild(button);
+      views[name] = { button: button, img: img, figure: figure };
+    });
+    return views;
+  }
+
+  function renderPlanViews() {
+    var host = document.getElementById("productPlans");
+    if (!host || !state.view) return;
+    var paths = (state.view.assets && state.view.assets["plan-views"]) || {};
+    var frame = H.planFrame(state.view);
+    var names = Object.keys(H.PLAN_VIEWS);
+    state.planFrame = frame && names.every(function (name) { return paths[name]; }) ? frame : null;
+    host.hidden = !state.planFrame;
+    if (!state.planFrame) return;
+    host.style.setProperty("--plan-max", Math.max(1, SIZE_MAX_MM / SIZE_BASE_MM).toFixed(4));
+    host.style.setProperty("--plan-cw", (frame.crop.w / frame.tile).toFixed(4));
+    host.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
+    if (!state.planViews) state.planViews = buildPlanViews(host);
+    names.forEach(function (name) {
+      var view = state.planViews[name];
+      var drawing = frame.views[name];
+      view.button.style.setProperty("--plan-w", (drawing.w / frame.tile).toFixed(4));
+      if (state.planImagesOn && view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
+    });
+    syncPlanSizes();
+  }
+
+  // Each figure at the chosen size: the measured side in cm.
+  function syncPlanSizes() {
+    var frame = state.planFrame;
+    if (!frame || !state.planViews) return;
+    Object.keys(state.planViews).forEach(function (name) {
+      var view = state.planViews[name];
+      var drawing = frame.views[name];
+      var text = (drawing.w * state.sizeFactor / 10).toFixed(2) + " cm";
+      if (view.figure.textContent === text) return;
+      view.figure.textContent = text;
+      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view, " + text);
+    });
+  }
+
+  // The view whose window is running ("" for none).
+  function markPlanView(name) {
+    if (!state.planViews) return;
+    Object.keys(state.planViews).forEach(function (key) {
+      state.planViews[key].button.setAttribute("aria-pressed", String(key === name));
+    });
   }
 
   /* ---- the three stages ---- */
@@ -1711,6 +1812,7 @@
       var field = document.getElementById("productSizeInput");
       if (field) sel.syncSizeField(field, state.product);
     }
+    syncPlanSizes();
     syncSizeTape();
   }
 

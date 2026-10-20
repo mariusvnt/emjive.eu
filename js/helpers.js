@@ -287,6 +287,96 @@
       : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
   }
 
+  /* ---- plan views ---- */
+
+  // The specs stage's outline views of a model, in its own frame:
+  // scripts/auto-render.js draws them, js/product.js lays out their dimension
+  // lines, js/three-viewer.js turns the live model to them. `eye` is the
+  // camera's side, `up` the drawing's up. Front looks through the finger hole
+  // (+Z), top looks down with the front at the bottom, side is from the right.
+  // planFrame turns each a quarter where that puts its measured axis across.
+  var PLAN_VIEWS = {
+    top: { eye: [0, 1, 0], up: [0, 0, -1] },
+    front: { eye: [0, 0, 1], up: [0, 1, 0] },
+    side: { eye: [1, 0, 0], up: [0, 1, 0] }
+  };
+  // The share of a tile the model's longest extent fills at its largest size.
+  var PLAN_FILL = 0.64;
+  // The stroke's room around a drawing, as a share of the longest extent.
+  var PLAN_PAD = 0.006;
+
+  // A product's plan views from geometry["axis-box"], null without it. All
+  // three are drawn at one scale, centred on the box and cropped to one
+  // rectangle, `crop` mm: the largest drawing's width and height plus the
+  // stroke's room. Each view measures one of the box's three axes, the
+  // three views one each (length, width and depth), the choice putting the
+  // measured side over the other in as many views as possible. Its drawing
+  // is w x h mm (along `right`, and `up`), turned a quarter, if need be, so
+  // that w, the measured side, lies across; `eye` and `up` are the turned
+  // view's, which the live model turns to as well. `render` is the square, mm
+  // across, the renderer draws before cropping; `tile` the square, mm across,
+  // a tile of the column stands for (the drawing's scale on the page).
+  function planFrame(product) {
+    var box = product && product.geometry && product.geometry["axis-box"];
+    var size = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
+    if (!size || !size.every(function (d) { return d > 0; })) return null;
+    var maxFactor = Math.max(1, sizeRange(product).max / REFERENCE_SIZE_MM);
+    var along = function (axis) {
+      return Math.abs(axis[0]) * size[0] + Math.abs(axis[1]) * size[1] + Math.abs(axis[2]) * size[2];
+    };
+    var rightOf = function (u, e) {
+      return [u[1] * e[2] - u[2] * e[1], u[2] * e[0] - u[0] * e[2], u[0] * e[1] - u[1] * e[0]];
+    };
+    var axisOf = function (v) {
+      return v[0] !== 0 ? 0 : v[1] !== 0 ? 1 : 2;
+    };
+    var names = Object.keys(PLAN_VIEWS);
+    var axes = names.map(function (name) {
+      var e = PLAN_VIEWS[name].eye;
+      var u = PLAN_VIEWS[name].up;
+      return [axisOf(rightOf(u, e)), axisOf(u)];
+    });
+    // Which of each view's two axes it measures: every axis once.
+    var chosen = null;
+    for (var mask = 0; mask < 8; mask++) {
+      var picks = names.map(function (name, i) { return (mask >> i) & 1; });
+      var used = picks.map(function (k, i) { return axes[i][k]; });
+      if (used.indexOf(0) === -1 || used.indexOf(1) === -1 || used.indexOf(2) === -1) continue;
+      var wins = 0;
+      picks.forEach(function (k, i) {
+        if (size[axes[i][k]] >= size[axes[i][1 - k]]) wins++;
+      });
+      if (!chosen || wins > chosen.wins) chosen = { picks: picks, wins: wins };
+    }
+    var views = {};
+    names.forEach(function (name, i) {
+      var e = PLAN_VIEWS[name].eye;
+      var u = PLAN_VIEWS[name].up;
+      var right = rightOf(u, e);
+      // Measuring the up axis: the old right becomes up.
+      if (chosen.picks[i] === 1) {
+        u = right;
+        right = rightOf(u, e);
+      }
+      views[name] = { eye: e, up: u, right: right, w: along(right), h: along(u) };
+    });
+    var longest = Math.max(size[0], size[1], size[2]);
+    var crop = { w: 0, h: 0 };
+    Object.keys(views).forEach(function (name) {
+      crop.w = Math.max(crop.w, views[name].w);
+      crop.h = Math.max(crop.h, views[name].h);
+    });
+    crop.w += 2 * PLAN_PAD * longest;
+    crop.h += 2 * PLAN_PAD * longest;
+    return {
+      center: box.center.map(Number),
+      crop: crop,
+      render: Math.max(crop.w, crop.h) * 1.1,
+      tile: longest * maxFactor / PLAN_FILL,
+      views: views
+    };
+  }
+
   // An icon's 128px thumbnail version (scripts/make-image-variants.js).
   function thumbSrc(src) {
     return src && window.EmjiveLoader ? window.EmjiveLoader.variant(src, "128") : src;
@@ -359,6 +449,8 @@
     posterFor: posterFor,
     REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
     sizeRange: sizeRange,
+    PLAN_VIEWS: PLAN_VIEWS,
+    planFrame: planFrame,
     thumbSrc: thumbSrc,
     setThumb: setThumb,
     preload: preload,

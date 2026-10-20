@@ -12,7 +12,7 @@
         "silver": { "price": 350 },
         "bronze": { "price": 240 }
       },
-      "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "print": { "volume-cm3": 1.677, "dimensions-mm": [28.8, 25.7, 17.1], "stl-sha1": "018fa2ecc74cfc6b5ed7e1b958ed0aa203d6a13b" }, "model-sha1": "85ab6b8a7b0fbe73d6ba858c527fddb66fc12f21" },
+      "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "axis-box": { "center": [2.891, 1.829, 0.018], "size": [20.98, 28.74, 25.72] }, "print": { "volume-cm3": 1.677, "dimensions-mm": [28.8, 25.7, 17.1], "stl-sha1": "018fa2ecc74cfc6b5ed7e1b958ed0aa203d6a13b" }, "model-sha1": "85ab6b8a7b0fbe73d6ba858c527fddb66fc12f21" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
@@ -38,6 +38,7 @@
         "xray": "assets/series/bones/products/furcula_ring/furcula_xray.webp",
         "hand-poster": "assets/series/bones/products/furcula_ring/furcula_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/furcula_ring/furcula_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/furcula_ring/furcula_plan-top.webp", "front": "assets/series/bones/products/furcula_ring/furcula_plan-front.webp", "side": "assets/series/bones/products/furcula_ring/furcula_plan-side.webp" },
         "photos": [
           { "src": "assets/series/bones/products/furcula_ring/Furcula_photo1.webp", "description": "furcula.ring.steel.62" },
           { "src": "assets/series/bones/products/furcula_ring/Furcula_photo2.webp", "description": "furcula.ring.steel.62" }
@@ -55,7 +56,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 1.085, "dimensions-mm": [29.3, 23.7, 20.3], "min-box": { "center": [-2.355, 1.043, -1.89], "axes": [[0.51443, -0.33317, 0.79017], [0.66669, 0.73492, -0.12416], [-0.53935, 0.59067, 0.60018]] }, "print": { "volume-cm3": 1.086, "dimensions-mm": [29.3, 23.7, 20.3], "stl-sha1": "0c6143b64b7f77da4297bf81860e02b34a28435e" }, "model-sha1": "5230335d1a15ae41f87e6b0b434a39c88a23651d" },
+      "geometry": { "volume-cm3": 1.085, "dimensions-mm": [29.3, 23.7, 20.3], "min-box": { "center": [-2.355, 1.043, -1.89], "axes": [[0.51443, -0.33317, 0.79017], [0.66669, 0.73492, -0.12416], [-0.53935, 0.59067, 0.60018]] }, "axis-box": { "center": [-0.288, 0.167, -4.194], "size": [24.52, 24.58, 29.76] }, "print": { "volume-cm3": 1.086, "dimensions-mm": [29.3, 23.7, 20.3], "stl-sha1": "0c6143b64b7f77da4297bf81860e02b34a28435e" }, "model-sha1": "5230335d1a15ae41f87e6b0b434a39c88a23651d" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
       "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
@@ -81,6 +82,7 @@
         "xray": "assets/series/bones/products/foramen_ring/foramen_xray.webp",
         "hand-poster": "assets/series/bones/products/foramen_ring/foramen_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/foramen_ring/foramen_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/foramen_ring/foramen_plan-top.webp", "front": "assets/series/bones/products/foramen_ring/foramen_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -94,7 +96,7 @@
             "key": "straight",
             "name": "foramen",
             "picks": { "shape": "straight" },
-            "geometry": { "volume-cm3": 0.934, "dimensions-mm": [28.2, 23.9, 16.5], "min-box": { "center": [-0.909, 2.152, -2.018], "axes": [[-0.27078, 0.79829, -0.53797], [0.92504, 0.06113, -0.37491], [0.2664, 0.59917, 0.755]] }, "print": { "volume-cm3": 0.935, "dimensions-mm": [28.2, 23.9, 16.5], "stl-sha1": "f2c452e1ca76602a0bca8f2cee1f097606cc3d1e" }, "model-sha1": "eb703d832e3c813bdb34b169765e84d5005f2fe4" },
+            "geometry": { "volume-cm3": 0.934, "dimensions-mm": [28.2, 23.9, 16.5], "min-box": { "center": [-0.909, 2.152, -2.018], "axes": [[-0.27078, 0.79829, -0.53797], [0.92504, 0.06113, -0.37491], [0.2664, 0.59917, 0.755]] }, "axis-box": { "center": [-0.18, 0.434, -7.822], "size": [23.91, 24.56, 21.94] }, "print": { "volume-cm3": 0.935, "dimensions-mm": [28.2, 23.9, 16.5], "stl-sha1": "f2c452e1ca76602a0bca8f2cee1f097606cc3d1e" }, "model-sha1": "eb703d832e3c813bdb34b169765e84d5005f2fe4" },
             "model": "assets/series/bones/products/foramen_ring/foramen-straight_gltf.glb",
             "wireframe": "assets/series/bones/products/foramen_ring/foramen-straight_wireframe.glb",
             "stl": "assets/series/bones/products/foramen_ring/foramen-straight_stl.stl",
@@ -108,7 +110,8 @@
               "silver": "assets/series/bones/products/foramen_ring/foramen-straight_fallback-img_silver.webp",
               "bronze": "assets/series/bones/products/foramen_ring/foramen-straight_fallback-img_bronze.webp"
             },
-            "specs-poster": "assets/series/bones/products/foramen_ring/foramen-straight_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/foramen_ring/foramen-straight_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/foramen_ring/foramen-straight_plan-top.webp", "front": "assets/series/bones/products/foramen_ring/foramen-straight_plan-front.webp", "side": "assets/series/bones/products/foramen_ring/foramen-straight_plan-side.webp" }
           }
         ]
       }
@@ -124,7 +127,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "min-box": { "center": [0, 0.001, 0.895], "axes": [[-0.00333, 0.96624, 0.25762], [0.99999, 0.00345, 0], [0.00089, -0.25761, 0.96625]] }, "print": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "stl-sha1": "7d69624207734a65c565d84ae41753abfa24bf3e" }, "model-sha1": "5f385fd448ca29b611fae81f64649ffb07115b19" },
+      "geometry": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "min-box": { "center": [0, 0.001, 0.895], "axes": [[-0.00333, 0.96624, 0.25762], [0.99999, 0.00345, 0], [0.00089, -0.25761, 0.96625]] }, "axis-box": { "center": [0, 0.013, 0.888], "size": [23.84, 25.22, 17.59] }, "print": { "volume-cm3": 1.342, "dimensions-mm": [27.8, 23.8, 11], "stl-sha1": "7d69624207734a65c565d84ae41753abfa24bf3e" }, "model-sha1": "5f385fd448ca29b611fae81f64649ffb07115b19" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -115, "tilt": 90, "zoom": 80 },
@@ -150,6 +153,7 @@
         "xray": "assets/series/bones/products/disc_ring/disc_xray.webp",
         "hand-poster": "assets/series/bones/products/disc_ring/disc_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/disc_ring/disc_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/disc_ring/disc_plan-top.webp", "front": "assets/series/bones/products/disc_ring/disc_plan-front.webp", "side": "assets/series/bones/products/disc_ring/disc_plan-side.webp" },
         "photos": []
       }
     },
@@ -164,7 +168,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "min-box": { "center": [1.141, 1.112, -5.501], "axes": [[0.81582, 0.5783, 0], [-0.5783, 0.81582, 0.00011], [0.00006, -0.00009, 1]] }, "print": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 25.9, 15.1], "stl-sha1": "04f8ca91957d572f5ae0d5a2fe652ee0dc79c2bc" }, "model-sha1": "717fdeb31f186bbb0c508f88e2fbdb71759cf039" },
+      "geometry": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 26, 15.1], "min-box": { "center": [1.141, 1.112, -5.501], "axes": [[0.81582, 0.5783, 0], [-0.5783, 0.81582, 0.00011], [0.00006, -0.00009, 1]] }, "axis-box": { "center": [0.389, 1.925, -5.5], "size": [26.05, 33.82, 15.05] }, "print": { "volume-cm3": 2.36, "dimensions-mm": [29.3, 25.9, 15.1], "stl-sha1": "04f8ca91957d572f5ae0d5a2fe652ee0dc79c2bc" }, "model-sha1": "717fdeb31f186bbb0c508f88e2fbdb71759cf039" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 20, "tilt": 80, "zoom": 80 },
@@ -190,6 +194,7 @@
         "xray": "assets/series/bones/products/marrow_ring/marrow_xray.webp",
         "hand-poster": "assets/series/bones/products/marrow_ring/marrow_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/marrow_ring/marrow_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/marrow_ring/marrow_plan-top.webp", "front": "assets/series/bones/products/marrow_ring/marrow_plan-front.webp", "side": "assets/series/bones/products/marrow_ring/marrow_plan-side.webp" },
         "photos": []
       }
     },
@@ -204,7 +209,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "min-box": { "center": [0.041, 2.092, -0.715], "axes": [[0.03219, 0.8754, -0.48232], [0.99948, -0.02725, 0.01726], [-0.00197, 0.48262, 0.87583]] }, "print": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "stl-sha1": "8c1d30d04d25bd62a441bc682c6bdbeddeb3fdf6" }, "model-sha1": "f5c950538ce303462bb874893d5b00ad105aa4af" },
+      "geometry": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "min-box": { "center": [0.041, 2.092, -0.715], "axes": [[0.03219, 0.8754, -0.48232], [0.99948, -0.02725, 0.01726], [-0.00197, 0.48262, 0.87583]] }, "axis-box": { "center": [-0.004, 0.701, -3.216], "size": [23.3, 23.77, 16.53] }, "print": { "volume-cm3": 0.579, "dimensions-mm": [27.6, 23.3, 10], "stl-sha1": "8c1d30d04d25bd62a441bc682c6bdbeddeb3fdf6" }, "model-sha1": "f5c950538ce303462bb874893d5b00ad105aa4af" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 64, "tilt": 78, "zoom": 80 },
@@ -230,6 +235,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/suture_ring/suture_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/suture_ring/suture_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/suture_ring/suture_plan-top.webp", "front": "assets/series/bones/products/suture_ring/suture_plan-front.webp", "side": "assets/series/bones/products/suture_ring/suture_plan-side.webp" },
         "photos": []
       }
     },
@@ -244,7 +250,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "min-box": { "center": [0.009, 4.557, -5.734], "axes": [[0.00262, 1, 0.00029], [1, -0.00262, 0], [0, -0.00029, 1]] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "stl-sha1": "e0d3c0d414a79cb7448fef58b3dad9a227d82bad" }, "model-sha1": "6953b35249ffe993607847e07d79c84d96a510b1" },
+      "geometry": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "min-box": { "center": [0.009, 4.557, -5.734], "axes": [[0.00262, 1, 0.00029], [1, -0.00262, 0], [0, -0.00029, 1]] }, "axis-box": { "center": [-0.001, 4.556, -5.729], "size": [24.01, 32.99, 15.43] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [33, 24, 15.4], "stl-sha1": "e0d3c0d414a79cb7448fef58b3dad9a227d82bad" }, "model-sha1": "6953b35249ffe993607847e07d79c84d96a510b1" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 45, "tilt": 65, "zoom": 80 },
@@ -270,6 +276,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/cartilage_ring/cartilage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/cartilage_ring/cartilage_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/cartilage_ring/cartilage_plan-top.webp", "front": "assets/series/bones/products/cartilage_ring/cartilage_plan-front.webp", "side": "assets/series/bones/products/cartilage_ring/cartilage_plan-side.webp" },
         "photos": []
       }
     },
@@ -284,7 +291,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.438, 0.796, -3.63], "axes": [[-0.45555, 0.89019, -0.0067], [0.77544, 0.39311, -0.49413], [0.43723, 0.23029, 0.86936]] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [25.1, 23.7, 18.9], "stl-sha1": "f9935e7e63947410a3e44072f8b39689f73919b0" }, "model-sha1": "3e0e18ae1d006d3fd6b857d1e84c47171133e3a9" },
+      "geometry": { "volume-cm3": 0.98, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.438, 0.796, -3.63], "axes": [[-0.45555, 0.89019, -0.0067], [0.77544, 0.39311, -0.49413], [0.43723, 0.23029, 0.86936]] }, "axis-box": { "center": [0, -0.022, -6.94], "size": [24.51, 26.56, 19.79] }, "print": { "volume-cm3": 0.983, "dimensions-mm": [25.1, 23.7, 18.9], "stl-sha1": "f9935e7e63947410a3e44072f8b39689f73919b0" }, "model-sha1": "3e0e18ae1d006d3fd6b857d1e84c47171133e3a9" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 123, "tilt": 28, "zoom": 80, "roll": 44 },
@@ -310,6 +317,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -324,109 +332,118 @@
             "key": "123",
             "name": "rib-cage-123",
             "picks": { "ribs": ["1", "2", "3"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.915, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.439, 0.796, -3.63], "axes": [[-0.45552, 0.8902, -0.00639], [0.77527, 0.39316, -0.49435], [0.43755, 0.23014, 0.86924]] }, "print": { "volume-cm3": 0.918, "dimensions-mm": [25.1, 23.7, 18.9], "stl-sha1": "d0600e09245d289f23e89aa7f7bc8304177be12e" }, "model-sha1": "3a318dc7b1e346c51e9de7950bbdaad9d3ffe424" },
+            "geometry": { "volume-cm3": 0.915, "dimensions-mm": [25.1, 23.7, 18.9], "min-box": { "center": [0.439, 0.796, -3.63], "axes": [[-0.45552, 0.8902, -0.00639], [0.77527, 0.39316, -0.49435], [0.43755, 0.23014, 0.86924]] }, "axis-box": { "center": [0, -0.022, -6.94], "size": [24.51, 26.56, 19.79] }, "print": { "volume-cm3": 0.918, "dimensions-mm": [25.1, 23.7, 18.9], "stl-sha1": "d0600e09245d289f23e89aa7f7bc8304177be12e" }, "model-sha1": "3a318dc7b1e346c51e9de7950bbdaad9d3ffe424" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-123_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-123_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-123_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-123_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-123_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-123_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-123_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-123_plan-side.webp" }
           },
           {
             "key": "12",
             "name": "rib-cage-12",
             "picks": { "ribs": ["1", "2"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.613, "dimensions-mm": [24.7, 24.5, 10.5], "min-box": { "center": [0.009, 0.457, -4.009], "axes": [[0.6539, 0.74733, 0.11794], [0.75658, -0.6459, -0.10194], [0, -0.15589, 0.98777]] }, "print": { "volume-cm3": 0.615, "dimensions-mm": [24.8, 24.5, 10.5], "stl-sha1": "ea1fbc4e1fa116825cda2b6c88bc29ff3d2b7ef6" }, "model-sha1": "cda32b3eaab27bdc6a1d3739a42ec7b2346beb4d" },
+            "geometry": { "volume-cm3": 0.613, "dimensions-mm": [24.7, 24.5, 10.5], "min-box": { "center": [0.009, 0.457, -4.009], "axes": [[0.6539, 0.74733, 0.11794], [0.75658, -0.6459, -0.10194], [0, -0.15589, 0.98777]] }, "axis-box": { "center": [0, 0.013, -2.291], "size": [24.44, 26.48, 10.5] }, "print": { "volume-cm3": 0.615, "dimensions-mm": [24.8, 24.5, 10.5], "stl-sha1": "ea1fbc4e1fa116825cda2b6c88bc29ff3d2b7ef6" }, "model-sha1": "cda32b3eaab27bdc6a1d3739a42ec7b2346beb4d" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-12_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-12_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-12_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-12_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-12_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-12_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-12_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-12_plan-side.webp" }
           },
           {
             "key": "1L2",
             "name": "rib-cage-1L2",
             "picks": { "ribs": ["1", "2"], "bound": "linked" },
-            "geometry": { "volume-cm3": 0.639, "dimensions-mm": [24.7, 24.5, 10.5], "min-box": { "center": [0.009, 0.457, -4.009], "axes": [[0.6539, 0.74733, 0.11794], [0.75658, -0.6459, -0.10194], [0, -0.15589, 0.98777]] }, "print": { "volume-cm3": 0.64, "dimensions-mm": [24.8, 24.5, 10.5], "stl-sha1": "a582186b89e94ba6259051f94f7c9d9a86c08094" }, "model-sha1": "79630eec546be0a46a52a146225fabfae4136586" },
+            "geometry": { "volume-cm3": 0.639, "dimensions-mm": [24.7, 24.5, 10.5], "min-box": { "center": [0.009, 0.457, -4.009], "axes": [[0.6539, 0.74733, 0.11794], [0.75658, -0.6459, -0.10194], [0, -0.15589, 0.98777]] }, "axis-box": { "center": [0, 0.013, -2.291], "size": [24.44, 26.48, 10.5] }, "print": { "volume-cm3": 0.64, "dimensions-mm": [24.8, 24.5, 10.5], "stl-sha1": "a582186b89e94ba6259051f94f7c9d9a86c08094" }, "model-sha1": "79630eec546be0a46a52a146225fabfae4136586" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1l2_plan-side.webp" }
           },
           {
             "key": "23",
             "name": "rib-cage-23",
             "picks": { "ribs": ["2", "3"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.629, "dimensions-mm": [24.6, 24.6, 13.6], "min-box": { "center": [-0.001, 0.525, -6.29], "axes": [[0.70648, -0.67307, 0.21875], [0.70773, 0.67189, -0.21836], [0, 0.30909, 0.95103]] }, "print": { "volume-cm3": 0.631, "dimensions-mm": [24.7, 24.6, 13.6], "stl-sha1": "b583cfdbf59fee2683699ac13bdee6f542380a80" }, "model-sha1": "a47e0ad970fc2aa6c35ce41e9cff08e7be3fdfef" },
+            "geometry": { "volume-cm3": 0.629, "dimensions-mm": [24.6, 24.6, 13.6], "min-box": { "center": [-0.001, 0.525, -6.29], "axes": [[0.70648, -0.67307, 0.21875], [0.70773, 0.67189, -0.21836], [0, 0.30909, 0.95103]] }, "axis-box": { "center": [0, -0.022, -9.309], "size": [24.51, 26.56, 15.05] }, "print": { "volume-cm3": 0.631, "dimensions-mm": [24.7, 24.6, 13.6], "stl-sha1": "b583cfdbf59fee2683699ac13bdee6f542380a80" }, "model-sha1": "a47e0ad970fc2aa6c35ce41e9cff08e7be3fdfef" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-23_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-23_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-23_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-23_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-23_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-23_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-23_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-23_plan-side.webp" }
           },
           {
             "key": "2L3",
             "name": "rib-cage-2L3",
             "picks": { "ribs": ["2", "3"], "bound": "linked" },
-            "geometry": { "volume-cm3": 0.669, "dimensions-mm": [24.6, 24.6, 13.6], "min-box": { "center": [-0.001, 0.525, -6.29], "axes": [[0.70648, -0.67307, 0.21875], [0.70773, 0.67189, -0.21836], [0, 0.30908, 0.95103]] }, "print": { "volume-cm3": 0.67, "dimensions-mm": [24.7, 24.6, 13.6], "stl-sha1": "197db55dc82785f6e9c0363acc1addca654ac8bc" }, "model-sha1": "7188291b13e678f3b1369b1d772868f9c8357c0f" },
+            "geometry": { "volume-cm3": 0.669, "dimensions-mm": [24.6, 24.6, 13.6], "min-box": { "center": [-0.001, 0.525, -6.29], "axes": [[0.70648, -0.67307, 0.21875], [0.70773, 0.67189, -0.21836], [0, 0.30908, 0.95103]] }, "axis-box": { "center": [0, -0.022, -9.309], "size": [24.51, 26.56, 15.05] }, "print": { "volume-cm3": 0.67, "dimensions-mm": [24.7, 24.6, 13.6], "stl-sha1": "197db55dc82785f6e9c0363acc1addca654ac8bc" }, "model-sha1": "7188291b13e678f3b1369b1d772868f9c8357c0f" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2l3_plan-side.webp" }
           },
           {
             "key": "13",
             "name": "rib-cage-13",
             "picks": { "ribs": ["1", "3"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.616, "dimensions-mm": [24.7, 23.9, 18.8], "min-box": { "center": [-0.487, 0.616, -3.618], "axes": [[0.45841, 0.88809, -0.03405], [0.79019, -0.38975, 0.47296], [-0.40676, 0.24372, 0.88043]] }, "print": { "volume-cm3": 0.618, "dimensions-mm": [24.7, 23.9, 18.8], "stl-sha1": "4802913fd66d1d69471de1b6cb655bec992773d4" }, "model-sha1": "512afd484548c9bce69992c709df234b1ec32e3d" },
+            "geometry": { "volume-cm3": 0.616, "dimensions-mm": [24.7, 23.9, 18.8], "min-box": { "center": [-0.487, 0.616, -3.618], "axes": [[0.45841, 0.88809, -0.03405], [0.79019, -0.38975, 0.47296], [-0.40676, 0.24372, 0.88043]] }, "axis-box": { "center": [0, -0.047, -6.94], "size": [24.51, 26.51, 19.79] }, "print": { "volume-cm3": 0.618, "dimensions-mm": [24.7, 23.9, 18.8], "stl-sha1": "4802913fd66d1d69471de1b6cb655bec992773d4" }, "model-sha1": "512afd484548c9bce69992c709df234b1ec32e3d" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-13_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-13_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-13_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-13_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-13_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-13_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-13_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-13_plan-side.webp" }
           },
           {
             "key": "1",
             "name": "rib-cage-1",
             "picks": { "ribs": ["1"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.283, "dimensions-mm": [24.5, 24.1, 3.9], "min-box": { "center": [-0.052, 0.062, -0.632], "axes": [[-0.65909, 0.74409, 0.10927], [0.75207, 0.65209, 0.09576], [0, -0.1453, 0.98939]] }, "print": { "volume-cm3": 0.284, "dimensions-mm": [24.4, 24.2, 3.9], "stl-sha1": "4bdcbd75f7846207b0a6729e0c1566ba6a660f2f" }, "model-sha1": "0dfac33313db167cd84caf5b20ba876c58d42b6d" },
+            "geometry": { "volume-cm3": 0.283, "dimensions-mm": [24.5, 24.1, 3.9], "min-box": { "center": [-0.052, 0.062, -0.632], "axes": [[-0.65909, 0.74409, 0.10927], [0.75207, 0.65209, 0.09576], [0, -0.1453, 0.98939]] }, "axis-box": { "center": [0, 0.039, -0.566], "size": [23.78, 26.33, 7.05] }, "print": { "volume-cm3": 0.284, "dimensions-mm": [24.4, 24.2, 3.9], "stl-sha1": "4bdcbd75f7846207b0a6729e0c1566ba6a660f2f" }, "model-sha1": "0dfac33313db167cd84caf5b20ba876c58d42b6d" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-1_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-1_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-1_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-1_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-1_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-1_plan-side.webp" }
           },
           {
             "key": "2",
             "name": "rib-cage-2",
             "picks": { "ribs": ["2"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.327, "dimensions-mm": [25, 24.2, 5.6], "min-box": { "center": [-0.15, 0.544, -4.34], "axes": [[-0.46104, 0.88678, -0.03258], [0.88738, 0.46073, -0.01693], [0, 0.03671, 0.99933]] }, "print": { "volume-cm3": 0.328, "dimensions-mm": [25, 24.2, 5.6], "stl-sha1": "707d80195cb2abd69c07c96d4dd93d07b062c4f9" }, "model-sha1": "aec78bfd6825814fa68c83ad338569b49f2ff688" },
+            "geometry": { "volume-cm3": 0.327, "dimensions-mm": [25, 24.2, 5.6], "min-box": { "center": [-0.15, 0.544, -4.34], "axes": [[-0.46104, 0.88678, -0.03258], [0.88738, 0.46073, -0.01693], [0, 0.03671, 0.99933]] }, "axis-box": { "center": [0, 0.013, -4.661], "size": [24.44, 26.48, 5.76] }, "print": { "volume-cm3": 0.328, "dimensions-mm": [25, 24.2, 5.6], "stl-sha1": "707d80195cb2abd69c07c96d4dd93d07b062c4f9" }, "model-sha1": "aec78bfd6825814fa68c83ad338569b49f2ff688" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-2_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-2_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-2_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-2_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-2_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-2_plan-side.webp" }
           },
           {
             "key": "3",
             "name": "rib-cage-3",
             "picks": { "ribs": ["3"], "bound": "unlinked" },
-            "geometry": { "volume-cm3": 0.3, "dimensions-mm": [24.1, 24, 9.2], "min-box": { "center": [-0.02, 0.237, -8.513], "axes": [[-0.67917, 0.69804, -0.22687], [0.73398, 0.64592, -0.20993], [0, 0.30909, 0.95103]] }, "print": { "volume-cm3": 0.3, "dimensions-mm": [24.1, 24.1, 9.2], "stl-sha1": "5269e8028aa7d2ca130362bbf76003249c32de37" }, "model-sha1": "0b5cd1503e408469d7ec9c20a0edd499551c40dd" },
+            "geometry": { "volume-cm3": 0.3, "dimensions-mm": [24.1, 24, 9.2], "min-box": { "center": [-0.02, 0.237, -8.513], "axes": [[-0.67917, 0.69804, -0.22687], [0.73398, 0.64592, -0.20993], [0, 0.30909, 0.95103]] }, "axis-box": { "center": [0, -0.219, -10.83], "size": [24.51, 26.16, 12.01] }, "print": { "volume-cm3": 0.3, "dimensions-mm": [24.1, 24.1, 9.2], "stl-sha1": "5269e8028aa7d2ca130362bbf76003249c32de37" }, "model-sha1": "0b5cd1503e408469d7ec9c20a0edd499551c40dd" },
             "model": "assets/series/bones/products/rib-cage_ring/rib-cage-3_gltf.glb",
             "wireframe": "assets/series/bones/products/rib-cage_ring/rib-cage-3_wireframe.glb",
             "stl": "assets/series/bones/products/rib-cage_ring/rib-cage-3_stl.stl",
             "icons": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-3_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_steel.webp", "silver": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_silver.webp", "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage-3_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-3_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage-3_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-top.webp", "front": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage-3_plan-side.webp" }
           }
         ]
       }
@@ -442,7 +459,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "print": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "stl-sha1": "cb46095f71fbb626ffb2122957838a08891f5a57" }, "model-sha1": "f60960e08e9f5966017ab32e2f928aaa6e8a19b5" },
+      "geometry": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "min-box": { "center": [0, -0.016, -2.027], "axes": [[0.70594, 0.70749, -0.03319], [0.70827, -0.70517, 0.03308], [0, 0.04686, 0.9989]] }, "axis-box": { "center": [0, -0.009, -2.021], "size": [24.28, 28.07, 7.37] }, "print": { "volume-cm3": 0.782, "dimensions-mm": [24.2, 24.2, 6.3], "stl-sha1": "cb46095f71fbb626ffb2122957838a08891f5a57" }, "model-sha1": "f60960e08e9f5966017ab32e2f928aaa6e8a19b5" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": true, "x": 59.3, "y": 48, "scale": 5.5, "rotation": 20 },
       "3d-viewer-camera-default": { "rotation": -39, "tilt": 40, "zoom": 80 },
@@ -464,6 +481,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/joint_ring/joint_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/joint_ring/joint_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/joint_ring/joint_plan-top.webp", "front": "assets/series/bones/products/joint_ring/joint_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint_plan-side.webp" },
         "photos": []
       }
     },
@@ -478,7 +496,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "min-box": { "center": [0, 1.856, 2.161], "axes": [[0, 0.18371, 0.98298], [1, 0, 0], [0, 0.98298, -0.18371]] }, "print": { "volume-cm3": 2.921, "dimensions-mm": [32.2, 28.1, 27.1], "stl-sha1": "b63ce05c29e65bfc2742c4677998b13b21cf6fdb" }, "model-sha1": "a82c253a84d0b8c7262cf476c39b9ccacbd54ea7" },
+      "geometry": { "volume-cm3": 2.919, "dimensions-mm": [32.3, 28.1, 27], "min-box": { "center": [0, 1.856, 2.161], "axes": [[0, 0.18371, 0.98298], [1, 0, 0], [0, 0.98298, -0.18371]] }, "axis-box": { "center": [0, 0.825, 1.517], "size": [28.05, 29.09, 30.79] }, "print": { "volume-cm3": 2.921, "dimensions-mm": [32.2, 28.1, 27.1], "stl-sha1": "b63ce05c29e65bfc2742c4677998b13b21cf6fdb" }, "model-sha1": "a82c253a84d0b8c7262cf476c39b9ccacbd54ea7" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 76, "tilt": 45, "zoom": 85, "roll": -30 },
@@ -496,6 +514,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/omoplates_ring/omoplates_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/omoplates_ring/omoplates_plan-top.webp", "front": "assets/series/bones/products/omoplates_ring/omoplates_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -509,13 +528,14 @@
             "key": "dual",
             "name": "omoplates-dual",
             "picks": { "blades": "dual" },
-            "geometry": { "volume-cm3": 2.034, "dimensions-mm": [29.6, 28, 25.1], "min-box": { "center": [0, 1.161, 1.659], "axes": [[0, 0.03988, 0.9992], [1, 0, 0], [0, 0.9992, -0.03988]] }, "print": { "volume-cm3": 2.036, "dimensions-mm": [29.6, 28, 25.1], "stl-sha1": "0ebc9427bd6640039ba3ed81afd384e02808c04a" }, "model-sha1": "4deb257b5e5a42f60b0ae4fb14338c6b583560a5" },
+            "geometry": { "volume-cm3": 2.034, "dimensions-mm": [29.6, 28, 25.1], "min-box": { "center": [0, 1.161, 1.659], "axes": [[0, 0.03988, 0.9992], [1, 0, 0], [0, 0.9992, -0.03988]] }, "axis-box": { "center": [0, 1.151, 1.535], "size": [28.02, 25.46, 29.25] }, "print": { "volume-cm3": 2.036, "dimensions-mm": [29.6, 28, 25.1], "stl-sha1": "0ebc9427bd6640039ba3ed81afd384e02808c04a" }, "model-sha1": "4deb257b5e5a42f60b0ae4fb14338c6b583560a5" },
             "model": "assets/series/bones/products/omoplates_ring/omoplates-dual_gltf.glb",
             "wireframe": "assets/series/bones/products/omoplates_ring/omoplates-dual_wireframe.glb",
             "stl": "assets/series/bones/products/omoplates_ring/omoplates-dual_stl.stl",
             "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-dual_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-dual_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates-dual_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates-dual_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-top.webp", "front": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates-dual_plan-side.webp" }
           }
         ]
       }
@@ -531,7 +551,7 @@
         "silver": { "price": 0 },
         "bronze": { "price": 0 }
       },
-      "geometry": { "volume-cm3": 0.987, "dimensions-mm": [38.6, 23.7, 23.5], "min-box": { "center": [0.03, 1.904, -2.038], "axes": [[-0.00477, 0.01823, 0.99982], [0, 0.99983, -0.01824], [0.99999, 0.00009, 0.00477]] }, "print": { "volume-cm3": 0.99, "dimensions-mm": [38.6, 23.7, 23.6], "stl-sha1": "ad5ca9a3ec51e7a321a4604474e0fd863f809a2a" }, "model-sha1": "40f0d126f449c7e09884934fff749a18a21b088f" },
+      "geometry": { "volume-cm3": 0.987, "dimensions-mm": [38.6, 23.7, 23.5], "min-box": { "center": [0.03, 1.904, -2.038], "axes": [[-0.00477, 0.01823, 0.99982], [0, 0.99983, -0.01824], [0.99999, 0.00009, 0.00477]] }, "axis-box": { "center": [0, 2.014, -2.227], "size": [23.55, 24.06, 38.61] }, "print": { "volume-cm3": 0.99, "dimensions-mm": [38.6, 23.7, 23.6], "stl-sha1": "ad5ca9a3ec51e7a321a4604474e0fd863f809a2a" }, "model-sha1": "40f0d126f449c7e09884934fff749a18a21b088f" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": 62, "tilt": 88, "zoom": 90, "roll": -6 },
@@ -549,6 +569,7 @@
         "xray": "",
         "hand-poster": "assets/series/bones/products/jaw_ring/jaw_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/jaw_ring/jaw_specs-poster.webp",
+        "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw_plan-side.webp" },
         "photos": []
       },
       "designs": {
@@ -562,25 +583,27 @@
             "key": "overhand",
             "name": "jaw-overhand",
             "picks": { "shape": "overhand" },
-            "geometry": { "volume-cm3": 1.028, "dimensions-mm": [39.4, 24.3, 23.7], "min-box": { "center": [-0.064, 2.365, 0.096], "axes": [[0.01218, 0.06328, 0.99792], [0, 0.998, -0.06328], [0.99993, -0.00077, -0.01215]] }, "print": { "volume-cm3": 1.032, "dimensions-mm": [39.4, 24.3, 23.7], "stl-sha1": "910b39d06c16065c7b044680547161b039f9321e" }, "model-sha1": "4b010e677f9de49698c899fee9b7a277e314a7c8" },
+            "geometry": { "volume-cm3": 1.028, "dimensions-mm": [39.4, 24.3, 23.7], "min-box": { "center": [-0.064, 2.365, 0.096], "axes": [[0.01218, 0.06328, 0.99792], [0, 0.998, -0.06328], [0.99993, -0.00077, -0.01215]] }, "axis-box": { "center": [0, 2.768, -0.578], "size": [23.69, 25.35, 39.32] }, "print": { "volume-cm3": 1.032, "dimensions-mm": [39.4, 24.3, 23.7], "stl-sha1": "910b39d06c16065c7b044680547161b039f9321e" }, "model-sha1": "4b010e677f9de49698c899fee9b7a277e314a7c8" },
             "model": "assets/series/bones/products/jaw_ring/jaw-overhand_gltf.glb",
             "wireframe": "assets/series/bones/products/jaw_ring/jaw-overhand_wireframe.glb",
             "stl": "assets/series/bones/products/jaw_ring/jaw-overhand_stl.stl",
             "icons": { "steel": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-overhand_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-overhand_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/jaw_ring/jaw-overhand_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/jaw_ring/jaw-overhand_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-overhand_plan-side.webp" }
           },
           {
             "key": "small",
             "name": "jaw-small",
             "picks": { "shape": "small" },
-            "geometry": { "volume-cm3": 0.962, "dimensions-mm": [26.7, 24.2, 23.5], "min-box": { "center": [0.018, 1.705, 1.665], "axes": [[-0.00733, 0.0292, 0.99955], [0, 0.99957, -0.0292], [0.99997, 0.00021, 0.00732]] }, "print": { "volume-cm3": 0.965, "dimensions-mm": [26.7, 24.2, 23.6], "stl-sha1": "0d4a53e0a9f9423b01c1c3121f63eae41853df81" }, "model-sha1": "0f8e3abb3c137af2c97547f4b925c1b40b11ee0d" },
+            "geometry": { "volume-cm3": 0.962, "dimensions-mm": [26.7, 24.2, 23.5], "min-box": { "center": [0.018, 1.705, 1.665], "axes": [[-0.00733, 0.0292, 0.99955], [0, 0.99957, -0.0292], [0.99997, 0.00021, 0.00732]] }, "axis-box": { "center": [0, 1.769, 1.355], "size": [23.55, 24.55, 26.72] }, "print": { "volume-cm3": 0.965, "dimensions-mm": [26.7, 24.2, 23.6], "stl-sha1": "0d4a53e0a9f9423b01c1c3121f63eae41853df81" }, "model-sha1": "0f8e3abb3c137af2c97547f4b925c1b40b11ee0d" },
             "model": "assets/series/bones/products/jaw_ring/jaw-small_gltf.glb",
             "wireframe": "assets/series/bones/products/jaw_ring/jaw-small_wireframe.glb",
             "stl": "assets/series/bones/products/jaw_ring/jaw-small_stl.stl",
             "icons": { "steel": "assets/series/bones/products/jaw_ring/jaw-small_icon_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-small_icon_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-small_icon_bronze.webp" },
             "fallback-img": { "steel": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_steel.webp", "silver": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_silver.webp", "bronze": "assets/series/bones/products/jaw_ring/jaw-small_fallback-img_bronze.webp" },
-            "specs-poster": "assets/series/bones/products/jaw_ring/jaw-small_specs-poster.webp"
+            "specs-poster": "assets/series/bones/products/jaw_ring/jaw-small_specs-poster.webp",
+            "plan-views": { "top": "assets/series/bones/products/jaw_ring/jaw-small_plan-top.webp", "front": "assets/series/bones/products/jaw_ring/jaw-small_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw-small_plan-side.webp" }
           }
         ]
       }

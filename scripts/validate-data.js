@@ -226,11 +226,13 @@ const indexSchema = {
 };
 
 const metalMap = { type: "object", additionalProperties: str };
+// The specs stage's outline views (scripts/auto-render.js).
+const planViewsSchema = { type: "object", required: ["top", "front", "side"], properties: { top: str, front: str, side: str } };
 
 // Written by `npm run measure-models`; on a product and on each non-default design.
 const geometrySchema = {
   type: "object",
-  required: ["volume-cm3", "dimensions-mm", "min-box", "model-sha1"],
+  required: ["volume-cm3", "dimensions-mm", "min-box", "axis-box", "model-sha1"],
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
@@ -248,7 +250,16 @@ const geometrySchema = {
         }
       }
     },
-    // Measured on the STL: the dimensions, weight and price shown.
+    // The plan views' frame and dimensions (EmjiveHelpers.planFrame).
+    "axis-box": {
+      type: "object",
+      required: ["center", "size"],
+      properties: {
+        center: { type: "array", items: num, minItems: 3, maxItems: 3 },
+        size: { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 }
+      }
+    },
+    // Measured on the STL: the weight and price shown.
     print: {
       type: "object",
       required: ["volume-cm3", "dimensions-mm", "stl-sha1"],
@@ -303,7 +314,8 @@ const designsSchema = {
           stl: str,
           icons: metalMap,
           "fallback-img": metalMap,
-          "specs-poster": str
+          "specs-poster": str,
+          "plan-views": planViewsSchema
         }
       }
     }
@@ -346,7 +358,7 @@ const productSchema = {
     },
     assets: {
       type: "object",
-      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "specs-poster", "photos"],
+      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "specs-poster", "plan-views", "photos"],
       properties: {
         model: str,
         // Optional, hand-added: drawn over the model in the specs stage.
@@ -360,6 +372,7 @@ const productSchema = {
         xray: str,
         "hand-poster": str,
         "specs-poster": str,
+        "plan-views": planViewsSchema,
         photos: {
           type: "array",
           items: { type: "object", required: ["src", "description"], properties: { src: str, description: str } }
@@ -473,18 +486,19 @@ function checkDesigns(label, product, metals) {
     if (picked.has(signature.join("|"))) fail(at, "another design has the same picks");
     picked.add(signature.join("|"));
 
-    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "specs-poster", "geometry"].filter((f) => design[f] !== undefined);
+    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "specs-poster", "plan-views", "geometry"].filter((f) => design[f] !== undefined);
     if (design.key === designs.default) {
       if (own.length) fail(at, "is the default design, which is the product's own: it can't have " + own.join(", ") + " of its own");
       continue;
     }
-    for (const field of ["model", "icons", "fallback-img", "specs-poster", "geometry"]) {
+    for (const field of ["model", "icons", "fallback-img", "specs-poster", "plan-views", "geometry"]) {
       if (design[field] === undefined) fail(at, 'has no "' + field + '"');
     }
     if (!design.model || !design.icons || !design["fallback-img"] || !design.geometry) continue;
     checkPath(at + " model", design.model);
     checkPath(at + " wireframe", design.wireframe);
     checkPath(at + " specs-poster", design["specs-poster"]);
+    for (const view of ["top", "front", "side"]) checkPath(at + " plan-views." + view, (design["plan-views"] || {})[view]);
     for (const field of ["icons", "fallback-img"]) {
       for (const metal of metals) {
         if (!design[field][metal]) fail(at, field + ' has no "' + metal + '"');
@@ -637,6 +651,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         checkPath(label + " assets.xray", product.assets.xray);
         checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);
         checkPath(label + " assets.specs-poster", product.assets["specs-poster"]);
+        for (const view of ["top", "front", "side"]) checkPath(label + " assets.plan-views." + view, product.assets["plan-views"][view]);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));
       }

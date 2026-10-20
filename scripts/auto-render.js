@@ -4,7 +4,7 @@
 // a real GPU (for MSAA; the startup log names the WebGL renderer). Set
 // CHROME_PATH to override the Chrome location.
 //
-//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--specs-posters-only]
+//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--specs-posters-only] [--plan-views-only]
 //   node scripts/auto-render.js --image-variants [--series=<slug>]
 //
 // Defaults: every metal in data/series.json, every series.
@@ -13,6 +13,7 @@
 //   --wheel-posters-only  only the wheel posters
 //   --hand-posters-only   only the hand posters
 //   --specs-posters-only  only the specs posters
+//   --plan-views-only     only the plan views
 //   --image-variants      no render: rewrites the size variants (make-image-variants.js)
 //
 // Once per product:
@@ -23,6 +24,11 @@
 //                 wireframe in --category-col, fitted, at the reference size),
 //                 framed like fallback-img: the poster on a page opened in specs.
 //                 Metal-free, so one per product and per non-default design
+//   plan-views    512px each, the specs stage's top, front and side views: the
+//                 model in outline, --category-col on transparent, cropped to
+//                 the content of the largest of the three (one crop and scale
+//                 for all, EmjiveHelpers.planFrame in js/helpers.js). Also per
+//                 non-default design
 // Per metal, for every product (the picker shows any metal):
 //   fallback-img  512px default-orbit capture: the viewer's pre-load poster, so it
 //                 must match the live framing exactly
@@ -38,7 +44,9 @@
 // Re-run for every metal after changing "metal-shaders", the swatch camera, an
 // HDRI, the "sun", the "hdri-blur" or the "reflection-detail", with
 // --hand-posters-only after changing "hand-shader", and with
-// --specs-posters-only after changing the blueprint look, the fit or --category-col.
+// --specs-posters-only after changing the blueprint look, the fit or --category-col,
+// and with --plan-views-only after changing the outline look, PLAN_VIEWS,
+// PLAN_PAD or --category-col.
 
 "use strict";
 
@@ -121,7 +129,9 @@ const HARNESS_HTML = `<!doctype html>
 </style>
 </head><body>
 <script type="module">
+  import * as THREE from "three";
   import { createStackScene } from "/js/stack-scene.js";
+  import { toolkit } from "/js/three-viewer.js";
 
   window.__renderReady = false;
 
@@ -129,11 +139,14 @@ const HARNESS_HTML = `<!doctype html>
   // one or contexts accumulate until the browser refuses new ones.
   var currentHandle = null;
   var currentStack = null;
+  var currentPlan = null;
   function disposeCurrentHandle() {
     if (currentHandle && currentHandle.renderer) currentHandle.renderer.dispose();
     currentHandle = null;
     if (currentStack) currentStack.dispose();
     currentStack = null;
+    if (currentPlan) currentPlan.dispose();
+    currentPlan = null;
   }
 
   function mountTargetWrap(widthPx, heightPx) {
@@ -209,6 +222,134 @@ const HARNESS_HTML = `<!doctype html>
     handle.el.style.height = "100%";
     wrap.appendChild(handle.el);
     currentHandle = handle;
+  };
+
+  // One plan view (EmjiveHelpers.PLAN_VIEWS, planFrame): the model at the
+  // reference size, seen straight along the view's axis by an orthographic
+  // camera framing the product's square, drawn as outlines only. A first pass
+  // draws normals and depth; the second marks a pixel where, within
+  // PLAN_LINE_PX, the coverage, the depth or the normal jumps (silhouettes,
+  // parts in front of others, creases), so each line sits centred on its edge.
+  var PLAN_LINE_PX = 3;
+  var PLAN_DEPTH_JUMP = 0.012;
+  var PLAN_CREASE_COS = Math.cos(50 * Math.PI / 180);
+  var PLAN_EDGE_FRAGMENT = [
+    "uniform sampler2D tNormal;",
+    "uniform sampler2D tDepth;",
+    "uniform vec2 uTexel;",
+    "uniform float uRadius;",
+    "uniform float uDepthJump;",
+    "uniform float uCreaseCos;",
+    "uniform vec3 uColor;",
+    "varying vec2 vUv;",
+    "void main() {",
+    "  vec4 n0 = texture2D(tNormal, vUv);",
+    "  float d0 = texture2D(tDepth, vUv).x;",
+    "  float hits = 0.0;",
+    "  float taps = 0.0;",
+    "  for (int ring = 1; ring <= 2; ring++) {",
+    "    float r = uRadius * float(ring) / 2.0;",
+    "    for (int k = 0; k < 16; k++) {",
+    "      float a = 6.2831853 * float(k) / 16.0;",
+    "      vec2 uv = vUv + vec2(cos(a), sin(a)) * r * uTexel;",
+    "      vec4 n1 = texture2D(tNormal, uv);",
+    "      float d1 = texture2D(tDepth, uv).x;",
+    "      bool edge = abs(n1.a - n0.a) > 0.5;",
+    "      if (!edge && n0.a > 0.5) {",
+    "        edge = abs(d1 - d0) > uDepthJump || dot(n0.xyz * 2.0 - 1.0, n1.xyz * 2.0 - 1.0) < uCreaseCos;",
+    "      }",
+    "      hits += edge ? 1.0 : 0.0;",
+    "      taps += 1.0;",
+    "    }",
+    "  }",
+    "  float a = smoothstep(0.0, 0.25, hits / taps);",
+    "  gl_FragColor = vec4(uColor * a, a);",
+    "}"
+  ].join("\\n");
+
+  window.__renderPlanView = function (product, viewName, sizePx, lineColor) {
+    window.__renderReady = false;
+    disposeCurrentHandle();
+    var frame = window.EmjiveHelpers.planFrame(product);
+    if (!frame) throw new Error(product.name + " has no geometry.axis-box: run npm run measure-models");
+    var view = frame.views[viewName];
+    var wrap = mountTargetWrap(sizePx);
+    var renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(sizePx, sizePx);
+    renderer.setClearColor(0x000000, 0);
+    renderer.domElement.id = "target";
+    renderer.domElement.style.cssText = "display: block; width: 100%; height: 100%;";
+    wrap.appendChild(renderer.domElement);
+    var buffer = renderer.getDrawingBufferSize(new THREE.Vector2());
+    var target = new THREE.WebGLRenderTarget(buffer.x, buffer.y, { depthTexture: new THREE.DepthTexture(buffer.x, buffer.y) });
+    var normalMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+    var colour = new THREE.Color();
+    colour.setStyle(lineColor, THREE.SRGBColorSpace);
+    var srgb = {};
+    colour.getRGB(srgb, THREE.SRGBColorSpace);
+    var edgeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tNormal: { value: target.texture },
+        tDepth: { value: target.depthTexture },
+        uTexel: { value: new THREE.Vector2(1 / buffer.x, 1 / buffer.y) },
+        uRadius: { value: PLAN_LINE_PX * (window.devicePixelRatio || 1) / 2 },
+        uDepthJump: { value: PLAN_DEPTH_JUMP },
+        uCreaseCos: { value: PLAN_CREASE_COS },
+        uColor: { value: new THREE.Vector3(srgb.r, srgb.g, srgb.b) }
+      },
+      vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+      fragmentShader: PLAN_EDGE_FRAGMENT,
+      // Written as is: premultiplied, as the canvas expects.
+      blending: THREE.NoBlending,
+      depthTest: false,
+      depthWrite: false
+    });
+    var quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), edgeMaterial);
+    quad.frustumCulled = false;
+    var quadScene = new THREE.Scene();
+    quadScene.add(quad);
+    var scene = new THREE.Scene();
+    var root = null;
+    currentPlan = {
+      dispose: function () {
+        if (root) root.traverse(function (node) { if (node.isMesh) node.geometry.dispose(); });
+        normalMaterial.dispose();
+        edgeMaterial.dispose();
+        quad.geometry.dispose();
+        target.depthTexture.dispose();
+        target.dispose();
+        renderer.dispose();
+        renderer.forceContextLoss();
+      }
+    };
+
+    toolkit.loadModelFile(product.assets.model, function (gltf) {
+      root = gltf.scene;
+      root.traverse(function (node) { if (node.isMesh) node.material = normalMaterial; });
+      scene.add(root);
+      var c = new THREE.Vector3().fromArray(frame.center);
+      var radius = frame.render;
+      var half = frame.render / 2;
+      var camera = new THREE.OrthographicCamera(-half, half, half, -half, radius, radius * 3);
+      camera.position.copy(c).addScaledVector(new THREE.Vector3().fromArray(view.eye), radius * 2);
+      camera.up.fromArray(view.up);
+      camera.lookAt(c);
+      camera.updateProjectionMatrix();
+      renderer.setRenderTarget(target);
+      renderer.clear();
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.clear();
+      renderer.render(quadScene, camera);
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          window.__renderReady = true;
+        });
+      });
+    }, function (err) {
+      console.error("the model failed to load while rendering the " + viewName + " plan view for " + product.name, err);
+    });
   };
 
   // The model as the wheel draws it: the wheel's own scene with this one
@@ -377,6 +518,30 @@ async function renderSpecsPoster(page, product, outPath, hdriRelPath, lineColor)
   await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), outPath);
 }
 
+// The plan views, with the specs poster's supersampling.
+const PLAN_VIEW_SIZE = ICON_SIZE;
+const PLAN_VIEW_NAMES = ["top", "front", "side"];
+async function renderPlanView(page, product, viewName, outPath, lineColor) {
+  await page.setViewport({ width: PLAN_VIEW_SIZE, height: PLAN_VIEW_SIZE, deviceScaleFactor: CAPTURE_SCALE });
+  await page.evaluate((p, v, s, c) => window.__renderPlanView(p, v, s, c), product, viewName, PLAN_VIEW_SIZE, lineColor);
+  await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
+  const handle = await page.$("#target");
+  const buffer = await handle.screenshot({ omitBackground: true });
+  // Cropped, about the centre, to the rectangle all three views share
+  // (EmjiveHelpers.planFrame), so the scale is the same across them.
+  const frame = await page.evaluate((p) => window.EmjiveHelpers.planFrame(p), product);
+  const pxPerMm = PLAN_VIEW_SIZE / frame.render;
+  const even = (mm) => 2 * Math.round(mm * pxPerMm / 2);
+  const width = even(frame.crop.w);
+  const height = even(frame.crop.h);
+  await writeWebp(
+    sharp(buffer).resize(PLAN_VIEW_SIZE, PLAN_VIEW_SIZE).extract({
+      left: (PLAN_VIEW_SIZE - width) / 2, top: (PLAN_VIEW_SIZE - height) / 2, width, height
+    }),
+    outPath
+  );
+}
+
 // The wireframe's colour on the page: --category-col in css/style.css.
 function categoryColour() {
   const css = fs.readFileSync(path.join(ROOT, "css", "style.css"), "utf8");
@@ -465,6 +630,32 @@ function updateDesignSpecsPosterInText(text, product, designKey, newRelPath) {
     blocks.replaceInSpan(text, span, /(\n([ \t]*)"fallback-img":\s*\{[^}]*\})/, `$1,\n$2"specs-poster": "${newRelPath}"`);
 }
 
+// The "plan-views" map, inline: { "top": ..., "front": ..., "side": ... }.
+function planViewsLine(paths) {
+  return "{ " + PLAN_VIEW_NAMES.map((v) => `"${v}": "${paths[v]}"`).join(", ") + " }";
+}
+
+// A product's "plan-views", added after its "specs-poster" line if it has none
+// yet; null if neither is found. Same span as updateProductSpecsPosterInText.
+function updateProductPlanViewsInText(text, product, paths) {
+  const span = blocks.anchoredSpan(text, "id", product.id);
+  if (!span) return null;
+  const designsIdx = text.indexOf('"designs": {', span.start);
+  if (designsIdx !== -1 && designsIdx < span.end) span.end = designsIdx;
+  const line = planViewsLine(paths);
+  return blocks.replaceInSpan(text, span, /("plan-views":\s*)\{[^}]*\}/, `$1${line}`) ||
+    blocks.replaceInSpan(text, span, /(\n([ \t]*)"specs-poster":\s*"[^"]*",)/, `$1\n$2"plan-views": ${line},`);
+}
+
+// A design's "plan-views", added after its "specs-poster" if it has none yet.
+function updateDesignPlanViewsInText(text, product, designKey, paths) {
+  const span = designSpanInText(text, product, designKey);
+  if (!span) return null;
+  const line = planViewsLine(paths);
+  return blocks.replaceInSpan(text, span, /("plan-views":\s*)\{[^}]*\}/, `$1${line}`) ||
+    blocks.replaceInSpan(text, span, /(\n([ \t]*)"specs-poster":\s*"[^"]*")/, `$1,\n$2"plan-views": ${line}`);
+}
+
 // A product shown as one of its designs: the design's model and renders, the
 // product's camera (js/series.js resolveDesign).
 function designView(product, design) {
@@ -474,7 +665,8 @@ function designView(product, design) {
       wireframe: design.wireframe || "",
       icons: design.icons || {},
       "fallback-img": design["fallback-img"] || {},
-      "specs-poster": design["specs-poster"] || ""
+      "specs-poster": design["specs-poster"] || "",
+      "plan-views": design["plan-views"] || {}
     }),
     geometry: design.geometry
   });
@@ -491,6 +683,7 @@ async function main() {
   const wheelPostersOnly = args.includes("--wheel-posters-only");
   const handPostersOnly = args.includes("--hand-posters-only");
   const specsPostersOnly = args.includes("--specs-posters-only");
+  const planViewsOnly = args.includes("--plan-views-only");
   // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
     if (seriesArg) {
@@ -594,7 +787,7 @@ async function main() {
       );
     }
 
-    if (!wheelPostersOnly && !specsPostersOnly) {
+    if (!wheelPostersOnly && !specsPostersOnly && !planViewsOnly) {
       console.log("\n--- hand posters ---");
       for (const target of targets) {
         for (const product of target.data.products) {
@@ -624,7 +817,7 @@ async function main() {
       }
     }
 
-    if (!wheelPostersOnly && !handPostersOnly) {
+    if (!wheelPostersOnly && !handPostersOnly && !planViewsOnly) {
       console.log("\n--- specs posters ---");
       const lineColor = categoryColour();
       for (const target of targets) {
@@ -676,7 +869,73 @@ async function main() {
       }
     }
 
-    for (const metal of handPostersOnly || specsPostersOnly ? [] : metals) {
+    if (!wheelPostersOnly && !handPostersOnly && !specsPostersOnly) {
+      console.log("\n--- plan views ---");
+      const lineColor = categoryColour();
+      // The three views of one model as <base>_plan-<view>.webp; replaced files are deleted.
+      const renderPlanViews = async (view, base, label) => {
+        const paths = {};
+        for (const viewName of PLAN_VIEW_NAMES) {
+          paths[viewName] = base + "_plan-" + viewName + ".webp";
+          console.log("  plan view: " + label + " (" + viewName + ") -> " + paths[viewName]);
+          await renderPlanView(page, view, viewName, path.join(ROOT, paths[viewName]), lineColor);
+        }
+        return paths;
+      };
+      const dropReplaced = (oldPaths, paths) => {
+        for (const viewName of PLAN_VIEW_NAMES) {
+          const oldRel = oldPaths && oldPaths[viewName];
+          if (oldRel && path.resolve(path.join(ROOT, oldRel)) !== path.resolve(path.join(ROOT, paths[viewName]))) {
+            deleteIfExists(path.join(ROOT, oldRel));
+          }
+        }
+      };
+      const samePaths = (a, b) => !!a && PLAN_VIEW_NAMES.every((v) => a[v] === b[v]);
+      for (const target of targets) {
+        for (const product of target.data.products) {
+          if (onlyProducts && !onlyProducts.includes(folderSlug(product.name))) continue;
+          if (!(product.assets && product.assets.model)) continue;
+          const folder = productFolder(target.slug, product.name, product.category);
+          const paths = await renderPlanViews(product, folder + "/" + folderSlug(product.name), "[" + target.slug + "] " + product.name);
+          const oldPaths = product.assets["plan-views"];
+          if (!samePaths(oldPaths, paths)) {
+            const patched = updateProductPlanViewsInText(target.text, product, paths);
+            if (patched) {
+              target.text = patched;
+              dropReplaced(oldPaths, paths);
+            } else {
+              console.warn(
+                "  could not find the assets.plan-views or specs-poster line in " + repoPath(target.absPath) +
+                " for " + product.name + " — set it by hand: " + planViewsLine(paths)
+              );
+            }
+          }
+
+          const designs = product.designs;
+          for (const design of (designs && designs.list) || []) {
+            if (design.key === designs.default || !design.model) continue;
+            const designPaths = await renderPlanViews(
+              designView(product, design),
+              folder + "/" + folderSlug(product.name) + "-" + folderSlug(design.key),
+              "design " + design.key + ": [" + target.slug + "] " + product.name
+            );
+            if (samePaths(design["plan-views"], designPaths)) continue;
+            const patched = updateDesignPlanViewsInText(target.text, product, design.key, designPaths);
+            if (patched) {
+              target.text = patched;
+              dropReplaced(design["plan-views"], designPaths);
+            } else {
+              console.warn(
+                "  could not find design " + design.key + "'s plan-views or specs-poster in " + repoPath(target.absPath) +
+                " for " + product.name + " — set it by hand: " + planViewsLine(designPaths)
+              );
+            }
+          }
+        }
+      }
+    }
+
+    for (const metal of handPostersOnly || specsPostersOnly || planViewsOnly ? [] : metals) {
       console.log("\n--- " + metal + " ---");
 
       for (const target of targets) {
@@ -794,7 +1053,7 @@ async function main() {
 
     }
 
-    if (!onlyProducts && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly) {
+    if (!onlyProducts && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly && !planViewsOnly) {
       console.log("\n--- swatches ---");
       await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
     }
@@ -807,7 +1066,7 @@ async function main() {
     }
 
     // The new icons are the source of the 128px thumbnails.
-    if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly) {
+    if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly && !planViewsOnly) {
       console.log("\n--- icon thumbnails ---");
       await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
     }

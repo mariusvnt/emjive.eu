@@ -5,7 +5,7 @@
 // scripts/json-tool-blocks.js.
 //
 // Never: runs auto-render; writes the auto-render-owned maps (icons,
-// fallback-img, wheel-poster, hand-poster, specs-poster); touches js/three-viewer.js or
+// fallback-img, wheel-poster, hand-poster, specs-poster, plan-views); touches js/three-viewer.js or
 // css/style.css for metals; edits "geometry" (measure-models.js's); writes
 // the swatch scene (scene-tool's).
 
@@ -70,7 +70,7 @@ const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+
 // A product folder, checked before a recursive delete.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
-const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|specs-poster)[_.]/;
+const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|specs-poster|plan-(?:top|front|side))[_.]/;
 
 function isAllowedAssetDestPath(destPath) {
   if (typeof destPath !== "string" || !destPath) return false;
@@ -507,7 +507,7 @@ async function handleProductAdd(req, res) {
     return sendJson(res, 409, { error: 'a product already uses folder ' + folder + ' ("' + collision.name + '") — pick a different name/category' });
   }
 
-  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "hand-poster": "", "specs-poster": "", photos: [] };
+  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "hand-poster": "", "specs-poster": "", "plan-views": { top: "", front: "", side: "" }, photos: [] };
   metals.forEach((m) => {
     assets.icons[m] = "";
     assets["fallback-img"][m] = "";
@@ -568,7 +568,7 @@ async function handleProductAdd(req, res) {
     folder,
     written,
     reminder:
-      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/hand-posters/specs-posters for this product, and " +
+      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/hand-posters/specs-posters/plan-views for this product, and " +
       "`npm run measure-models` to measure its weight, size and cost (`npm run validate-data` fails until you do)."
   });
 }
@@ -647,7 +647,7 @@ async function handleProductEdit(req, res) {
     }
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
-      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/hand-posters/specs-posters there; stale renders were left behind in the old folder."
+      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/hand-posters/specs-posters/plan-views there; stale renders were left behind in the old folder."
     );
   }
 

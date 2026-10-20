@@ -1322,6 +1322,8 @@ export { toolkit };
     // The group holding the model and wireframe, scaled by the fit.
     var fitGroup = null;
     var fitScale = 1;
+    // How much more of the canvas the fitted model may take (handle.setFitZoom).
+    var fitZoom = 1;
     // What frameCamera() framed: the sphere and the radius the view fits (sphere x zoom).
     var frameSphere = null;
     var framedRadius = 0;
@@ -1435,9 +1437,8 @@ export { toolkit };
     }
 
     // The shrink making room for the largest size: the box's farthest corner
-    // from the target against the framed radius. Measured once framed. The page
-    // lays out under the model from this room (0.95 of the framed radius at the
-    // camera's 30° fov: --reach-bottom in css/style.css), so change them together.
+    // from the target against the framed radius, times the zoom
+    // (handle.setFitZoom). Measured once framed.
     function computeFit() {
       fitScale = 1;
       if (!framedRadius) return;
@@ -1451,7 +1452,7 @@ export { toolkit };
           reach = Math.max(reach, corner.distanceTo(controls.target));
         }
       }
-      var room = framedRadius * 0.95;
+      var room = framedRadius * 0.95 * fitZoom;
       fitScale = Math.min(1, room / (reach * sizeFactors(product).max));
     }
 
@@ -1785,6 +1786,15 @@ export { toolkit };
         blueprintFit = fit;
         // A swapped model's wireframe still waiting for picks to settle is wanted now.
         if (sweep > 0 && modelLoaded) loadWireframe();
+        invalidate();
+      },
+      // Blueprint viewers: zoom the fitted model by `zoom` (1: the largest size
+      // just fits its canvas, more: it may run past it).
+      setFitZoom: function (zoom) {
+        zoom = Number(zoom) > 0 ? Number(zoom) : 1;
+        if (!blueprint || zoom === fitZoom) return;
+        fitZoom = zoom;
+        if (modelLoaded) computeFit();
         invalidate();
       },
       // The chosen size over the base size; the model scales with it once fitted.

@@ -89,9 +89,8 @@
     metalPicked: false,
     // The size tape's elements (wireSizeTape).
     sizeTape: null,
-    // The plan views' elements by view name, their caption's three lines, the
-    // design's frame (EmjiveHelpers.planFrame), and whether the pictures may
-    // load yet.
+    // The plan views' elements by view name, the design's frame
+    // (EmjiveHelpers.planFrame), and whether the pictures may load yet.
     planViews: null,
     planFrame: null,
     planImagesOn: false,
@@ -1281,12 +1280,12 @@
 
   /* ---- plan views (specs) ---- */
 
-  // The model's front and side views (scripts/auto-render.js), a column
-  // against its box. They carry dashed lines, one per axis they measure (x
+  // The model's front and side views (scripts/auto-render.js), a row above
+  // it, each picture centred in its tile, its labels hanging off it. They carry lines, one per axis they measure (x
   // and y on the front, z on the side; EmjiveHelpers.PLAN_VIEWS), each
   // running between the picture's two farthest points along its axis, at the
   // height (or column) of one of them, with the axis's letter past the end that
-  // is on the outline; an end off the outline gets a solid line reaching on
+  // is on the outline; an end off the outline gets a dashed line reaching on
   // to the outline point it stands for (placed once the picture is in:
   // measureMark). Beside each letter, its length at the chosen size in cm. The pictures are drawn in their design's plan
   // frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
@@ -1323,7 +1322,7 @@
     }
   }
 
-  // The dashed line for one axis of a picture, `horizontal` (along its width)
+  // The line for one axis of a picture, `horizontal` (along its width)
   // or not: from the drawing's first drawn pixel to its last along that axis,
   // at the row (or column) of one of those two extreme points, the middle of
   // the run of rows reaching it. The line takes the extreme whose far end
@@ -1383,7 +1382,7 @@
     };
   }
 
-  // Lays a view's dashed lines and letters on its picture, and the reach
+  // Lays a view's lines and letters on its picture, and the reach
   // from a line end off the drawing to its extreme point; they stay hidden
   // until the picture has been read.
   function placeMarks(name) {
@@ -1546,6 +1545,7 @@
       resizeQueued = true;
       requestAnimationFrame(function () {
         resizeQueued = false;
+        fitSizeTape();
         refreshStage();
       });
     });
@@ -1776,9 +1776,10 @@
     if (!(ratio >= 0)) ratio = 0.5;
     fitDesignRoom();
     var room = designRoomPx();
-    // The model's specs place: its middle a quarter down the screen (or just
-    // under the title bar for a tall model), then SPECS_GAP_REM lower; `place` is
-    // how far up that is from rest (tile middle less the current browse).
+    // The model's specs place: from the title bar, SPECS_TOP_REM blank, the
+    // plan views, SPECS_GAP_REM, then the model itself (SPECS_MODEL_REACH of
+    // its box above its middle, not the box); `place` is how far up its middle is from rest
+    // (tile middle less the current browse; negative when it sits lower than rest).
     var place = 0;
     // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
     // the screen (or under the title bar), then DESIGN_GAP_REM lower. Everything
@@ -1790,8 +1791,11 @@
       // The model's approximate half-height at its fitted size.
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = remPx();
-      var middle = Math.max(SPECS_ANCHOR * screenHeight(),titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + SPECS_GAP_REM * rem;
-      place = Math.max(0, box.top + box.height / 2 + browsed - middle);
+      var narrow = narrowScreen();
+      var plans = document.getElementById("productPlans");
+      var views = plans && !plans.hidden ? plans.getBoundingClientRect().height : 0;
+      var middle = (titleBar ? titleBar.getBoundingClientRect().bottom : 0) + ((narrow ? SPECS_TOP_REM_NARROW : SPECS_TOP_REM) + SPECS_GAP_REM) * rem + views + (narrow ? SPECS_MODEL_REACH_NARROW : SPECS_MODEL_REACH) * modelBoxEl.getBoundingClientRect().width;
+      place = box.top + box.height / 2 + browsed - middle;
       hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
     }
     var path = modelRise(state.along, place, room, ratio, state.ramp, hold);
@@ -1882,6 +1886,7 @@
   function applyStageToViewer() {
     syncPosters();
     if (!state.modelHandle) return;
+    state.modelHandle.setFitZoom(narrowScreen() ? SPECS_ZOOM_NARROW : 1);
     state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeFactor);
   }
@@ -1903,18 +1908,33 @@
     specs.hidden = false;
     state.posterImg.style.opacity = (1 - state.fit).toFixed(3);
     specs.style.opacity = state.fit.toFixed(3);
-    specs.style.transform = "scale(" + (1 + (state.sizeFactor - 1) * state.fit).toFixed(4) + ")";
+    var zoom = narrowScreen() ? SPECS_ZOOM_NARROW : 1;
+    specs.style.transform = "scale(" + (1 + (state.sizeFactor * zoom - 1) * state.fit).toFixed(4) + ")";
   }
 
-  // Where specs holds the model's middle: a quarter down the screen.
-  var SPECS_ANCHOR = 0.25;
+  // Specs, from the title bar: this much blank, the plan views, then this gap
+  // above the model (css/style.css, the plan views' top: the same gap).
+  // Narrow screens (the stylesheet's 640px) have less blank and a model zoomed
+  // in (the box is smaller there), which its reach follows.
+  function narrowScreen() {
+    return window.matchMedia("(max-width: 640px)").matches;
+  }
+  var SPECS_ZOOM_NARROW = 1.25;
+  var SPECS_TOP_REM = 4.5;
+  var SPECS_TOP_REM_NARROW = 3;
+  var SPECS_GAP_REM = 3;
+  // How far the drawn model reaches above and below its box's middle at the
+  // base size, as a share of the box: the largest of the models' (0.28 above,
+  // 0.29 below, measured from every model and design), rounded, so a gap
+  // never closes (--model-reach in css/style.css, the same); narrow screens
+  // take it tighter.
+  var SPECS_MODEL_REACH = 0.28;
+  var SPECS_MODEL_REACH_NARROW = 0.25;
   // Where design holds it: a third down, then DESIGN_GAP_REM lower. The model's
   // half-height as a share of its tile.
   var DESIGN_ANCHOR = 1 / 3;
   var DESIGN_GAP_REM = 4.5;
   var SPECS_HALF_HEIGHT = 0.13;
-  // The extra gap above the model in specs.
-  var SPECS_GAP_REM = 8;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize scales
   // the model, specs and tape to a typed size (none: the base), clamped to
@@ -1942,8 +1962,11 @@
 
   /* ---- the size tape ---- */
 
-  // A mark every mm, TAPE_PX_PER_MM apart, a long one every TAPE_MAJOR_MM.
-  var TAPE_PX_PER_MM = 10;
+  // A mark every mm, tapePxPerMm apart (a fifth less on narrow screens, where
+  // the tape is drawn smaller: fitSizeTape), a long one every TAPE_MAJOR_MM.
+  var TAPE_PX_PER_MM_WIDE = 10;
+  var TAPE_PX_PER_MM_NARROW = 8;
+  var tapePxPerMm = TAPE_PX_PER_MM_WIDE;
   var TAPE_MAJOR_MM = 5;
   // Key steps in mm: arrows, Shift+arrows, PageUp/PageDown.
   var TAPE_KEY_STEP = 0.5;
@@ -1961,12 +1984,27 @@
     var tape = state.sizeTape;
     if (!tape) return;
     var mm = clamp(state.sizeFactor * SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM);
-    tape.strip.style.transform = "translateX(" + (-(mm - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px)";
+    tape.strip.style.transform = "translateX(" + (-(mm - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px)";
     var given = state.sizeText !== "";
     var now = given ? state.sizeText : String(SIZE_BASE_MM);
     tape.el.classList.toggle("is-unset", !given);
     tape.el.setAttribute("aria-valuenow", now);
     tape.el.setAttribute("aria-valuetext", now + " mm");
+  }
+
+  // Lays the strip at the screen's pitch (tapePxPerMm): its width and where its
+  // marks fall, then slides it to the size. Runs on wiring and on a resize.
+  function fitSizeTape() {
+    var tape = state.sizeTape;
+    if (!tape) return;
+    tapePxPerMm = narrowScreen() ? TAPE_PX_PER_MM_NARROW : TAPE_PX_PER_MM_WIDE;
+    var major = Math.ceil(SIZE_MIN_MM / TAPE_MAJOR_MM) * TAPE_MAJOR_MM;
+    tape.strip.style.width = ((SIZE_MAX_MM - SIZE_MIN_MM) * tapePxPerMm + 1) + "px";
+    tape.strip.style.setProperty("--tape-mm", tapePxPerMm + "px");
+    tape.strip.style.setProperty("--tape-major", TAPE_MAJOR_MM * tapePxPerMm + "px");
+    tape.strip.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px");
+    tape.strip.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * tapePxPerMm).toFixed(1) + "px");
+    syncSizeTape();
   }
 
   // The tape: a strip of mm marks from SIZE_MIN_MM (left) to SIZE_MAX_MM
@@ -1982,18 +2020,12 @@
     // The marks are two repeating backgrounds, offset onto whole mm and onto
     // TAPE_MAJOR_MM multiples, counted from the strip's left end (SIZE_MIN_MM).
     var strip = H.el("span", "product-size-tape__strip");
-    var major = Math.ceil(SIZE_MIN_MM / TAPE_MAJOR_MM) * TAPE_MAJOR_MM;
-    strip.style.width = ((SIZE_MAX_MM - SIZE_MIN_MM) * TAPE_PX_PER_MM + 1) + "px";
-    strip.style.setProperty("--tape-mm", TAPE_PX_PER_MM + "px");
-    strip.style.setProperty("--tape-major", TAPE_MAJOR_MM * TAPE_PX_PER_MM + "px");
-    strip.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px");
-    strip.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px");
     el.querySelector(".product-size-tape__window").appendChild(strip);
     el.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
     el.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
 
     state.sizeTape = { el: el, strip: strip };
-    syncSizeTape();
+    fitSizeTape();
 
     function setSize(mm) {
       mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
@@ -2050,13 +2082,13 @@
       drag.samples.push({ t: performance.now(), x: e.clientX });
       if (drag.samples.length > 20) drag.samples.shift();
       if (dx === 0) return;
-      drag.mm = clamp(drag.mm + dx / TAPE_PX_PER_MM, SIZE_MIN_MM, SIZE_MAX_MM);
+      drag.mm = clamp(drag.mm + dx / tapePxPerMm, SIZE_MIN_MM, SIZE_MAX_MM);
       setSize(drag.mm);
     }, function (drag) {
       el.classList.remove("is-held");
       var speed = releaseSpeed(drag);
       if (Math.abs(speed) >= TAPE_FLING_MIN && !H.reducedMotion.matches) {
-        glide(drag.mm, drag.mm + speed * TAPE_GLIDE_MS / TAPE_PX_PER_MM);
+        glide(drag.mm, drag.mm + speed * TAPE_GLIDE_MS / tapePxPerMm);
       }
     });
 
@@ -2067,7 +2099,7 @@
       e.preventDefault();
       stopGlide();
       var px = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
-      setSize(currentSize() - px / TAPE_PX_PER_MM);
+      setSize(currentSize() - px / tapePxPerMm);
     }, { passive: false });
 
     el.addEventListener("keydown", function (e) {

@@ -2331,16 +2331,18 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before the picker. */
   --model-gap: 3rem;
-  /* How low the model reaches at the largest size, below its middle (which is
-     --lift above the tile's): the room js/three-viewer.js computeFit leaves it,
-     0.95 of the framed radius, which the 30° camera shows at cos(15°) of the
-     box's half-height. Known before the model loads, so nothing under it moves. */
-  --reach-bottom: calc(var(--tile) / 2 - var(--lift) + var(--model-size) * 0.4588);
-  /* Where the specs column starts. */
-  --below-top: calc(var(--reach-bottom) + var(--gap-row) - 1.625rem);
+  /* How far the drawn model reaches above and below its box's middle at the
+     base size (SPECS_MODEL_REACH in js/product.js, the same). */
+  --model-reach: calc(var(--model-size) * 0.28);
+  /* The drawn model's bottom, from the frame's top (its middle is --lift above the tile's). */
+  --reach-bottom: calc(var(--tile) / 2 - var(--lift) + var(--model-reach));
+  /* Where the specs column starts: the same gap under the model as above it
+     (SPECS_GAP_REM in js/product.js). */
+  --below-top: calc(var(--reach-bottom) + 3rem - 0rem);
 }
 @media (max-width: 640px) {
   .product-design-frame {
+    --model-reach: calc(var(--model-size) * 0.25);
     --model-size: calc(var(--tile) * 0.66);
   }
 }
@@ -2620,10 +2622,6 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-size__field .size-modal__custom-underline {
   border-bottom-color: transparent;
 }
-/* The size itself is in black, the tape's marks in the category colour. */
-.product-size__field :is(.size-modal__custom-input, .size-modal__custom-unit) {
-  color: var(--black);
-}
 
 /* ---- the size tape (js/product.js wireSizeTape) ----
    mm marks swiped sideways under a fixed needle, under the size field. The
@@ -2686,7 +2684,22 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: 0.875rem;
   margin: -0.4375rem 0 0 -1px;
   border-radius: 1px;
-  background: var(--black);
+  background: var(--category-col);
+}
+/* A fifth smaller on phones (js/product.js fitSizeTape tightens the marks'
+   pitch to match). */
+@media (max-width: 640px) {
+  .product-size-tape {
+    width: min(11.52rem, calc(100vw - 2 * var(--edge-px)));
+    height: 1.4rem;
+  }
+  .product-size-tape__strip {
+    background-size: var(--tape-major) 0.4rem, var(--tape-mm) 0.2rem;
+  }
+  .product-size-tape__needle {
+    height: 0.7rem;
+    margin-top: -0.35rem;
+  }
 }
 
 /* ---- the metal picker (js/metal-picker.js) ----
@@ -2818,42 +2831,42 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   A row of two touching tiles, the front view and the side view. Narrow, it
-   is centred above the model, its bottom a little over the model's top (the
-   show leaves that room: SPECS_GAP_REM in js/product.js); from 1280px wide it
-   sits against the model box's right edge, centred on the model's middle. It
-   rises with the lift. A tile is a square a third of the model's box (5rem
-   at most, below 1280px) plus --plan-room on each side, where the labels
-   hang; its picture is centred, cropped alike for both views
-   (--plan-cw, --plan-ratio from js/product.js). On it, a dashed line per
-   measured axis between the drawing's two farthest points (--cut-from,
+   A row of two touching tiles, the front view and the side view, centred
+   above the model on every screen, 4.5rem under the title bar and 3rem above
+   the drawn model (SPECS_TOP_REM, SPECS_GAP_REM in js/product.js). It rises
+   with the lift. A tile is a square (a third of the model's box, 5rem at most, so
+   the row clears the title bar) plus --plan-room on each side, where the
+   labels hang; its picture, cropped alike for both views (--plan-cw,
+   --plan-ratio from js/product.js), is centred in it. On the picture, a solid line per measured axis between the
+   drawing's two farthest points (--cut-from,
    --cut-to, --cut-at, shares of the picture, set once js/product.js has read
    it; .is-vertical for a vertical axis), the axis's label past its end on the
-   drawing and, when its other end is off the outline, a solid line reaching
+   drawing and, when its other end is off the outline, a dashed line reaching
    on to the outline point. A label is the axis's letter, then its length at
    the chosen size, 0.5rem apart: beside a horizontal line, past its end;
    above or below a vertical one, the letter centred on the line. The
    pictures keep one scale whatever the size (--plan-f: a fifth over the
-   reference size's on phones, the largest size's from the desktop width,
+   reference size's on phones, the largest size's from 641px wide,
    --plan-max from js/product.js); only the lengths follow the size.
-   Everything is in the outline's colour, the lines and reaches at half strength
-   (--plan-line-alpha); phones draw it finer and smaller. A
-   dot marks the view whose window is running (aria-pressed). Fades with
-   specs; tappable only in it. */
+   Everything is in the outline's colour, the lines at 0.4
+   (--plan-mark-alpha) and the reaches at half strength (--plan-line-alpha); phones draw it finer and smaller. A dot marks
+   the view whose window is running (aria-pressed). Fades with specs;
+   tappable only in it. */
 .product-plans {
   --plan-line: 0.5px;
   --plan-dash: 3px;
   --plan-text: 0.5rem;
   --plan-f: 1.2;
-  --plan-room: 1.4rem;
   --plan-line-alpha: 0.5;
-  /* The tile's square: a third of the model's box, no more than 5rem above it. */
+  --plan-mark-alpha: 0.4;
+  --plan-room: 1.6rem;
+  /* The tile's square: a third of the model's box, no more than 5rem. */
   --plan-tile: min(calc(var(--model-size) / 3), 5rem);
   position: absolute;
   z-index: 2;
   left: 50%;
-  /* The model's middle less its visual half-height (SPECS_HALF_HEIGHT), a gap and the row. */
-  top: calc(var(--tile) / 2 - var(--lift) - var(--tile) * 0.13 - 2.5rem - var(--plan-tile));
+  /* The model's middle less its drawn height above it, the gap (SPECS_GAP_REM in js/product.js) and the row. */
+  top: calc(var(--tile) / 2 - var(--lift) - var(--model-reach) - 3rem - var(--plan-tile));
   width: calc((var(--plan-tile) + var(--plan-room) * 2) * 2);
   height: var(--plan-tile);
   transform: translateX(-50%);
@@ -2870,15 +2883,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     --plan-text: 0.7rem;
     --plan-f: var(--plan-max, 1);
     --plan-room: 2.9rem;
-  }
-}
-@media (min-width: 1280px) {
-  .product-plans {
-    --plan-room: 2.3rem;
-    --plan-tile: calc(var(--model-size) / 3);
-    left: calc(50% + var(--model-size) / 2);
-    top: calc(var(--tile) / 2 - var(--model-size) / 6 - var(--lift));
-    transform: none;
   }
 }
 .product-plans[hidden] {
@@ -2903,13 +2907,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   align-items: center;
   justify-content: center;
 }
-.product-stage[data-stage="specs"] .product-plan {
+/* A tap takes on the picture, not the room around it. */
+.product-stage[data-stage="specs"] .product-plan__pic {
   pointer-events: auto;
 }
 @media (hover: hover) {
   .product-stage[data-stage="specs"] .product-plan:hover { opacity: 0.6; }
 }
-.product-plan::after {
+.product-plan__pic::after {
   content: "";
   position: absolute;
   top: 0;
@@ -2919,7 +2924,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   border-radius: 50%;
   background: transparent;
 }
-.product-plan[aria-pressed="true"]::after {
+.product-plan[aria-pressed="true"] .product-plan__pic::after {
   background: var(--category-col);
 }
 .product-plan__pic {
@@ -2937,8 +2942,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   user-select: none;
   -webkit-user-select: none;
 }
-/* A mark is a dashed line, not a dashed border: a border's width is snapped to
-   whole device pixels, a box's isn't. Hidden until the picture has been read
+/* A mark is a solid line (a box, not a border: a border's width is snapped to
+   whole device pixels, a box's isn't). Hidden until the picture has been read
    (.is-cut). The letter sits past the end on the drawing (.is-label-to: the
    right or bottom end, else the left or top one). */
 .product-plan__mark {
@@ -2954,8 +2959,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
-  opacity: var(--plan-line-alpha);
+  background: currentColor;
+  opacity: var(--plan-mark-alpha);
 }
 .product-plan__mark.is-cut {
   visibility: visible;
@@ -2979,16 +2984,16 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   left: 100%;
   margin: 0 0 0 0.4rem;
 }
-/* A line end off the outline reaches on, as a solid line, to the outline's
-   extreme point it stands for (a child of the picture, so its
-   shares are the picture's). */
+/* A line end off the outline reaches on, as a dashed line, to the outline's
+   extreme point it stands for (a child of the picture, so its shares are the
+   picture's). */
 .product-plan__reach {
   position: absolute;
   left: calc(var(--reach-x) * 100%);
   top: calc(var(--reach-from) * 100%);
   width: var(--plan-line);
   height: calc(var(--reach-len) * 100%);
-  background: currentColor;
+  background: repeating-linear-gradient(to bottom, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
   opacity: var(--plan-line-alpha);
   visibility: hidden;
 }
@@ -3003,6 +3008,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   top: calc(var(--reach-x) * 100%);
   width: calc(var(--reach-len) * 100%);
   height: var(--plan-line);
+  background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
 }
 .product-plan__reach.is-vertical.is-end-to {
   transform: translateY(-100%);
@@ -3012,9 +3018,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   top: calc(var(--cut-from) * 100%);
   width: var(--plan-line);
   height: calc((var(--cut-to) - var(--cut-from)) * 100%);
-}
-.product-plan__mark.is-vertical::before {
-  background: repeating-linear-gradient(to bottom, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
 }
 /* Above or below a vertical line, the letter centred on it and its length
    out of the flow, 0.5rem to its right. */
@@ -3077,6 +3080,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   display: flex;
   flex-direction: column;
   gap: var(--gap-row);
+}
+/* Specs: the size controls' last block, then 3rem before the information
+   (the column's gap is already there). */
+.product-size:not([hidden]) + .product-below__stage {
+  margin-top: calc(3rem - var(--gap-row));
 }
 .product-below__stage > * {
   min-width: 0;
@@ -3312,12 +3320,10 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     top: 0;
     opacity: 1;
   }
-  @media (min-width: 1280px) {
-    .product-plans {
-      top: calc(var(--model-size) / 3);
-    }
+  .product-size:not([hidden]) + .product-below__stage {
+    margin-top: 0;
   }
-  .product-plan {
+  .product-plan__pic {
     pointer-events: auto;
   }
   .product-size {

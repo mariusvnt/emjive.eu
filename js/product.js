@@ -93,7 +93,6 @@
     // design's frame (EmjiveHelpers.planFrame), and whether the pictures may
     // load yet.
     planViews: null,
-    planCaption: null,
     planFrame: null,
     planImagesOn: false,
     // The model's lift on its way into specs, px (refreshStage).
@@ -1300,11 +1299,10 @@
   // height (or column) of one of them, with the axis's letter past the end that
   // is on the outline; an end off the outline gets a solid line reaching on
   // to the outline point it stands for (placed once the picture is in:
-  // measureMark). Under the views, a caption gives x, y and z
-  // at the chosen size in cm. The pictures are drawn in their design's plan
+  // measureMark). Beside each letter, its length at the chosen size in cm. The pictures are drawn in their design's plan
   // frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
   // (--plan-cw, --plan-ratio: its
-  // share of a tile and its proportions); they keep one scale whatever the
+  // share of a tile's square and its proportions); they keep one scale whatever the
   // size (CSS, from --plan-max). A tap turns the model to the view for
   // PLAN_HOLD_MS before it eases back; the view stays pressed until then
   // (setModelAway). Hidden without the pictures or the frame.
@@ -1441,6 +1439,7 @@
       img.addEventListener("load", function () { placeMarks(name); });
       pic.appendChild(img);
       var reaches = [];
+      var values = [];
       var marks = H.PLAN_VIEWS[name].measures.map(function () {
         var reach = el("span", "product-plan__reach");
         reach.setAttribute("aria-hidden", "true");
@@ -1448,7 +1447,12 @@
         reaches.push(reach);
         var mark = el("span", "product-plan__mark");
         mark.setAttribute("aria-hidden", "true");
-        mark.appendChild(el("span", "product-plan__axis"));
+        var label = el("span", "product-plan__label");
+        label.appendChild(el("span", "product-plan__axis"));
+        var value = el("span", "product-plan__value");
+        label.appendChild(value);
+        values.push(value);
+        mark.appendChild(label);
         pic.appendChild(mark);
         return mark;
       });
@@ -1459,18 +1463,8 @@
         markPlanView(name);
       });
       host.appendChild(button);
-      views[name] = { button: button, pic: pic, img: img, marks: marks, reaches: reaches };
+      views[name] = { button: button, pic: pic, img: img, marks: marks, reaches: reaches, values: values };
     });
-    var caption = el("p", "product-plans__caption");
-    state.planCaption = PLAN_AXES.map(function (letter) {
-      var line = el("span", "product-plans__line");
-      line.appendChild(el("span", "product-plans__letter", letter));
-      var value = el("span", "product-plans__value");
-      line.appendChild(value);
-      caption.appendChild(line);
-      return value;
-    });
-    host.appendChild(caption);
     return views;
   }
 
@@ -1489,12 +1483,9 @@
     if (!state.planViews) state.planViews = buildPlanViews(host);
     names.forEach(function (name) {
       var view = state.planViews[name];
-      var letters = frame.views[name].measures.map(function (measure, i) {
-        var letter = PLAN_AXES[measure.axis];
-        view.marks[i].lastChild.textContent = letter;
-        return letter;
+      frame.views[name].measures.forEach(function (measure, i) {
+        view.marks[i].firstChild.firstChild.textContent = PLAN_AXES[measure.axis];
       });
-      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view" + (letters.length ? ", measuring " + letters.join(" and ") : ""));
       if (!state.planImagesOn) return;
       // A picture already in (a design change that kept it) fires no load.
       if (view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
@@ -1503,13 +1494,19 @@
     syncPlanSizes();
   }
 
-  // The caption at the chosen size: each axis of the model's box in cm.
+  // Each measure at the chosen size: its axis of the model's box in cm,
+  // beside its letter and in the view's label.
   function syncPlanSizes() {
     var frame = state.planFrame;
     if (!frame || !state.planViews) return;
-    PLAN_AXES.forEach(function (letter, i) {
-      var text = (frame.size[i] * state.sizeFactor / 10).toFixed(1) + " cm";
-      if (state.planCaption[i].textContent !== text) state.planCaption[i].textContent = text;
+    Object.keys(H.PLAN_VIEWS).forEach(function (name) {
+      var view = state.planViews[name];
+      var said = frame.views[name].measures.map(function (measure, i) {
+        var text = (frame.size[measure.axis] * state.sizeFactor / 10).toFixed(1) + " cm";
+        if (view.values[i].textContent !== text) view.values[i].textContent = text;
+        return PLAN_AXES[measure.axis] + " " + text;
+      });
+      view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view" + (said.length ? ", " + said.join(", ") : ""));
     });
   }
 

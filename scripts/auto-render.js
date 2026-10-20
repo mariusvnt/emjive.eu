@@ -230,7 +230,7 @@ const HARNESS_HTML = `<!doctype html>
   // draws normals and depth; the second marks a pixel where, within
   // PLAN_LINE_PX, the coverage, the depth or the normal jumps (silhouettes,
   // parts in front of others, creases), so each line sits centred on its edge.
-  var PLAN_LINE_PX = 3;
+  var PLAN_LINE_PX = 4;
   var PLAN_DEPTH_JUMP = 0.012;
   var PLAN_CREASE_COS = Math.cos(50 * Math.PI / 180);
   var PLAN_EDGE_FRAGMENT = [

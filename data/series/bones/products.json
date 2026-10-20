@@ -14,6 +14,7 @@
       },
       "geometry": { "volume-cm3": 1.676, "dimensions-mm": [28.8, 25.7, 17.1], "min-box": { "center": [-0.112, 2.811, 0.4], "axes": [[0.40204, 0.91546, 0.01725], [-0.08918, 0.02041, 0.99581], [0.91127, -0.4019, 0.08984]] }, "axis-box": { "center": [2.891, 1.829, 0.018], "size": [20.98, 28.74, 25.72] }, "print": { "volume-cm3": 1.677, "dimensions-mm": [28.8, 25.7, 17.1], "stl-sha1": "018fa2ecc74cfc6b5ed7e1b958ed0aa203d6a13b" }, "model-sha1": "85ab6b8a7b0fbe73d6ba858c527fddb66fc12f21" },
       "size-range": { "min": 40, "max": 80 },
+      "finger-axis": "x",
       "hero-hand-visibility": { "visible": true, "x": 45.7, "y": 39.5, "scale": 7.5, "rotation": -93 },
       "3d-viewer-camera-default": { "rotation": 36, "tilt": 75, "zoom": 80, "roll": 0 },
       "assets": {

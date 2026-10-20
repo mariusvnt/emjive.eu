@@ -2827,23 +2827,26 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   A row of three touching square tiles: the front view, the side view and
-   the caption. Narrow, it is centred above the model, its bottom a little
-   over the model's top (the show leaves that room: SPECS_GAP_REM in
-   js/product.js); from 1280px wide it sits against the model box's right
-   edge, centred on the model's middle. It rises with the lift. Each view
-   tile centres its picture, cropped alike for both (--plan-cw, --plan-ratio
-   from js/product.js). On them, a dashed line per measured axis between the
-   drawing's two farthest points (--cut-from, --cut-to, --cut-at, shares of
-   the picture, set once js/product.js has read it; .is-vertical for a
-   vertical axis), the axis's letter past its end on the drawing and, when
-   its other end is off the outline, a solid line reaching on to the outline
-   point. The caption (x, y and z at the chosen size) has the letters in a
-   column at the left of its tile and the values in one at the right. The
+   A row of two touching tiles, the front view and the side view. Narrow, it
+   is centred above the model, its bottom a little over the model's top (the
+   show leaves that room: SPECS_GAP_REM in js/product.js); from 1280px wide it
+   sits against the model box's right edge, centred on the model's middle. It
+   rises with the lift. A tile is a square a third of the model's box (5rem
+   at most, below 1280px) plus --plan-room on each side, where the labels
+   hang; its picture is centred, cropped alike for both views
+   (--plan-cw, --plan-ratio from js/product.js). On it, a dashed line per
+   measured axis between the drawing's two farthest points (--cut-from,
+   --cut-to, --cut-at, shares of the picture, set once js/product.js has read
+   it; .is-vertical for a vertical axis), the axis's label past its end on the
+   drawing and, when its other end is off the outline, a solid line reaching
+   on to the outline point. A label is the axis's letter, then its length at
+   the chosen size, 0.5rem apart: beside a horizontal line, past its end;
+   above or below a vertical one, the letter centred on the line. The
    pictures keep one scale whatever the size (--plan-f: a fifth over the
    reference size's on phones, the largest size's from the desktop width,
-   --plan-max from js/product.js); only the caption follows the size.
-   Everything is in the outline's colour; phones draw it finer and smaller. A
+   --plan-max from js/product.js); only the lengths follow the size.
+   Everything is in the outline's colour, the lines and reaches at half strength
+   (--plan-line-alpha); phones draw it finer and smaller. A
    dot marks the view whose window is running (aria-pressed). Fades with
    specs; tappable only in it. */
 .product-plans {
@@ -2851,14 +2854,16 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   --plan-dash: 3px;
   --plan-text: 0.5rem;
   --plan-f: 1.2;
-  /* A tile: a third of the model's box, no more than 5rem above it. */
+  --plan-room: 1.4rem;
+  --plan-line-alpha: 0.5;
+  /* The tile's square: a third of the model's box, no more than 5rem above it. */
   --plan-tile: min(calc(var(--model-size) / 3), 5rem);
   position: absolute;
   z-index: 2;
   left: 50%;
   /* The model's middle less its visual half-height (SPECS_HALF_HEIGHT), a gap and the row. */
   top: calc(var(--tile) / 2 - var(--lift) - var(--tile) * 0.13 - 2.5rem - var(--plan-tile));
-  width: calc(var(--plan-tile) * 3);
+  width: calc((var(--plan-tile) + var(--plan-room) * 2) * 2);
   height: var(--plan-tile);
   transform: translateX(-50%);
   display: flex;
@@ -2867,39 +2872,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
   opacity: var(--specs-on);
 }
-/* Three equal tiles; the caption keeps its letters in a column at the left
-   and its values in one at the right, centred in its tile. */
-.product-plans .product-plan,
-.product-plans .product-plans__caption {
-  flex: 1 1 0;
-  min-width: 0;
-}
-.product-plans .product-plans__caption {
-  justify-content: center;
-  padding: 0;
-}
-.product-plans__line {
-  /* 1rem more at the left than the right, as from 1280px. */
-  margin: 0 0.4rem 0 1.4rem;
-}
-@media (min-width: 1280px) {
-  .product-plans {
-    --plan-tile: calc(var(--model-size) / 3);
-    left: calc(50% + var(--model-size) / 2);
-    top: calc(var(--tile) / 2 - var(--model-size) / 6 - var(--lift));
-    transform: none;
-  }
-  /* 1rem more at the left than the right: the tile's left padding. */
-  .product-plans__line {
-    margin: 0 1.5rem 0 2.5rem;
-  }
-}
 @media (min-width: 641px) {
   .product-plans {
     --plan-line: 1px;
     --plan-dash: 4px;
     --plan-text: 0.7rem;
     --plan-f: var(--plan-max, 1);
+    --plan-room: 2.9rem;
+  }
+}
+@media (min-width: 1280px) {
+  .product-plans {
+    --plan-room: 2.3rem;
+    --plan-tile: calc(var(--model-size) / 3);
+    left: calc(50% + var(--model-size) / 2);
+    top: calc(var(--tile) / 2 - var(--model-size) / 6 - var(--lift));
+    transform: none;
   }
 }
 .product-plans[hidden] {
@@ -2908,6 +2896,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-plan {
   position: relative;
   flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   margin: 0;
   padding: 0;
@@ -2946,7 +2935,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   position: relative;
   flex: none;
   display: block;
-  width: calc(var(--plan-cw) * var(--plan-f) * 100%);
+  width: calc(var(--plan-cw) * var(--plan-f) * var(--plan-tile));
   aspect-ratio: var(--plan-ratio);
 }
 .product-plan__img {
@@ -2967,23 +2956,34 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   top: calc(var(--cut-at) * 100% - var(--plan-line) / 2);
   width: calc((var(--cut-to) - var(--cut-from)) * 100%);
   height: var(--plan-line);
-  background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
   visibility: hidden;
+}
+/* The line itself, apart from the label, which stays at full strength. */
+.product-plan__mark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
+  opacity: var(--plan-line-alpha);
 }
 .product-plan__mark.is-cut {
   visibility: visible;
 }
-.product-plan__axis {
+.product-plan__label {
   position: absolute;
   top: 50%;
   right: 100%;
   margin-right: 0.4rem;
   transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-family: var(--font-main);
   font-size: var(--plan-text);
   line-height: 1;
+  white-space: nowrap;
 }
-.product-plan__mark.is-label-to .product-plan__axis {
+.product-plan__mark.is-label-to .product-plan__label {
   right: auto;
   left: 100%;
   margin: 0 0 0 0.4rem;
@@ -2998,6 +2998,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   width: var(--plan-line);
   height: calc(var(--reach-len) * 100%);
   background: currentColor;
+  opacity: var(--plan-line-alpha);
   visibility: hidden;
 }
 .product-plan__reach.is-cut {
@@ -3020,37 +3021,31 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   top: calc(var(--cut-from) * 100%);
   width: var(--plan-line);
   height: calc((var(--cut-to) - var(--cut-from)) * 100%);
+}
+.product-plan__mark.is-vertical::before {
   background: repeating-linear-gradient(to bottom, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
 }
-.product-plan__mark.is-vertical .product-plan__axis {
+/* Above or below a vertical line, the letter centred on it and its length
+   out of the flow, 0.5rem to its right. */
+.product-plan__mark.is-vertical .product-plan__label {
   top: auto;
   right: auto;
   bottom: 100%;
   left: 50%;
+  display: block;
   margin: 0 0 0.4rem;
   transform: translateX(-50%);
 }
-.product-plan__mark.is-vertical.is-label-to .product-plan__axis {
+.product-plan__mark.is-vertical.is-label-to .product-plan__label {
   top: 100%;
   bottom: auto;
-  left: 50%;
   margin: 0.4rem 0 0;
 }
-.product-plans__caption {
-  flex: none;
-  align-self: stretch;
-  margin: 0;
-  padding-top: 0.25rem;
-  display: flex;
-  flex-direction: column;
-  font-family: var(--font-main);
-  font-size: var(--plan-text);
-  line-height: 1.4;
-  white-space: nowrap;
-}
-.product-plans__line {
-  display: flex;
-  justify-content: space-between;
+.product-plan__mark.is-vertical .product-plan__value {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 0.5rem;
 }
 
 /* ---- specs: the weight at the chosen size ----

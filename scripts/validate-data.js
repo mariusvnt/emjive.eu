@@ -345,6 +345,8 @@ const productSchema = {
       required: ["min", "max"],
       properties: { min: { type: "number", exclusiveMinimum: 0 }, max: { type: "number", exclusiveMinimum: 0 } }
     },
+    // The model axis the finger runs along, when it isn't z (js/helpers.js ringAxes).
+    "finger-axis": { enum: ["x", "z"] },
     geometry: geometrySchema,
     "hero-hand-visibility": {
       type: "object",

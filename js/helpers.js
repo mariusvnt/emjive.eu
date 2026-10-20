@@ -289,13 +289,15 @@
 
   /* ---- plan views ---- */
 
-  // The specs stage's outline views of a model, in its own frame:
-  // scripts/auto-render.js draws them, js/product.js marks their measurements,
-  // js/three-viewer.js turns the live model to them. `eye` is the camera's
-  // side, `up` the drawing's up. As on a technical drawing: front looks
-  // through the finger hole (+Z), side is from the right. `measures` lists
-  // the axes (0, 1, 2: x, y, z) a view carries a measurement of: x and y on
-  // the front, z on the side.
+  // The specs stage's outline views of a model, in the ring's own frame, where
+  // z runs along the finger and y is up: scripts/auto-render.js draws them,
+  // js/product.js marks their measurements, js/three-viewer.js turns the live
+  // model to them. `eye` is the camera's side, `up` the drawing's up. As on a
+  // technical drawing: front looks through the finger hole (+z), side is from
+  // the right. `measures` lists the axes (0, 1, 2: x, y, z) a view carries a
+  // measurement of: x and y on the front, z on the side. A model whose finger
+  // runs along its own x says so ("finger-axis": "x"): planFrame turns the
+  // ring's frame to the model's.
   var PLAN_VIEWS = {
     front: { eye: [0, 0, 1], up: [0, 1, 0], measures: [0, 1] },
     side: { eye: [1, 0, 0], up: [0, 1, 0], measures: [2] }
@@ -305,40 +307,55 @@
   // The stroke's room around a drawing, as a share of the longest extent.
   var PLAN_PAD = 0.006;
 
-  // A product's plan views from geometry["axis-box"], null without it. All
-  // three are drawn at one scale, centred on the box and cropped to one
+  // The ring's x, y and z as vectors in the model's own frame: the model's
+  // own unless its finger runs along the model's x.
+  function ringAxes(product) {
+    return product && product["finger-axis"] === "x"
+      ? [[0, 0, -1], [0, 1, 0], [1, 0, 0]]
+      : [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  }
+
+  // A product's plan views from geometry["axis-box"], null without it. Both
+  // are drawn at one scale, centred on the box and cropped to one
   // rectangle, `crop` mm: the largest drawing's width and height plus the
   // stroke's room. A view's drawing is w x h mm (along `right`, and `up`);
   // `measures` lists what it measures, each { axis, horizontal }: the axis
-  // (0, 1, 2: x, y, z) and whether it runs along `right` (else along `up`).
-  // `size` is the box's x, y and z, mm. `render` is the square, mm across, the
+  // (0, 1, 2: the ring's x, y, z) and whether it runs along `right` (else
+  // along `up`). `eye`, `up` and `right` are in the model's frame. `size` is
+  // the box's extent along the ring's x, y and z, mm. `render` is the square, mm across, the
   // renderer draws before cropping; `tile` the square, mm across, a tile of
   // the column stands for (the drawing's scale on the page).
   function planFrame(product) {
     var box = product && product.geometry && product.geometry["axis-box"];
-    var size = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
-    if (!size || !size.every(function (d) { return d > 0; })) return null;
+    var boxSize = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
+    if (!boxSize || !boxSize.every(function (d) { return d > 0; })) return null;
     var maxFactor = Math.max(1, sizeRange(product).max / REFERENCE_SIZE_MM);
     var along = function (axis) {
-      return Math.abs(axis[0]) * size[0] + Math.abs(axis[1]) * size[1] + Math.abs(axis[2]) * size[2];
+      return Math.abs(axis[0]) * boxSize[0] + Math.abs(axis[1]) * boxSize[1] + Math.abs(axis[2]) * boxSize[2];
+    };
+    var ring = ringAxes(product);
+    var size = ring.map(along);
+    var inModel = function (v) {
+      return [0, 1, 2].map(function (k) { return v[0] * ring[0][k] + v[1] * ring[1][k] + v[2] * ring[2][k]; });
     };
     var rightOf = function (u, e) {
       return [u[1] * e[2] - u[2] * e[1], u[2] * e[0] - u[0] * e[2], u[0] * e[1] - u[1] * e[0]];
     };
     var views = {};
     Object.keys(PLAN_VIEWS).forEach(function (name) {
-      var e = PLAN_VIEWS[name].eye;
-      var u = PLAN_VIEWS[name].up;
-      var right = rightOf(u, e);
+      var ringRight = rightOf(PLAN_VIEWS[name].up, PLAN_VIEWS[name].eye);
+      var e = inModel(PLAN_VIEWS[name].eye);
+      var u = inModel(PLAN_VIEWS[name].up);
+      var right = inModel(ringRight);
       views[name] = {
         eye: e, up: u, right: right,
         measures: PLAN_VIEWS[name].measures.map(function (axis) {
-          return { axis: axis, horizontal: right[axis] !== 0 };
+          return { axis: axis, horizontal: ringRight[axis] !== 0 };
         }),
         w: along(right), h: along(u)
       };
     });
-    var longest = Math.max(size[0], size[1], size[2]);
+    var longest = Math.max(boxSize[0], boxSize[1], boxSize[2]);
     var crop = { w: 0, h: 0 };
     Object.keys(views).forEach(function (name) {
       crop.w = Math.max(crop.w, views[name].w);

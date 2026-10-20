@@ -88,7 +88,7 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **wheel poster** is the model as the wheel draws it;
    - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
    - the **specs poster** is the specs stage's first frame: the model grey, fitted, at the reference size, its wireframe in the category colour, framed like the fallback image. It stands in for an item page opened (reloaded) in specs, where the metal fallback image would give the missing model away. One per product and per design, since the grey hides the metal;
-   - the **plan views** are the specs stage's front and side outline drawings: the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`). One set per product and per design;
+   - the **plan views** are the specs stage's front and side outline drawings: the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
    Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--specs-posters-only`, `--plan-views-only`, `--image-variants`).
@@ -113,7 +113,7 @@ Both local pages run their own small servers on loopback only, and both are kept
 1. Pick its name. It becomes its address, so it must not clash with another product in any series or with a page.
 2. Add it with `json-tool` (or by hand, in its series' `products.json`, with its folder).
 3. Bring in its model: `split-models` from the Blender exports, or drop the model in `json-tool` and run `optimize-models`. Check the vertex count it prints.
-4. `measure-models`.
+4. `measure-models`. If its finger hole runs along the model's x, add `"finger-axis": "x"` to the product.
 5. Set its default camera in `scene-tool`.
 6. `auto-render -- --product=<name>`.
 7. If it has an x-ray, drop it in, then run `image-variants`.

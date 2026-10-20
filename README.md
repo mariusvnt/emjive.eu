@@ -8,7 +8,7 @@ Each piece has its own page:
 
 - **Photographs** and a description.
 - **The piece in 3D**, to turn freely, in the chosen metal and, for some pieces, one of several designs.
-- **Its specifications**: the size (set by dragging a circle round the piece, with a guide to find one's own), dimensions, weight and what it costs to make.
+- **Its specifications**: the size (typed, or set by swiping a ruler under the piece, with a guide to find one's own), dimensions, weight and what it costs to make.
 
 Visitors build a **selection** as they go, which follows them from page to page. They can review it on an order page, change or remove an item, pick shipping and accept the terms.
 

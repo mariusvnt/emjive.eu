@@ -53,8 +53,10 @@
     captions: [],
     selectedMetal: null,
     modelHandle: null,
-    // The model box's poster <img> until the viewer is in.
+    // The model box's posters until the viewer is in: fallback-img, and over it
+    // the specs-poster, shown as specs comes in (syncPosters).
     posterImg: null,
+    specsPosterImg: null,
     // The x-ray's original file (startXray picks the viewport's version) and whether the watcher is wired.
     xraySrc: "",
     xrayWatching: false,
@@ -83,9 +85,8 @@
     // A metal has been picked (the default isn't a pick): until then the price
     // reads from the cheapest metal.
     metalPicked: false,
-    // The size circle's elements (wireSizeRing) and last geometry (syncSizeRing).
-    sizeRing: null,
-    ringGeo: null,
+    // The size tape's elements (wireSizeTape).
+    sizeTape: null,
     // The model's lift on its way into specs, px (refreshStage).
     lift: 0,
     // Whether the specs size has its starting value (62).
@@ -720,10 +721,10 @@
 
   /* ---- 2b. the model (design, then specs) ---- */
 
-  // The model's box: its poster (fallback-img, the viewer's own, so the swap
-  // moves nothing) until the viewer takes over; the icon without a model or
-  // viewer. Built for the design and metal current when it arrives; later
-  // design picks swap the model in place (onDesignSelect).
+  // The model's box: its posters (fallback-img, the viewer's first frame, and
+  // the specs-poster in specs) under the viewer until its first frame is in;
+  // the icon without a model or viewer. Built for the design and metal current
+  // when it arrives; later design picks swap the model in place (onDesignSelect).
   function renderModel(product) {
     var box = modelBoxEl;
     box.innerHTML = "";
@@ -731,6 +732,7 @@
     state.modelHandle = null;
     setModelAway(false);
     state.posterImg = null;
+    state.specsPosterImg = null;
     state.iconFallbackImg = null;
     // Resolves once the model is on screen, or never will be; the high-res x-ray waits on it.
     var settleViewer;
@@ -770,18 +772,22 @@
         // reclaims GPU contexts under memory pressure).
         onError: replaceModelWithIcon,
         onReady: function () {
+          dropPosters();
           settleViewer();
         },
+        // The page's posters stay under it instead: the viewer's own would be the design stage's.
+        poster: false,
         // The specs stage's metal -> blueprint sweep and wireframe (onStageChange).
         blueprint: { lineColor: pageColor("--category-col", "#727272") }
       });
     }
 
-    // Before the viewer: its own poster, sized like the viewer, so the swap moves
-    // nothing (as in js/modify-modal.js posterBox()).
+    // Before the viewer's first frame: the posters, sized like the viewer, so
+    // the swap moves nothing (as in js/modify-modal.js posterBox()).
     function showPoster() {
       box.innerHTML = "";
       state.posterImg = null;
+      state.specsPosterImg = null;
       var src = H.posterFor(state.view, state.selectedMetal);
       if (!src) return;
       var poster = el("div", "size-modal__model-poster");
@@ -790,25 +796,38 @@
       img.alt = product.name || "";
       img.draggable = false;
       poster.appendChild(img);
+      // The model as specs draws it, for a page opened (or scrolled) there before the viewer.
+      var specs = document.createElement("img");
+      specs.alt = "";
+      specs.draggable = false;
+      poster.appendChild(specs);
       box.appendChild(poster);
       state.posterImg = img;
+      state.specsPosterImg = specs;
+      syncPosters();
     }
 
-    // Swaps the viewer in for the poster; also the bfcache restore path. Falls
-    // back to the icon without a viewer.
+    function dropPosters() {
+      var poster = box.querySelector(".size-modal__model-poster");
+      if (poster) box.removeChild(poster);
+      state.posterImg = null;
+      state.specsPosterImg = null;
+    }
+
+    // Lays the viewer over the posters, which go at its first frame; also the
+    // bfcache restore path. Falls back to the icon without a viewer.
     function attachViewer() {
       if (state.modelHandle) return;
       // Without .is-model the icon fallback has taken over: a viewer under it would
       // be an invisible second context.
       if (!box.classList.contains("is-model")) return;
+      if (!state.posterImg) showPoster();
       var handle = buildModelViewer();
       if (!handle) {
         replaceModelWithIcon();
         return;
       }
       state.modelHandle = handle;
-      state.posterImg = null;
-      box.innerHTML = "";
       box.appendChild(handle.el);
       // Paused while out of sight (inspiration).
       handle.setPaused(state.designOut);
@@ -853,6 +872,7 @@
       box.classList.remove("is-model");
       box.innerHTML = "";
       state.posterImg = null;
+      state.specsPosterImg = null;
       state.iconFallbackImg = null;
       var src = H.assetFor(state.view, "icons", state.selectedMetal);
       if (!src) return;
@@ -1073,6 +1093,7 @@
       state.iconFallbackImg.src = H.assetFor(state.view, "icons", state.selectedMetal);
     }
     if (state.posterImg) state.posterImg.src = H.posterFor(state.view, state.selectedMetal);
+    syncPosters();
     renderSpecs();
     preloadIcons(state.view);
     if (state.modelHandle && state.modelHandle.setProduct) {
@@ -1608,7 +1629,6 @@
     stageEl.style.setProperty("--t0", t0.toFixed(4));
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
-    syncSizeRing();
     fitBrowse(stageEl);
     fitFeed();
     applyStageToViewer();
@@ -1635,9 +1655,30 @@
   }
 
   function applyStageToViewer() {
+    syncPosters();
     if (!state.modelHandle) return;
     state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeFactor);
+  }
+
+  // Before the viewer: fallback-img hands over to the specs-poster (drawn
+  // fitted, at the base size) with the fit, which scales with the size as the
+  // model does.
+  function syncPosters() {
+    var specs = state.specsPosterImg;
+    if (!specs || !state.posterImg) return;
+    var src = (state.view && state.view.assets && state.view.assets["specs-poster"]) || "";
+    if (!src) {
+      specs.removeAttribute("src");
+      specs.hidden = true;
+      state.posterImg.style.opacity = "";
+      return;
+    }
+    if (specs.getAttribute("src") !== src) specs.src = src;
+    specs.hidden = false;
+    state.posterImg.style.opacity = (1 - state.fit).toFixed(3);
+    specs.style.opacity = state.fit.toFixed(3);
+    specs.style.transform = "scale(" + (1 + (state.sizeFactor - 1) * state.fit).toFixed(4) + ")";
   }
 
   // Where specs holds the model's middle: a quarter down the screen.
@@ -1648,10 +1689,10 @@
   var DESIGN_GAP_REM = 4.5;
   var SPECS_HALF_HEIGHT = 0.13;
   // The extra gap above the model in specs.
-  var SPECS_GAP_REM = 7.5;
+  var SPECS_GAP_REM = 5.5;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize scales
-  // the model, specs and circle to a typed size (none: the base), clamped to
+  // the model, specs and tape to a typed size (none: the base), clamped to
   // the range; only a size within it goes on the label and prices it.
   var SIZE_BASE_MM = H.REFERENCE_SIZE_MM;
   var SIZE_MIN_MM = 40;
@@ -1662,7 +1703,7 @@
     var given = sel.isValidSize(raw) && isFinite(mm);
     state.sizeFactor = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) / SIZE_BASE_MM : 1;
     state.sizeText = state.product && sel.isOrderableSize(state.product, raw) ? String(+mm.toFixed(2)) : "";
-    if (state.modelHandle) state.modelHandle.setSize(state.sizeFactor);
+    applyStageToViewer();
     if (state.product) {
       renderSpecs();
       renderLabelType(state.product);
@@ -1670,136 +1711,63 @@
       var field = document.getElementById("productSizeInput");
       if (field) sel.syncSizeField(field, state.product);
     }
-    syncSizeRing();
+    syncSizeTape();
   }
 
-  /* ---- the size circle ---- */
+  /* ---- the size tape ---- */
 
-  // Touch band either side of the line, and the box's padding beyond the largest circle.
-  var RING_BAND_PX = 22;
-  var RING_PAD_PX = 4;
+  // A mark every mm, TAPE_PX_PER_MM apart, a long one every TAPE_MAJOR_MM.
+  var TAPE_PX_PER_MM = 10;
+  var TAPE_MAJOR_MM = 5;
   // Key steps in mm: arrows, Shift+arrows, PageUp/PageDown.
-  var RING_KEY_STEP = 0.5;
-  var RING_KEY_FINE = 0.1;
-  var RING_KEY_PAGE = 5;
-  // Within this many mm of a whole number, the size snaps to it.
-  var RING_DETENT_MM = 0.25;
-  // The ruler: a circle every RULER_STEP_MM, gone RULER_REACH_MM (plus half a
-  // step) away. Drags move the size at RING_DRAG_GAIN of the finger, easing to
-  // RING_RESIST_END of that within RING_RESIST_MM of the end it heads for.
-  var RULER_STEP_MM = 5;
-  var RULER_REACH_MM = 15;
-  var RING_DRAG_GAIN = 0.5;
-  var RING_RESIST_MM = 10;
-  var RING_RESIST_END = 0.2;
+  var TAPE_KEY_STEP = 0.5;
+  var TAPE_KEY_FINE = 0.1;
+  var TAPE_KEY_PAGE = 5;
+  // A release faster than TAPE_FLING_MIN px/ms (read over the drag's last
+  // TAPE_SAMPLE_MS) glides on, slowing with time constant TAPE_GLIDE_MS, to the
+  // whole mm nearest where it would stop.
+  var TAPE_FLING_MIN = 0.2;
+  var TAPE_SAMPLE_MS = 100;
+  var TAPE_GLIDE_MS = 325;
 
-  // The circle's radius in px from the viewer: now (at the current fit and
-  // size), at the largest size (what the layout makes room for), and per mm.
-  // null without a live model.
-  function ringGeometry() {
-    var handle = state.modelHandle;
-    var g = handle && handle.sizeRing && handle.sizeRing();
-    if (!g) return null;
-    var scale = 1 + (g.fitScale * state.sizeFactor - 1) * state.fit;
-    return {
-      now: g.reachPx * scale,
-      max: g.reachPx * g.fitScale * (SIZE_MAX_MM / SIZE_BASE_MM),
-      perMm: g.reachPx * g.fitScale / SIZE_BASE_MM
-    };
-  }
-
-  // The ruler's circles, one per RULER_STEP_MM multiple, drawn at their own
-  // sizes on the circle's scale, each fading with its distance from the current
-  // size. Created once, then only moved.
-  var rulerShape = "";
-  function syncRuler(ring, g) {
-    if (!ring.rings) return;
+  // Slides the strip so the size sits under the needle. Runs on any size change.
+  function syncSizeTape() {
+    var tape = state.sizeTape;
+    if (!tape) return;
     var mm = clamp(state.sizeFactor * SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM);
-    var perMm = g.now / mm;
-    var key = mm.toFixed(2) + "|" + perMm.toFixed(2) + "|" + SIZE_MIN_MM + "|" + SIZE_MAX_MM;
-    if (key === rulerShape) return;
-    rulerShape = key;
-    for (var k = Math.ceil(SIZE_MIN_MM / RULER_STEP_MM) * RULER_STEP_MM; k <= SIZE_MAX_MM; k += RULER_STEP_MM) {
-      var tick = ring.ticks[k];
-      if (!tick) {
-        tick = ring.ticks[k] = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        tick.setAttribute("class", "product-size-ring__tick");
-        ring.rings.appendChild(tick);
-      }
-      // Squared, so the nearest stays full and the rest drop off fast (--reach).
-      var reach = clamp(1 - Math.abs(k - mm) / (RULER_REACH_MM + RULER_STEP_MM / 2), 0, 1);
-      tick.setAttribute("r", (k * perMm).toFixed(2));
-      tick.style.setProperty("--reach", (reach * reach).toFixed(3));
-    }
-  }
-
-  // A disc as an SVG path; two make the band's annulus (evenodd).
-  function ringDisc(c, r) {
-    return "M " + (c - r).toFixed(1) + " " + c.toFixed(1) + " a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (2 * r).toFixed(1) +
-      " 0 a " + r.toFixed(1) + " " + r.toFixed(1) + " 0 1 0 " + (-2 * r).toFixed(1) + " 0 Z ";
-  }
-
-  // Sizes the circle (--ring-r), its box and its annulus hit band (clip-path
-  // clips hit-testing too), and publishes --ring-r-max for the layout below.
-  // Runs on any size, fit, model or screen change.
-  var ringShape = "";
-  function syncSizeRing() {
-    var ring = state.sizeRing;
-    if (!ring || !designFrameEl) return;
-    var g = state.flow ? null : ringGeometry();
-    state.ringGeo = g;
-    if (!g) {
-      if (!ring.el.hidden) ring.el.hidden = true;
-      designFrameEl.style.removeProperty("--ring-r-max");
-      ringShape = "";
-      return;
-    }
-    ring.el.hidden = false;
-    var box = 2 * (g.max + RING_BAND_PX + RING_PAD_PX);
-    var shape = box.toFixed(1) + "|" + g.now.toFixed(1);
-    if (shape !== ringShape) {
-      ringShape = shape;
-      var c = box / 2;
-      var inner = Math.max(0, g.now - RING_BAND_PX);
-      var path = "path(evenodd, \"" + ringDisc(c, g.now + RING_BAND_PX) + (inner > 0 ? ringDisc(c, inner) : "") + "\")";
-      ring.hit.style.webkitClipPath = path;
-      ring.hit.style.clipPath = path;
-      ring.el.style.setProperty("--ring-box", box.toFixed(1) + "px");
-      ring.el.style.setProperty("--ring-r", g.now.toFixed(1) + "px");
-      designFrameEl.style.setProperty("--ring-r-max", g.max.toFixed(1) + "px");
-    }
-    syncRuler(ring, g);
+    tape.strip.style.transform = "translateX(" + (-(mm - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px)";
     var given = state.sizeText !== "";
-    ring.el.classList.toggle("is-unset", !given);
-    ring.hit.setAttribute("aria-valuenow", given ? state.sizeText : String(SIZE_BASE_MM));
-    ring.hit.setAttribute("aria-valuetext", (given ? state.sizeText : String(SIZE_BASE_MM)) + " mm");
+    var now = given ? state.sizeText : String(SIZE_BASE_MM);
+    tape.el.classList.toggle("is-unset", !given);
+    tape.el.setAttribute("aria-valuenow", now);
+    tape.el.setAttribute("aria-valuetext", now + " mm");
   }
 
-  // RING_DRAG_GAIN, reduced within RING_RESIST_MM of the end being approached.
-  function dragGain(from, delta) {
-    var toEnd = delta > 0 ? SIZE_MAX_MM - from : from - SIZE_MIN_MM;
-    var smooth = H.smoothstep(0, RING_RESIST_MM, toEnd);
-    return RING_DRAG_GAIN * (RING_RESIST_END + (1 - RING_RESIST_END) * smooth);
-  }
+  // The tape: a strip of mm marks from SIZE_MIN_MM (left) to SIZE_MAX_MM
+  // under a fixed needle. A drag moves the needle along it with the finger,
+  // so the strip slides the other way: dragging right raises the size by the
+  // finger's travel, kept unrounded so slow drags accumulate; a fling glides
+  // on. Vertical swipes stay the page's (touch-action). The field and the
+  // model follow.
+  function wireSizeTape(field) {
+    var el = document.getElementById("productSizeTape");
+    if (!el) return;
 
-  // Dragging the band changes the size by the finger's radial movement over px
-  // per mm, times dragGain; the circle follows the size, the grip follows the
-  // finger. Kept unrounded while dragging so slow drags accumulate. The field follows.
-  function wireSizeRing(field) {
-    var el = document.getElementById("productSizeRing");
-    var hit = document.getElementById("productSizeRingHit");
-    if (!el || !hit) return;
-    state.sizeRing = { el: el, hit: hit, rings: null, ticks: null };
+    // The marks are two repeating backgrounds, offset onto whole mm and onto
+    // TAPE_MAJOR_MM multiples, counted from the strip's left end (SIZE_MIN_MM).
+    var strip = H.el("span", "product-size-tape__strip");
+    var major = Math.ceil(SIZE_MIN_MM / TAPE_MAJOR_MM) * TAPE_MAJOR_MM;
+    strip.style.width = ((SIZE_MAX_MM - SIZE_MIN_MM) * TAPE_PX_PER_MM + 1) + "px";
+    strip.style.setProperty("--tape-mm", TAPE_PX_PER_MM + "px");
+    strip.style.setProperty("--tape-major", TAPE_MAJOR_MM * TAPE_PX_PER_MM + "px");
+    strip.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px");
+    strip.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * TAPE_PX_PER_MM).toFixed(1) + "px");
+    el.querySelector(".product-size-tape__window").appendChild(strip);
+    el.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
+    el.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
 
-    var ruler = el.querySelector(".product-size-ring__ruler");
-    if (ruler) {
-      var rings = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      rings.setAttribute("class", "product-size-ring__rings");
-      rings.setAttribute("aria-hidden", "true");
-      ruler.appendChild(rings);
-      state.sizeRing.rings = rings;
-      state.sizeRing.ticks = {};
-    }
+    state.sizeTape = { el: el, strip: strip };
+    syncSizeTape();
 
     function setSize(mm) {
       mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
@@ -1812,46 +1780,76 @@
       return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
     }
 
-    // The finger's distance from the centre; also sets the grip's angle.
-    function fingerAt(e) {
-      var r = el.getBoundingClientRect();
-      var dx = e.clientX - (r.left + r.width / 2);
-      var dy = e.clientY - (r.top + r.height / 2);
-      el.style.setProperty("--ring-angle", (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1) + "deg");
-      return Math.sqrt(dx * dx + dy * dy);
+    // Eases from `from` towards `to` (rounded to a whole mm in range) with
+    // time constant TAPE_GLIDE_MS, ending on it.
+    var glideFrame = 0;
+    function stopGlide() {
+      cancelAnimationFrame(glideFrame);
+      glideFrame = 0;
+    }
+    function glide(from, to) {
+      var target = clamp(Math.round(to), SIZE_MIN_MM, SIZE_MAX_MM);
+      var start = performance.now();
+      function step(now) {
+        var mm = from + (target - from) * (1 - Math.exp(-(now - start) / TAPE_GLIDE_MS));
+        if (Math.abs(target - mm) < 0.05) {
+          glideFrame = 0;
+          setSize(target);
+          return;
+        }
+        setSize(mm);
+        glideFrame = requestAnimationFrame(step);
+      }
+      glideFrame = requestAnimationFrame(step);
     }
 
-    // Snaps to a nearby whole number (RING_DETENT_MM).
-    function detent(mm) {
-      var whole = Math.round(mm);
-      return Math.abs(mm - whole) <= RING_DETENT_MM ? whole : mm;
+    // The finger's speed in px/ms over the drag's last TAPE_SAMPLE_MS (at
+    // least its last two moves, which a slow frame can coalesce) up to the
+    // release, so a pause before letting go brings it down.
+    function releaseSpeed(drag) {
+      var now = performance.now();
+      var recent = drag.samples.filter(function (s) { return now - s.t <= TAPE_SAMPLE_MS; });
+      if (recent.length < 2) recent = drag.samples.slice(-2);
+      if (recent.length < 2) return 0;
+      return (recent[recent.length - 1].x - recent[0].x) / (now - recent[0].t);
     }
 
-    function follow(e, grabbed) {
-      var g = state.ringGeo;
-      if (!g) return;
-      var distance = fingerAt(e);
-      var delta = (distance - grabbed.distance) / g.perMm;
-      grabbed.distance = distance;
-      if (delta === 0) return;
-      grabbed.mm = clamp(grabbed.mm + delta * dragGain(grabbed.mm, delta), SIZE_MIN_MM, SIZE_MAX_MM);
-      setSize(detent(grabbed.mm));
-    }
-
-    H.dragPointer(hit, function (e) {
-      if (!state.ringGeo) return null;
+    H.dragPointer(el, function (e) {
+      stopGlide();
       el.classList.add("is-held");
-      // Moves from the grabbed size; the circle doesn't jump to the finger.
-      return { distance: fingerAt(e), mm: currentSize() };
-    }, follow, function () {
+      return { x: e.clientX, mm: currentSize(), samples: [{ t: performance.now(), x: e.clientX }] };
+    }, function (e, drag) {
+      var dx = e.clientX - drag.x;
+      drag.x = e.clientX;
+      drag.samples.push({ t: performance.now(), x: e.clientX });
+      if (drag.samples.length > 20) drag.samples.shift();
+      if (dx === 0) return;
+      drag.mm = clamp(drag.mm + dx / TAPE_PX_PER_MM, SIZE_MIN_MM, SIZE_MAX_MM);
+      setSize(drag.mm);
+    }, function (drag) {
       el.classList.remove("is-held");
+      var speed = releaseSpeed(drag);
+      if (Math.abs(speed) >= TAPE_FLING_MIN && !H.reducedMotion.matches) {
+        glide(drag.mm, drag.mm + speed * TAPE_GLIDE_MS / TAPE_PX_PER_MM);
+      }
     });
 
-    hit.addEventListener("keydown", function (e) {
-      var step = e.shiftKey ? RING_KEY_FINE : RING_KEY_STEP;
-      var next = H.sliderKey(e, currentSize(), step, RING_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
+    // A sideways trackpad swipe moves the needle with the fingers, as a drag
+    // does (deltaX is against them); vertical wheels are left to the page.
+    el.addEventListener("wheel", function (e) {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      stopGlide();
+      var px = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
+      setSize(currentSize() - px / TAPE_PX_PER_MM);
+    }, { passive: false });
+
+    el.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? TAPE_KEY_FINE : TAPE_KEY_STEP;
+      var next = H.sliderKey(e, currentSize(), step, TAPE_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
       if (next === null) return;
       e.preventDefault();
+      stopGlide();
       setSize(next);
     });
   }
@@ -1917,7 +1915,7 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The specs size: a field and the draggable circle, kept in step
+    // The specs size: a field and the size tape, kept in step
     // (setModelSize). The sheet opens with the field's value but never writes
     // back. Enter opens the sheet.
     var specsSize = document.getElementById("productSizeInput");
@@ -1936,7 +1934,7 @@
       setModelSize(specsSize.value);
     };
     window.EmjiveSelection.syncSizeField(specsSize, product);
-    wireSizeRing(specsSize);
+    wireSizeTape(specsSize);
     specsSize.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
       if (cleaned !== specsSize.value) specsSize.value = cleaned;

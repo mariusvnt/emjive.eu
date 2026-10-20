@@ -302,7 +302,8 @@ const designsSchema = {
           wireframe: str,
           stl: str,
           icons: metalMap,
-          "fallback-img": metalMap
+          "fallback-img": metalMap,
+          "specs-poster": str
         }
       }
     }
@@ -345,7 +346,7 @@ const productSchema = {
     },
     assets: {
       type: "object",
-      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "photos"],
+      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "specs-poster", "photos"],
       properties: {
         model: str,
         // Optional, hand-added: drawn over the model in the specs stage.
@@ -358,6 +359,7 @@ const productSchema = {
         "wheel-poster": metalMap,
         xray: str,
         "hand-poster": str,
+        "specs-poster": str,
         photos: {
           type: "array",
           items: { type: "object", required: ["src", "description"], properties: { src: str, description: str } }
@@ -471,17 +473,18 @@ function checkDesigns(label, product, metals) {
     if (picked.has(signature.join("|"))) fail(at, "another design has the same picks");
     picked.add(signature.join("|"));
 
-    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "geometry"].filter((f) => design[f] !== undefined);
+    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "specs-poster", "geometry"].filter((f) => design[f] !== undefined);
     if (design.key === designs.default) {
       if (own.length) fail(at, "is the default design, which is the product's own: it can't have " + own.join(", ") + " of its own");
       continue;
     }
-    for (const field of ["model", "icons", "fallback-img", "geometry"]) {
+    for (const field of ["model", "icons", "fallback-img", "specs-poster", "geometry"]) {
       if (design[field] === undefined) fail(at, 'has no "' + field + '"');
     }
     if (!design.model || !design.icons || !design["fallback-img"] || !design.geometry) continue;
     checkPath(at + " model", design.model);
     checkPath(at + " wireframe", design.wireframe);
+    checkPath(at + " specs-poster", design["specs-poster"]);
     for (const field of ["icons", "fallback-img"]) {
       for (const metal of metals) {
         if (!design[field][metal]) fail(at, field + ' has no "' + metal + '"');
@@ -633,6 +636,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
         checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);
+        checkPath(label + " assets.specs-poster", product.assets["specs-poster"]);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));
       }

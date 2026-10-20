@@ -1262,8 +1262,8 @@ export { toolkit };
        - sweep: BLUEPRINT_FRAGMENT's cut at uScanY (view space) going from below
          the model (0: all metal) to above it (1: all grey); handle.scanSpan() gives
          its screen span for the page's band.
-       - fit: model and wireframe shrink about the orbit target so the size circle
-         (the min-box's reach, product.geometry["min-box"]) fits the canvas, then
+       - fit: model and wireframe shrink about the orbit target so the model at
+         its largest size (the min-box's reach, product.geometry["min-box"]) fits the canvas, then
          scale with the size factor. */
     var blueprintSweep = 0;
     var blueprintFit = 0;
@@ -1279,8 +1279,6 @@ export { toolkit };
     // The group holding the model and wireframe, scaled by the fit.
     var fitGroup = null;
     var fitScale = 1;
-    // The min-box's (or bounding sphere's) farthest reach from the orbit target, world units (computeFit).
-    var fitReach = 0;
     // What frameCamera() framed: the sphere and the radius the view fits (sphere x zoom).
     var frameSphere = null;
     var framedRadius = 0;
@@ -1294,6 +1292,10 @@ export { toolkit };
     var wireGeneration = 0;
     // The wireframe's CPU arrays until uploaded.
     var wireCpuBytes = 0;
+    // Resolves once the first model's wireframe is drawn in, or never will be
+    // (none, or failed): handle.wireframeSettled, for scripts/auto-render.js.
+    var settleWire;
+    var wireSettled = new Promise(function (resolve) { settleWire = resolve; });
     // The model's min-box (readMinBox): only its reach is used.
     var minBox = null;
     function blueprintMaterial(material) {
@@ -1326,7 +1328,11 @@ export { toolkit };
     // Loaded once the model is on screen, into the fit group. None if absent or failing.
     function loadWireframe() {
       var src = product.assets && product.assets.wireframe;
-      if (!blueprint || wireStarted || !src || isDisposed || !fitGroup) return;
+      if (!blueprint || wireStarted || isDisposed || !fitGroup) return;
+      if (!src) {
+        settleWire();
+        return;
+      }
       wireStarted = true;
       var generation = wireGeneration;
       loadModelFile(src, function (gltf) {
@@ -1359,8 +1365,15 @@ export { toolkit };
         window.EmjiveMem.cpuGeometryBytes += wireCpuBytes;
         fitGroup.add(wireRoot);
         invalidate();
+        // A static viewer has no loop to draw it.
+        if (isStatic) {
+          updateBlueprint();
+          renderer.render(scene, camera);
+        }
+        settleWire();
       }, function (err) {
         console.error("emjive: failed to load wireframe", src, err);
+        settleWire();
       });
     }
 
@@ -1378,11 +1391,12 @@ export { toolkit };
       };
     }
 
-    // The shrink making room for the size circle: the box's farthest corner from
-    // the target against the framed radius, at the largest size. Measured once framed.
+    // The shrink making room for the largest size: the box's farthest corner
+    // from the target against the framed radius. Measured once framed. The page
+    // lays out under the model from this room (0.95 of the framed radius at the
+    // camera's 30° fov: --reach-bottom in css/style.css), so change them together.
     function computeFit() {
       fitScale = 1;
-      fitReach = 0;
       if (!framedRadius) return;
       var reach = frameSphere ? frameSphere.radius : 0;
       if (minBox) {
@@ -1394,7 +1408,6 @@ export { toolkit };
           reach = Math.max(reach, corner.distanceTo(controls.target));
         }
       }
-      fitReach = reach;
       var room = framedRadius * 0.95;
       fitScale = Math.min(1, room / (reach * sizeFactors(product).max));
     }
@@ -1700,6 +1713,7 @@ export { toolkit };
       // even after dispose (three's loaders can't be aborted), for callers that
       // ration concurrent loads.
       whenSettled: Promise.all([modelPromise.then(ignore, ignore), environmentPromise.then(ignore, ignore)]),
+      wireframeSettled: wireSettled,
       applyMetal: function (newMetalKey) {
         currentMetal = newMetalKey;
         if (modelLoaded) applyMaterial();
@@ -1718,7 +1732,7 @@ export { toolkit };
       // Another model in this viewer, camera kept (swapModel).
       setProduct: swapModel,
       // Blueprint viewers only: the metal -> grey sweep and the fit (the shrink
-      // for the size circle), 0..1 each. May be set before the model arrives.
+      // for the largest size), 0..1 each. May be set before the model arrives.
       setBlueprint: function (sweep, fit) {
         if (!blueprint) return;
         sweep = H.clamp01(Number(sweep) || 0);
@@ -1769,18 +1783,6 @@ export { toolkit };
         cancelNudge();
         spin.goHome(true);
         invalidate();
-      },
-      // For the page's size circle: the box's reach from the viewer's centre in px
-      // at fit 0 and base size, and fitScale. The model's scale at fit f and size
-      // factor s is 1 + (fitScale * s - 1) * f; the circle's radius is reachPx
-      // times that. null until the model is in.
-      sizeRing: function () {
-        if (!blueprint || !modelLoaded || !fitReach) return null;
-        camera.updateMatrixWorld();
-        var depth = camera.position.distanceTo(controls.target);
-        if (!(depth > 0)) return null;
-        var perUnit = camera.projectionMatrix.elements[5] / depth * currentHeight / 2;
-        return { reachPx: fitReach * perUnit, fitScale: fitScale };
       },
       // Out of sight: no drawing or nudge until resumed (then one redraw, in case the canvas was discarded).
       setPaused: function (paused) {

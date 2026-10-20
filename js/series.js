@@ -161,7 +161,8 @@
         model: design.model || "",
         wireframe: design.wireframe || "",
         icons: design.icons || {},
-        "fallback-img": design["fallback-img"] || {}
+        "fallback-img": design["fallback-img"] || {},
+        "specs-poster": design["specs-poster"] || ""
       });
       view.geometry = design.geometry || null;
     }

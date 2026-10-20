@@ -38,7 +38,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | Default camera angle, a series' HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
-| Icons, fallback images, wheel posters, hand posters (paths and files) | `auto-render` |
+| Icons, fallback images, wheel posters, hand posters, specs posters (paths and files) | `auto-render` |
 
 The files are hand-aligned, and every tool writes them by text surgery, never by re-serializing (rules.md).
 
@@ -53,6 +53,7 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 - `<name>_stl.stl`, the print model: what is printed, weighed and priced;
 - `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`;
 - `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
+- `<name>_specs-poster.webp`, the render of the model as the item page's specs stage draws it, one for all metals;
 - `<name>_xray.webp`, the design stage's backdrop;
 - `<Name>_photo<N>.webp`, photography.
 
@@ -85,13 +86,14 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
    - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
+   - the **specs poster** is the specs stage's first frame: the model grey, fitted, at the reference size, its wireframe in the category colour, framed like the fallback image. It stands in for an item page opened (reloaded) in specs, where the metal fallback image would give the missing model away. One per product and per design, since the grey hides the metal;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
-   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--image-variants`).
+   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--specs-posters-only`, `--image-variants`).
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
-Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings or the wheel's drawing, re-render what used it.
+Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings, the wheel's drawing, or the specs look (its grey, the fit, the category colour), re-render what used it.
 
 ## 5. Tools
 

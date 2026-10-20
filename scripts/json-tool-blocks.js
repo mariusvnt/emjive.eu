@@ -3,7 +3,7 @@
 // inserting, patching and removing entries in hand-aligned JSON without
 // re-serializing, and rendering whole product/series blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
-// wheel-poster, hand-poster) from the on-disk product, never from form input.
+// wheel-poster, hand-poster, specs-poster) from the on-disk product, never from form input.
 
 "use strict";
 
@@ -308,7 +308,8 @@ function renderDesignsBlock(designs, metals) {
       ...(d.wireframe ? [pad + '"wireframe": "' + esc(d.wireframe) + '",'] : []),
       ...(d.stl ? [pad + '"stl": "' + esc(d.stl) + '",'] : []),
       pad + '"icons": ' + metalLine(d.icons) + ",",
-      pad + '"fallback-img": ' + metalLine(d["fallback-img"]),
+      pad + '"fallback-img": ' + metalLine(d["fallback-img"]) + ",",
+      pad + '"specs-poster": "' + esc(d["specs-poster"]) + '"',
       "          }"
     ].join("\n");
   });
@@ -378,6 +379,7 @@ function renderProductBlock(p, metals) {
     "        },",
     '        "xray": "' + esc(assets.xray) + '",',
     '        "hand-poster": "' + esc(assets["hand-poster"]) + '",',
+    '        "specs-poster": "' + esc(assets["specs-poster"]) + '",',
     '        "photos": ' + photos,
     p.designs ? "      }," : "      }",
     ...(p.designs ? [renderDesignsBlock(p.designs, metals)] : []),

@@ -1871,7 +1871,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    outright, so they take no taps and show no loader. */
 .product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__controls,
 .product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__finder-toggle,
-.product-stage[data-stage="specs"] .product-options {
+.product-stage[data-stage="specs"] :is(.product-options, .product-metals) {
   pointer-events: none;
 }
 .product-stage.is-feed-gone .product-feed,
@@ -2330,7 +2330,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   /* The model box's bottom from the frame's top, rising with the lift; design's controls hang from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before the picker. */
-  --model-gap: 1.5rem;
+  --model-gap: 3rem;
   /* How low the model reaches at the largest size, below its middle (which is
      --lift above the tile's): the room js/three-viewer.js computeFit leaves it,
      0.95 of the framed radius, which the 30° camera shows at cos(15°) of the
@@ -2451,8 +2451,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 
 
 /* Under the model, one column of label | value tables (--label-col,
-   --label-gap): the design options in design; size, picker, weight,
-   printing, costs, shipping and returns in specs. Transparent over the x-ray;
+   --label-gap): the material cluster and the design options in design; size,
+   costs, shipping and returns in specs. Transparent over the x-ray;
    only its controls take taps. */
 .product-below {
   position: absolute;
@@ -2471,22 +2471,29 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   gap: var(--gap-row);
   pointer-events: none;
 }
-/* The picker as a label | value row ("Material", then the squares and the
-   chosen name). In design under the model's box (--model-gap), rising with the
-   lift; it fades out with design and back in with specs (--d-on, --specs-on),
-   moving mid-blank into the specs column (.is-specs-layout) above the
-   metal's composition. */
-.product-material {
+/* Design's controls, under the model's box (--model-gap), rising with the lift
+   and fading with design (--d-on): the design options (js/product.js
+   renderDesigns), then the material cluster. */
+.product-design-panel {
   position: absolute;
   left: 0;
   right: 0;
   top: calc(var(--model-bottom) + var(--model-gap));
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+  opacity: var(--d-on);
+}
+.product-design-panel > * {
+  min-width: 0;
+}
+/* The picker as a label | value row ("Material", then the squares and the
+   chosen name), the metal's composition under the squares. */
+.product-material {
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
   align-items: start;
-  /* Never both at once: each phase waits for the previous. */
-  opacity: calc(var(--d-on) + var(--specs-on));
 }
 .product-material__label {
   font-family: var(--font-main);
@@ -2495,10 +2502,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   line-height: var(--metal-square);
   color: var(--black);
 }
-/* The chosen metal's composition, specs only, under the squares; its height
-   change is tweened (js/product.js renderComposition). */
+/* Its height change is tweened (js/product.js renderComposition). */
 .product-material__composition {
-  display: none;
   grid-column: 2;
   margin: 0.6rem 0 0;
   font-family: var(--font-main);
@@ -2507,41 +2512,27 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   line-height: 1.5;
   color: var(--category-col);
 }
-.product-material__composition[hidden] {
-  display: none;
-}
 .product-material__composition.is-resizing {
   overflow: hidden;
   transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
 }
-.product-stage.is-specs-layout .product-material {
-  position: static;
-  /* The picker starts a cluster. */
-  margin-top: var(--gap-extra);
-}
-.product-stage.is-specs-layout .product-material__composition:not([hidden]) {
-  display: block;
-}
 .product-stage .product-metals {
   pointer-events: auto;
 }
-/* The design options (js/product.js renderDesigns), under the picker in
-   design: one label | choices row per option. Choices carry the selection dot
-   (always reserved). Dimmed choices wouldn't land on their exact combination;
-   the last one on of a multiple option can't be turned off. Rises with the
-   lift; fades with design (--d-on). */
+/* The design options, one label | choices row per option. Choices carry the
+   selection dot (always reserved). Dimmed choices wouldn't land on their exact
+   combination; the last one on of a multiple option can't be turned off. */
 .product-options {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(var(--model-bottom) + var(--model-gap) + var(--metal-square) + var(--gap-row));
   display: flex;
   flex-direction: column;
   gap: calc(var(--gap-row) / 2);
-  opacity: var(--d-on);
 }
 .product-options[hidden] {
   display: none;
+}
+/* The material cluster is set apart from the options above it. */
+.product-options:not([hidden]) + .product-material {
+  margin-top: var(--gap-extra);
 }
 .product-option {
   display: grid;
@@ -3048,37 +3039,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin-left: 0.5rem;
 }
 
-/* ---- specs: the weight at the chosen size ----
-   In the picker's cluster, between the picker and the printing technology:
-   label | value, 12px DINish black. */
-.product-specs {
-  opacity: var(--specs-on);
-}
-.product-specs__list {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-row);
-  text-align: left;
-}
-.product-specs__item {
-  margin: 0;
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-  align-items: baseline;
-}
-.product-specs__item dt,
-.product-specs__item dd {
-  margin: 0;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--black);
-}
-
-/* ---- specs: the printing technology ----
+/* ---- design: the printing technology ----
    Label, then the technology's name beside it and its description below
    (--category-col). */
 .product-printing {
@@ -3086,7 +3047,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
   row-gap: 0.15rem;
-  opacity: var(--specs-on);
 }
 .product-printing[hidden] {
   display: none;
@@ -3112,7 +3072,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* Under the picker and size: weight and printing, then costs, shipping and returns. */
+/* Under the size: costs, shipping and returns. */
 .product-below__stage {
   display: flex;
   flex-direction: column;
@@ -3344,16 +3304,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     align-self: flex-start;
     pointer-events: auto;
   }
-  .product-options {
+  .product-design-panel {
     position: static;
     opacity: 1;
-  }
-  .product-material {
-    position: static;
-    opacity: 1;
-  }
-  .product-material__composition:not([hidden]) {
-    display: block;
   }
   .product-plans {
     top: 0;
@@ -3367,9 +3320,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-plan {
     pointer-events: auto;
   }
-  .product-size,
-  .product-specs,
-  .product-printing {
+  .product-size {
     opacity: 1;
   }
   .product-logistics {

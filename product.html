@@ -141,8 +141,27 @@
             <!-- Under the model: label | value rows for the current stage. -->
             <div class="product-below">
 
-              <!-- Design: one row per design option (js/product.js renderDesigns). Hidden with a single design. -->
-              <div class="product-options" id="productOptions" data-stage-owner="design" hidden></div>
+              <!-- Design: one row per design option (js/product.js renderDesigns;
+                   hidden with a single design), then the material cluster (the
+                   metal picker, its composition and printing technology). -->
+              <div class="product-design-panel" data-stage-owner="design">
+                <div class="product-options" id="productOptions" hidden></div>
+
+                <div class="product-material">
+                  <!-- Metal picker (js/metal-picker.js). -->
+                  <span class="product-material__label" aria-hidden="true">Material</span>
+                  <div class="product-metals" id="productMetals"></div>
+                  <!-- The chosen metal's composition. -->
+                  <p class="product-material__composition" id="productComposition" hidden></p>
+                </div>
+
+                <!-- The chosen metal's printing technology. -->
+                <section class="product-printing" id="productPrinting" aria-labelledby="productPrintingLabel" hidden>
+                  <h2 class="product-printing__label" id="productPrintingLabel">Printing technology</h2>
+                  <p class="product-printing__name" id="productPrintingName"></p>
+                  <p class="product-printing__text" id="productPrintingText"></p>
+                </section>
+              </div>
 
               <!-- Specs: the size field, the size tape that scales the model
                    (js/product.js wireSizeTape) and the "Find my size" button.
@@ -163,28 +182,7 @@
                 <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
               </div>
 
-              <!-- Metal picker (js/metal-picker.js), in design and specs. -->
-              <div class="product-material" data-stage-owner="design specs">
-                <span class="product-material__label" aria-hidden="true">Material</span>
-                <div class="product-metals" id="productMetals"></div>
-                <!-- Specs only: the chosen metal's composition. -->
-                <p class="product-material__composition" id="productComposition" hidden></p>
-              </div>
-
               <div class="product-below__stage">
-                <!-- Specs: the weight (g) at the chosen size and metal (js/product.js renderSpecs). -->
-                <section class="product-specs" aria-labelledby="productSpecsHeading">
-                  <h2 class="visually-hidden" id="productSpecsHeading">Characteristics</h2>
-                  <dl class="product-specs__list" id="productSpecs"></dl>
-                </section>
-
-                <!-- Specs: the chosen metal's printing technology. -->
-                <section class="product-printing" id="productPrinting" aria-labelledby="productPrintingLabel" hidden>
-                  <h2 class="product-printing__label" id="productPrintingLabel">Printing technology</h2>
-                  <p class="product-printing__name" id="productPrintingName"></p>
-                  <p class="product-printing__text" id="productPrintingText"></p>
-                </section>
-
                 <!-- Production cost chart (js/product.js renderSpecs; animates in on .is-built),
                      then static shipping and returns. -->
                 <section class="product-logistics" aria-labelledby="productLogisticsHeading">

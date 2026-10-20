@@ -1203,7 +1203,7 @@
     return "€ " + amount.toFixed(2);
   }
 
-  // Weight (g) and the cost chart at the chosen size, both scaling with the
+  // The cost chart at the chosen size (weight only feeds it), scaling with the
   // factor cubed. Uses the design's print geometry (geometry.print, from its
   // STL) when measured: that's what is made and priced.
   function renderSpecs() {
@@ -1212,10 +1212,6 @@
     var f = state.sizeFactor;
     var volume = printed["volume-cm3"] * f * f * f;
     var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
-    var dl = document.getElementById("productSpecs");
-    dl.innerHTML = "";
-    appendSpec(dl, "weight", "Weight", costs ? costs.weight.toFixed(1) + " g" : "TBD");
-
     var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
     Object.keys(figures).forEach(function (key) {
       var dd = document.getElementById(figures[key]);
@@ -1244,7 +1240,7 @@
     if (wasShown && from > 0) tweenHeight(section, from);
   }
 
-  // The chosen metal's composition (specs only, css/style.css), with the same glide.
+  // The chosen metal's composition, with the same glide.
   function renderComposition() {
     var node = document.getElementById("productComposition");
     if (!node) return;
@@ -1281,13 +1277,6 @@
       node.style.height = "";
       if (after) after();
     }, 260);
-  }
-
-  function appendSpec(dl, key, label, value) {
-    var group = el("div", "product-specs__item product-specs__item--" + key);
-    group.appendChild(el("dt", null, label));
-    group.appendChild(el("dd", null, value));
-    dl.appendChild(group);
   }
 
   /* ---- plan views (specs) ---- */
@@ -1659,11 +1648,11 @@
     return designRoomProbe.offsetHeight;
   }
 
-  // Design's controls (picker, then options) can reach under the bottom bars:
-  // the design stretch scrolls the show up until the last clears them by
-  // DESIGN_CLEAR_REM (--design-room). Measured unshifted (browse and lift
-  // removed) so it holds still; frozen once the picker moves into the specs
-  // column (.is-specs-layout).
+  // Design's controls (the options, then the material cluster) can reach under
+  // the bottom bars: the design stretch scrolls the show up until the last
+  // clears them by DESIGN_CLEAR_REM (--design-room). Measured unshifted (browse
+  // and lift removed) so it holds still; frozen once the controls are gone
+  // (.is-specs-layout).
   var DESIGN_CLEAR_REM = 0;
   var designRoom = 0;
   function fitDesignRoom() {
@@ -1672,8 +1661,7 @@
     if (state.flow) {
       room = 0;
     } else if (!stageEl.classList.contains("is-specs-layout")) {
-      var options = document.getElementById("productOptions");
-      var last = options && !options.hidden && options.children.length ? options : document.querySelector(".product-material");
+      var last = document.querySelector(".product-design-panel");
       room = 0;
       if (last) {
         var rem = remPx();
@@ -1854,7 +1842,7 @@
       modelBoxEl.style.removeProperty("--model-cut");
     }
     state.sweep = sweep;
-    // The picker swaps place (under the model / in the specs column) mid-blank, unseen.
+    // Design's room is measured only until the blank is half through (fitDesignRoom).
     stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
     state.fit = clamp((t - t1) / (1 - t1), 0, 1);
     // The model's own lift: the path less what the show's browse already does

@@ -96,6 +96,8 @@
     planImagesOn: false,
     // The model's lift on its way into specs, px (refreshStage).
     lift: 0,
+    // The model box's scale once in specs (fitSpecsBox).
+    modelK: 1,
     // Whether the specs size has its starting value (62).
     sizeSeeded: false,
     seedSize: null,
@@ -1801,7 +1803,7 @@
     if (!(ratio >= 0)) ratio = 0.5;
     fitDesignRoom();
     var room = designRoomPx();
-    // The model's specs place: the tile row's middle (specsRowMiddle); `place` is how far up its middle is from rest
+    // The model's specs place: its tile's middle (specsModelMiddle); `place` is how far up its middle is from rest
     // (tile middle less the current browse; negative when it sits lower than rest).
     var place = 0;
     // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
@@ -1814,7 +1816,7 @@
       // The model's approximate half-height at its fitted size.
       var half = SPECS_HALF_HEIGHT * box.height;
       var rem = remPx();
-      var middle = specsRowMiddle(titleBar ? titleBar.getBoundingClientRect().bottom : 0);
+      var middle = specsModelMiddle(titleBar ? titleBar.getBoundingClientRect().bottom : 0);
       place = box.top + box.height / 2 + browsed - middle;
       hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
     }
@@ -1879,6 +1881,7 @@
     stageEl.style.setProperty("--t1", t1.toFixed(4));
     if (band) band.classList.toggle("is-on", barOn);
     fitBrowse(stageEl);
+    fitSpecsBox();
     fitFeed();
     applyStageToViewer();
   }
@@ -1932,7 +1935,7 @@
     specs.style.transform = "scale(" + (1 + (state.sizeFactor * zoom - 1) * state.fit).toFixed(4) + ")";
   }
 
-  // Specs' tile row (css/style.css, the design frame): the picture square
+  // Specs' tile cluster (css/style.css, the design frame): the picture square
   // (the probe's width) and the tile's height (its height); the blank it keeps
   // at least under the title bar (--specs-top, the other probe).
   var specsRowProbe = null;
@@ -1941,21 +1944,39 @@
     if (!specsRowProbe) specsRowProbe = lengthProbe(designFrameEl, "width:var(--plan-tile);height:var(--plan-cell-h)");
     return specsRowProbe;
   }
-  // The tile row's top on arrival: SPECS_ROW_TOP of the screen down, raised
-  // by SPECS_ROW_RAISE_REM, and at least --specs-top under the title bar.
+  // The cluster's middle on arrival: half a tile under SPECS_ROW_TOP of the
+  // screen down, raised by SPECS_ROW_RAISE_REM, its top (two tiles up) at
+  // least --specs-top under the title bar. The model's tile is its lower half.
   var SPECS_ROW_TOP = 0.36;
   var SPECS_ROW_RAISE_REM = 9;
-  function specsRowMiddle(titleBottom) {
+  function specsModelMiddle(titleBottom) {
     if (!specsTopProbe) specsTopProbe = lengthProbe(designFrameEl, "width:0;height:var(--specs-top)");
-    var top = Math.max(SPECS_ROW_TOP * screenHeight() - SPECS_ROW_RAISE_REM * remPx(), titleBottom + specsTopProbe.offsetHeight);
-    return top + specsProbe().offsetHeight / 2;
+    var tile = specsProbe().offsetHeight;
+    var middle = Math.max(SPECS_ROW_TOP * screenHeight() - SPECS_ROW_RAISE_REM * remPx() + tile / 2, titleBottom + specsTopProbe.offsetHeight + tile);
+    return middle + tile / 2;
   }
 
-  // The fitted model's zoom in specs: its box's canvas brought down so the
-  // drawing, SPECS_MODEL_SHARE of the box at the largest size, fills the
-  // picture square; smaller sizes shrink it as they shrink the outlines.
+  // The model box's scale once in specs (--model-k on the box, css/style.css
+  // .product-model): its side brought down to --plan-model. Measured here, not
+  // in CSS, so the box's scale and the fit zoom read the same figures and
+  // can't disagree.
+  var specsModelProbe = null;
+  function fitSpecsBox() {
+    if (!modelBoxEl || !designFrameEl) return;
+    if (!specsModelProbe) specsModelProbe = lengthProbe(designFrameEl, "width:var(--plan-model);height:0");
+    var box = modelBoxEl.offsetWidth;
+    var side = specsModelProbe.offsetWidth;
+    var k = box > 0 && side > 0 ? +(side / box).toFixed(4) : 1;
+    if (k === state.modelK) return;
+    state.modelK = k;
+    modelBoxEl.style.setProperty("--model-k", String(k));
+  }
+
+  // The fitted model's zoom in specs: the drawing, SPECS_MODEL_SHARE of the
+  // box at the largest size, fills the picture square once the box has
+  // shrunk (fitSpecsBox); smaller sizes shrink it as they shrink the outlines.
   function specsZoom() {
-    var box = modelBoxEl ? modelBoxEl.offsetWidth : 0;
+    var box = modelBoxEl ? modelBoxEl.offsetWidth * state.modelK : 0;
     var square = designFrameEl ? specsProbe().offsetWidth : 0;
     return box > 0 && square > 0 ? square / (box * SPECS_MODEL_SHARE) : 1;
   }

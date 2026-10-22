@@ -1795,12 +1795,12 @@ body:has(.order-checkout-bar:not([hidden])) {
   --specs-on: var(--s-in);
   --lift: 0px;
   /* The columns' two vertical gaps: between rows, and between clusters
-     (design's options and material; specs' tile row, size, costs, shipping
+     (design's options and material; specs' tile cluster, size, costs, shipping
      and returns). A cluster's first row carries --gap-extra. */
   --gap-row: 1.25rem;
   --gap-group: 4rem;
   --gap-extra: calc(var(--gap-group) - var(--gap-row));
-  /* Specs' least blank between the title bar and the tile row, which sits a
+  /* Specs' least blank between the title bar and the tile cluster, which sits a
      little below the screen's first third (read by js/product.js). */
   --specs-top: 4.5rem;
   /* Browsing (js/product-stages.js): --browse-0/1/2 are the progress through
@@ -2327,28 +2327,35 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before design's controls. */
   --model-gap: 3rem;
-  /* The gap under specs' tile row before the information. */
+  /* The gap under specs' tile cluster before the information. */
   --row-gap-below: 9rem;
-  /* Specs' row of three touching tiles, front view | model | side view, all
-     --plan-cell-w x --plan-cell-h: a picture square (--plan-tile) with
+  /* Specs' cluster of three touching tiles, an inverse pyramid: front view |
+     side view on top, the model under them, centred. All are
+     --plan-cell-w x --plan-cell-h, hugging the drawings: --plan-hug of the
+     picture square (--plan-tile, the drawings' and the model's scale; a
+     drawing fills about that share of it at the largest size) with
      --plan-room on each side for the horizontal labels and --plan-room-y
-     above and below for the vertical ones, the row never wider than the page
-     margins. The square grows with the screen (--plan-p: 0 at 400px and
+     above and below for the vertical ones, a tile never wider than a third
+     of the page margins. The square grows with the screen (--plan-p: 0 at 400px and
      under, 1 at 1280px and over, linear between; tan(atan2(a, b)) is the
      unitless a / b): 1.2 x a third of the row less 2rem up to 400px (the
      tiles spanning the margins), then from there (6.6rem) to 12.5rem at
      1280px, the smaller of the two so it never shrinks. A view and its labels
      are centred across their tile as one group (js/product.js
-     centrePlanGroup). The row's middle is the model's (--lift above the tile's). */
+     centrePlanGroup). The model's tile is centred on the model (--lift above
+     the frame's middle), the top row a tile higher. */
   --plan-text: 0.5rem;
   --plan-p: clamp(0, tan(atan2(100vw - 400px, 880px)), 1);
   --plan-row-w: calc(100vw - 2 * var(--edge-px));
   --plan-tile: min(1.2 * (var(--plan-row-w) / 3 - 2rem), 6.6rem + 5.9rem * var(--plan-p));
-  --plan-room: calc(1rem + 1.9rem * var(--plan-p));
+  --plan-hug: 0.64;
+  --plan-room: calc(1.5rem + 0.5rem * var(--plan-p));
   --plan-room-y: calc(var(--plan-text) + 0.4rem);
-  --plan-cell-w: min(var(--plan-row-w) / 3, var(--plan-tile) + 2 * var(--plan-room));
-  --plan-cell-h: calc(var(--plan-tile) + 2 * var(--plan-room-y));
-  /* Where the specs column starts: --row-gap-below under the tile row. */
+  --plan-cell-w: min(var(--plan-row-w) / 3, var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room));
+  --plan-cell-h: calc(var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room-y));
+  /* The side the model's box shrinks to in specs: its tile's shorter one. */
+  --plan-model: min(var(--plan-cell-w), var(--plan-cell-h));
+  /* Where the specs column starts: --row-gap-below under the model's tile. */
   --below-top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--row-gap-below));
 }
 @media (min-width: 641px) {
@@ -2364,12 +2371,14 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 
 /* The model's box, centred and raised by the lift. During the way to design
    it's cut at the band (--model-cut from js/product.js; negative margins so
-   overhangs aren't cut). In specs it greys and is the tile row's middle
-   tile: the model shrinks to the picture square inside its box (the fit
-   zoom, js/product.js specsZoom); the box keeps its size so the canvas never
-   resizes. Only the viewer's circle takes drags, in specs no wider than the
-   picture square (0.75: the circle's share of the box, hitCircle in
-   js/product.js). A non-live model (poster, icon) greys too. */
+   overhangs aren't cut). In specs it greys and is the tile cluster's bottom
+   tile: the box shrinks to --plan-model with specs' arrival, as a scale
+   (--model-k, from js/product.js fitSpecsBox; resizing would rebuild the
+   canvas every frame), and the fit zoom
+   (js/product.js specsZoom) sizes the model against the shrunk box, so it
+   keeps the drawings' scale. Only the viewer's circle takes drags, in specs
+   the box's whole inscribed circle (37.5%: its radius without --hit-scale,
+   hitCircle in js/product.js). A non-live model (poster, icon) greys too. */
 .product-model {
   position: absolute;
   z-index: 1;
@@ -2377,9 +2386,9 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   top: 50%;
   width: var(--model-size);
   height: var(--model-size);
-  transform: translate(-50%, calc(-50% - var(--lift)));
+  transform: translate(-50%, calc(-50% - var(--lift))) scale(calc(1 + (var(--model-k, 1) - 1) * var(--s-in)));
   clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
-  --hit-scale: calc(1 + (tan(atan2(var(--plan-tile), var(--model-size) * 0.75)) - 1) * var(--s-in));
+  --hit-scale: calc(1 + var(--s-in) / 3);
 }
 /* The reset button, centred above the model's box: shown once the model is
    turned off its pose (.is-away), fading with design; tappable only in design. */
@@ -2898,11 +2907,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   The tile row's outer tiles (the design frame's --plan-cell-w x
-   --plan-cell-h), the front view and the side view; the middle one is the
-   model's, left empty here. The row is centred on the screen, its middle on
-   the model's (a little below the screen's first third, js/product.js
-   specsRowMiddle), rising with the lift. A tile's picture, cropped alike for both views (--plan-cw,
+   The tile cluster's top row (tiles of the design frame's --plan-cell-w x
+   --plan-cell-h), the front view and the side view, touching, a tile above
+   the model's, which is centred under them. The row is centred on the
+   screen, the cluster's middle a little below the screen's first third
+   (js/product.js specsModelMiddle), rising with the lift. A tile's picture, cropped alike for both views (--plan-cw,
    --plan-ratio from js/product.js), is centred across it together with its
    labels (translate, js/product.js centrePlanGroup) and upright on its own,
    level with the model. On the picture, a solid line per measured axis between the
@@ -2928,8 +2937,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: calc(var(--tile) / 2 - var(--lift) - var(--plan-cell-h) / 2);
-  width: calc(var(--plan-cell-w) * 3);
+  top: calc(var(--tile) / 2 - var(--lift) - var(--plan-cell-h) * 1.5);
+  width: calc(var(--plan-cell-w) * 2);
   height: var(--plan-cell-h);
   transform: translateX(-50%);
   display: flex;
@@ -2938,7 +2947,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
   color: var(--category-col);
   opacity: var(--specs-on);
-  /* Over the model's tile: only the pictures take taps, the model its drags. */
+  /* Over the model's box: only the pictures take taps, the model its drags. */
   pointer-events: none;
 }
 @media (min-width: 641px) {
@@ -3137,7 +3146,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 
-/* Specs' information under the tile row: size, costs, shipping and returns. */
+/* Specs' information under the tile cluster: size, costs, shipping and returns. */
 .product-below__stage {
   display: flex;
   flex-direction: column;

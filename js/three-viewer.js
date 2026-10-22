@@ -1437,8 +1437,8 @@ export { toolkit };
     }
 
     // The shrink making room for the largest size: the box's farthest corner
-    // from the target against the framed radius, times the zoom
-    // (handle.setFitZoom). Measured once framed.
+    // from the target against the framed radius, never a growth, then times
+    // the zoom (handle.setFitZoom). Measured once framed.
     function computeFit() {
       fitScale = 1;
       if (!framedRadius) return;
@@ -1452,8 +1452,8 @@ export { toolkit };
           reach = Math.max(reach, corner.distanceTo(controls.target));
         }
       }
-      var room = framedRadius * 0.95 * fitZoom;
-      fitScale = Math.min(1, room / (reach * sizeFactors(product).max));
+      var room = framedRadius * 0.95;
+      fitScale = Math.min(1, room / (reach * sizeFactors(product).max)) * fitZoom;
     }
 
     var bpCenter = new THREE.Vector3();

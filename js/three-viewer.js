@@ -575,6 +575,8 @@ export { toolkit };
   // times its base as the speed nears zero, so a spin stops crisply.
   var PROGRESSIVE_BOOST_SPEED = 0.5; // rad/s
   var PROGRESSIVE_BOOST_MAX = 4;
+  // A goTo() flattening let go of by a drag eases out over this long, in s.
+  var FLAT_RELAX_S = 0.4;
 
   // ---- prefers-reduced-motion ----
   // A live MediaQueryList, read per frame and per timer, so an OS toggle applies
@@ -596,6 +598,7 @@ export { toolkit };
   //   autoReturn()    optional, default true: false leaves a released model where
   //                   it is; only goHome(true) brings it back
   //   onAway(away)    optional: turned off its default pose (true) or back/returning (false)
+  //   onHold(holding) optional: a goTo() pose reached (true), its hold over or cut short (false)
   //   wake()          optional: restart the caller's loop (goTo's hold ends on a timer)
   //
   // The damping seed assumes 60fps; step() re-derives the per-frame factor from
@@ -629,6 +632,11 @@ export { toolkit };
     var tweenPose = null;
     var holdMs = 0;
     var holdTimeoutId = null;
+    // How far the view is flattened toward a goTo() pose's straight-on
+    // projection (0..1, flatness()): in with the turn there, held, out with the
+    // ease back; anything else (a drag) relaxes it. flatFrom: at the tween's start.
+    var flat = 0;
+    var flatFrom = 0;
     var lastAngularSpeed = 0; // rad/s, the previous frame's spin rate (progressive braking)
     // Whether the eye stands more than AWAY_ANGLE off the default pose (reported via onAway).
     var away = false;
@@ -661,7 +669,23 @@ export { toolkit };
       if (holdTimeoutId) {
         clearTimeout(holdTimeoutId);
         holdTimeoutId = null;
+        if (options.onHold) options.onHold(false);
       }
+    }
+
+    function startTween() {
+      resetTweenFromPosition.copy(camera.position);
+      resetTweenFromUp.copy(camera.up);
+      resetTweenStartTime = performance.now();
+      resetTweenActive = true;
+      flatFrom = flat;
+    }
+
+    function endHold() {
+      holdTimeoutId = null;
+      if (options.onHold) options.onHold(false);
+      beginHome();
+      if (options.wake) options.wake();
     }
 
     function onStart() {
@@ -692,15 +716,13 @@ export { toolkit };
 
         slerpVectors(camera.up, resetTweenFromUp, to.up, eased);
         camera.lookAt(controls.target);
+        flat = flatFrom + ((tweenPose ? 1 : 0) - flatFrom) * eased;
         if (t >= 1) {
           resetTweenActive = false;
           if (tweenPose) {
             tweenPose = null;
-            holdTimeoutId = setTimeout(function () {
-              holdTimeoutId = null;
-              beginHome();
-              if (options.wake) options.wake();
-            }, holdMs);
+            holdTimeoutId = setTimeout(endHold, holdMs);
+            if (options.onHold) options.onHold(true);
           } else {
             setAway(false);
             if (options.onHome) options.onHome();
@@ -708,6 +730,7 @@ export { toolkit };
         }
         return;
       }
+      if (flat > 0) flat = Math.max(0, flat - dt / FLAT_RELAX_S);
 
       // The drift's delta is taken from .up before this frame's momentum update and
       // added after it, so the drift doesn't partly undo the momentum.
@@ -759,10 +782,7 @@ export { toolkit };
           if (!options.noAutoMotion() && (!options.autoReturn || options.autoReturn())) {
             pauseTimeoutId = setTimeout(function () {
               pauseTimeoutId = null;
-              resetTweenFromPosition.copy(camera.position);
-              resetTweenFromUp.copy(camera.up);
-              resetTweenStartTime = performance.now();
-              resetTweenActive = true;
+              startTween();
             }, POST_INERTIA_PAUSE * (options.pauseScale ? options.pauseScale() : 1));
           }
         }
@@ -802,25 +822,25 @@ export { toolkit };
       cancelReturn();
       // On its way: not away, unless a drag takes it again.
       setAway(false);
-      resetTweenFromPosition.copy(camera.position);
-      resetTweenFromUp.copy(camera.up);
-      resetTweenStartTime = performance.now();
-      resetTweenActive = true;
+      startTween();
     }
 
     // Turns to `pose` ({ position, up }, at the home radius), holds it for
-    // `ms`, then eases home. A drag or another goTo() replaces it.
+    // `ms`, then eases home. A drag or another goTo() replaces it; the pose
+    // already held only restarts the hold.
     function goTo(pose, ms) {
       if (isDragging) return;
+      if (holdTimeoutId && camera.position.distanceTo(pose.position) < 1e-6 * pose.position.distanceTo(controls.target) && camera.up.angleTo(pose.up) < 1e-4) {
+        clearTimeout(holdTimeoutId);
+        holdTimeoutId = setTimeout(endHold, ms);
+        return;
+      }
       cancelReturn();
       dropMomentum();
       tweenPose = pose;
       holdMs = ms;
       setAway(true);
-      resetTweenFromPosition.copy(camera.position);
-      resetTweenFromUp.copy(camera.up);
-      resetTweenStartTime = performance.now();
-      resetTweenActive = true;
+      startTween();
     }
 
     return {
@@ -829,9 +849,11 @@ export { toolkit };
       goHome: goHome,
       goTo: goTo,
       isAway: function () { return away; },
-      // Not at rest in its default pose: dragging, coasting, pausing or easing back.
+      flatness: function () { return flat; },
+      // Not at rest in its default pose: dragging, coasting, pausing, easing back
+      // or letting go of a flattening.
       isBusy: function () {
-        return isDragging || waitingForSettle || pauseTimeoutId !== null || resetTweenActive;
+        return isDragging || waitingForSettle || pauseTimeoutId !== null || resetTweenActive || (flat > 0 && !holdTimeoutId);
       },
       dispose: function () {
         cancelReturn();
@@ -1200,6 +1222,9 @@ export { toolkit };
       pauseScale: function () { return rollbackPauseScale; },
       autoReturn: function () { return autoReturn; },
       onAway: options.onAway,
+      onHold: function (holding) {
+        if (options.onViewHeld) options.onViewHeld(holding ? heldView : "");
+      },
       onHome: function () { scheduleIdleNudge(); },
       wake: function () { startLoop(); }
     });
@@ -1311,6 +1336,8 @@ export { toolkit };
     var blueprintSweep = 0;
     var blueprintFit = 0;
     var sizeFactor = 1;
+    // The plan view showView() last turned to.
+    var heldView = "";
     var viewerPaused = false;
     var bpUniforms = null;
     if (blueprint) {
@@ -1838,18 +1865,38 @@ export { toolkit };
         invalidate();
       },
       // Blueprint viewers: turn to one of the specs stage's plan views, as
-      // drawn (EmjiveHelpers.planFrame), hold it for holdMs, then ease back.
+      // drawn (EmjiveHelpers.planFrame), hold it for holdMs, then ease back;
+      // options.onViewHeld(name) once there, onViewHeld("") as the hold ends.
+      // The view flattens to the drawing's projection on the way (drawFlat).
       // Even under reduced motion: the visitor asked.
       showView: function (name, holdMs) {
         var frame = H.planFrame(product);
         var view = (frame && frame.views[name]) || H.PLAN_VIEWS[name];
         if (!blueprint || !view || !modelLoaded) return;
         cancelNudge();
+        heldView = name;
         spin.goTo({
           position: new THREE.Vector3().fromArray(view.eye).multiplyScalar(defaultRadius).add(controls.target),
           up: new THREE.Vector3().fromArray(view.up)
         }, holdMs);
         invalidate();
+      },
+      // Blueprint viewers: where a plan view's drawing lands on the canvas with
+      // the model turned to it: its centre's offset from the canvas centre (x
+      // right, y down) and a millimetre at the model's current scale, all as
+      // shares of the canvas height. null before the model.
+      viewPlacement: function (name) {
+        var frame = H.planFrame(product);
+        var view = frame && frame.views[name];
+        if (!blueprint || !view || !modelLoaded || !defaultRadius) return null;
+        var scale = 1 + (fitScale * sizeFactor - 1) * blueprintFit;
+        var unit = 1 / (2 * defaultRadius * Math.tan((camera.fov * Math.PI) / 360));
+        var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(scale * unit);
+        return {
+          x: offset.dot(new THREE.Vector3().fromArray(view.right)),
+          y: -offset.dot(new THREE.Vector3().fromArray(view.up)),
+          mm: scale * unit
+        };
       },
       // Out of sight: no drawing or nudge until resumed (then one redraw, in case the canvas was discarded).
       setPaused: function (paused) {
@@ -1950,6 +1997,7 @@ export { toolkit };
     var renderedUp = new THREE.Vector3();
     // Not createSpin's eyeDirection, which holds the spin's frame-to-frame state.
     var currentEye = new THREE.Vector3();
+    var renderedFlat = 0;
     var hasRenderedOnce = false;
     // ~0.006 degrees: well under a pixel, and under SETTLE_ANGULAR_VELOCITY * dt,
     // so a release registers as settled (arming the ease back) before drawing stops.
@@ -1958,8 +2006,10 @@ export { toolkit };
     // Returns whether it drew.
     function drawIfChanged() {
       currentEye.copy(camera.position).sub(controls.target).normalize();
+      var flat = spin.flatness();
       var changed = needsRender ||
                     !hasRenderedOnce ||
+                    flat !== renderedFlat ||
                     currentEye.angleTo(renderedEye) > STILL_ANGLE_EPSILON ||
                     camera.up.angleTo(renderedUp) > STILL_ANGLE_EPSILON;
       if (!changed) return false;
@@ -1968,9 +2018,48 @@ export { toolkit };
       hasRenderedOnce = true;
       renderedEye.copy(currentEye);
       renderedUp.copy(camera.up);
+      renderedFlat = flat;
+      if (flat > 0) {
+        drawFlat(flat);
+      } else {
+        if (blueprint) updateBlueprint();
+        renderer.render(scene, camera);
+      }
+      return true;
+    }
+
+    // A plan view's drawing is a straight-on (orthographic) projection; the
+    // camera's perspective would show the near edges larger. So the turn to it
+    // flattens the view (createSpin's flatness) as a dolly zoom: the camera
+    // backs off to 1 / FLAT_K of its distance as the field of view narrows to
+    // match, the target's plane keeping its scale, leaving a perspective too
+    // faint to see. Done around the draw only: the controls and the spin never
+    // see the moved camera.
+    var FLAT_K = 1 / 30;
+    var flatSavedPosition = new THREE.Vector3();
+    function drawFlat(flat) {
+      var k = Math.pow(FLAT_K, flat);
+      var fov = camera.fov;
+      var near = camera.near;
+      var far = camera.far;
+      var distance = camera.position.distanceTo(controls.target);
+      var back = distance / k - distance;
+      flatSavedPosition.copy(camera.position);
+      camera.position.sub(controls.target).multiplyScalar(1 / k).add(controls.target);
+      camera.fov = (2 * Math.atan(Math.tan((fov * Math.PI) / 360) * k) * 180) / Math.PI;
+      // The same depth window about the target, for the depth buffer's precision.
+      camera.near = near + back;
+      camera.far = far + back;
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
       if (blueprint) updateBlueprint();
       renderer.render(scene, camera);
-      return true;
+      camera.position.copy(flatSavedPosition);
+      camera.fov = fov;
+      camera.near = near;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
     }
 
     // Started by rAF, not called: every frame needs rAF's timestamp for its dt.

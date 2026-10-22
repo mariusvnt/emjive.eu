@@ -1800,9 +1800,6 @@ body:has(.order-checkout-bar:not([hidden])) {
   --gap-row: 1.25rem;
   --gap-group: 4rem;
   --gap-extra: calc(var(--gap-group) - var(--gap-row));
-  /* Specs' least blank between the title bar and the tile cluster, which sits a
-     little below the screen's first third (read by js/product.js). */
-  --specs-top: 4.5rem;
   /* Browsing (js/product-stages.js): --browse-0/1/2 are the progress through
      each stage's stretch. Inspiration moves the feed by --feed-room
      (js/product.js fitFeed). Design moves the show by --room-1 (until the last
@@ -1827,11 +1824,6 @@ body:has(.order-checkout-bar:not([hidden])) {
      design, the design stretch and the transition to specs, then the end
      stretch (--end-hold, else as long as the design stretch). */
   height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
-}
-@media (max-width: 640px) {
-  .product-stage {
-    --specs-top: 3rem;
-  }
 }
 .product-stage__pin {
   position: sticky;
@@ -2327,35 +2319,41 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before design's controls. */
   --model-gap: 3rem;
-  /* The gap under specs' tile cluster before the information. */
-  --row-gap-below: 9rem;
-  /* Specs' cluster of three touching tiles, an inverse pyramid: front view |
-     side view on top, the model under them, centred. All are
-     --plan-cell-w x --plan-cell-h, hugging the drawings: --plan-hug of the
-     picture square (--plan-tile, the drawings' and the model's scale; a
-     drawing fills about that share of it at the largest size) with
-     --plan-room on each side for the horizontal labels and --plan-room-y
-     above and below for the vertical ones, a tile never wider than a third
-     of the page margins. The square grows with the screen (--plan-p: 0 at 400px and
-     under, 1 at 1280px and over, linear between; tan(atan2(a, b)) is the
-     unitless a / b): 1.2 x a third of the row less 2rem up to 400px (the
-     tiles spanning the margins), then from there (6.6rem) to 12.5rem at
-     1280px, the smaller of the two so it never shrinks. A view and its labels
-     are centred across their tile as one group (js/product.js
-     centrePlanGroup). The model's tile is centred on the model (--lift above
-     the frame's middle), the top row a tile higher. */
+  /* Under specs' model tile: --plan-gap-above, the view buttons
+     (.product-plans: a --plan-cube cube, --plan-cube-gap, a line of the
+     secondary button text), then --plan-gap-below before the information. */
+  --plan-gap-above: 3rem;
+  --plan-cube: 2.5rem;
+  --plan-cube-gap: 0.25rem;
+  --plan-buttons-h: calc(var(--plan-cube) + var(--plan-cube-gap) + 1.4 * var(--button-secondary-font-size));
+  --plan-gap-below: 9rem;
+  --row-gap-below: calc(var(--plan-gap-above) + var(--plan-buttons-h) + var(--plan-gap-below));
+  /* Specs' model tile, the front and side view buttons hanging under it
+     (.product-plans). It is --plan-cell-w x --plan-cell-h: --plan-hug of the picture square
+     (--plan-tile, the model's scale; the model fills about that share of it
+     at the largest size) with --plan-room on each side for the outlines'
+     horizontal labels and --plan-room-y above and below for the vertical
+     ones, never wider than the page margins. The square grows with the
+     screen (--plan-p: 0 at 400px and under, 1 at 1280px and over, linear
+     between; tan(atan2(a, b)) is the unitless a / b): 1.2 x a third of the
+     row less 2rem up to 400px, then from there (6.6rem) to 12.5rem at
+     1280px, the smaller of the two so it never shrinks, all times
+     --plan-scale. The tile is centred on the model (--lift above the
+     frame's middle). */
   --plan-text: 0.5rem;
   --plan-p: clamp(0, tan(atan2(100vw - 400px, 880px)), 1);
   --plan-row-w: calc(100vw - 2 * var(--edge-px));
-  --plan-tile: min(1.2 * (var(--plan-row-w) / 3 - 2rem), 6.6rem + 5.9rem * var(--plan-p));
+  --plan-scale: 1.5;
+  --plan-tile: calc(var(--plan-scale) * min(1.2 * (var(--plan-row-w) / 3 - 2rem), 6.6rem + 5.9rem * var(--plan-p)));
   --plan-hug: 0.64;
   --plan-room: calc(1.5rem + 0.5rem * var(--plan-p));
   --plan-room-y: calc(var(--plan-text) + 0.4rem);
-  --plan-cell-w: min(var(--plan-row-w) / 3, var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room));
+  --plan-cell-w: min(var(--plan-row-w), var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room));
   --plan-cell-h: calc(var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room-y));
   /* The side the model's box shrinks to in specs: its tile's shorter one. */
   --plan-model: min(var(--plan-cell-w), var(--plan-cell-h));
-  /* Where the specs column starts: --row-gap-below under the model's tile. */
+  /* Where the specs column starts: --row-gap-below under the model's tile, so
+     --plan-gap-below under the view buttons. */
   --below-top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--row-gap-below));
 }
 @media (min-width: 641px) {
@@ -2371,15 +2369,15 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 
 /* The model's box, centred and raised by the lift. During the way to design
    it's cut at the band (--model-cut from js/product.js; negative margins so
-   overhangs aren't cut). In specs it greys and is the tile cluster's bottom
+   overhangs aren't cut). In specs it greys and fills its
    tile: the box shrinks to --model-grow x --plan-model with specs' arrival,
    overhanging its tile, as a scale (--model-k and --model-grow, from
    js/product.js fitSpecsBox; resizing would rebuild the canvas every frame),
    and the fit zoom (js/product.js specsZoom) sizes the model against the
-   shrunk box, so it keeps the drawings' scale. Only the
+   shrunk box, so it keeps the tiles' scale. Only the
    viewer's circle takes drags, in specs the tile's inscribed circle (37.5%:
    its radius without --hit-scale, hitCircle in js/product.js), so the
-   outline tiles the box overhangs still scroll the page. A non-live model
+   button tiles the box overhangs still scroll the page. A non-live model
    (poster, icon) greys too. */
 .product-model {
   position: absolute;
@@ -2909,105 +2907,130 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label.is-swapping { opacity: 0; }
 
 /* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   The tile cluster's top row (tiles of the design frame's --plan-cell-w x
-   --plan-cell-h), the front view and the side view, touching, a tile above
-   the model's, which is centred under them. The row is centred on the
-   screen, the cluster's middle a little below the screen's first third
-   (js/product.js specsModelMiddle), rising with the lift. A tile's picture, cropped alike for both views (--plan-cw,
-   --plan-ratio from js/product.js), is centred across it together with its
-   labels (translate, js/product.js centrePlanGroup) and upright on its own,
-   level with the model. On the picture, a solid line per measured axis between the
-   drawing's two farthest points (--cut-from,
-   --cut-to, --cut-at, shares of the picture, set once js/product.js has read
-   it; .is-vertical for a vertical axis), the axis's label past its end on the
-   drawing and, when its other end is off the outline, a dashed line reaching
-   on to the outline point. A label is the axis's letter, then its length at
-   the chosen size, 0.5rem apart: beside a horizontal line, past its end;
-   above or below a vertical one, the letter centred on the line. The
-   pictures scale with the chosen size as the model does (--plan-f, the size
-   over the base size, from js/product.js setModelSize).
-   Everything is in the outline's colour, the lines at 0.4
-   (--plan-mark-alpha) and the reaches at half strength (--plan-line-alpha); phones draw it finer and smaller. A dot marks
-   the view whose window is running (aria-pressed). Fades with specs;
+   Two tiles 3rem apart, as small as their content, both as wide as the
+   wider (equal grid columns over a max-content row), centred on the screen
+   and --plan-gap-above under the model's tile (the design frame's --plan-cell-h,
+   centred on the model), placed against design's blank above the model
+   (js/product.js refreshStage), rising with the lift. In each tile, a secondary button: the front view, the side
+   view, each a cube drawn in a hairline above its label, in the outline's
+   colour, black while its view is held (aria-pressed). Fades with specs;
    tappable only in it. */
 .product-plans {
-  --plan-line: 0.5px;
-  --plan-dash: 3px;
-  --plan-f: 1;
-  --plan-line-alpha: 0.5;
-  --plan-mark-alpha: 0.4;
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: calc(var(--tile) / 2 - var(--lift) - var(--plan-cell-h) * 1.5);
-  width: calc(var(--plan-cell-w) * 2);
-  height: var(--plan-cell-h);
+  top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--plan-gap-above));
+  width: max-content;
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
-  color: var(--category-col);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  column-gap: 3rem;
   opacity: var(--specs-on);
-  /* Over the model's box: only the pictures take taps, the model its drags. */
+  /* Over the model's box: only the buttons take taps, the model its drags. */
   pointer-events: none;
-}
-@media (min-width: 641px) {
-  .product-plans {
-    --plan-line: 1px;
-    --plan-dash: 4px;
-  }
 }
 .product-plans[hidden] {
   display: none;
 }
 .product-plan {
-  position: relative;
-  flex: 0 0 var(--plan-cell-w);
-  min-width: 0;
-  min-height: 0;
   margin: 0;
   padding: 0;
   border: none;
   background: none;
-  color: inherit;
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--plan-cube-gap);
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-secondary-font-size);
+  letter-spacing: var(--button-secondary-letter-spacing);
+  text-transform: var(--button-text-transform);
+  /* In step with --plan-buttons-h. */
+  line-height: 1.4;
+  color: var(--category-col);
+  white-space: nowrap;
   cursor: pointer;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity var(--fade-quick) ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: opacity var(--fade-quick) ease, color var(--fade-quick) ease;
 }
-/* A tap takes on the picture, not the room around it. */
-.product-stage[data-stage="specs"] .product-plan__pic {
+.product-plan[aria-pressed="true"] {
+  color: var(--black);
+}
+/* A tap takes on the icon and name, not the room around them. */
+.product-plan > * {
+  pointer-events: none;
+}
+.product-stage[data-stage="specs"] .product-plan > * {
   pointer-events: auto;
 }
 @media (hover: hover) {
   .product-stage[data-stage="specs"] .product-plan:hover { opacity: 0.6; }
 }
-.product-plan__pic::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--dot);
-  height: var(--dot);
-  border-radius: 50%;
-  background: transparent;
-}
-.product-plan[aria-pressed="true"] .product-plan__pic::after {
-  background: var(--category-col);
-}
-.product-plan__pic {
-  position: relative;
+.product-plan__icon {
   flex: none;
-  display: block;
-  width: calc(var(--plan-cw) * var(--plan-f) * var(--plan-tile));
-  aspect-ratio: var(--plan-ratio);
+  width: var(--plan-cube);
+  height: var(--plan-cube);
 }
-.product-plan__img {
+
+/* ---- specs: the outlines over the model ----
+   The held view's outline drawing (js/product.js showOutline), laid on the
+   model: anchored at the model box's middle (as .product-model places it,
+   with its lift), its centre and width shares of the box (--outline-x,
+   --outline-y, --outline-w, from the viewer: js/product.js placeOutline)
+   times the box's specs scale (--plan-k), so it falls exactly on the turned
+   model. Shown (.is-shown) once the model holds the view, fading in and out.
+   On the picture, a solid line per measured axis between the drawing's two
+   farthest points (--cut-from, --cut-to, --cut-at, shares of the picture,
+   set once js/product.js has read it; .is-vertical for a vertical axis), the
+   axis's label past its end on the drawing and, when its other end is off
+   the outline, a dashed line reaching on to the outline point. A label is
+   the axis's letter, then its length at the chosen size, 0.5rem apart:
+   beside a horizontal line, past its end; above or below a vertical one, the
+   letter centred on the line. Everything is in the outline's colour, at
+   full strength; phones draw it finer and smaller. Fades with specs. */
+.product-outlines {
+  --plan-line: 0.5px;
+  --plan-dash: 3px;
+  --plan-k: calc(1 + (var(--model-k, 1) - 1) * var(--s-in));
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: calc(50% - var(--lift));
+  width: 0;
+  height: 0;
+  /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
+  color: var(--category-col);
+  opacity: var(--specs-on);
+  pointer-events: none;
+}
+@media (min-width: 641px) {
+  .product-outlines {
+    --plan-line: 1px;
+    --plan-dash: 4px;
+  }
+}
+.product-outlines[hidden] {
+  display: none;
+}
+.product-outline {
+  position: absolute;
+  left: calc(var(--outline-x, 0) * var(--model-size) * var(--plan-k));
+  top: calc(var(--outline-y, 0) * var(--model-size) * var(--plan-k));
+  width: calc(var(--outline-w, 0) * var(--model-size) * var(--plan-k));
+  aspect-ratio: var(--plan-ratio);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-outline.is-shown {
+  opacity: 1;
+  transition-duration: var(--fade-standard);
+}
+.product-outline__img {
   display: block;
   width: 100%;
   height: 100%;
@@ -3019,26 +3042,19 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    whole device pixels, a box's isn't). Hidden until the picture has been read
    (.is-cut). The letter sits past the end on the drawing (.is-label-to: the
    right or bottom end, else the left or top one). */
-.product-plan__mark {
+.product-outline__mark {
   position: absolute;
   left: calc(var(--cut-from) * 100%);
   top: calc(var(--cut-at) * 100% - var(--plan-line) / 2);
   width: calc((var(--cut-to) - var(--cut-from)) * 100%);
   height: var(--plan-line);
+  background: currentColor;
   visibility: hidden;
 }
-/* The line itself, apart from the label, which stays at full strength. */
-.product-plan__mark::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: currentColor;
-  opacity: var(--plan-mark-alpha);
-}
-.product-plan__mark.is-cut {
+.product-outline__mark.is-cut {
   visibility: visible;
 }
-.product-plan__label {
+.product-outline__label {
   position: absolute;
   top: 50%;
   right: 100%;
@@ -3052,7 +3068,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   line-height: 1;
   white-space: nowrap;
 }
-.product-plan__mark.is-label-to .product-plan__label {
+.product-outline__mark.is-label-to .product-outline__label {
   right: auto;
   left: 100%;
   margin: 0 0 0 0.4rem;
@@ -3060,33 +3076,32 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 /* A line end off the outline reaches on, as a dashed line, to the outline's
    extreme point it stands for (a child of the picture, so its shares are the
    picture's). */
-.product-plan__reach {
+.product-outline__reach {
   position: absolute;
   left: calc(var(--reach-x) * 100%);
   top: calc(var(--reach-from) * 100%);
   width: var(--plan-line);
   height: calc(var(--reach-len) * 100%);
   background: repeating-linear-gradient(to bottom, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
-  opacity: var(--plan-line-alpha);
   visibility: hidden;
 }
-.product-plan__reach.is-cut {
+.product-outline__reach.is-cut {
   visibility: visible;
 }
-.product-plan__reach.is-end-to {
+.product-outline__reach.is-end-to {
   transform: translateX(-100%);
 }
-.product-plan__reach.is-vertical {
+.product-outline__reach.is-vertical {
   left: calc(var(--reach-from) * 100%);
   top: calc(var(--reach-x) * 100%);
   width: calc(var(--reach-len) * 100%);
   height: var(--plan-line);
   background: repeating-linear-gradient(to right, currentColor 0 var(--plan-dash), transparent var(--plan-dash) calc(var(--plan-dash) * 2));
 }
-.product-plan__reach.is-vertical.is-end-to {
+.product-outline__reach.is-vertical.is-end-to {
   transform: translateY(-100%);
 }
-.product-plan__mark.is-vertical {
+.product-outline__mark.is-vertical {
   left: calc(var(--cut-at) * 100% - var(--plan-line) / 2);
   top: calc(var(--cut-from) * 100%);
   width: var(--plan-line);
@@ -3094,7 +3109,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 /* Above or below a vertical line, the letter centred on it and its length
    out of the flow, 0.5rem to its right. */
-.product-plan__mark.is-vertical .product-plan__label {
+.product-outline__mark.is-vertical .product-outline__label {
   top: auto;
   right: auto;
   bottom: 100%;
@@ -3103,12 +3118,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin: 0 0 0.4rem;
   transform: translateX(-50%);
 }
-.product-plan__mark.is-vertical.is-label-to .product-plan__label {
+.product-outline__mark.is-vertical.is-label-to .product-outline__label {
   top: 100%;
   bottom: auto;
   margin: 0.4rem 0 0;
 }
-.product-plan__mark.is-vertical .product-plan__value {
+.product-outline__mark.is-vertical .product-outline__value {
   position: absolute;
   top: 0;
   left: 100%;
@@ -3356,14 +3371,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     position: static;
     opacity: 1;
   }
-  /* The two plan tiles alone: the model keeps its own place here. */
+  /* In the column, under the model. */
   .product-plans {
-    top: 0;
-    width: calc(var(--plan-cell-w) * 2);
+    position: static;
+    transform: none;
     opacity: 1;
   }
-  .product-plan__pic {
+  .product-plan > * {
     pointer-events: auto;
+  }
+  /* The model's box heads the frame, unscaled. */
+  .product-outlines {
+    --plan-k: 1;
+    top: calc(var(--model-size) / 2);
+    opacity: 1;
   }
   .product-size {
     opacity: 1;

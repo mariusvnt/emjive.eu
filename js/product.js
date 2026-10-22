@@ -94,6 +94,8 @@
     planViews: null,
     planFrame: null,
     planImagesOn: false,
+    // The view whose outline lies over the model ("" for none: showOutline).
+    outlineView: "",
     // The model's lift on its way into specs, px (refreshStage).
     lift: 0,
     // The model box's scale once in specs (fitSpecsBox).
@@ -782,6 +784,8 @@
         // (--hit-scale in css/style.css, which assumes this margin).
         hitCircle: 0.25,
         onAway: setModelAway,
+        // A plan view's outline over the model while it holds the view.
+        onViewHeld: showOutline,
         // Also fires for a lost WebGL context, possibly long after loading (iOS
         // reclaims GPU contexts under memory pressure).
         onError: replaceModelWithIcon,
@@ -1283,21 +1287,22 @@
 
   /* ---- plan views (specs) ---- */
 
-  // The model's front and side views (scripts/auto-render.js), the outer
-  // tiles of a row with the model in the middle, each picture centred in its tile, its labels hanging off it. They carry lines, one per axis they measure (x
-  // and y on the front, z on the side; EmjiveHelpers.PLAN_VIEWS), each
-  // running between the picture's two farthest points along its axis, at the
-  // height (or column) of one of them, with the axis's letter past the end that
-  // is on the outline; an end off the outline gets a dashed line reaching on
-  // to the outline point it stands for (placed once the picture is in:
-  // measureMark). Beside each letter, its length at the chosen size in cm. The pictures are drawn in their design's plan
-  // frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
-  // (--plan-cw, --plan-ratio: its
-  // share of a tile's square and its proportions); they scale with the chosen
-  // size as the model does (--plan-f, syncPlanSizes). A tap turns the model to the view for
-  // PLAN_HOLD_MS before it eases back; the view stays pressed until then
-  // (setModelAway). Hidden without the pictures or the frame.
-  var PLAN_HOLD_MS = 2000;
+  // The model's front and side views (scripts/auto-render.js): a button for
+  // each, in two tiles under the model's. A tap turns the
+  // model to the view for PLAN_HOLD_MS before it eases back; the button stays
+  // pressed until then (setModelAway). Once the model is there, the view's
+  // outline drawing fades in over it, laid exactly on the model
+  // (placeOutline), and fades out as the hold ends (showOutline). A drawing
+  // carries lines, one per axis it measures (x and y on the front, z on the
+  // side; EmjiveHelpers.PLAN_VIEWS), each running between its two farthest
+  // points along its axis, at the height (or column) of one of them, with the
+  // axis's letter past the end that is on the outline; an end off the
+  // outline gets a dashed line reaching on to the outline point it stands for
+  // (placed once the picture is in: measureMark). Beside each letter, its
+  // length at the chosen size in cm. The pictures are drawn in their design's
+  // plan frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
+  // (--plan-ratio: its proportions). Hidden without the pictures or the frame.
+  var PLAN_HOLD_MS = 4000;
   var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
   var PLAN_AXES = ["x", "y", "z"];
   // A picture's pixel counts as drawn from this alpha (of 255).
@@ -1412,93 +1417,85 @@
       reach.style.setProperty("--reach-from", Math.min(found.at, found.far).toFixed(4));
       reach.style.setProperty("--reach-len", Math.abs(found.far - found.at).toFixed(4));
     });
-    centrePlanGroup(name);
   }
 
-  // Centres a view's picture and labels together across its tile (upright,
-  // the picture stays level with the model): the picture, and all drawn on
-  // it, moves (translate) by half what its labels and lengths reach past it
-  // on one side more than the other. Re-run whenever they change size: the
-  // marks, the lengths, the size, the screen, the font.
-  function centrePlanGroup(name) {
-    var view = state.planViews && state.planViews[name];
-    if (!view) return;
-    var box = view.pic.getBoundingClientRect();
-    if (!box.width) return;
-    var l = 0, r = box.width;
-    view.marks.forEach(function (mark) {
-      if (!mark.classList.contains("is-cut")) return;
-      var label = mark.firstChild;
-      [label, label.lastChild].forEach(function (part) {
-        var p = part.getBoundingClientRect();
-        if (!p.width) return;
-        l = Math.min(l, p.left - box.left);
-        r = Math.max(r, p.right - box.left);
-      });
-    });
-    view.pic.style.translate = ((box.width - l - r) / 2).toFixed(1) + "px 0px";
-  }
-  function centrePlanGroups() {
-    if (state.planViews) Object.keys(state.planViews).forEach(centrePlanGroup);
+  // The buttons' cubes, in oblique view: the front square, the top and the
+  // right face drawn in a hairline at any size, no hidden edges, and the face
+  // the view looks at filled.
+  var PLAN_CUBE = "M4 8 H16 V20 H4 Z M4 8 L8 4 H20 L16 8 M20 4 V16 L16 20";
+  var PLAN_FACES = { front: "M4 8 H16 V20 H4 Z", side: "M16 8 L20 4 V16 L16 20 Z" };
+  function planIcon(name) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "product-plan__icon");
+    // Cropped to the cube, so its label sits right under it.
+    svg.setAttribute("viewBox", "3.5 3.5 17 17");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.innerHTML = '<path d="' + (PLAN_FACES[name] || "") + '" fill="currentColor" opacity="0.15"/>' +
+      '<path d="' + PLAN_CUBE + '" fill="none" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+    return svg;
   }
 
-  function buildPlanViews(host) {
+  function buildPlanViews(host, outlines) {
     var views = {};
     Object.keys(H.PLAN_VIEWS).forEach(function (name) {
       var button = el("button", "product-plan");
       button.type = "button";
       button.setAttribute("data-view", name);
       button.setAttribute("aria-pressed", "false");
-      var pic = el("span", "product-plan__pic");
-      var img = document.createElement("img");
-      img.className = "product-plan__img";
-      img.alt = "";
-      img.decoding = "async";
-      img.draggable = false;
-      img.addEventListener("load", function () { placeMarks(name); });
-      pic.appendChild(img);
-      var reaches = [];
-      var values = [];
-      var marks = H.PLAN_VIEWS[name].measures.map(function () {
-        var reach = el("span", "product-plan__reach");
-        reach.setAttribute("aria-hidden", "true");
-        pic.appendChild(reach);
-        reaches.push(reach);
-        var mark = el("span", "product-plan__mark");
-        mark.setAttribute("aria-hidden", "true");
-        var label = el("span", "product-plan__label");
-        label.appendChild(el("span", "product-plan__axis"));
-        var value = el("span", "product-plan__value");
-        label.appendChild(value);
-        values.push(value);
-        mark.appendChild(label);
-        pic.appendChild(mark);
-        return mark;
-      });
-      button.appendChild(pic);
+      button.appendChild(planIcon(name));
+      button.appendChild(el("span", "product-plan__name", PLAN_NAMES[name] || name));
       button.addEventListener("click", function () {
         if (!state.modelHandle || !state.modelHandle.showView) return;
         state.modelHandle.showView(name, PLAN_HOLD_MS);
         markPlanView(name);
       });
       host.appendChild(button);
-      views[name] = { button: button, pic: pic, img: img, marks: marks, reaches: reaches, values: values };
+
+      var outline = el("div", "product-outline");
+      outline.setAttribute("data-view", name);
+      var img = document.createElement("img");
+      img.className = "product-outline__img";
+      img.alt = "";
+      img.decoding = "async";
+      img.draggable = false;
+      img.addEventListener("load", function () { placeMarks(name); });
+      outline.appendChild(img);
+      var reaches = [];
+      var values = [];
+      var marks = H.PLAN_VIEWS[name].measures.map(function () {
+        var reach = el("span", "product-outline__reach");
+        outline.appendChild(reach);
+        reaches.push(reach);
+        var mark = el("span", "product-outline__mark");
+        var label = el("span", "product-outline__label");
+        label.appendChild(el("span", "product-outline__axis"));
+        var value = el("span", "product-outline__value");
+        label.appendChild(value);
+        values.push(value);
+        mark.appendChild(label);
+        outline.appendChild(mark);
+        return mark;
+      });
+      outlines.appendChild(outline);
+      views[name] = { button: button, outline: outline, img: img, marks: marks, reaches: reaches, values: values };
     });
     return views;
   }
 
   function renderPlanViews() {
     var host = document.getElementById("productPlans");
-    if (!host || !state.view) return;
+    var outlines = document.getElementById("productOutlines");
+    if (!host || !outlines || !state.view) return;
     var paths = (state.view.assets && state.view.assets["plan-views"]) || {};
     var frame = H.planFrame(state.view);
     var names = Object.keys(H.PLAN_VIEWS);
     state.planFrame = frame && names.every(function (name) { return paths[name]; }) ? frame : null;
     host.hidden = !state.planFrame;
+    outlines.hidden = !state.planFrame;
     if (!state.planFrame) return;
-    host.style.setProperty("--plan-cw", (frame.crop.w / frame.tile).toFixed(4));
-    host.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
-    if (!state.planViews) state.planViews = buildPlanViews(host);
+    outlines.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
+    if (!state.planViews) state.planViews = buildPlanViews(host, outlines);
     names.forEach(function (name) {
       var view = state.planViews[name];
       frame.views[name].measures.forEach(function (measure, i) {
@@ -1510,15 +1507,14 @@
       else placeMarks(name);
     });
     syncPlanSizes();
+    placeOutline();
   }
 
-  // The pictures at the chosen size (--plan-f), and each measure at it: its
-  // axis of the model's box in cm, beside its letter and in the view's label.
+  // Each measure at the chosen size: its axis of the model's box in cm,
+  // beside its letter and in the view's button label.
   function syncPlanSizes() {
     var frame = state.planFrame;
     if (!frame || !state.planViews) return;
-    var host = document.getElementById("productPlans");
-    if (host) host.style.setProperty("--plan-f", state.sizeFactor.toFixed(4));
     Object.keys(H.PLAN_VIEWS).forEach(function (name) {
       var view = state.planViews[name];
       var said = frame.views[name].measures.map(function (measure, i) {
@@ -1528,7 +1524,6 @@
       });
       view.button.setAttribute("aria-label", PLAN_NAMES[name] + " view" + (said.length ? ", " + said.join(", ") : ""));
     });
-    centrePlanGroups();
   }
 
   // The view whose window is running ("" for none).
@@ -1537,6 +1532,31 @@
     Object.keys(state.planViews).forEach(function (key) {
       state.planViews[key].button.setAttribute("aria-pressed", String(key === name));
     });
+  }
+
+  // The outline of the view the model holds ("" for none), from the viewer
+  // (onViewHeld).
+  function showOutline(name) {
+    state.outlineView = name || "";
+    placeOutline();
+    if (!state.planViews) return;
+    Object.keys(state.planViews).forEach(function (key) {
+      state.planViews[key].outline.classList.toggle("is-shown", key === state.outlineView);
+    });
+  }
+
+  // Lays the shown outline on the model: the viewer's figures for the view
+  // (viewPlacement: its centre and a mm, shares of the canvas, which is the
+  // model's box), set as shares of the box for CSS to place it against the
+  // box (.product-outline). Re-run whenever the model's scale may have changed.
+  function placeOutline() {
+    var view = state.planViews && state.planViews[state.outlineView];
+    var handle = state.modelHandle;
+    var place = view && state.planFrame && handle && handle.viewPlacement ? handle.viewPlacement(state.outlineView) : null;
+    if (!place) return;
+    view.outline.style.setProperty("--outline-x", place.x.toFixed(5));
+    view.outline.style.setProperty("--outline-y", place.y.toFixed(5));
+    view.outline.style.setProperty("--outline-w", (state.planFrame.crop.w * place.mm).toFixed(5));
   }
 
   /* ---- the three stages ---- */
@@ -1571,11 +1591,9 @@
       requestAnimationFrame(function () {
         resizeQueued = false;
         fitSizeTape();
-        centrePlanGroups();
         refreshStage();
       });
     });
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(centrePlanGroups);
   }
 
   function onStageChange(stage) {
@@ -1803,8 +1821,8 @@
     if (!(ratio >= 0)) ratio = 0.5;
     fitDesignRoom();
     var room = designRoomPx();
-    // The model's specs place: its tile's middle (specsModelMiddle); `place` is how far up its middle is from rest
-    // (tile middle less the current browse; negative when it sits lower than rest).
+    // The model's specs place: `place` is how far up its middle is from rest
+    // (negative when it sits lower than rest).
     var place = 0;
     // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
     // the screen (or under the title bar), then DESIGN_GAP_REM lower. Everything
@@ -1814,11 +1832,12 @@
       var box = designFrameEl.getBoundingClientRect();
       var titleBar = document.querySelector(".product-detail__label-bar");
       // The model's approximate half-height at its fitted size.
-      var half = SPECS_HALF_HEIGHT * box.height;
+      var half = DESIGN_HALF_HEIGHT * box.height;
       var rem = remPx();
-      var middle = specsModelMiddle(titleBar ? titleBar.getBoundingClientRect().bottom : 0);
-      place = box.top + box.height / 2 + browsed - middle;
       hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
+      // Specs' model top where design's stands, its larger half under it,
+      // then SPECS_RAISE_REM higher.
+      place = hold + half - specsHalfHeight() + SPECS_RAISE_REM * rem;
     }
     var path = modelRise(state.along, place, room, ratio, state.ramp, hold);
     var span = state.flow ? null : modelSpan();
@@ -1912,6 +1931,7 @@
     state.modelHandle.setFitZoom(specsZoom());
     state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeFactor);
+    placeOutline();
   }
 
   // Before the viewer: fallback-img hands over to the specs-poster (drawn
@@ -1935,28 +1955,21 @@
     specs.style.transform = "scale(" + (1 + (state.sizeFactor * zoom - 1) * state.fit).toFixed(4) + ")";
   }
 
-  // Specs' tile cluster (css/style.css, the design frame): the picture square
-  // (the probe's width) and the tile's height (its height); the blank it keeps
-  // at least under the title bar (--specs-top, the other probe).
+  // Specs' model tile (css/style.css, the design frame): the picture square
+  // (the probe's width) and the tile's height (its height).
   var specsRowProbe = null;
-  var specsTopProbe = null;
   function specsProbe() {
     if (!specsRowProbe) specsRowProbe = lengthProbe(designFrameEl, "width:var(--plan-tile);height:var(--plan-cell-h)");
     return specsRowProbe;
   }
-  // The cluster's middle on arrival: half a tile under SPECS_ROW_TOP of the
-  // screen down, raised by SPECS_ROW_RAISE_REM, its top (two tiles up) at
-  // least --specs-top under the title bar. The model's tile is its lower half.
-  var SPECS_ROW_TOP = 0.36;
-  var SPECS_ROW_RAISE_REM = 9;
-  function specsModelMiddle(titleBottom) {
-    if (!specsTopProbe) specsTopProbe = lengthProbe(designFrameEl, "width:0;height:var(--specs-top)");
-    var tile = specsProbe().offsetHeight;
-    var middle = Math.max(SPECS_ROW_TOP * screenHeight() - SPECS_ROW_RAISE_REM * remPx() + tile / 2, titleBottom + specsTopProbe.offsetHeight + tile);
-    return middle + tile / 2;
+  // The model's approximate half-height in specs, at the starting size.
+  var SPECS_HALF_SHARE = 0.3;
+  var SPECS_RAISE_REM = 3;
+  function specsHalfHeight() {
+    return SPECS_HALF_SHARE * specsProbe().offsetWidth;
   }
 
-  // The model box's scale once in specs (--model-k on the box, css/style.css
+  // The model box's scale once in specs (--model-k on the frame, css/style.css
   // .product-model): its side brought to SPECS_VIEWER_GROW x --plan-model,
   // overhanging its tile. Measured here, not in CSS, so the box's scale and
   // the fit zoom read the same figures and can't disagree.
@@ -1970,13 +1983,13 @@
     var k = box > 0 && side > 0 ? +(side / box).toFixed(4) : 1;
     if (k === state.modelK) return;
     state.modelK = k;
-    modelBoxEl.style.setProperty("--model-k", String(k));
-    modelBoxEl.style.setProperty("--model-grow", String(SPECS_VIEWER_GROW));
+    designFrameEl.style.setProperty("--model-k", String(k));
+    designFrameEl.style.setProperty("--model-grow", String(SPECS_VIEWER_GROW));
   }
 
   // The fitted model's zoom in specs: the drawing, SPECS_MODEL_SHARE of the
   // box at the largest size, fills the picture square once the box has
-  // shrunk (fitSpecsBox); smaller sizes shrink it as they shrink the outlines.
+  // shrunk (fitSpecsBox); smaller sizes shrink it.
   function specsZoom() {
     var box = modelBoxEl ? modelBoxEl.offsetWidth * state.modelK : 0;
     var square = designFrameEl ? specsProbe().offsetWidth : 0;
@@ -1987,7 +2000,7 @@
   // half-height as a share of its tile.
   var DESIGN_ANCHOR = 1 / 3;
   var DESIGN_GAP_REM = 4.5;
-  var SPECS_HALF_HEIGHT = 0.13;
+  var DESIGN_HALF_HEIGHT = 0.13;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize scales
   // the model, specs and tape to a typed size (none: the base), clamped to

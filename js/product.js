@@ -1957,19 +1957,21 @@
   }
 
   // The model box's scale once in specs (--model-k on the box, css/style.css
-  // .product-model): its side brought down to --plan-model. Measured here, not
-  // in CSS, so the box's scale and the fit zoom read the same figures and
-  // can't disagree.
+  // .product-model): its side brought to SPECS_VIEWER_GROW x --plan-model,
+  // overhanging its tile. Measured here, not in CSS, so the box's scale and
+  // the fit zoom read the same figures and can't disagree.
+  var SPECS_VIEWER_GROW = 1.5;
   var specsModelProbe = null;
   function fitSpecsBox() {
     if (!modelBoxEl || !designFrameEl) return;
     if (!specsModelProbe) specsModelProbe = lengthProbe(designFrameEl, "width:var(--plan-model);height:0");
     var box = modelBoxEl.offsetWidth;
-    var side = specsModelProbe.offsetWidth;
+    var side = specsModelProbe.offsetWidth * SPECS_VIEWER_GROW;
     var k = box > 0 && side > 0 ? +(side / box).toFixed(4) : 1;
     if (k === state.modelK) return;
     state.modelK = k;
     modelBoxEl.style.setProperty("--model-k", String(k));
+    modelBoxEl.style.setProperty("--model-grow", String(SPECS_VIEWER_GROW));
   }
 
   // The fitted model's zoom in specs: the drawing, SPECS_MODEL_SHARE of the

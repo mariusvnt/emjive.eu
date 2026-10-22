@@ -2372,13 +2372,15 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 /* The model's box, centred and raised by the lift. During the way to design
    it's cut at the band (--model-cut from js/product.js; negative margins so
    overhangs aren't cut). In specs it greys and is the tile cluster's bottom
-   tile: the box shrinks to --plan-model with specs' arrival, as a scale
-   (--model-k, from js/product.js fitSpecsBox; resizing would rebuild the
-   canvas every frame), and the fit zoom
-   (js/product.js specsZoom) sizes the model against the shrunk box, so it
-   keeps the drawings' scale. Only the viewer's circle takes drags, in specs
-   the box's whole inscribed circle (37.5%: its radius without --hit-scale,
-   hitCircle in js/product.js). A non-live model (poster, icon) greys too. */
+   tile: the box shrinks to --model-grow x --plan-model with specs' arrival,
+   overhanging its tile, as a scale (--model-k and --model-grow, from
+   js/product.js fitSpecsBox; resizing would rebuild the canvas every frame),
+   and the fit zoom (js/product.js specsZoom) sizes the model against the
+   shrunk box, so it keeps the drawings' scale. Only the
+   viewer's circle takes drags, in specs the tile's inscribed circle (37.5%:
+   its radius without --hit-scale, hitCircle in js/product.js), so the
+   outline tiles the box overhangs still scroll the page. A non-live model
+   (poster, icon) greys too. */
 .product-model {
   position: absolute;
   z-index: 1;
@@ -2388,7 +2390,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: var(--model-size);
   transform: translate(-50%, calc(-50% - var(--lift))) scale(calc(1 + (var(--model-k, 1) - 1) * var(--s-in)));
   clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
-  --hit-scale: calc(1 + var(--s-in) / 3);
+  --hit-scale: calc((1 + var(--s-in) / 3) / (1 + (var(--model-grow, 1) - 1) * var(--s-in)));
 }
 /* The reset button, centred above the model's box: shown once the model is
    turned off its pose (.is-away), fading with design; tappable only in design. */

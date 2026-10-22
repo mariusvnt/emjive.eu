@@ -140,7 +140,7 @@ Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden
 
 ## 6. Responsive images
 
-The big pictures (the hero, the item x-rays) come in up to four versions: desktop or phone, low or high resolution. The phone versions are **cropped** to the middle of the picture, because a phone only ever shows the middle. That's also why they are chosen in JavaScript from the phone query and not with `srcset`/`sizes`: `sizes` can't say "most of this is off-canvas". Low resolution comes first, and high resolution is swapped in once the page is idle. The crop fractions and the query live in several files (the image script, the stylesheets, the loader, the Node helpers), and `validate-data` checks that they agree.
+The big pictures (the hero, the item x-rays) come in up to four versions: desktop or phone, low or high resolution. The hero's phone versions are **cropped** to the middle of the picture, because a phone only ever shows the middle; the x-rays' are uncropped, since the item page fits the x-ray to the screen. The crop is also why they are chosen in JavaScript from the phone query and not with `srcset`/`sizes`: `sizes` can't say "most of this is off-canvas". Low resolution comes first, and high resolution is swapped in once the page is idle. The crop fraction and the query live in several files (the image script, the stylesheets, the loader, the Node helpers), and `validate-data` checks that they agree.
 
 ## 7. Build, verify, deploy
 

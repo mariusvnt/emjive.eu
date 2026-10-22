@@ -692,7 +692,6 @@ if (existsExactCase("js/helpers.js")) {
   else if (Number(match[1]) !== REFERENCE_SIZE_MM) fail("js/helpers.js", "REFERENCE_SIZE_MM is " + match[1] + " but scripts/helpers.js has " + REFERENCE_SIZE_MM);
 }
 
-checkPhoneConstants("css/style.css", { "xray-crop": PHONE_CROP.xray });
 if (existsExactCase("js/loader.js") && !fs.readFileSync(path.join(ROOT, "js/loader.js"), "utf8").includes(PHONE_QUERY)) {
   fail("js/loader.js", "does not contain the phone query " + PHONE_QUERY);
 }

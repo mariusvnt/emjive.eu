@@ -233,7 +233,7 @@
           "silver": "assets/series/bones/products/suture_ring/suture_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/suture_ring/suture_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/suture_ring/suture_xray.webp",
         "hand-poster": "assets/series/bones/products/suture_ring/suture_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/suture_ring/suture_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/suture_ring/suture_plan-front.webp", "side": "assets/series/bones/products/suture_ring/suture_plan-side.webp" },
@@ -274,7 +274,7 @@
           "silver": "assets/series/bones/products/cartilage_ring/cartilage_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/cartilage_ring/cartilage_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/cartilage_ring/cartilage_xray.webp",
         "hand-poster": "assets/series/bones/products/cartilage_ring/cartilage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/cartilage_ring/cartilage_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/cartilage_ring/cartilage_plan-front.webp", "side": "assets/series/bones/products/cartilage_ring/cartilage_plan-side.webp" },
@@ -315,7 +315,7 @@
           "silver": "assets/series/bones/products/rib-cage_ring/rib-cage_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/rib-cage_ring/rib-cage_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/rib-cage_ring/rib-cage_xray.webp",
         "hand-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/rib-cage_ring/rib-cage_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-front.webp", "side": "assets/series/bones/products/rib-cage_ring/rib-cage_plan-side.webp" },
@@ -479,7 +479,7 @@
           "silver": "assets/series/bones/products/joint_ring/joint_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/joint_ring/joint_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/joint_ring/joint_xray.webp",
         "hand-poster": "assets/series/bones/products/joint_ring/joint_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/joint_ring/joint_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/joint_ring/joint_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint_plan-side.webp" },
@@ -512,7 +512,7 @@
           "silver": "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/omoplates_ring/omoplates_xray.webp",
         "hand-poster": "assets/series/bones/products/omoplates_ring/omoplates_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/omoplates_ring/omoplates_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/omoplates_ring/omoplates_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates_plan-side.webp" },
@@ -567,7 +567,7 @@
           "silver": "assets/series/bones/products/jaw_ring/jaw_wheel-poster_silver.webp",
           "bronze": "assets/series/bones/products/jaw_ring/jaw_wheel-poster_bronze.webp"
         },
-        "xray": "",
+        "xray": "assets/series/bones/products/jaw_ring/jaw_xray.webp",
         "hand-poster": "assets/series/bones/products/jaw_ring/jaw_hand-poster.webp",
         "specs-poster": "assets/series/bones/products/jaw_ring/jaw_specs-poster.webp",
         "plan-views": { "front": "assets/series/bones/products/jaw_ring/jaw_plan-front.webp", "side": "assets/series/bones/products/jaw_ring/jaw_plan-side.webp" },

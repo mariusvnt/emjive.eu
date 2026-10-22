@@ -2450,34 +2450,34 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   filter: grayscale(var(--to-specs));
 }
 
-/* The x-ray backdrop: static, sized well past the tile (1.66x, at least 512px)
-   since the source images carry transparent padding; 3:4, centred. Fades with
-   design's controls (--d-on). Source and visibility from js/product.js. */
+/* The x-ray backdrop: 3:4, centred on the model, its top edge --xray-above
+   over the model's box, a share of its width so it scales with it, following
+   the model's lift. A fixed multiple of the model's box, scaled down where its
+   foot would leave the screen, but never under 375px wide. At --xray-opacity,
+   fading with design's controls (--d-on). Source and visibility from
+   js/product.js. */
 .product-design__xray {
-  /* 0.88 at 400px and under, 1.1 at 1440px and over, linear between
-     (tan(atan2(a, b)) is the unitless a / b). */
-  --xray-scale: calc(0.88 + 0.22 * clamp(0, tan(atan2(100vw - 400px, 1040px)), 1));
-  --xray-width: calc(max(512px, calc(var(--tile) * 1.66)) * var(--xray-scale));
-  /* The share of the picture's width the file keeps: 1 on desktop, --xray-crop
-     for phone versions; the box narrows to match, so the artwork keeps its size. */
-  --xray-crop: 1;
+  --xray-opacity: 0.8;
+  /* 6rem at the 375px minimum. */
+  --xray-above-k: 0.256;
+  /* The model's box top on the screen at rest: the frame is centred in the
+     show (100cqh), which ends at the pin's foot. */
+  --model-top: calc(var(--stage-top) + var(--pin-h) - 100cqh / 2 - var(--model-size) / 2);
+  /* The widest x-ray whose foot stays on the screen (its top rises with its width). */
+  --xray-fit: calc((100svh - var(--model-top)) * 3 / (4 - 3 * var(--xray-above-k)));
+  --xray-width: max(375px, min(var(--model-size) * 2.43, 100vw, var(--xray-fit)));
+  --xray-above: calc(var(--xray-width) * var(--xray-above-k));
   position: absolute;
-  top: 50%;
+  top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift) - var(--xray-above));
   left: 50%;
   z-index: 0;
-  transform: translate(-50%, -50%);
-  width: calc(var(--xray-width) * var(--xray-crop));
+  transform: translateX(-50%);
+  width: var(--xray-width);
+  /* Past the screen's edges below 375px, not squeezed to it. */
+  max-width: none;
   height: calc(var(--xray-width) * 4 / 3);
-  object-fit: cover;
   pointer-events: none;
-  opacity: var(--d-on);
-}
-/* Phones: same query as PHONE_QUERY (js/loader.js); --xray-crop is
-   PHONE_CROP.xray (scripts/make-image-variants.js), checked by validate-data. */
-@media (max-width: 640px) and (max-aspect-ratio: 3/5) {
-  .product-design__xray {
-    --xray-crop: 0.85;
-  }
+  opacity: calc(var(--xray-opacity) * var(--d-on));
 }
 
 
@@ -3333,9 +3333,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     transform: none;
     opacity: 1;
   }
+  /* The model heads the frame; fitted as if scrolled to the header's foot. */
   .product-design__xray {
-    top: calc(var(--tile) / 2);
-    opacity: 1;
+    --xray-fit: calc((100svh - var(--header-height)) * 3 / 4);
+    top: calc(var(--xray-above) * -1);
+    opacity: var(--xray-opacity);
   }
   .product-reset {
     display: none;

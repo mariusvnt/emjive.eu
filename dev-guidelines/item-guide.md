@@ -161,4 +161,4 @@ With `json-tool`, whose blocking checks keep the catalog whole. By hand means fi
 
 ## 7. Current content
 
-Placeholder content is expected, not a bug. Only Furcula has real prices, a description and photos. Every other product shows "TBD" prices and a placeholder description with no photos, a few aren't placed on the hero's hand yet, and several have no x-ray backdrop. Every product has its model, wireframe, measured geometry and full set of renders.
+Placeholder content is expected, not a bug. Only Furcula has real prices, a description and photos. Every other product shows "TBD" prices and a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders.

@@ -24,19 +24,18 @@ const { ROOT, repoPath, walk, argValue } = require("./helpers");
 const ASSETS_ROOT = join(ROOT, "assets", "series");
 
 // Share of the width a smartphone version keeps, around the centre. Mirrored
-// by --xray-crop (css/style.css) and --hero-crop (series/<slug>/hero.css);
-// validate-data.js checks they match.
-//   xray: a 375-640px phone shows 0.74-0.83 of the backdrop's box; 0.85 clears both.
+// by --hero-crop (series/<slug>/hero.css); validate-data.js checks they match.
 //   hero: a portrait phone (aspect <= 3:5) shows at most 0.6 * 9/16 of it; 0.40 clears that.
-const PHONE_CROP = { xray: 0.85, hero: 0.4 };
+// The x-ray isn't cropped: a phone shows its whole width.
+const PHONE_CROP = { hero: 0.4 };
 
 // { suffix, width|height, crop?, quality }: cropped to the middle `crop` of the
 // width, then resized (never enlarged). Low-res versions are the throwaway
 // first paint, hence the lower quality.
 const XRAY = [
   { suffix: "lo", width: 640, quality: 72 },
-  { suffix: "m", crop: PHONE_CROP.xray, height: 1600, quality: 78 },
-  { suffix: "m_lo", crop: PHONE_CROP.xray, height: 800, quality: 70 }
+  { suffix: "m", height: 1600, quality: 78 },
+  { suffix: "m_lo", height: 800, quality: 70 }
 ];
 const HERO = [
   { suffix: "lo", width: 1280, quality: 74 },

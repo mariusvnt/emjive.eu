@@ -25,6 +25,13 @@ const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 // (validate-data checks).
 const REFERENCE_SIZE_MM = 62;
 
+// The sizes a model is measured over: every "size-range" lies within
+// (validate-data checks).
+const SIZE_SPAN_MM = { min: 40, max: 80 };
+// The sizes a model's axis-aligned box is measured at: the span's ends and
+// the reference (js/helpers.js interpolates between them).
+const MEASURED_SIZES_MM = [SIZE_SPAN_MM.min, REFERENCE_SIZE_MM, SIZE_SPAN_MM.max];
+
 /* ---- files ---- */
 
 // A repo-relative path, or an absolute one.
@@ -81,12 +88,20 @@ function productFolder(seriesSlug, name, category) {
   return "assets/series/" + seriesSlug + "/products/" + folderSlug(name) + "_" + category;
 }
 
+// A measured "geometry" (or its "print") volume at a size, cm3, as
+// js/helpers.js volumeAt() computes it.
+function volumeAt(geometry, mm) {
+  return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
+}
+
 // A product's lowest and highest price over its priced metals and its
 // "size-range", in whole euros, as js/selection.js priceAt() computes them;
 // null when no metal is priced (TBD).
 function priceSpan(product) {
   const range = product["size-range"];
-  const at = (base, mm) => Math.round(base * mm / REFERENCE_SIZE_MM);
+  const geometry = product.geometry || {};
+  const printed = geometry.print || geometry;
+  const at = (base, mm) => Math.round(base * volumeAt(printed, mm) / volumeAt(printed, REFERENCE_SIZE_MM));
   let low = Infinity;
   let high = 0;
   for (const specs of Object.values(product["per-metal-specs"] || {})) {
@@ -270,6 +285,8 @@ module.exports = {
   SITE_ORIGIN,
   PHONE_QUERY,
   REFERENCE_SIZE_MM,
+  SIZE_SPAN_MM,
+  MEASURED_SIZES_MM,
   readJson,
   repoPath,
   walk,

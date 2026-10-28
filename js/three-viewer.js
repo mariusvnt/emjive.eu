@@ -200,14 +200,85 @@ export { toolkit };
     "}"
   ].join("\n");
 
-  // The size factors the page scales a model by: its "size-range" over the
-  // size it's drawn at, and 1 (no size given). The fit leaves room for the largest.
-  function sizeFactors(product) {
+  // The sizes, mm, the page may show a model at: its "size-range", and the
+  // reference (no size given). The fit leaves room for the largest.
+  function sizeBounds(product) {
     var range = H.sizeRange(product);
+    return { min: Math.min(range.min, H.REFERENCE_SIZE_MM), max: Math.max(range.max, H.REFERENCE_SIZE_MM) };
+  }
+
+  // ---- ring sizing ----
+  // A ring changes size as scripts/ring-size.js sizes its print model: every
+  // point keeps its angle and its height along the finger axis, and its
+  // distance from the axis grows by uSizeShift mm (EmjiveHelpers.sizeShift).
+  // The axis runs through the model's origin, along uFingerAxis in the
+  // model's frame, which is every mesh's own once bakeNodeTransforms has run.
+  // Normals take the inverse of the stretch around the axis, (r + shift) / r.
+  var SIZE_SHIFT_NORMAL = [
+    "{",
+    "  vec3 ssRadial = position - uFingerAxis * dot( position, uFingerAxis );",
+    "  float ssR = length( ssRadial );",
+    "  if ( ssR > 1e-6 ) {",
+    "    vec3 ssAround = normalize( cross( uFingerAxis, ssRadial ) );",
+    "    objectNormal -= ( 1.0 - ssR / ( ssR + uSizeShift ) ) * dot( objectNormal, ssAround ) * ssAround;",
+    "  }",
+    "}"
+  ].join("\n");
+  var SIZE_SHIFT_POSITION = [
+    "{",
+    "  vec3 ssAlong = uFingerAxis * dot( transformed, uFingerAxis );",
+    "  vec3 ssRadial = transformed - ssAlong;",
+    "  float ssR = length( ssRadial );",
+    "  if ( ssR > 1e-6 ) transformed = ssAlong + ssRadial * ( ( ssR + uSizeShift ) / ssR );",
+    "}"
+  ].join("\n");
+
+  function sizeShiftUniforms(product) {
     return {
-      min: Math.min(1, range.min / H.REFERENCE_SIZE_MM),
-      max: Math.max(1, range.max / H.REFERENCE_SIZE_MM)
+      uSizeShift: { value: 0 },
+      uFingerAxis: { value: new THREE.Vector3().fromArray(H.ringAxes(product)[2]) }
     };
+  }
+
+  // In a material's onBeforeCompile: its vertices sized by `uniforms`.
+  function sizeShiftShader(shader, uniforms) {
+    shader.uniforms.uSizeShift = uniforms.uSizeShift;
+    shader.uniforms.uFingerAxis = uniforms.uFingerAxis;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float uSizeShift;\nuniform vec3 uFingerAxis;")
+      .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\n" + SIZE_SHIFT_NORMAL)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n" + SIZE_SHIFT_POSITION);
+  }
+
+  // Moves each mesh's transform under `root` into its geometry, so its own
+  // frame is the model's. Needs the geometry's arrays (before the first draw
+  // frees them).
+  function bakeNodeTransforms(root) {
+    root.updateMatrixWorld(true);
+    var meshes = [];
+    root.traverse(function (node) {
+      if (node.isMesh) meshes.push(node);
+    });
+    // A geometry shared by several meshes gets one copy each.
+    var seen = new Set();
+    meshes.forEach(function (mesh) {
+      if (seen.has(mesh.geometry)) mesh.geometry = mesh.geometry.clone();
+      seen.add(mesh.geometry);
+    });
+    var inverseRoot = root.matrixWorld.clone().invert();
+    var toRoot = new THREE.Matrix4();
+    var identity = new THREE.Matrix4();
+    meshes.forEach(function (mesh) {
+      toRoot.multiplyMatrices(inverseRoot, mesh.matrixWorld);
+      if (!toRoot.equals(identity)) mesh.geometry.applyMatrix4(toRoot);
+    });
+    root.traverse(function (node) {
+      if (node === root) return;
+      node.position.set(0, 0, 0);
+      node.quaternion.identity();
+      node.scale.set(1, 1, 1);
+    });
+    root.updateMatrixWorld(true);
   }
 
   // { rotation, tilt, zoom, roll } -> radians and a zoom percent (100% exactly
@@ -1326,16 +1397,19 @@ export { toolkit };
 
     /* ---- blueprint (options.blueprint) ----
        The specs stage, driven by handle.setBlueprint(sweep, fit) (0..1 each) and
-       handle.setSize(factor):
+       handle.setSize(mm):
        - sweep: BLUEPRINT_FRAGMENT's cut at uScanY (view space) going from below
          the model (0: all metal) to above it (1: all grey); handle.scanSpan() gives
          its screen span for the page's band.
        - fit: model and wireframe shrink about the orbit target so the model at
-         its largest size (the min-box's reach, product.geometry["min-box"]) fits the canvas, then
-         scale with the size factor. */
+         its largest size (the min-box's reach, product.geometry["min-box"]) fits the canvas;
+         at 0 they are drawn at options.blueprint.restScale (default 1), the
+         canvas having room around the model.
+       The chosen size (sizeShiftShader) holds in every stage, fitted or not. */
     var blueprintSweep = 0;
     var blueprintFit = 0;
-    var sizeFactor = 1;
+    var sizeMm = H.REFERENCE_SIZE_MM;
+    var sizeUniforms = blueprint ? sizeShiftUniforms(product) : null;
     // The plan view showView() last turned to.
     var heldView = "";
     var viewerPaused = false;
@@ -1351,6 +1425,12 @@ export { toolkit };
     var fitScale = 1;
     // How much more of the canvas the fitted model may take (handle.setFitZoom).
     var fitZoom = 1;
+    // The model's scale at fit 0 (options.blueprint.restScale).
+    var restScale = blueprint && blueprint.restScale > 0 ? blueprint.restScale : 1;
+    // The fit group's scale: from restScale to the fit's shrink with `fit`.
+    function fittedScale() {
+      return restScale + (fitScale - restScale) * blueprintFit;
+    }
     // What frameCamera() framed: the sphere and the radius the view fits (sphere x zoom).
     var frameSphere = null;
     var framedRadius = 0;
@@ -1372,6 +1452,7 @@ export { toolkit };
     var minBox = null;
     function blueprintMaterial(material) {
       material.onBeforeCompile = function (shader) {
+        sizeShiftShader(shader, sizeUniforms);
         shader.uniforms.uScanY = bpUniforms.uScanY;
         shader.uniforms.uScanOn = bpUniforms.uScanOn;
         shader.fragmentShader = shader.fragmentShader
@@ -1413,6 +1494,7 @@ export { toolkit };
           return;
         }
         wireRoot = gltf.scene;
+        bakeNodeTransforms(wireRoot);
         wireMaterial = new THREE.MeshBasicMaterial({
           color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
           side: THREE.DoubleSide,
@@ -1424,6 +1506,8 @@ export { toolkit };
           polygonOffsetFactor: -2,
           polygonOffsetUnits: -2
         });
+        wireMaterial.onBeforeCompile = function (shader) { sizeShiftShader(shader, sizeUniforms); };
+        wireMaterial.customProgramCacheKey = function () { return "emjive-sized"; };
         wireRoot.traverse(function (node) {
           if (!node.isMesh) return;
           node.material = wireMaterial;
@@ -1464,8 +1548,9 @@ export { toolkit };
     }
 
     // The shrink making room for the largest size: the box's farthest corner
-    // from the target against the framed radius, never a growth, then times
-    // the zoom (handle.setFitZoom). Measured once framed.
+    // from the target, plus that size's shift (no point moves farther),
+    // against the framed radius, never a growth, then times the zoom
+    // (handle.setFitZoom). Measured once framed.
     function computeFit() {
       fitScale = 1;
       if (!framedRadius) return;
@@ -1480,7 +1565,7 @@ export { toolkit };
         }
       }
       var room = framedRadius * 0.95;
-      fitScale = Math.min(1, room / (reach * sizeFactors(product).max)) * fitZoom;
+      fitScale = Math.min(1, room / (reach + Math.max(0, H.sizeShift(sizeBounds(product).max)))) * fitZoom;
     }
 
     var bpCenter = new THREE.Vector3();
@@ -1491,17 +1576,18 @@ export { toolkit };
     function updateBlueprint() {
       if (!fitGroup || !frameSphere) return;
       var sweep = blueprintSweep;
-      // The fit's scale: the circle-fitting shrink times the size factor, blended by `fit`.
-      var target = fitScale * sizeFactor;
-      var scale = 1 + (target - 1) * blueprintFit;
+      // The circle-fitting shrink, blended by `fit`; the size's shift in full.
+      var scale = fittedScale();
+      var shift = H.sizeShift(sizeMm);
+      sizeUniforms.uSizeShift.value = shift;
       fitGroup.scale.setScalar(scale);
       fitGroup.position.copy(controls.target).multiplyScalar(1 - scale);
       fitGroup.updateMatrixWorld(true);
       camera.updateMatrixWorld();
 
-      // The cut: a plane level in view space, from just under the scaled sphere to just over it.
+      // The cut: a plane level in view space, from just under the sized and scaled sphere to just over it.
       bpCenter.copy(frameSphere.center).applyMatrix4(fitGroup.matrixWorld);
-      var radius = frameSphere.radius * scale * 1.02;
+      var radius = (frameSphere.radius + Math.abs(shift)) * scale * 1.02;
       var cutY = bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).y + (2 * sweep - 1) * radius;
       bpUniforms.uScanY.value = cutY;
       bpUniforms.uScanOn.value = sweep > 0 && sweep < 1 ? 1 : 0;
@@ -1558,6 +1644,7 @@ export { toolkit };
             window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
             applyMaterial();
             if (blueprint) {
+              bakeNodeTransforms(modelRoot);
               fitGroup = new THREE.Group();
               fitGroup.add(modelRoot);
               readMinBox();
@@ -1750,6 +1837,8 @@ export { toolkit };
         window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
         applyMaterial();
         if (blueprint && fitGroup) {
+          bakeNodeTransforms(modelRoot);
+          sizeUniforms.uFingerAxis.value.fromArray(H.ringAxes(product)[2]);
           fitGroup.add(modelRoot);
           readMinBox();
         } else {
@@ -1824,13 +1913,13 @@ export { toolkit };
         if (modelLoaded) computeFit();
         invalidate();
       },
-      // The chosen size over the base size; the model scales with it once fitted.
-      setSize: function (factor) {
+      // The chosen size, mm; the model is sized to it in every stage.
+      setSize: function (mm) {
         if (!blueprint) return;
-        var bounds = sizeFactors(product);
-        factor = H.clamp(Number(factor) || 1, bounds.min, bounds.max);
-        if (factor === sizeFactor) return;
-        sizeFactor = factor;
+        var bounds = sizeBounds(product);
+        mm = H.clamp(Number(mm) || H.REFERENCE_SIZE_MM, bounds.min, bounds.max);
+        if (mm === sizeMm) return;
+        sizeMm = mm;
         invalidate();
       },
       // The cut's screen position (px from the viewer's top) at the model's bottom
@@ -1881,15 +1970,15 @@ export { toolkit };
         }, holdMs);
         invalidate();
       },
-      // Blueprint viewers: where a plan view's drawing lands on the canvas with
-      // the model turned to it: its centre's offset from the canvas centre (x
-      // right, y down) and a millimetre at the model's current scale, all as
-      // shares of the canvas height. null before the model.
+      // Blueprint viewers: where a plan view's drawing at the chosen size lands
+      // on the canvas with the model turned to it: its centre's offset from
+      // the canvas centre (x right, y down) and a millimetre at the model's
+      // current scale, all as shares of the canvas height. null before the model.
       viewPlacement: function (name) {
-        var frame = H.planFrame(product);
+        var frame = H.planFrame(product, sizeMm);
         var view = frame && frame.views[name];
         if (!blueprint || !view || !modelLoaded || !defaultRadius) return null;
-        var scale = 1 + (fitScale * sizeFactor - 1) * blueprintFit;
+        var scale = fittedScale();
         var unit = 1 / (2 * defaultRadius * Math.tan((camera.fov * Math.PI) / 360));
         var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(scale * unit);
         return {
@@ -1897,6 +1986,14 @@ export { toolkit };
           y: -offset.dot(new THREE.Vector3().fromArray(view.up)),
           mm: scale * unit
         };
+      },
+      // Blueprint viewers: a plan view's outline drawing of the model at a
+      // size, lines in lineColor (drawPlanView). null before the model.
+      planPicture: function (name, mm, lineColor) {
+        if (!blueprint || !modelLoaded || isDisposed) return null;
+        var picture = drawPlanView(renderer, modelRoot, product, name, mm, lineColor);
+        invalidate();
+        return picture;
       },
       // Out of sight: no drawing or nudge until resumed (then one redraw, in case the canvas was discarded).
       setPaused: function (paused) {
@@ -2286,6 +2383,161 @@ export { toolkit };
     material.dispose();
   }
 
+  // ---- plan views ----
+  // One plan view (EmjiveHelpers.PLAN_VIEWS, planFrame) of a model at a size:
+  // seen straight along the view's axis by an orthographic camera framing the
+  // frame's square, drawn as outlines only, then cropped to the frame's
+  // rectangle. scripts/auto-render.js draws the reference size's pictures
+  // with it and js/product.js any other size, so the two match. A first pass
+  // draws normals and depth; the second marks a pixel where, within
+  // PLAN_LINE_PX, the coverage, the depth or the normal jumps (silhouettes,
+  // parts in front of others, creases), so each line sits centred on its edge.
+  // The square's side in picture pixels, drawn PLAN_SUPERSAMPLE times larger.
+  var PLAN_PICTURE_PX = 512;
+  var PLAN_SUPERSAMPLE = 2;
+  var PLAN_LINE_PX = 4;
+  var PLAN_DEPTH_JUMP = 0.012;
+  var PLAN_CREASE_COS = Math.cos(50 * Math.PI / 180);
+  var PLAN_EDGE_FRAGMENT = [
+    "uniform sampler2D tNormal;",
+    "uniform sampler2D tDepth;",
+    "uniform vec2 uTexel;",
+    "uniform float uRadius;",
+    "uniform float uDepthJump;",
+    "uniform float uCreaseCos;",
+    "uniform vec3 uColor;",
+    "varying vec2 vUv;",
+    "void main() {",
+    "  vec4 n0 = texture2D(tNormal, vUv);",
+    "  float d0 = texture2D(tDepth, vUv).x;",
+    "  float hits = 0.0;",
+    "  float taps = 0.0;",
+    "  for (int ring = 1; ring <= 2; ring++) {",
+    "    float r = uRadius * float(ring) / 2.0;",
+    "    for (int k = 0; k < 16; k++) {",
+    "      float a = 6.2831853 * float(k) / 16.0;",
+    "      vec2 uv = vUv + vec2(cos(a), sin(a)) * r * uTexel;",
+    "      vec4 n1 = texture2D(tNormal, uv);",
+    "      float d1 = texture2D(tDepth, uv).x;",
+    "      bool edge = abs(n1.a - n0.a) > 0.5;",
+    "      if (!edge && n0.a > 0.5) {",
+    "        edge = abs(d1 - d0) > uDepthJump || dot(n0.xyz * 2.0 - 1.0, n1.xyz * 2.0 - 1.0) < uCreaseCos;",
+    "      }",
+    "      hits += edge ? 1.0 : 0.0;",
+    "      taps += 1.0;",
+    "    }",
+    "  }",
+    "  gl_FragColor = vec4(uColor, smoothstep(0.0, 0.25, hits / taps));",
+    "}"
+  ].join("\n");
+
+  // The view `viewName` of `root` (meshes in the model's frame:
+  // bakeNodeTransforms) at `mm`, sized as the live model is, lines in
+  // `lineColor` on transparent: a canvas, PLAN_PICTURE_PX for the frame's
+  // square. The renderer's state is restored and `root` put back where it
+  // was. null without a frame.
+  function drawPlanView(renderer, root, product, viewName, mm, lineColor) {
+    var frame = H.planFrame(product, mm);
+    var view = frame && frame.views[viewName];
+    if (!view) return null;
+    var px = PLAN_PICTURE_PX * PLAN_SUPERSAMPLE;
+    var target = new THREE.WebGLRenderTarget(px, px, { depthTexture: new THREE.DepthTexture(px, px) });
+    var edges = new THREE.WebGLRenderTarget(px, px);
+    var uniforms = sizeShiftUniforms(product);
+    uniforms.uSizeShift.value = H.sizeShift(mm);
+    var normalMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+    normalMaterial.onBeforeCompile = function (shader) { sizeShiftShader(shader, uniforms); };
+    normalMaterial.customProgramCacheKey = function () { return "emjive-sized"; };
+    var srgb = {};
+    new THREE.Color().setStyle(lineColor, THREE.SRGBColorSpace).getRGB(srgb, THREE.SRGBColorSpace);
+    var edgeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tNormal: { value: target.texture },
+        tDepth: { value: target.depthTexture },
+        uTexel: { value: new THREE.Vector2(1 / px, 1 / px) },
+        uRadius: { value: PLAN_LINE_PX * PLAN_SUPERSAMPLE / 2 },
+        uDepthJump: { value: PLAN_DEPTH_JUMP },
+        uCreaseCos: { value: PLAN_CREASE_COS },
+        uColor: { value: new THREE.Vector3(srgb.r, srgb.g, srgb.b) }
+      },
+      vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
+      fragmentShader: PLAN_EDGE_FRAGMENT,
+      blending: THREE.NoBlending,
+      depthTest: false,
+      depthWrite: false
+    });
+    var quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), edgeMaterial);
+    quad.frustumCulled = false;
+    var quadScene = new THREE.Scene();
+    quadScene.add(quad);
+
+    var parent = root.parent;
+    var materials = new Map();
+    root.traverse(function (node) {
+      if (!node.isMesh) return;
+      materials.set(node, node.material);
+      node.material = normalMaterial;
+    });
+    var scene = new THREE.Scene();
+    scene.add(root);
+    var center = new THREE.Vector3().fromArray(frame.center);
+    var half = frame.render / 2;
+    var camera = new THREE.OrthographicCamera(-half, half, half, -half, frame.render, frame.render * 3);
+    camera.position.copy(center).addScaledVector(new THREE.Vector3().fromArray(view.eye), frame.render * 2);
+    camera.up.fromArray(view.up);
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+
+    var previousTarget = renderer.getRenderTarget();
+    var previousColor = renderer.getClearColor(new THREE.Color());
+    var previousAlpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(target);
+    renderer.clear();
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(edges);
+    renderer.clear();
+    renderer.render(quadScene, camera);
+    var pixels = new Uint8Array(px * px * 4);
+    renderer.readRenderTargetPixels(edges, 0, 0, px, px, pixels);
+    renderer.setRenderTarget(previousTarget);
+    renderer.setClearColor(previousColor, previousAlpha);
+
+    materials.forEach(function (material, node) { node.material = material; });
+    scene.remove(root);
+    if (parent) parent.add(root);
+    target.depthTexture.dispose();
+    target.dispose();
+    edges.dispose();
+    normalMaterial.dispose();
+    edgeMaterial.dispose();
+    quad.geometry.dispose();
+
+    // The read rows run bottom-up.
+    var full = document.createElement("canvas");
+    full.width = px;
+    full.height = px;
+    var fullContext = full.getContext("2d");
+    var image = fullContext.createImageData(px, px);
+    for (var row = 0; row < px; row++) {
+      image.data.set(pixels.subarray((px - 1 - row) * px * 4, (px - row) * px * 4), row * px * 4);
+    }
+    fullContext.putImageData(image, 0, 0);
+    // Cropped about the centre to the frame's rectangle, in even pixels.
+    var pxPerMm = PLAN_PICTURE_PX / frame.render;
+    var even = function (length) { return 2 * Math.round(length * pxPerMm / 2); };
+    var w = even(frame.crop.w);
+    var h = even(frame.crop.h);
+    var picture = document.createElement("canvas");
+    picture.width = w;
+    picture.height = h;
+    var context = picture.getContext("2d");
+    context.imageSmoothingQuality = "high";
+    context.drawImage(full, (PLAN_PICTURE_PX - w) / 2 * PLAN_SUPERSAMPLE, (PLAN_PICTURE_PX - h) / 2 * PLAN_SUPERSAMPLE,
+      w * PLAN_SUPERSAMPLE, h * PLAN_SUPERSAMPLE, 0, 0, w, h);
+    return picture;
+  }
+
   toolkit = {
     loadModelFile: function (src, onLoad, onError) {
       preloadDracoDecoder();
@@ -2306,6 +2558,8 @@ export { toolkit };
     },
     spinFor: spinFor,
     disposeMaterial: disposeMaterial,
+    bakeNodeTransforms: bakeNodeTransforms,
+    drawPlanView: drawPlanView,
     // For the ?mem=1 read-out (js/viewer-entry.js).
     trackRenderer: function (renderer) { liveRenderers.push(renderer); },
     untrackRenderer: function (renderer) {

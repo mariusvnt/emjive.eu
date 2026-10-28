@@ -24,10 +24,12 @@
 //                 wireframe in --category-col, fitted, at the reference size),
 //                 framed like fallback-img: the poster on a page opened in specs.
 //                 Metal-free, so one per product and per non-default design
-//   plan-views    512px each, the specs stage's front and side views: the
-//                 model in outline, --category-col on transparent, cropped to
-//                 the content of the larger of the two (one crop and scale
-//                 for all, EmjiveHelpers.planFrame in js/helpers.js). Also per
+//   plan-views    the specs stage's front and side views at the reference
+//                 size, drawn by the page's own drawPlanView (js/three-viewer.js,
+//                 which draws the other sizes live): the model in outline,
+//                 --category-col on transparent, cropped to the content of the
+//                 larger of the two (one crop and scale for all,
+//                 EmjiveHelpers.planFrame in js/helpers.js). Also per
 //                 non-default design
 // Per metal, for every product (the picker shows any metal):
 //   fallback-img  512px default-orbit capture: the viewer's pre-load poster, so it
@@ -45,8 +47,8 @@
 // HDRI, the "sun", the "hdri-blur" or the "reflection-detail", with
 // --hand-posters-only after changing "hand-shader", and with
 // --specs-posters-only after changing the blueprint look, the fit or --category-col,
-// and with --plan-views-only after changing the outline look, PLAN_VIEWS,
-// PLAN_PAD or --category-col.
+// and with --plan-views-only after changing the outline look (drawPlanView),
+// PLAN_VIEWS, PLAN_PAD or --category-col.
 
 "use strict";
 
@@ -216,7 +218,6 @@ const HARNESS_HTML = `<!doctype html>
       throw new Error("could not create a WebGL context while rendering the specs poster for " + product.name);
     }
     handle.setBlueprint(1, 1);
-    handle.setSize(1);
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
@@ -224,129 +225,32 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // One plan view (EmjiveHelpers.PLAN_VIEWS, planFrame): the model at the
-  // reference size, seen straight along the view's axis by an orthographic
-  // camera framing the product's square, drawn as outlines only. A first pass
-  // draws normals and depth; the second marks a pixel where, within
-  // PLAN_LINE_PX, the coverage, the depth or the normal jumps (silhouettes,
-  // parts in front of others, creases), so each line sits centred on its edge.
-  var PLAN_LINE_PX = 4;
-  var PLAN_DEPTH_JUMP = 0.012;
-  var PLAN_CREASE_COS = Math.cos(50 * Math.PI / 180);
-  var PLAN_EDGE_FRAGMENT = [
-    "uniform sampler2D tNormal;",
-    "uniform sampler2D tDepth;",
-    "uniform vec2 uTexel;",
-    "uniform float uRadius;",
-    "uniform float uDepthJump;",
-    "uniform float uCreaseCos;",
-    "uniform vec3 uColor;",
-    "varying vec2 vUv;",
-    "void main() {",
-    "  vec4 n0 = texture2D(tNormal, vUv);",
-    "  float d0 = texture2D(tDepth, vUv).x;",
-    "  float hits = 0.0;",
-    "  float taps = 0.0;",
-    "  for (int ring = 1; ring <= 2; ring++) {",
-    "    float r = uRadius * float(ring) / 2.0;",
-    "    for (int k = 0; k < 16; k++) {",
-    "      float a = 6.2831853 * float(k) / 16.0;",
-    "      vec2 uv = vUv + vec2(cos(a), sin(a)) * r * uTexel;",
-    "      vec4 n1 = texture2D(tNormal, uv);",
-    "      float d1 = texture2D(tDepth, uv).x;",
-    "      bool edge = abs(n1.a - n0.a) > 0.5;",
-    "      if (!edge && n0.a > 0.5) {",
-    "        edge = abs(d1 - d0) > uDepthJump || dot(n0.xyz * 2.0 - 1.0, n1.xyz * 2.0 - 1.0) < uCreaseCos;",
-    "      }",
-    "      hits += edge ? 1.0 : 0.0;",
-    "      taps += 1.0;",
-    "    }",
-    "  }",
-    "  float a = smoothstep(0.0, 0.25, hits / taps);",
-    "  gl_FragColor = vec4(uColor * a, a);",
-    "}"
-  ].join("\\n");
-
-  window.__renderPlanView = function (product, viewName, sizePx, lineColor) {
+  // One plan view at the reference size, drawn by the product page's own
+  // drawPlanView (js/three-viewer.js), handed back as a PNG data URL in
+  // window.__planPicture.
+  window.__renderPlanView = function (product, viewName, lineColor) {
     window.__renderReady = false;
+    window.__planPicture = null;
     disposeCurrentHandle();
-    var frame = window.EmjiveHelpers.planFrame(product);
-    if (!frame) throw new Error(product.name + " has no geometry.axis-box: run npm run measure-models");
-    var view = frame.views[viewName];
-    var wrap = mountTargetWrap(sizePx);
-    var renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    renderer.setSize(sizePx, sizePx);
-    renderer.setClearColor(0x000000, 0);
-    renderer.domElement.id = "target";
-    renderer.domElement.style.cssText = "display: block; width: 100%; height: 100%;";
-    wrap.appendChild(renderer.domElement);
-    var buffer = renderer.getDrawingBufferSize(new THREE.Vector2());
-    var target = new THREE.WebGLRenderTarget(buffer.x, buffer.y, { depthTexture: new THREE.DepthTexture(buffer.x, buffer.y) });
-    var normalMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
-    var colour = new THREE.Color();
-    colour.setStyle(lineColor, THREE.SRGBColorSpace);
-    var srgb = {};
-    colour.getRGB(srgb, THREE.SRGBColorSpace);
-    var edgeMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        tNormal: { value: target.texture },
-        tDepth: { value: target.depthTexture },
-        uTexel: { value: new THREE.Vector2(1 / buffer.x, 1 / buffer.y) },
-        uRadius: { value: PLAN_LINE_PX * (window.devicePixelRatio || 1) / 2 },
-        uDepthJump: { value: PLAN_DEPTH_JUMP },
-        uCreaseCos: { value: PLAN_CREASE_COS },
-        uColor: { value: new THREE.Vector3(srgb.r, srgb.g, srgb.b) }
-      },
-      vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }",
-      fragmentShader: PLAN_EDGE_FRAGMENT,
-      // Written as is: premultiplied, as the canvas expects.
-      blending: THREE.NoBlending,
-      depthTest: false,
-      depthWrite: false
-    });
-    var quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), edgeMaterial);
-    quad.frustumCulled = false;
-    var quadScene = new THREE.Scene();
-    quadScene.add(quad);
-    var scene = new THREE.Scene();
+    var renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
     var root = null;
     currentPlan = {
       dispose: function () {
         if (root) root.traverse(function (node) { if (node.isMesh) node.geometry.dispose(); });
-        normalMaterial.dispose();
-        edgeMaterial.dispose();
-        quad.geometry.dispose();
-        target.depthTexture.dispose();
-        target.dispose();
         renderer.dispose();
         renderer.forceContextLoss();
       }
     };
-
     toolkit.loadModelFile(product.assets.model, function (gltf) {
       root = gltf.scene;
-      root.traverse(function (node) { if (node.isMesh) node.material = normalMaterial; });
-      scene.add(root);
-      var c = new THREE.Vector3().fromArray(frame.center);
-      var radius = frame.render;
-      var half = frame.render / 2;
-      var camera = new THREE.OrthographicCamera(-half, half, half, -half, radius, radius * 3);
-      camera.position.copy(c).addScaledVector(new THREE.Vector3().fromArray(view.eye), radius * 2);
-      camera.up.fromArray(view.up);
-      camera.lookAt(c);
-      camera.updateProjectionMatrix();
-      renderer.setRenderTarget(target);
-      renderer.clear();
-      renderer.render(scene, camera);
-      renderer.setRenderTarget(null);
-      renderer.clear();
-      renderer.render(quadScene, camera);
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          window.__renderReady = true;
-        });
-      });
+      toolkit.bakeNodeTransforms(root);
+      var picture = toolkit.drawPlanView(renderer, root, product, viewName, window.EmjiveHelpers.REFERENCE_SIZE_MM, lineColor);
+      if (!picture) {
+        console.error(product.name + " has no geometry.axis-box: run npm run measure-models");
+        return;
+      }
+      window.__planPicture = picture.toDataURL("image/png");
+      window.__renderReady = true;
     }, function (err) {
       console.error("the model failed to load while rendering the " + viewName + " plan view for " + product.name, err);
     });
@@ -518,28 +422,13 @@ async function renderSpecsPoster(page, product, outPath, hdriRelPath, lineColor)
   await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), outPath);
 }
 
-// The plan views, with the specs poster's supersampling.
-const PLAN_VIEW_SIZE = ICON_SIZE;
+// The plan views, drawn and cropped in the page (js/three-viewer.js drawPlanView).
 const PLAN_VIEW_NAMES = ["front", "side"];
 async function renderPlanView(page, product, viewName, outPath, lineColor) {
-  await page.setViewport({ width: PLAN_VIEW_SIZE, height: PLAN_VIEW_SIZE, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((p, v, s, c) => window.__renderPlanView(p, v, s, c), product, viewName, PLAN_VIEW_SIZE, lineColor);
+  await page.evaluate((p, v, c) => window.__renderPlanView(p, v, c), product, viewName, lineColor);
   await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
-  const handle = await page.$("#target");
-  const buffer = await handle.screenshot({ omitBackground: true });
-  // Cropped, about the centre, to the rectangle both views share
-  // (EmjiveHelpers.planFrame), so the scale is the same across them.
-  const frame = await page.evaluate((p) => window.EmjiveHelpers.planFrame(p), product);
-  const pxPerMm = PLAN_VIEW_SIZE / frame.render;
-  const even = (mm) => 2 * Math.round(mm * pxPerMm / 2);
-  const width = even(frame.crop.w);
-  const height = even(frame.crop.h);
-  await writeWebp(
-    sharp(buffer).resize(PLAN_VIEW_SIZE, PLAN_VIEW_SIZE).extract({
-      left: (PLAN_VIEW_SIZE - width) / 2, top: (PLAN_VIEW_SIZE - height) / 2, width, height
-    }),
-    outPath
-  );
+  const png = await page.evaluate(() => window.__planPicture);
+  await writeWebp(sharp(Buffer.from(png.slice(png.indexOf(",") + 1), "base64")), outPath);
 }
 
 // The wireframe's colour on the page: --category-col in css/style.css.

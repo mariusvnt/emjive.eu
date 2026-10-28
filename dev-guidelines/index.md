@@ -49,7 +49,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, PLAN_VIEWS, planFrame, thumbSrc, setThumb, preload, resampleBand }
+    - sets `EmjiveHelpers` { el, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
@@ -121,7 +121,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the series.json preload, noindex pages, link preview images, per-item pages, clean URLs and the sitemap.
   - [docs-index.js](../scripts/docs-index.js) — Generates dev-guidelines/index.md: the repo's tree down to each file's public surface, described by the code's own header comments.
   - [helpers.js](../scripts/helpers.js) — Shared helpers for the Node tooling (scripts/ and vite.config.js): the repo's paths and constants, file and argument plumbing, catalog lookups and drift checks, the glTF reader, and the dev tools' loopback server.
-    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
+    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `SIZE_SPAN_MM`, `MEASURED_SIZES_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
   - [json-tool-blocks.js](../scripts/json-tool-blocks.js) — Pure text helpers for the tools that edit the data files (no fs/http): inserting, patching and removing entries in hand-aligned JSON without re-serializing, and rendering whole product/series blocks in canonical formatting.
     - exports `esc`, `num`, `geometryLine`, `insertBeforeArrayClose`, `insertBeforeObjectClose`, `appendToInlineStringArray`, `updateTopLevelScalarInText`, `updateObjectEntryInText`, `removeObjectEntryInText`, `removeFromInlineStringArray`, `updateSeriesFieldInText`, `anchoredSpan`, `replaceInSpan`, `findBlockSpanByAnchor`, `findProductBlockSpan`, `replaceProductBlockInText`, `removeArrayEntryInText`, `removeProductBlockInText`, `removeSeriesBlockInText`, `renderProductBlock`, `renderSeriesBlock`
   - [json-tool-server.js](../scripts/json-tool-server.js) — Dev server for json-tool.html (npm run json-tool): edits data/series.json's globals, series and products, and files dropped hand-owned assets (model, x-ray, photos) into the right folders.
@@ -133,6 +133,8 @@ The repo's structure, generated from the code. Each description is the first sen
   - [optimize-images.js](../scripts/optimize-images.js) — Converts hand-added PNG/JPEG art under assets/ to WebP and deletes the originals.
   - [optimize-models.js](../scripts/optimize-models.js) — Shrinks the product .glb files in place.
   - [render-favicons.js](../scripts/render-favicons.js) — Rasterises assets/logo_compact.svg into public/favicon.ico (32px PNG-in-ICO) and public/apple-touch-icon.png (180px, opaque: iOS fills transparency with black).
+  - [ring-size.js](../scripts/ring-size.js) — Ring sizing, ported from the Jewelry Printing Toolbox (ring_tools/sizer.py), for the print models and their measurements; also the size-stl command that writes a print model at an ordered size.
+    - exports `AXES`, `STL_AXIS`, `sizeToRadius`, `radiusToSize`, `shiftFor`, `polarShift`, `estimateSize`, `axisClearance`, `detectAxis`, `minSize`
   - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, series and swatch HDRIs, the HDRI blur, swatch blur and camera, the sun, reflection detail and metal shaders through the real viewer, saved by text-patching the data files in place.
   - [slugs.js](../scripts/slugs.js) — An item's URL slug (emjive.eu/<slug>), for the build side.
     - exports `slugify`, `reservedNames`, `PAGE_ROUTES`
@@ -213,6 +215,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | `auto-render` | `node scripts/auto-render.js` |
 | `optimize-models` | `node scripts/optimize-models.js` |
 | `measure-models` | `node scripts/measure-models.js` |
+| `size-stl` | `node scripts/ring-size.js` |
 | `split-models` | `node scripts/split-models.js` |
 | `optimize-images` | `node scripts/optimize-images.js` |
 | `optimize-hdri` | `node scripts/optimize-hdri.js` |

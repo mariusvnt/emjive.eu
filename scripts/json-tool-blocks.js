@@ -30,18 +30,23 @@ function geometryLine(g, indent) {
   const box = g["min-box"];
   const axisBox = g["axis-box"];
   const print = g.print;
-  return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) +
-    ', "dimensions-mm": ' + triple(g["dimensions-mm"]) +
+  const triples = (v) => "[" + (v || []).map(triple).join(", ") + "]";
+  // The size fields, after the volume and after the dimensions.
+  const slope = (s) => (s["volume-cm3-per-size-mm"] !== undefined ? ', "volume-cm3-per-size-mm": ' + num(s["volume-cm3-per-size-mm"]) : "");
+  const minSize = (s) => (s["min-size-mm"] !== undefined ? ', "min-size-mm": ' + num(s["min-size-mm"]) : "");
+  return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) + slope(g) +
+    ', "dimensions-mm": ' + triple(g["dimensions-mm"]) + minSize(g) +
     (box
       ? ', "min-box": { "center": ' + triple(box.center) +
-        ', "axes": [' + (box.axes || []).map(triple).join(", ") + "] }"
+        ', "axes": ' + triples(box.axes) + " }"
       : "") +
     (axisBox
-      ? ', "axis-box": { "center": ' + triple(axisBox.center) + ', "size": ' + triple(axisBox.size) + " }"
+      ? ', "axis-box": { "sizes-mm": ' + triple(axisBox["sizes-mm"]) + ', "center": ' + triples(axisBox.center) +
+        ', "size": ' + triples(axisBox.size) + " }"
       : "") +
     (print
-      ? ', "print": { "volume-cm3": ' + num(print["volume-cm3"]) + ', "dimensions-mm": ' + triple(print["dimensions-mm"]) +
-        ', "stl-sha1": "' + esc(print["stl-sha1"]) + '" }'
+      ? ', "print": { "volume-cm3": ' + num(print["volume-cm3"]) + slope(print) + ', "dimensions-mm": ' + triple(print["dimensions-mm"]) +
+        minSize(print) + ', "stl-sha1": "' + esc(print["stl-sha1"]) + '" }'
       : "") +
     ', "model-sha1": "' + esc(g["model-sha1"]) + '" },';
 }

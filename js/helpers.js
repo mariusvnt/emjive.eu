@@ -287,6 +287,35 @@
       : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
   }
 
+  // A ring changes size by moving every point of its model this many mm away
+  // from the finger axis (scripts/ring-size.js): the difference of the inner
+  // radii.
+  function sizeShift(mm) {
+    return (mm - REFERENCE_SIZE_MM) / (2 * Math.PI);
+  }
+
+  // A measured "geometry" (or its "print") volume at a size, cm3: linear in
+  // the size under the radial shift. Mirrored in scripts/helpers.js.
+  function volumeAt(geometry, mm) {
+    return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
+  }
+
+  // A geometry's axis-aligned box at a size, { center, size }: interpolated
+  // between the sizes it was measured at, held at the ends. null without one.
+  function axisBoxAt(geometry, mm) {
+    var box = geometry && geometry["axis-box"];
+    var sizes = box && box["sizes-mm"];
+    if (!Array.isArray(sizes) || !sizes.length) return null;
+    var i = 0;
+    while (i < sizes.length - 2 && mm > sizes[i + 1]) i++;
+    var j = Math.min(i + 1, sizes.length - 1);
+    var t = j === i ? 0 : clamp01((mm - sizes[i]) / (sizes[j] - sizes[i]));
+    var at = function (key) {
+      return [0, 1, 2].map(function (k) { return lerp(Number(box[key][i][k]), Number(box[key][j][k]), t); });
+    };
+    return { center: at("center"), size: at("size") };
+  }
+
   /* ---- plan views ---- */
 
   // The specs stage's outline views of a model, in the ring's own frame, where
@@ -302,8 +331,6 @@
     front: { eye: [0, 0, 1], up: [0, 1, 0], measures: [0, 1] },
     side: { eye: [1, 0, 0], up: [0, 1, 0], measures: [2] }
   };
-  // The share of a tile the model's longest extent fills at its largest size.
-  var PLAN_FILL = 0.64;
   // The stroke's room around a drawing, as a share of the longest extent.
   var PLAN_PAD = 0.006;
 
@@ -315,21 +342,20 @@
       : [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
   }
 
-  // A product's plan views from geometry["axis-box"], null without it. Both
-  // are drawn at one scale, centred on the box and cropped to one
-  // rectangle, `crop` mm: the largest drawing's width and height plus the
-  // stroke's room. A view's drawing is w x h mm (along `right`, and `up`);
-  // `measures` lists what it measures, each { axis, horizontal }: the axis
-  // (0, 1, 2: the ring's x, y, z) and whether it runs along `right` (else
-  // along `up`). `eye`, `up` and `right` are in the model's frame. `size` is
-  // the box's extent along the ring's x, y and z, mm. `render` is the square, mm across, the
-  // renderer draws before cropping; `tile` the square, mm across, a tile of
-  // the column stands for (the drawing's scale on the page).
-  function planFrame(product) {
-    var box = product && product.geometry && product.geometry["axis-box"];
-    var boxSize = box && Array.isArray(box.size) && box.size.length === 3 ? box.size.map(Number) : null;
+  // A product's plan views at a size (mm, default the reference) from
+  // geometry["axis-box"], null without it. Both are drawn at one scale,
+  // centred on the box and cropped to one rectangle, `crop` mm: the largest
+  // drawing's width and height plus the stroke's room. A view's drawing is
+  // w x h mm (along `right`, and `up`); `measures` lists what it measures,
+  // each { axis, horizontal }: the axis (0, 1, 2: the ring's x, y, z) and
+  // whether it runs along `right` (else along `up`). `eye`, `up` and `right`
+  // are in the model's frame. `size` is the box's extent along the ring's x,
+  // y and z, mm. `render` is the square, mm across, the renderer draws
+  // before cropping.
+  function planFrame(product, mm) {
+    var box = axisBoxAt(product && product.geometry, mm === undefined ? REFERENCE_SIZE_MM : mm);
+    var boxSize = box && box.size;
     if (!boxSize || !boxSize.every(function (d) { return d > 0; })) return null;
-    var maxFactor = Math.max(1, sizeRange(product).max / REFERENCE_SIZE_MM);
     var along = function (axis) {
       return Math.abs(axis[0]) * boxSize[0] + Math.abs(axis[1]) * boxSize[1] + Math.abs(axis[2]) * boxSize[2];
     };
@@ -364,11 +390,10 @@
     crop.w += 2 * PLAN_PAD * longest;
     crop.h += 2 * PLAN_PAD * longest;
     return {
-      center: box.center.map(Number),
+      center: box.center,
       size: size,
       crop: crop,
       render: Math.max(crop.w, crop.h) * 1.1,
-      tile: longest * maxFactor / PLAN_FILL,
       views: views
     };
   }
@@ -445,7 +470,10 @@
     posterFor: posterFor,
     REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
     sizeRange: sizeRange,
+    sizeShift: sizeShift,
+    volumeAt: volumeAt,
     PLAN_VIEWS: PLAN_VIEWS,
+    ringAxes: ringAxes,
     planFrame: planFrame,
     thumbSrc: thumbSrc,
     setThumb: setThumb,

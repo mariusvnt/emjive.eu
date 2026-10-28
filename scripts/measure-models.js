@@ -2,20 +2,33 @@
 // Measures every product's .glb (and .stl print model) into its "geometry"
 // line in products.json, touching nothing else:
 //
-//   "geometry": { "volume-cm3", "dimensions-mm", "min-box": { center, axes },
-//                 "axis-box": { center, size },
-//                 "print": { "volume-cm3", "dimensions-mm", "stl-sha1" }, "model-sha1" }
+//   "geometry": { "volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm",
+//                 "min-box": { center, axes }, "axis-box": { "sizes-mm", center, size },
+//                 "print": { "volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm",
+//                            "min-size-mm", "stl-sha1" }, "model-sha1" }
 //
-//   volume-cm3     enclosed volume; models are in mm. Summed per shell as
-//                  |signed volume|, since some exports have inverted winding.
+//   volume-cm3     enclosed volume at the reference size; models are in mm.
+//                  Summed per shell as |signed volume|, since some exports
+//                  have inverted winding.
+//   volume-cm3-per-size-mm   the volume gained per mm of size over the size
+//                  span: sized as a ring is (scripts/ring-size.js), the volume
+//                  is linear in the size
 //   dimensions-mm  minimum-volume bounding box extents, longest first (pose-independent)
+//   min-size-mm    the smallest size before the bore reaches the finger axis
 //   min-box        that box's centre and unit axes in scene space (axes[k] runs
 //                  along dimensions-mm[k]); the wheel's hit boxes (js/stack-scene.js)
-//   axis-box       the scene-space axis-aligned box's centre and size: the plan
-//                  views' frame and dimensions (EmjiveHelpers.planFrame)
+//   axis-box       the scene-space axis-aligned box's centre and size at each
+//                  size of "sizes-mm" (the size span's ends and the reference):
+//                  the plan views' frame and dimensions (EmjiveHelpers.planFrame)
 //   model-sha1, stl-sha1   checked by validate-data.js against the files, so a
 //                  changed model must be re-measured
 //   print          the same, on the .stl: what is made and priced
+//
+// The finger axis must run through the origin: the model's along its
+// "finger-axis", the print model's along Y. A file where another axis runs
+// farther from the geometry is refused. The table shows the print model's
+// bore as the toolbox estimates it, with a warning when it is far from the
+// reference size.
 //
 // Non-watertight meshes get an approximate volume and are flagged. Each
 // non-default design gets its own "geometry" line after its "picks".
@@ -30,10 +43,13 @@ const { join } = require("node:path");
 const { createHash } = require("node:crypto");
 const blocks = require("./json-tool-blocks");
 const stlFile = require("./stl");
-const { ROOT, SERIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
+const ringSize = require("./ring-size");
+const { ROOT, SERIES_JSON_PATH, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, readJson, gltfIO } = require("./helpers");
 
 // Vertices closer than this (mm) are one: Draco decoding can split welded vertices.
 const WELD_EPSILON = 1e-4;
+// A print model's estimated bore further than this (mm) from the reference size is reported.
+const BORE_WARN_MM = 2;
 
 // ---- geometry extraction ----
 
@@ -91,7 +107,8 @@ function weldTriangles(tris) {
 
 // Volume in mm3: connected shells (union-find over shared vertices), each
 // contributing |signed volume|. Also counts edges that aren't shared by
-// exactly two triangles — zero means watertight.
+// exactly two triangles — zero means watertight. `shellOf` gives each
+// triangle's shell, for shellsVolume.
 function measureVolume(welded) {
   const { corners, positions } = welded;
   const vertexCount = positions.length / 3;
@@ -114,21 +131,68 @@ function measureVolume(welded) {
   let openEdges = 0;
   for (const n of edgeUse.values()) if (n !== 2) openEdges++;
 
-  // Signed volume about the origin; the origin's position cancels out
-  // within a closed shell.
-  const shell = new Map();
+  const shellIds = new Map();
+  const shellOf = new Int32Array(triCount);
   for (let t = 0; t < triCount; t++) {
+    const root = find(corners[t * 3]);
+    if (!shellIds.has(root)) shellIds.set(root, shellIds.size);
+    shellOf[t] = shellIds.get(root);
+  }
+  return { mm3: shellsVolume(corners, positions, shellOf, shellIds.size), shells: shellIds.size, openEdges, shellOf };
+}
+
+// The sum of the shells' |signed volume| (mm3), the corners placed at
+// `positions`. Signed volume about the origin; the origin's position cancels
+// out within a closed shell.
+function shellsVolume(corners, positions, shellOf, shellCount) {
+  const shell = new Float64Array(shellCount);
+  for (let t = 0; t < corners.length / 3; t++) {
     const a = corners[t * 3] * 3, b = corners[t * 3 + 1] * 3, c = corners[t * 3 + 2] * 3;
     const ax = positions[a], ay = positions[a + 1], az = positions[a + 2];
     const bx = positions[b], by = positions[b + 1], bz = positions[b + 2];
     const cx = positions[c], cy = positions[c + 1], cz = positions[c + 2];
-    const v = (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
-    const root = find(corners[t * 3]);
-    shell.set(root, (shell.get(root) || 0) + v);
+    shell[shellOf[t]] += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
   }
   let mm3 = 0;
-  for (const v of shell.values()) mm3 += Math.abs(v);
-  return { mm3, shells: shell.size, openEdges };
+  for (const v of shell) mm3 += Math.abs(v);
+  return mm3;
+}
+
+// ---- sizes ----
+
+// The axis-aligned box of flat xyz `positions`: { center, size }.
+function axisAlignedBox(positions) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) {
+    for (let k = 0; k < 3; k++) {
+      if (positions[i + k] < lo[k]) lo[k] = positions[i + k];
+      if (positions[i + k] > hi[k]) hi[k] = positions[i + k];
+    }
+  }
+  return { center: [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2), size: [0, 1, 2].map((k) => hi[k] - lo[k]) };
+}
+
+// The welded model sized as a ring around `axis` (scripts/ring-size.js): its
+// smallest size, its volume's slope over the size span (mm3 per mm of size)
+// and its axis-aligned box at each of MEASURED_SIZES_MM. null after an error message
+// when another axis runs farther from the geometry.
+function measureSizes(label, welded, volume, axis) {
+  const { corners, positions } = welded;
+  const found = ringSize.detectAxis(positions);
+  if (found.axis !== axis) {
+    console.error("  " + label + ": the line through the origin along " + "XYZ"[found.axis] + " runs farther from the geometry (" +
+      found.clearance.toFixed(2) + " mm) than the finger axis " + "XYZ"[axis] + " (" + ringSize.axisClearance(positions, axis).toFixed(2) +
+      " mm): the origin must sit on the bore, with the finger along " + "XYZ"[axis]);
+    return null;
+  }
+  const at = (mm) => (mm === REFERENCE_SIZE_MM ? positions : ringSize.polarShift(positions, ringSize.shiftFor(REFERENCE_SIZE_MM, mm), axis));
+  const volumeAt = (mm) => shellsVolume(corners, at(mm), volume.shellOf, volume.shells);
+  return {
+    minSize: ringSize.minSize(found.clearance, REFERENCE_SIZE_MM),
+    slope: (volumeAt(SIZE_SPAN_MM.max) - volumeAt(SIZE_SPAN_MM.min)) / (SIZE_SPAN_MM.max - SIZE_SPAN_MM.min),
+    boxes: MEASURED_SIZES_MM.map((mm) => axisAlignedBox(at(mm)))
+  };
 }
 
 // ---- minimum-volume bounding box ----
@@ -348,12 +412,21 @@ async function measureTriangles(tris) {
   if (!welded.corners.length) return null;
   const volume = measureVolume(welded);
   const box = await minimumBox(welded.positions);
-  return { volume, box };
+  return { volume, box, welded };
 }
+
+// The model's finger axis in its own frame (js/helpers.js ringAxes).
+function fingerAxis(product) {
+  return product["finger-axis"] === "x" ? 0 : 2;
+}
+
+const cm3 = (mm3, digits) => Number((mm3 / 1000).toFixed(digits));
+// Rounded up: a lower limit.
+const minSizeMm = (mm) => Math.ceil(mm * 10) / 10;
 
 // One model (and its print model): the "geometry" object and a summary row,
 // or null after an error message.
-async function measureFile(io, label, modelRel, stlRel) {
+async function measureFile(io, label, modelRel, stlRel, axis) {
   const modelPath = modelRel && join(ROOT, modelRel);
   if (!modelPath || !existsSync(modelPath)) {
     console.error("  " + label + ": model file missing (" + modelRel + ")");
@@ -366,16 +439,21 @@ async function measureFile(io, label, modelRel, stlRel) {
     return null;
   }
   const { volume, box } = measured;
+  const sizes = measureSizes(label, measured.welded, volume, axis);
+  if (!sizes) return null;
   const geometry = {
-    "volume-cm3": Number((volume.mm3 / 1000).toFixed(3)),
+    "volume-cm3": cm3(volume.mm3, 3),
+    "volume-cm3-per-size-mm": cm3(sizes.slope, 5),
     "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
+    "min-size-mm": minSizeMm(sizes.minSize),
     "min-box": {
       center: box.center.map((c) => Number(c.toFixed(3))),
       axes: box.axes.map((a) => a.map((x) => Number(x.toFixed(5))))
     },
     "axis-box": {
-      center: box.axisAligned.center.map((c) => Number(c.toFixed(3))),
-      size: box.axisAligned.size.map((d) => Number(d.toFixed(2)))
+      "sizes-mm": MEASURED_SIZES_MM,
+      center: sizes.boxes.map((b) => b.center.map((c) => Number(c.toFixed(3)))),
+      size: sizes.boxes.map((b) => b.size.map((d) => Number(d.toFixed(2))))
     },
     "model-sha1": createHash("sha1").update(readFileSync(modelPath)).digest("hex")
   };
@@ -400,14 +478,19 @@ async function measureFile(io, label, modelRel, stlRel) {
       console.error("  " + label + ": print model has no triangles");
       return null;
     }
+    const printSizes = measureSizes(label + " (print model)", printed.welded, printed.volume, ringSize.STL_AXIS);
+    if (!printSizes) return null;
     geometry.print = {
-      "volume-cm3": Number((printed.volume.mm3 / 1000).toFixed(3)),
+      "volume-cm3": cm3(printed.volume.mm3, 3),
+      "volume-cm3-per-size-mm": cm3(printSizes.slope, 5),
       "dimensions-mm": printed.box.dimensions.map((d) => Number(d.toFixed(1))),
+      "min-size-mm": minSizeMm(printSizes.minSize),
       "stl-sha1": createHash("sha1").update(stl.buffer).digest("hex")
     };
     row["print cm3"] = geometry.print["volume-cm3"];
     row["print box mm"] = geometry.print["dimensions-mm"].join(" x ");
     row["print open edges"] = printed.volume.openEdges;
+    row["print bore"] = Number(ringSize.estimateSize(printed.welded.positions, ringSize.STL_AXIS).toFixed(1));
   }
   return { geometry, row };
 }
@@ -431,7 +514,7 @@ async function main() {
     const eol = text.includes("\r\n") ? "\r\n" : "\n";
     for (const product of data.products || []) {
       const label = series.slug + "/" + product.name;
-      const measured = await measureFile(io, label, product.assets && product.assets.model, product.assets && product.assets.stl);
+      const measured = await measureFile(io, label, product.assets && product.assets.model, product.assets && product.assets.stl, fingerAxis(product));
       if (!measured) {
         failed = true;
         continue;
@@ -451,7 +534,7 @@ async function main() {
       for (const design of (designs && designs.list) || []) {
         if (design.key === designs.default) continue;
         const designLabel = label + " [" + design.key + "]";
-        const designMeasured = await measureFile(io, designLabel, design.model, design.stl);
+        const designMeasured = await measureFile(io, designLabel, design.model, design.stl, fingerAxis(product));
         if (!designMeasured) {
           failed = true;
           continue;
@@ -482,6 +565,10 @@ async function main() {
   const openPrint = rows.filter((r) => r["print open edges"] > 0).map((r) => r.product);
   if (openPrint.length) {
     console.warn("Print model not watertight (volume is approximate): " + openPrint.join(", "));
+  }
+  const offBore = rows.filter((r) => Math.abs(r["print bore"] - REFERENCE_SIZE_MM) > BORE_WARN_MM).map((r) => r.product + " (" + r["print bore"] + ")");
+  if (offBore.length) {
+    console.warn("Print model bore estimated more than " + BORE_WARN_MM + " mm off the size it is sized from (" + REFERENCE_SIZE_MM + "): " + offBore.join(", "));
   }
   console.log(dryRun ? "Dry run: nothing written." : "Wrote geometry into products.json.");
   if (failed) process.exitCode = 1;

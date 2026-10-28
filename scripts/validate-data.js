@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
 
-const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, exitOnProblems } = require("./helpers");
+const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, exitOnProblems } = require("./helpers");
 
 const problems = [];
 
@@ -230,12 +230,17 @@ const metalMap = { type: "object", additionalProperties: str };
 const planViewsSchema = { type: "object", required: ["front", "side"], properties: { front: str, side: str } };
 
 // Written by `npm run measure-models`; on a product and on each non-default design.
+const triples = { type: "array", minItems: 1, items: { type: "array", items: num, minItems: 3, maxItems: 3 } };
 const geometrySchema = {
   type: "object",
-  required: ["volume-cm3", "dimensions-mm", "min-box", "axis-box", "model-sha1"],
+  required: ["volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm", "min-box", "axis-box", "model-sha1"],
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
+    // The volume gained per mm of size (EmjiveHelpers.volumeAt).
+    "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+    // The smallest size the model can be sized down to (scripts/ring-size.js).
+    "min-size-mm": num,
     // The wheel's hit boxes (js/stack-scene.js).
     "min-box": {
       type: "object",
@@ -250,22 +255,25 @@ const geometrySchema = {
         }
       }
     },
-    // The plan views' frame and dimensions (EmjiveHelpers.planFrame).
+    // The plan views' frame and dimensions at each of "sizes-mm" (EmjiveHelpers.planFrame).
     "axis-box": {
       type: "object",
-      required: ["center", "size"],
+      required: ["sizes-mm", "center", "size"],
       properties: {
-        center: { type: "array", items: num, minItems: 3, maxItems: 3 },
-        size: { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 }
+        "sizes-mm": { type: "array", items: num, minItems: 1 },
+        center: triples,
+        size: { type: "array", minItems: 1, items: { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 } }
       }
     },
     // Measured on the STL: the weight and price shown.
     print: {
       type: "object",
-      required: ["volume-cm3", "dimensions-mm", "stl-sha1"],
+      required: ["volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm", "stl-sha1"],
       properties: {
         "volume-cm3": { type: "number", exclusiveMinimum: 0 },
+        "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
         "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
+        "min-size-mm": num,
         "stl-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
       }
     },
@@ -331,7 +339,7 @@ const productSchema = {
     category: str,
     description: str,
     "default-metal": str,
-    // Price at the reference size (REFERENCE_SIZE_MM), scaled linearly with size.
+    // Price at the reference size (REFERENCE_SIZE_MM), following the volume with size.
     "per-metal-specs": {
       type: "object",
       additionalProperties: {
@@ -417,10 +425,12 @@ function validate(where, schema, data) {
 }
 
 // model-sha1 / stl-sha1 must match the files, and min-box must be three
-// orthonormal axes. Print models aren't in git, so missing ones are counted,
-// not failed.
+// orthonormal axes, its boxes measured at the size span's ends and the
+// reference, and no size of `range` below the smallest the model and its
+// print model can be sized to. Print models aren't in git, so missing ones
+// are counted, not failed.
 let missingPrintModels = 0;
-function checkGeometry(label, modelRel, geometry, stlRel) {
+function checkGeometry(label, modelRel, geometry, stlRel, range) {
   if (modelRel && existsExactCase(modelRel)) {
     const sha1 = crypto.createHash("sha1").update(fs.readFileSync(path.join(ROOT, modelRel))).digest("hex");
     if (sha1 !== geometry["model-sha1"]) fail(label, "geometry is stale: the model file changed since it was measured (run `npm run measure-models`)");
@@ -447,6 +457,15 @@ function checkGeometry(label, modelRel, geometry, stlRel) {
     Math.abs(dot3(boxAxes[1], boxAxes[2]))
   );
   if (skew > 1e-3) fail(label, "geometry.min-box axes are not three unit vectors at right angles (run `npm run measure-models`)");
+  const axisBox = geometry["axis-box"];
+  if (axisBox["sizes-mm"].join() !== MEASURED_SIZES_MM.join() || axisBox.center.length !== MEASURED_SIZES_MM.length || axisBox.size.length !== MEASURED_SIZES_MM.length) {
+    fail(label, "geometry.axis-box is not measured at sizes " + MEASURED_SIZES_MM.join(", ") + " (run `npm run measure-models`)");
+  }
+  for (const [where, measured] of [["geometry", geometry], ["geometry.print", geometry.print]]) {
+    if (measured && range.min < measured["min-size-mm"]) {
+      fail(label, "size-range starts at " + range.min + " but " + where + " can't be sized below " + measured["min-size-mm"]);
+    }
+  }
 }
 
 // Designs beyond their shape: the default exists and has no files of its own,
@@ -511,7 +530,7 @@ function checkDesigns(label, product, metals) {
         if (field === "icons") checkVariants(at + " icons." + metal, rel, ["128"]);
       }
     }
-    checkGeometry(at, design.model, design.geometry, design.stl);
+    checkGeometry(at, design.model, design.geometry, design.stl, product["size-range"]);
   }
   if (!keys.has(designs.default)) fail(label, 'designs.default "' + designs.default + '" is not one of its designs');
 }
@@ -627,6 +646,9 @@ if (index && validate("data/series.json", indexSchema, index)) {
         if (!metals.has(product["default-metal"])) fail(label, 'default-metal "' + product["default-metal"] + '" is not in metals');
 
         if (product["size-range"].min > product["size-range"].max) fail(label, "size-range min is above its max");
+        if (product["size-range"].min < SIZE_SPAN_MM.min || product["size-range"].max > SIZE_SPAN_MM.max) {
+          fail(label, "size-range runs outside the sizes models are measured over (SIZE_SPAN_MM in scripts/helpers.js, " + SIZE_SPAN_MM.min + " to " + SIZE_SPAN_MM.max + ")");
+        }
 
         for (const metal of metals) {
           if (!product["per-metal-specs"][metal]) fail(label, 'per-metal-specs has no "' + metal + '"');
@@ -648,7 +670,7 @@ if (index && validate("data/series.json", indexSchema, index)) {
         }
         checkPath(label + " assets.model", product.assets.model);
         checkPath(label + " assets.wireframe", product.assets.wireframe);
-        checkGeometry(label, product.assets.model, product.geometry, product.assets.stl);
+        checkGeometry(label, product.assets.model, product.geometry, product.assets.stl, product["size-range"]);
         if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
         checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);

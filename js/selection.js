@@ -155,11 +155,13 @@
   }
 
   /* ---- prices by size ----
-     per-metal-specs prices are at EmjiveHelpers.REFERENCE_SIZE_MM and scale
-     linearly: priceAt(size) = price x size / reference, whole euros, size
-     clamped to "size-range". A price of 0 means "TBD". Mirrored in
-     scripts/helpers.js for the per-item pages' structured data. */
+     per-metal-specs prices are at EmjiveHelpers.REFERENCE_SIZE_MM and follow
+     the printed piece's volume (geometry.print, else the model's):
+     priceAt(size) = price x volume at size / volume at reference, whole
+     euros, size clamped to "size-range". A price of 0 means "TBD". Mirrored
+     in scripts/helpers.js for the per-item pages' structured data. */
   var sizeRange = window.EmjiveHelpers.sizeRange;
+  var volumeAt = window.EmjiveHelpers.volumeAt;
 
   // `size` may be a number or a typed string.
   function priceAt(product, metal, size) {
@@ -170,7 +172,9 @@
     if (!isFinite(mm) || mm <= 0) return 0;
     var range = sizeRange(product);
     mm = Math.min(Math.max(mm, range.min), range.max);
-    return Math.round(base * mm / window.EmjiveHelpers.REFERENCE_SIZE_MM);
+    var geometry = product.geometry || {};
+    var printed = geometry.print || geometry;
+    return Math.round(base * volumeAt(printed, mm) / volumeAt(printed, window.EmjiveHelpers.REFERENCE_SIZE_MM));
   }
 
   function priceRange(product, metal) {

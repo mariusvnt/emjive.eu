@@ -2311,8 +2311,14 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: 100vw;
   --tile: min(560px, 100vw - 4rem, 100cqh);
   height: var(--tile);
-  /* The model's box: three quarters of the tile, two thirds on a phone. */
+  /* The model's size: three quarters of the tile, two thirds on a phone.
+     Its box is --model-room times that, centred on the same point, so a
+     larger ring size (js/three-viewer.js sizeShiftShader) has room: the
+     viewer draws the model at 1 / --model-room of its box in design
+     (js/product.js), and what is placed against the model (x-ray, reset,
+     design's controls) reads --model-size. */
   --model-size: calc(var(--tile) * 0.75);
+  --model-room: 1.2;
   /* The page's left edge for anchored content (the picker, the column). */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
   /* The model box's bottom from the frame's top, rising with the lift; design's controls hang from here. */
@@ -2384,11 +2390,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   z-index: 1;
   left: 50%;
   top: 50%;
-  width: var(--model-size);
-  height: var(--model-size);
+  width: calc(var(--model-size) * var(--model-room));
+  height: calc(var(--model-size) * var(--model-room));
   transform: translate(-50%, calc(-50% - var(--lift))) scale(calc(1 + (var(--model-k, 1) - 1) * var(--s-in)));
   clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
-  --hit-scale: calc((1 + var(--s-in) / 3) / (1 + (var(--model-grow, 1) - 1) * var(--s-in)));
+  /* In design, the circle around the model at its size, not the box's. */
+  --hit-rest: calc(1 / var(--model-room) + (1 - 1 / var(--model-room)) * var(--s-in));
+  --hit-scale: calc(var(--hit-rest) * (1 + var(--s-in) / 3) / (1 + (var(--model-grow, 1) - 1) * var(--s-in)));
 }
 /* The reset button, centred above the model's box: shown once the model is
    turned off its pose (.is-away), fading with design; tappable only in design. */
@@ -2442,6 +2450,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* At the model's size in design, as the viewer draws it. */
+  transform: scale(calc(1 / var(--model-room) + (1 - 1 / var(--model-room)) * var(--s-in)));
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
@@ -3018,9 +3028,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .product-outline {
   position: absolute;
-  left: calc(var(--outline-x, 0) * var(--model-size) * var(--plan-k));
-  top: calc(var(--outline-y, 0) * var(--model-size) * var(--plan-k));
-  width: calc(var(--outline-w, 0) * var(--model-size) * var(--plan-k));
+  left: calc(var(--outline-x, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
+  top: calc(var(--outline-y, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
+  width: calc(var(--outline-w, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
   aspect-ratio: var(--plan-ratio);
   transform: translate(-50%, -50%);
   opacity: 0;
@@ -3383,7 +3393,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   /* The model's box heads the frame, unscaled. */
   .product-outlines {
     --plan-k: 1;
-    top: calc(var(--model-size) / 2);
+    top: calc(var(--model-size) * var(--model-room) / 2);
     opacity: 1;
   }
   .product-size {

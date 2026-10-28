@@ -80,9 +80,9 @@
     modelAway: false,
     sweep: 0,
     fit: 0,
-    // The chosen size over the model's base size (setModelSize), and the valid
-    // size in the specs field ("" if none: no size on the label).
-    sizeFactor: 1,
+    // The size the model is shown at, mm (setModelSize), and the valid size in
+    // the specs field ("" if none: no size on the label).
+    sizeMm: H.REFERENCE_SIZE_MM,
     sizeText: "",
     // A metal has been picked (the default isn't a pick): until then the price
     // reads from the cheapest metal.
@@ -795,8 +795,9 @@
         },
         // The page's posters stay under it instead: the viewer's own would be the design stage's.
         poster: false,
-        // The specs stage's metal -> blueprint sweep and wireframe (onStageChange).
-        blueprint: { lineColor: pageColor("--category-col", "#727272") }
+        // The specs stage's metal -> blueprint sweep and wireframe (onStageChange),
+        // and the model at its own size in its roomier box (modelRest).
+        blueprint: { lineColor: pageColor("--category-col", "#727272"), restScale: modelRest() }
       });
     }
 
@@ -1209,14 +1210,13 @@
     return "€ " + amount.toFixed(2);
   }
 
-  // The cost chart at the chosen size (weight only feeds it), scaling with the
-  // factor cubed. Uses the design's print geometry (geometry.print, from its
+  // The cost chart at the chosen size (weight only feeds it), from the volume
+  // at that size. Uses the design's print geometry (geometry.print, from its
   // STL) when measured: that's what is made and priced.
   function renderSpecs() {
     var geometry = (state.view && state.view.geometry) || {};
     var printed = geometry.print || geometry;
-    var f = state.sizeFactor;
-    var volume = printed["volume-cm3"] * f * f * f;
+    var volume = H.volumeAt(printed, state.sizeMm);
     var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
     var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
     Object.keys(figures).forEach(function (key) {
@@ -1300,8 +1300,10 @@
   // outline gets a dashed line reaching on to the outline point it stands for
   // (placed once the picture is in: measureMark). Beside each letter, its
   // length at the chosen size in cm. The pictures are drawn in their design's
-  // plan frame (EmjiveHelpers.planFrame) and cropped to one rectangle for both
-  // (--plan-ratio: its proportions). Hidden without the pictures or the frame.
+  // plan frame (EmjiveHelpers.planFrame) at a size and cropped to one
+  // rectangle for both (--plan-ratio: its proportions): the stored ones at
+  // the reference size, others drawn by the viewer when a view is shown
+  // (syncPlanPicture). Hidden without the pictures or the frame.
   var PLAN_HOLD_MS = 4000;
   var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
   var PLAN_AXES = ["x", "y", "z"];
@@ -1494,31 +1496,62 @@
     host.hidden = !state.planFrame;
     outlines.hidden = !state.planFrame;
     if (!state.planFrame) return;
-    outlines.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
     if (!state.planViews) state.planViews = buildPlanViews(host, outlines);
     names.forEach(function (name) {
       var view = state.planViews[name];
       frame.views[name].measures.forEach(function (measure, i) {
         view.marks[i].firstChild.firstChild.textContent = PLAN_AXES[measure.axis];
       });
-      if (!state.planImagesOn) return;
-      // A picture already in (a design change that kept it) fires no load.
-      if (view.img.getAttribute("src") !== paths[name]) view.img.src = paths[name];
-      else placeMarks(name);
+      view.pictureMm = null;
+      syncPlanPicture(name);
     });
     syncPlanSizes();
     placeOutline();
   }
 
+  // A view's picture at the chosen size: the stored one at the reference
+  // size, else drawn by the viewer (planPicture), once the model is in.
+  function syncPlanPicture(name) {
+    var view = state.planViews && state.planViews[name];
+    var mm = state.sizeMm;
+    if (!view || !state.planFrame || !state.planImagesOn || view.pictureMm === mm) return;
+    var src = state.view.assets["plan-views"][name];
+    if (mm !== H.REFERENCE_SIZE_MM) {
+      var handle = state.modelHandle;
+      var color = getComputedStyle(view.outline).color;
+      var picture = handle && handle.planPicture ? handle.planPicture(name, mm, color) : null;
+      if (!picture) return;
+      src = picture.toDataURL("image/png");
+    }
+    view.pictureMm = mm;
+    var frame = H.planFrame(state.view, mm);
+    view.outline.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
+    // A picture already in (a design change that kept it) fires no load.
+    if (view.img.getAttribute("src") !== src) view.img.src = src;
+    else placeMarks(name);
+  }
+
+  // The shown view's picture once the size has settled.
+  var PLAN_REDRAW_MS = 150;
+  var planRedrawTimer = 0;
+  function schedulePlanPicture() {
+    clearTimeout(planRedrawTimer);
+    if (!state.outlineView) return;
+    planRedrawTimer = setTimeout(function () {
+      syncPlanPicture(state.outlineView);
+      placeOutline();
+    }, PLAN_REDRAW_MS);
+  }
+
   // Each measure at the chosen size: its axis of the model's box in cm,
   // beside its letter and in the view's button label.
   function syncPlanSizes() {
-    var frame = state.planFrame;
+    var frame = state.planFrame && H.planFrame(state.view, state.sizeMm);
     if (!frame || !state.planViews) return;
     Object.keys(H.PLAN_VIEWS).forEach(function (name) {
       var view = state.planViews[name];
       var said = frame.views[name].measures.map(function (measure, i) {
-        var text = (frame.size[measure.axis] * state.sizeFactor / 10).toFixed(1) + " cm";
+        var text = (frame.size[measure.axis] / 10).toFixed(1) + " cm";
         if (view.values[i].textContent !== text) view.values[i].textContent = text;
         return PLAN_AXES[measure.axis] + " " + text;
       });
@@ -1526,8 +1559,10 @@
     });
   }
 
-  // The view whose window is running ("" for none).
+  // The view whose window is running ("" for none). Its picture is drawn now,
+  // while the model turns to it.
   function markPlanView(name) {
+    if (name) syncPlanPicture(name);
     if (!state.planViews) return;
     Object.keys(state.planViews).forEach(function (key) {
       state.planViews[key].button.setAttribute("aria-pressed", String(key === name));
@@ -1538,6 +1573,7 @@
   // (onViewHeld).
   function showOutline(name) {
     state.outlineView = name || "";
+    if (state.outlineView) syncPlanPicture(state.outlineView);
     placeOutline();
     if (!state.planViews) return;
     Object.keys(state.planViews).forEach(function (key) {
@@ -1548,15 +1584,17 @@
   // Lays the shown outline on the model: the viewer's figures for the view
   // (viewPlacement: its centre and a mm, shares of the canvas, which is the
   // model's box), set as shares of the box for CSS to place it against the
-  // box (.product-outline). Re-run whenever the model's scale may have changed.
+  // box (.product-outline), the width its picture's. Re-run whenever the
+  // model's scale may have changed.
   function placeOutline() {
     var view = state.planViews && state.planViews[state.outlineView];
     var handle = state.modelHandle;
     var place = view && state.planFrame && handle && handle.viewPlacement ? handle.viewPlacement(state.outlineView) : null;
     if (!place) return;
+    var crop = H.planFrame(state.view, view.pictureMm || H.REFERENCE_SIZE_MM).crop;
     view.outline.style.setProperty("--outline-x", place.x.toFixed(5));
     view.outline.style.setProperty("--outline-y", place.y.toFixed(5));
-    view.outline.style.setProperty("--outline-w", (state.planFrame.crop.w * place.mm).toFixed(5));
+    view.outline.style.setProperty("--outline-w", (crop.w * place.mm).toFixed(5));
   }
 
   /* ---- the three stages ---- */
@@ -1930,16 +1968,26 @@
     if (!state.modelHandle) return;
     state.modelHandle.setFitZoom(specsZoom());
     state.modelHandle.setBlueprint(state.sweep, state.fit);
-    state.modelHandle.setSize(state.sizeFactor);
+    state.modelHandle.setSize(state.sizeMm);
     placeOutline();
   }
 
-  // Before the viewer: fallback-img hands over to the specs-poster (drawn
-  // fitted, at the base size) with the fit, which scales with the size as the
-  // model does.
+  // Before the viewer: fallback-img (drawn filling the box, so brought to
+  // the model's share of it, modelRest, as the viewer draws it) hands over
+  // to the specs-poster (drawn fitted, at the base size) with the fit,
+  // scaled by roughly how much the size grows the model: its front view,
+  // the plane the size widens.
+  function sizeGrowth() {
+    var at = H.planFrame(state.view, state.sizeMm);
+    var base = H.planFrame(state.view);
+    if (!at || !base) return 1;
+    return (at.views.front.w + at.views.front.h) / (base.views.front.w + base.views.front.h);
+  }
   function syncPosters() {
     var specs = state.specsPosterImg;
     if (!specs || !state.posterImg) return;
+    var rest = modelRest();
+    state.posterImg.style.transform = "scale(" + (rest + (1 - rest) * state.fit).toFixed(4) + ")";
     var src = (state.view && state.view.assets && state.view.assets["specs-poster"]) || "";
     if (!src) {
       specs.removeAttribute("src");
@@ -1952,7 +2000,18 @@
     state.posterImg.style.opacity = (1 - state.fit).toFixed(3);
     specs.style.opacity = state.fit.toFixed(3);
     var zoom = specsZoom();
-    specs.style.transform = "scale(" + (1 + (state.sizeFactor * zoom - 1) * state.fit).toFixed(4) + ")";
+    specs.style.transform = "scale(" + (1 + (sizeGrowth() * zoom - 1) * state.fit).toFixed(4) + ")";
+  }
+
+  // The model's share of its box in design: 1 / --model-room (css/style.css,
+  // the design frame), the rest being room for larger sizes. Read once.
+  var modelRestShare = 0;
+  function modelRest() {
+    if (!modelRestShare) {
+      var room = designFrameEl ? parseFloat(getComputedStyle(designFrameEl).getPropertyValue("--model-room")) : 1;
+      modelRestShare = room > 0 ? 1 / room : 1;
+    }
+    return modelRestShare;
   }
 
   // Specs' model tile (css/style.css, the design frame): the picture square
@@ -2002,7 +2061,7 @@
   var DESIGN_GAP_REM = 4.5;
   var DESIGN_HALF_HEIGHT = 0.13;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
-  // the bounds are the product's size-range, set on render. setModelSize scales
+  // the bounds are the product's size-range, set on render. setModelSize sizes
   // the model, specs and tape to a typed size (none: the base), clamped to
   // the range; only a size within it goes on the label and prices it.
   var SIZE_BASE_MM = H.REFERENCE_SIZE_MM;
@@ -2012,7 +2071,7 @@
     var sel = window.EmjiveSelection;
     var mm = parseFloat(raw);
     var given = sel.isValidSize(raw) && isFinite(mm);
-    state.sizeFactor = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) / SIZE_BASE_MM : 1;
+    state.sizeMm = given ? clamp(mm, SIZE_MIN_MM, SIZE_MAX_MM) : SIZE_BASE_MM;
     state.sizeText = state.product && sel.isOrderableSize(state.product, raw) ? String(+mm.toFixed(2)) : "";
     applyStageToViewer();
     if (state.product) {
@@ -2023,6 +2082,7 @@
       if (field) sel.syncSizeField(field, state.product);
     }
     syncPlanSizes();
+    schedulePlanPicture();
     syncSizeTape();
   }
 
@@ -2049,7 +2109,7 @@
   function syncSizeTape() {
     var tape = state.sizeTape;
     if (!tape) return;
-    var mm = clamp(state.sizeFactor * SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM);
+    var mm = clamp(state.sizeMm, SIZE_MIN_MM, SIZE_MAX_MM);
     tape.el.style.setProperty("--tape-at", ((mm - SIZE_MIN_MM) / (SIZE_MAX_MM - SIZE_MIN_MM)).toFixed(4));
     var given = state.sizeText !== "";
     var now = given ? state.sizeText : String(SIZE_BASE_MM);

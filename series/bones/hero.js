@@ -27,6 +27,20 @@
   // by a few px, and the page's bottom must still read as arrived.
   var ENTRANCE_DONE = 0.995;
 
+  // The lead: from LEAD_START of the entrance the shown progress runs ahead of
+  // the scroll, so a scroll that stops short still lands on the wheel. It moves
+  // only on a scroll and the way the scroll went, so it never shows as a motion
+  // of its own; scrolling back, it rejoins the scroll by LEAD_START. Its
+  // strength ramps up to LEAD_FULL, stronger when no finger holds the page (a
+  // fling's inertia, a wheel, keys). The wheel view only.
+  var LEAD_START = 0.5;
+  var LEAD_FULL = 0.8;
+  var LEAD_HELD = 1.5;
+  var LEAD_FREE = 3;
+  var fingers = 0;
+  // { raw, shown, length } at the last update; null to restart on the scroll.
+  var lead = null;
+
   // The wrist, as % of the full picture: centre of the wheel and of the
   // pull-back. The wheel's radius is the hand rings' mean distance from it, or
   // ORBIT_R_FALLBACK of the picture's height with none.
@@ -69,6 +83,35 @@
     })();
   }
 
+  // The shown entrance for the scroll's raw one (0..1 over length px).
+  function leadEntrance(raw, length) {
+    // A restored scroll shows as left, not led by a jump the visitor didn't make.
+    var memory = window.EmjiveScrollMemory;
+    var last = memory && memory.isRestoring && memory.isRestoring() ? null : lead;
+    var wheelView = document.documentElement.getAttribute("data-gallery-view") === "stack";
+    var shown = raw;
+    if (last && wheelView && raw > LEAD_START) {
+      if (last.length !== length) {
+        // A layout change, not a scroll: as many px left to the end.
+        shown = 1 - (1 - last.shown) * last.length / length;
+      } else if (raw > last.raw) {
+        // Forward: what's left to show shrinks as a power of what's left to scroll.
+        var from = Math.max(last.raw, LEAD_START);
+        var fromShown = last.raw < LEAD_START ? from : last.shown;
+        var gain = 1 + ((fingers ? LEAD_HELD : LEAD_FREE) - 1) * window.EmjiveHelpers.smoothstep(LEAD_START, LEAD_FULL, (from + raw) / 2);
+        shown = from >= 1 ? 1 : 1 - (1 - fromShown) * Math.pow((1 - raw) / (1 - from), gain);
+      } else if (raw < last.raw) {
+        // Back: the lead shrinks with the distance to LEAD_START.
+        shown = LEAD_START + (last.shown - LEAD_START) * (raw - LEAD_START) / (last.raw - LEAD_START);
+      } else {
+        shown = last.shown;
+      }
+      shown = Math.max(raw, Math.min(1, shown));
+    }
+    lead = { raw: raw, shown: shown, length: length };
+    return shown;
+  }
+
   function restOpacity() {
     var value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--reveal-xray-rest-opacity"));
     return isFinite(value) ? value : 0.3;
@@ -80,6 +123,7 @@
 
   function showEnd() {
     wipeTopPx = null;
+    lead = null;
     revealFrontier.style.bottom = "";
     revealXrayGroup.style.clipPath = "inset(0 0 0 0)";
     revealXrayGroup.style.opacity = String(restOpacity());
@@ -156,9 +200,10 @@
     var entrance;
     if (entrancePx > 0) {
       var entranceLength = Math.max(1, entrancePx - shortfall);
-      entrance = Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entranceLength));
+      entrance = leadEntrance(Math.max(0, Math.min(1, (rawScrolled - totalScroll) / entranceLength)), entranceLength);
       if (entrance >= ENTRANCE_DONE) entrance = 1;
     } else {
+      lead = null;
       entrance = totalScroll > 0 && rawScrolled >= totalScroll ? 1 : 0;
     }
     // Fades at the wheel's pace (EmjiveHero.mapStage holds it while the wheel rolls back).
@@ -286,6 +331,9 @@
 
       window.addEventListener("scroll", requestRevealUpdate, { passive: true });
       window.addEventListener("resize", layoutDidChange);
+      ["touchstart", "touchend", "touchcancel"].forEach(function (type) {
+        window.addEventListener(type, function (e) { fingers = e.touches.length; }, { passive: true });
+      });
       // Height changes without scroll or resize (hero.css landing late, the entrance
       // room), or a restored page keeps a stage measured on unstyled markup.
       if (typeof ResizeObserver === "function") {

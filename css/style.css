@@ -845,9 +845,9 @@ body:has(.site-header__menu.is-open) .gallery-control {
 
 /* ---- the wheel (js/gallery-stack.js) ----
    One fixed full-screen layer: the shared 3D canvas, the image rendering over
-   it, and the focused product's name button once landed. Takes no taps until
-   .is-landed, so scrolling through the reveal is unaffected. Sized 100lvh, not
-   inset: 0, so the phone's bars coming and going don't resize it (the canvas
+   it, and the focused product's name button from near the end of the entrance.
+   Takes no taps but the button's until .is-landed, so scrolling through the
+   reveal is unaffected. Sized 100lvh, not inset: 0, so the phone's bars coming and going don't resize it (the canvas
    would jump). */
 .gallery-stage {
   position: fixed;
@@ -941,7 +941,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
 /* The centre button: an arrow, then the focused product's name in the
    secondary button format. All names share one cell, right-aligned, and
    crossfade; the cell is as wide as the longest, so nothing shifts and the
-   arrow-to-name span is what's centred. Only once landed. */
+   arrow-to-name span is what's centred. Shown from .is-go-shown, ahead of the
+   landing (js/gallery-stack.js). */
 .stack-orbit {
   position: absolute;
   left: 50%;
@@ -952,7 +953,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
   visibility: hidden;
   transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
 }
-.gallery-stage.is-landed .stack-orbit {
+.gallery-stage.is-go-shown .stack-orbit {
   opacity: 1;
   visibility: visible;
   transition: opacity var(--fade-standard) ease, visibility 0s;

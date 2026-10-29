@@ -40,7 +40,7 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 **The gallery has two views of the same products** (the code calls them `stack` and `grid`):
 
-- **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. Those rings are the wheel's own models, drawn in an x-ray look so they read as part of the radiograph, and they turn to metal as they leave the hand. The circle is then a plate the visitor turns to bring an item to the top.
+- **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. Those rings are the wheel's own models, drawn in an x-ray look so they read as part of the radiograph, and they turn to metal as they leave the hand. The circle is then a plate the visitor turns to bring an item to the top. A scroll that stops short of the wheel still lands on it, with no snap: over the entrance's last stretch the shown progress runs ahead of the scroll, moving only when the scroll moves and in its direction, more during a fling's inertia than under a finger, so the help is never seen as a motion of its own.
 - **The list.** One row per item, no 3D: for a quick pick.
 
 Filtering hides what is already built and never rebuilds it (see rules.md).

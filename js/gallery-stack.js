@@ -33,6 +33,8 @@
   // Landed from here: the camera is 99.6% back (its ease nearly flat), and a
   // Back landing slightly short (a phone's toolbar returning) still counts.
   var LAND_AT = 0.9;
+  // The centre button shows from here, once every product has appeared, ahead of the landing.
+  var GO_AT = APPEAR_END;
   // A plate left turned rolls back to the hand before the camera moves in
   // (stageAt()), over room added to the entrance: this share per slot turned, up to ROLL_MAX.
   var ROLL_PER_STEP = 0.1;
@@ -831,6 +833,8 @@
       }
       if (rolledBack()) keepRolledBack();
       if (!rollSettled()) kick();
+      // Past GO_AT, a roll-back's room included: the button names the product the plate rolls to.
+      stage.classList.toggle("is-go-shown", p * (1 + state.room) >= GO_AT);
       var nowLanded = landedAt(p);
       if (nowLanded !== landed) {
         landed = nowLanded;

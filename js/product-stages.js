@@ -1,24 +1,24 @@
-// The product page's three-stage show: a tall track (.product-stage) holding
+// The product page's two-stage show: a tall track (.product-stage) holding
 // one sticky stage, where scrolling steps inspiration (description and photo
-// feed) -> design (model, metal, design options) -> specs (blueprint model and
-// its plan views, size, costs). Each stage is a stretch the show browses through,
-// with eased transitions between them.
+// feed) -> design (the model and its configuration: design options, metal,
+// size, plan views; then the information drawers). Each stage is a stretch the
+// show browses through, with an eased transition between them.
 //
-// Track order: inspiration stretch (--feed-hold), transition (--stage-step-in),
-// design stretch (--hold-ratio of the next transition), transition
-// (--stage-step), specs stretch (--end-hold). The stretches are sized here
-// from the room each stage needs.
+// Track order: inspiration stretch (--feed-hold), transition
+// (--stage-step-in), design stretch (--design-hold). The stretches are sized
+// here from the room each stage needs.
 //
 // window.EmjiveProductStages.mount(stageEl, { onChange }) publishes on the track:
-//   --to-design, --to-specs   eased 0..1 transitions
-//   --leave                   0..1, linear from the design stretch's start to --to-specs = --t0
-//   --browse-0/1/2            0..1 through each stage's stretch
-//   data-stage                "inspiration" | "design" | "specs" | "flow" (too short to pin)
+//   --to-design               eased 0..1 transition
+//   --browse-0                0..1 through the inspiration stretch
+//   --design-browse           px the show is browsed up through the design
+//                             stretch (in px, read with the room it covers,
+//                             so a room changing never moves the show)
+//   data-stage                "inspiration" | "design" | "flow" (too short to pin)
 //   .is-feed-gone, .is-design-out, .is-model-out   for what CSS can't fade
-// and calls onChange({ toDesign, toSpecs, leave, along, ramp, stage }); `along`
-// is linear through the design stretch and the transition to specs, `ramp`
-// the design stretch's ease-in share.
-// Returns { scrollToStage(index), update() }. Keyboard focus
+// and calls onChange({ toDesign, stage }).
+// Returns { scrollToStage(index), scrollBy(px), update() }; scrollBy moves
+// the show up px more, or down for a negative px (within the design stretch). Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
 // scrolls there.
 
@@ -28,13 +28,12 @@
   var H = window.EmjiveHelpers;
   var clamp01 = H.clamp01;
   var ease = H.smootherstep;
-  var invEase = H.invSmootherstep;
 
   // Too short to pin title, model and controls (a phone on its side): a plain
   // column instead. Same query as the "flow" block in css/style.css.
   var FLOW_QUERY = "(max-height: 560px)";
 
-  var STAGES = ["inspiration", "design", "specs"];
+  var STAGES = ["inspiration", "design"];
 
   // The feed scrolls one for one, easing to rest over its last ramp before the
   // transition. With nothing to browse it still gets FEED_MIN_SCREENS.
@@ -48,13 +47,11 @@
   // (ENTRY_SCREENS of scroll, share `a` of the stretch) then constant pace,
   // without a speed step. entry(0) = 0, entry(1) = 1.
   var ENTRY_SCREENS = 1 / 3;
-  // The design stretch's minimum, a rest for the model.
+  // The design stretch's minimum, a rest at the end.
   var DESIGN_MIN_SCREENS = 0.25;
-  // Specs browsing pace: 15px up per 24px scrolled. The track lengthens for a
+  // Design browsing pace: 15px up per 24px scrolled. The track lengthens for a
   // taller column rather than browsing faster.
   var BROWSE_PACE = 15 / 24;
-  // How many ramps the specs stretch starts before the transition ends.
-  var LEAD_RAMPS = 0;
   function entry(u, a) {
     var t = clamp01(u);
     var y = t < a ? (t * t) / (2 * a) : t - a / 2;
@@ -83,12 +80,13 @@
     var onChange = (options && options.onChange) || function () {};
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
-    var state = { toDesign: -1, toSpecs: -1, leave: -1, along: -1, ramp: -1, stage: "", browse: "" };
+    var state = { toDesign: -1, stage: "", browse: "" };
+    // --design-room in px as the design stretch was last sized from it.
+    var designRoom = 0;
     // Each stage's page scroll position, as last measured.
-    var stops = [0, 0, 0];
+    var stops = [0, 0];
 
-    // CSS lengths in px, read off probes: --room-0 (minimum browse room),
-    // --room-1, --stage-step, --stage-step-in.
+    // CSS lengths in px, read off probes: --design-room, --stage-step-in.
     function probe(height) {
       var el = document.createElement("div");
       el.setAttribute("aria-hidden", "true");
@@ -96,9 +94,7 @@
       stageEl.appendChild(el);
       return el;
     }
-    var roomProbe = probe("var(--room-0)");
-    var designRoomProbe = probe("var(--room-1)");
-    var stepProbe = probe("var(--stage-step)");
+    var designRoomProbe = probe("var(--design-room)");
     var stepInProbe = probe("var(--stage-step-in)");
 
     // Inspiration stretch (--feed-hold): --feed-room (js/product.js) at FEED_PACE
@@ -117,38 +113,20 @@
       else stageEl.style.removeProperty("--feed-hold");
     }
 
-    // Design stretch: --room-1 at BROWSE_PACE plus half the ramp, at least
-    // DESIGN_MIN_SCREENS; set as --hold-ratio of --stage-step.
-    var holdRatio = -1;
+    // Design stretch (--design-hold): --design-room (js/product.js) at
+    // BROWSE_PACE plus half the ramp, at least DESIGN_MIN_SCREENS.
+    var designHold = 0;
     function syncDesignHold() {
-      var want = -1;
-      if (!flow.matches) {
-        var step = stepProbe.offsetHeight;
-        if (step > 0) {
-          var ramp = screenPx() * ENTRY_SCREENS;
-          want = Math.max(screenPx() * DESIGN_MIN_SCREENS, designRoomProbe.offsetHeight / BROWSE_PACE + ramp / 2) / step;
-        }
-      }
-      if (Math.abs(want - holdRatio) < 0.0005) return;
-      holdRatio = want;
-      if (want >= 0) stageEl.style.setProperty("--hold-ratio", want.toFixed(4));
-      else stageEl.style.removeProperty("--hold-ratio");
-    }
-
-    // Specs stretch (--end-hold, 0 = unset): --browse-room (js/product.js), at
-    // least --room-0, at BROWSE_PACE plus half the ramp.
-    var endHold = 0;
-    function syncEndHold() {
       var want = 0;
+      designRoom = flow.matches ? 0 : designRoomProbe.offsetHeight;
       if (!flow.matches) {
-        var room = Math.max(roomProbe.offsetHeight, parseFloat(getComputedStyle(stageEl).getPropertyValue("--browse-room")) || 0);
         var ramp = screenPx() * ENTRY_SCREENS;
-        want = Math.max(ramp / 2, room / BROWSE_PACE + ramp / 2 - ramp * LEAD_RAMPS);
+        want = Math.max(screenPx() * DESIGN_MIN_SCREENS, designRoom / BROWSE_PACE + ramp / 2);
       }
-      if (Math.abs(want - endHold) < 0.5) return;
-      endHold = want;
-      if (want > 0) stageEl.style.setProperty("--end-hold", want.toFixed(1) + "px");
-      else stageEl.style.removeProperty("--end-hold");
+      if (Math.abs(want - designHold) < 0.5) return;
+      designHold = want;
+      if (want > 0) stageEl.style.setProperty("--design-hold", want.toFixed(1) + "px");
+      else stageEl.style.removeProperty("--design-hold");
     }
 
     // Track scroll past the pin's stick point, in px.
@@ -160,37 +138,22 @@
     function measure() {
       var scrolled = scrolledPx();
       var trackStart = window.pageYOffset - scrolled;
-      // Inspiration stretch and transition first; then design stretch, transition, specs stretch.
       var feed = feedHold;
       var stepIn = stepInProbe.offsetHeight;
       var offset = feed + stepIn;
-      var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
-      if (!(ratio >= 0)) ratio = 0.5;
-      var travel = Math.max(0, stageEl.offsetHeight - pin.offsetHeight - offset);
-      var move;
-      var hold2;
-      if (endHold > 0) {
-        // With --end-hold set, the rest splits between design stretch and transition by ratio.
-        move = Math.max(0, travel - endHold) / (ratio + 1);
-        hold2 = endHold;
-      } else {
-        move = travel / (2 * ratio + 1);
-        hold2 = ratio * move;
-      }
-      var hold = ratio * move;
-      stops = [trackStart, trackStart + offset, trackStart + offset + hold + move];
-      return { scrolled: scrolled, feed: feed, stepIn: stepIn, offset: offset, hold: hold, move: move, hold2: hold2 };
+      // The design stretch is whatever the track has left past the transition.
+      var hold = Math.max(0, stageEl.offsetHeight - pin.offsetHeight - offset);
+      stops = [trackStart, trackStart + offset];
+      return { scrolled: scrolled, feed: feed, stepIn: stepIn, offset: offset, hold: hold };
     }
 
     function publish(next) {
       var key = next.browse.join(",");
-      if (next.toDesign === state.toDesign && next.toSpecs === state.toSpecs && next.leave === state.leave &&
-          next.along === state.along && next.ramp === state.ramp && next.stage === state.stage && key === state.browse) return;
-      state = { toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, ramp: next.ramp, stage: next.stage, browse: key };
+      if (next.toDesign === state.toDesign && next.stage === state.stage && key === state.browse) return;
+      state = { toDesign: next.toDesign, stage: next.stage, browse: key };
       stageEl.style.setProperty("--to-design", next.toDesign.toFixed(4));
-      stageEl.style.setProperty("--to-specs", next.toSpecs.toFixed(4));
-      stageEl.style.setProperty("--leave", next.leave.toFixed(4));
-      for (var k = 0; k < 3; k++) stageEl.style.setProperty("--browse-" + k, next.browse[k].toFixed(4));
+      stageEl.style.setProperty("--browse-0", next.browse[0].toFixed(4));
+      stageEl.style.setProperty("--design-browse", next.browse[1].toFixed(1) + "px");
       if (stageEl.getAttribute("data-stage") !== next.stage) stageEl.setAttribute("data-stage", next.stage);
       var inFlow = next.stage === "flow";
       stageEl.classList.toggle("is-feed-gone", !inFlow && next.toDesign >= FEED_GONE_AT);
@@ -198,51 +161,26 @@
       var dFrom = parseFloat(stageEl.style.getPropertyValue("--d-from"));
       stageEl.classList.toggle("is-design-out", !inFlow && next.toDesign <= (dFrom > 0 ? dFrom : DESIGN_FROM));
       stageEl.classList.toggle("is-model-out", !inFlow && next.toDesign <= 0);
-      onChange({ toDesign: next.toDesign, toSpecs: next.toSpecs, leave: next.leave, along: next.along, ramp: next.ramp, stage: next.stage });
+      onChange({ toDesign: next.toDesign, stage: next.stage });
     }
 
     function update() {
       ticking = false;
       if (flow.matches) {
-        publish({ toDesign: 1, toSpecs: 0, stage: "flow", browse: [0, 0, 0], leave: 0, along: 0, ramp: 1 });
+        publish({ toDesign: 1, stage: "flow", browse: [0, 0] });
         return;
       }
       syncFeedHold();
       syncDesignHold();
-      syncEndHold();
       var m = measure();
       var s = m.scrolled;
       var screenRamp = screenPx() * ENTRY_SCREENS;
       var browse0 = m.feed > 0 ? exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed)) : 1;
       var toDesign = m.stepIn > 0 ? ease((s - m.feed) / m.stepIn) : (s >= m.feed ? 1 : 0);
-      // From here, counted from the design stretch's first pixel.
+      // Counted from the design stretch's first pixel.
       var s1 = s - m.offset;
-      if (!(m.move > 0)) {
-        publish({ toDesign: toDesign, toSpecs: 0, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, 0, 0], leave: 0, along: 0, ramp: 1 });
-        return;
-      }
-      var toSpecs = ease((s1 - m.hold) / m.move);
-      var stage = toDesign < 0.5 ? STAGES[0] : toSpecs >= 0.5 ? STAGES[2] : STAGES[1];
-      function through(from, length) { return length > 0 ? clamp01((s1 - from) / length) : 1; }
-      // Design's controls leave linearly, gone where the transition reaches --t0
-      // (js/product.js, from the model's position).
-      var t0 = parseFloat(getComputedStyle(stageEl).getPropertyValue("--t0"));
-      if (!(t0 > 0)) t0 = 0.3;
-      var gone = m.hold + m.move * invEase(Math.min(t0, 1));
-      var leave = gone > 0 ? clamp01(s1 / gone) : 0;
-      var lead = m.hold2 > 0 ? Math.min(screenRamp * LEAD_RAMPS, m.move / 2) : 0;
-      var length = m.hold2 + lead;
-      var ramp = length > 0 ? Math.min(1, screenRamp / length) : 1;
-      var ramp1 = m.hold > 0 ? Math.min(1, screenRamp / m.hold) : 1;
-      publish({
-        toDesign: toDesign,
-        toSpecs: toSpecs,
-        stage: stage,
-        browse: [browse0, entry(through(0, m.hold), ramp1), entry(through(m.hold + m.move - lead, length), ramp)],
-        leave: leave,
-        along: clamp01(s1 / (m.hold + m.move)),
-        ramp: ramp1
-      });
+      var browse1 = m.hold > 0 ? designRoom * entry(clamp01(s1 / m.hold), Math.min(1, screenRamp / m.hold)) : 0;
+      publish({ toDesign: toDesign, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, browse1] });
     }
 
     function requestUpdate() {
@@ -259,15 +197,32 @@
       window.scrollTo({ top: Math.max(0, Math.round(top)), left: 0 });
     }
 
+    // Scrolls to where the design browse is px further (within its room), by
+    // undoing entry(); a plain scroll when the stage isn't pinned. Eased
+    // (H.easeScroll), from where an eased scroll under way is headed.
+    function scrollBy(px) {
+      var ahead = H.easeScrollTarget() - window.pageYOffset;
+      if (flow.matches) {
+        H.easeScroll(Math.max(0, window.pageYOffset + ahead + px));
+        return;
+      }
+      var m = measure();
+      if (!(m.hold > 0) || !(designRoom > 0)) return;
+      var a = Math.min(1, (screenPx() * ENTRY_SCREENS) / m.hold);
+      var current = designRoom * entry(clamp01((m.scrolled + ahead - m.offset) / m.hold), a);
+      var y = (Math.max(0, Math.min(designRoom, current + px)) / designRoom) * (1 - a / 2);
+      var t = y < a / 2 ? Math.sqrt(2 * a * y) : y + a / 2;
+      H.easeScroll(Math.max(0, stops[1] + t * m.hold));
+    }
+
     stageEl.addEventListener("focusin", function (e) {
       if (flow.matches) return;
       if (!e.target.matches(":focus-visible")) return;
       var owner = e.target.closest("[data-stage-owner]");
       if (!owner) return;
-      // Already in one of its stages: nowhere to go.
-      var owned = owner.getAttribute("data-stage-owner").split(/\s+/);
-      if (owned.indexOf(state.stage) !== -1) return;
-      var index = STAGES.indexOf(owned[0]);
+      var owned = owner.getAttribute("data-stage-owner");
+      if (owned === state.stage) return;
+      var index = STAGES.indexOf(owned);
       if (index !== -1) scrollToStage(index);
     });
 
@@ -278,8 +233,8 @@
     window.addEventListener("pageshow", requestUpdate);
     update();
 
-    return { scrollToStage: scrollToStage, update: requestUpdate };
+    return { scrollToStage: scrollToStage, scrollBy: scrollBy, update: requestUpdate };
   }
 
-  window.EmjiveProductStages = { mount: mount, screenPx: screenPx, entry: entry };
+  window.EmjiveProductStages = { mount: mount, screenPx: screenPx };
 })();

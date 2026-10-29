@@ -1,5 +1,5 @@
 // "Find my size": a full-screen overlay measuring a ring size, opened from
-// the product page (specs stage, Select sheet) and the Modify sheet.
+// the product page (size row, Select sheet) and the Modify sheet.
 //
 // Steps:
 //   ask        has the visitor a fitting ring?

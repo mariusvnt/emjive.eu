@@ -1,7 +1,8 @@
 // The product page: resolves the item from the address and renders its label,
-// photo feed, model, metal picker, design options, specs and the selection
-// flow across the three stages js/product-stages.js drives, handling what CSS
-// can't (the model's blueprint sweep, its rise into specs, the feed's room).
+// photo feed, model, design options, metal picker, size, plan views, the
+// information drawers and the selection flow across the two stages
+// js/product-stages.js drives, handling what CSS can't (the band's reveal of
+// the model, its lift, the feed's and the design column's room).
 
 (function () {
   "use strict";
@@ -9,7 +10,7 @@
   var H = window.EmjiveHelpers;
   var el = H.el;
   var clamp = H.clamp;
-  var invEase = H.invSmootherstep;
+  var remPx = H.remPx;
 
   var root = document.getElementById("productDetail");
   if (!root) return;
@@ -38,7 +39,7 @@
   var state = {
     product: null,
     // The product as its chosen design (EmjiveSeries.resolveDesign), read by the
-    // model, label thumbnail, specs and selection.
+    // model, label thumbnail, costs and selection.
     view: null,
     designKey: "",
     // The loader hold while a design's model is loading.
@@ -55,52 +56,41 @@
     captions: [],
     selectedMetal: null,
     modelHandle: null,
-    // The model box's posters until the viewer is in: fallback-img, and over it
-    // the specs-poster, shown as specs comes in (syncPosters).
+    // The model box's poster (fallback-img) until the viewer is in.
     posterImg: null,
-    specsPosterImg: null,
     // The x-ray's original file (startXray picks the viewport's version) and whether the watcher is wired.
     xraySrc: "",
     xrayWatching: false,
     iconFallbackImg: null,
-    // The stage transitions (0..1) and what they make of the model (refreshStage),
-    // kept so a viewer built later starts where the page is.
+    // The stage transition (0..1), kept so a viewer built later starts where the page is.
     toDesign: 0,
-    toSpecs: 0,
     // Design's controls out of sight: the viewer is paused.
     designOut: true,
-    // Linear progress through the design stretch and the transition to specs: the model's rise.
-    along: 0,
-    // The design stretch's ease-in share (js/product-stages.js).
-    ramp: 1,
     // Whether a released model eases home by itself: not in design, where the
     // reset button does it.
     autoReturn: true,
     // The model is turned off its pose (reported by the viewer).
     modelAway: false,
-    sweep: 0,
-    fit: 0,
     // The size the model is shown at, mm (setModelSize), and the valid size in
-    // the specs field ("" if none: no size on the label).
+    // the size field ("" if none: no size on the label).
     sizeMm: H.REFERENCE_SIZE_MM,
     sizeText: "",
     // A metal has been picked (the default isn't a pick): until then the price
     // reads from the cheapest metal.
     metalPicked: false,
-    // The size tape's elements (wireSizeTape).
-    sizeTape: null,
-    // The plan views' elements by view name, the design's frame
-    // (EmjiveHelpers.planFrame), and whether the pictures may load yet.
+    // The size dial's elements (wireSizeDial).
+    sizeDial: null,
+    // The plan views' elements by view name and the design's frame
+    // (EmjiveHelpers.planFrame).
     planViews: null,
     planFrame: null,
-    planImagesOn: false,
     // The view whose outline lies over the model ("" for none: showOutline).
     outlineView: "",
-    // The model's lift on its way into specs, px (refreshStage).
+    // The shape dial (js/option-dial.js); null without one.
+    shapeDial: null,
+    // The model's lift where design holds it, px (refreshStage).
     lift: 0,
-    // The model box's scale once in specs (fitSpecsBox).
-    modelK: 1,
-    // Whether the specs size has its starting value (62).
+    // Whether the size field has its starting value (62).
     sizeSeeded: false,
     seedSize: null,
     // Marks the cost chart as played out.
@@ -253,10 +243,11 @@
     var modelParts = renderModel(product);
     renderDesigns(product);
     renderMetalOptions(product);
-    renderSpecs();
+    renderCosts();
     renderPlanViews();
     renderPrinting();
     renderComposition();
+    wireDrawers();
     wireSelectButton(product);
 
     loadingEl.hidden = true;
@@ -336,13 +327,11 @@
     xray.hidden = false;
   }
 
-  // After the first paint: other metals' icons, the rest of the feed, the plan
-  // views, the viewer and the x-ray.
+  // After the first paint: other metals' icons, the rest of the feed, the
+  // viewer and the x-ray.
   function loadRemainingAssets(product, feed, modelParts) {
     preloadIcons(state.view);
     feed.loadRest();
-    state.planImagesOn = true;
-    renderPlanViews();
     modelParts.mountViewer();
     startXray(product);
     // The high-res x-ray once the model is up (or after VIEWER_SETTLE_WAIT_MS), so
@@ -397,7 +386,7 @@
     H.resampleBand(labelBar());
   }
 
-  // ".category.metal", plus ".size" once the specs field holds one (appendSize, as in the rows).
+  // ".category.metal", plus ".size" once the size field holds one (appendSize, as in the rows).
   function labelTypeText(product) {
     return (product.category ? "." + product.category.toLowerCase() : "") +
       (state.selectedMetal ? "." + state.selectedMetal : "");
@@ -662,9 +651,6 @@
     ctx.fillRect(0, 0, width, height);
     return canvas;
   }
-  function remPx() {
-    return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  }
   function buildTrail(trail, img) {
     if (!trail || trail.firstChild || !img.naturalWidth) return;
     try {
@@ -734,10 +720,10 @@
     if (window.ResizeObserver) new ResizeObserver(build).observe(img);
   }
 
-  /* ---- 2b. the model (design, then specs) ---- */
+  /* ---- 2b. the model (design) ---- */
 
-  // The model's box: its posters (fallback-img, the viewer's first frame, and
-  // the specs-poster in specs) under the viewer until its first frame is in;
+  // The model's box: its poster (fallback-img, the viewer's first frame) under
+  // the viewer until its first frame is in;
   // the icon without a model or viewer. Built for the design and metal current
   // when it arrives; later design picks swap the model in place (onDesignSelect).
   function renderModel(product) {
@@ -747,7 +733,6 @@
     state.modelHandle = null;
     setModelAway(false);
     state.posterImg = null;
-    state.specsPosterImg = null;
     state.iconFallbackImg = null;
     // Resolves once the model is on screen, or never will be; the high-res x-ray waits on it.
     var settleViewer;
@@ -780,12 +765,14 @@
         // false: no loader (reduced motion).
         loader: loadHold || false,
         // Only a centred circle is the model's to drag (radius leaving a quarter of
-        // the width as margin); presses outside scroll the page. Specs shrinks it
-        // (--hit-scale in css/style.css, which assumes this margin).
+        // the width as margin); presses outside scroll the page. Shrunk to the
+        // model (--hit-scale in css/style.css, which assumes this margin).
         hitCircle: 0.25,
         onAway: setModelAway,
-        // A plan view's outline over the model while it holds the view.
+        // A plan view's lines over the model while it holds the view, measured
+        // on each frame drawn meanwhile.
         onViewHeld: showOutline,
+        onViewDrawn: onViewDrawn,
         // Also fires for a lost WebGL context, possibly long after loading (iOS
         // reclaims GPU contexts under memory pressure).
         onError: replaceModelWithIcon,
@@ -795,19 +782,18 @@
         },
         // The page's posters stay under it instead: the viewer's own would be the design stage's.
         poster: false,
-        // The specs stage's metal -> blueprint sweep and wireframe (onStageChange),
-        // and the model at its own size in its roomier box (modelRest).
+        // The size, plan views and outlines, and the model at its own size in
+        // its roomier box (modelRest).
         blueprint: { lineColor: pageColor("--category-col", "#727272"), restScale: modelRest() }
       });
     }
 
-    // Before the viewer's first frame: the posters, sized like the viewer, so
+    // Before the viewer's first frame: the poster, sized like the viewer, so
     // the swap moves nothing (as in js/modify-modal.js posterBox()).
     function showPoster() {
       box.innerHTML = "";
       state.posterImg = null;
-      state.specsPosterImg = null;
-      var src = H.posterFor(state.view, state.selectedMetal);
+        var src = H.posterFor(state.view, state.selectedMetal);
       if (!src) return;
       var poster = el("div", "size-modal__model-poster");
       var img = document.createElement("img");
@@ -815,25 +801,17 @@
       img.alt = product.name || "";
       img.draggable = false;
       poster.appendChild(img);
-      // The model as specs draws it, for a page opened (or scrolled) there before the viewer.
-      var specs = document.createElement("img");
-      specs.alt = "";
-      specs.draggable = false;
-      poster.appendChild(specs);
       box.appendChild(poster);
       state.posterImg = img;
-      state.specsPosterImg = specs;
-      syncPosters();
     }
 
     function dropPosters() {
       var poster = box.querySelector(".size-modal__model-poster");
       if (poster) box.removeChild(poster);
       state.posterImg = null;
-      state.specsPosterImg = null;
-    }
+      }
 
-    // Lays the viewer over the posters, which go at its first frame; also the
+    // Lays the viewer over the poster, which goes at its first frame; also the
     // bfcache restore path. Falls back to the icon without a viewer.
     function attachViewer() {
       if (state.modelHandle) return;
@@ -851,7 +829,7 @@
       // Paused while out of sight (inspiration).
       handle.setPaused(state.designOut);
       handle.setAutoReturn(state.autoReturn);
-      // Wherever the show is now (a rebuild can land in specs).
+      // At the size chosen meanwhile.
       applyStageToViewer();
     }
 
@@ -891,8 +869,7 @@
       box.classList.remove("is-model");
       box.innerHTML = "";
       state.posterImg = null;
-      state.specsPosterImg = null;
-      state.iconFallbackImg = null;
+        state.iconFallbackImg = null;
       var src = H.assetFor(state.view, "icons", state.selectedMetal);
       if (!src) return;
       var img = document.createElement("img");
@@ -964,156 +941,70 @@
     document.head.appendChild(link);
   }
 
-  /* ---- 2c. design options (design) ---- */
+  /* ---- 2c. the dials: shape, material ---- */
 
-  // One row per option under the model: its label and choice buttons. A
-  // "multiple" option is a set of toggles (the last one can't be turned off);
-  // others pick one. A pick lands on the design with exactly those picks, or
-  // else the one keeping the new pick and most of the others (first listed of
-  // equals). Choices that wouldn't land exactly are dimmed.
+  // While a dial is open, its active option's name over the model ("" hides it).
+  function showDialName(text) {
+    var node = document.getElementById("productDialName");
+    if (!node) return;
+    if (text) node.textContent = text;
+    node.classList.toggle("is-shown", !!text);
+  }
+
+  // The shape dial: one option per design, its key as its name and its icon
+  // in the chosen metal as its preview. None with a single design.
   function renderDesigns(product) {
-    var host = document.getElementById("productOptions");
-    host.innerHTML = "";
+    var host = document.getElementById("productShapeDial");
     var designs = product.designs;
-    if (!designs || !Array.isArray(designs.options) || !Array.isArray(designs.list) || designs.list.length < 2) {
-      host.hidden = true;
-      return;
-    }
+    if (!host || !designs || !Array.isArray(designs.list) || designs.list.length < 2) return;
     host.hidden = false;
-    designs.options.forEach(function (option, i) {
-      var row = el("div", "product-option");
-      row.setAttribute("role", "group");
-      var label = el("span", "product-option__label", option.label);
-      label.id = "productOptionLabel" + i;
-      row.setAttribute("aria-labelledby", label.id);
-      var choices = el("div", "product-option__choices");
-      option.choices.forEach(function (choice) {
-        var button = el("button", "product-option__choice", choice);
-        button.type = "button";
-        button.setAttribute("data-option", option.key);
-        button.setAttribute("data-choice", choice);
-        button.addEventListener("click", function () { pickChoice(product, option, choice); });
-        choices.appendChild(button);
-      });
-      row.appendChild(label);
-      row.appendChild(choices);
-      host.appendChild(row);
-    });
-    syncDesignChoices(product);
-  }
-
-  function currentDesign(product) {
-    var list = product.designs.list;
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].key === state.designKey) return list[i];
-    }
-    return list[0];
-  }
-
-  // A design's picks for an option, as a list.
-  function picksOf(design, option) {
-    var pick = design.picks && design.picks[option.key];
-    return Array.isArray(pick) ? pick.slice() : pick === undefined ? [] : [pick];
-  }
-
-  function samePicks(a, b) {
-    if (a.length !== b.length) return false;
-    var x = a.slice().sort();
-    var y = b.slice().sort();
-    for (var i = 0; i < x.length; i++) {
-      if (x[i] !== y[i]) return false;
-    }
-    return true;
-  }
-
-  // The picks a tap on `choice` would give; null for the last one on of a multiple option.
-  function nextPicks(product, option, choice) {
-    var design = currentDesign(product);
-    var picks = {};
-    product.designs.options.forEach(function (o) { picks[o.key] = picksOf(design, o); });
-    if (option.multiple) {
-      var set = picks[option.key];
-      var at = set.indexOf(choice);
-      if (at === -1) set.push(choice);
-      else if (set.length === 1) return null;
-      else set.splice(at, 1);
-    } else {
-      picks[option.key] = [choice];
-    }
-    return picks;
-  }
-
-  function exactDesign(product, picks) {
-    var options = product.designs.options;
-    return product.designs.list.find(function (design) {
-      return options.every(function (o) { return samePicks(picksOf(design, o), picks[o.key]); });
-    }) || null;
-  }
-
-  function landingDesign(product, option, picks) {
-    var exact = exactDesign(product, picks);
-    if (exact) return exact;
-    var best = null;
-    var bestScore = -1;
-    product.designs.list.forEach(function (design) {
-      if (!samePicks(picksOf(design, option), picks[option.key])) return;
-      var score = product.designs.options.filter(function (o) {
-        return o !== option && samePicks(picksOf(design, o), picks[o.key]);
-      }).length;
-      if (score > bestScore) {
-        best = design;
-        bestScore = score;
-      }
-    });
-    return best;
-  }
-
-  function pickChoice(product, option, choice) {
-    var picks = nextPicks(product, option, choice);
-    if (!picks) return;
-    // A plain option's choice no design has with the other picks: no-op.
-    if (!option.multiple && !exactDesign(product, picks)) return;
-    var design = landingDesign(product, option, picks);
-    if (design) onDesignSelect(product, design.key);
-  }
-
-  // Choice states for the current design: pressed (its picks); dimmed (no
-  // design has the combination a tap would make; never for a chosen one);
-  // disabled (the last one on of a multiple option, or a dimmed plain choice).
-  function syncDesignChoices(product) {
-    var design = currentDesign(product);
-    var buttons = document.querySelectorAll("#productOptions .product-option__choice");
-    Array.prototype.forEach.call(buttons, function (button) {
-      var option = product.designs.options.find(function (o) { return o.key === button.getAttribute("data-option"); });
-      if (!option) return;
-      var choice = button.getAttribute("data-choice");
-      var current = picksOf(design, option);
-      var on = current.indexOf(choice) !== -1;
-      var last = !!option.multiple && on && current.length === 1;
-      var picks = last ? null : nextPicks(product, option, choice);
-      var unavailable = !on && !(picks && exactDesign(product, picks));
-      button.setAttribute("aria-pressed", String(on));
-      button.setAttribute("aria-disabled", String(last || (unavailable && !option.multiple)));
-      button.classList.toggle("is-unavailable", unavailable);
+    state.shapeDial = window.EmjiveOptionDial.mount(host, {
+      name: "Shape",
+      mode: "icons",
+      options: shapeOptions(product),
+      selected: state.designKey,
+      onSelect: function (key) { onDesignSelect(product, key); },
+      onShow: showDialName
     });
   }
 
-  // Another design: label, thumbnail, specs and model follow. The viewer swaps
+  function shapeOptions(product) {
+    return product.designs.list.map(function (design) {
+      return {
+        key: design.key,
+        label: design.key,
+        preview: function () {
+          var view = window.EmjiveSeries.resolveDesign(product, design.key).view;
+          return previewImg(H.assetFor(view, "icons", state.selectedMetal), "product-dial__icon");
+        }
+      };
+    });
+  }
+
+  function previewImg(src, className) {
+    var img = el("img", className);
+    img.alt = "";
+    img.decoding = "async";
+    img.draggable = false;
+    if (src) img.src = src;
+    return img;
+  }
+
+  // Another design: label, thumbnail, costs, plan views and model follow. The viewer swaps
   // models in place, camera kept (setProduct), under the frame's loader; a
   // viewer not built yet is built as this design.
   function onDesignSelect(product, key) {
     if (key === state.designKey) return;
     state.designKey = key;
     state.view = window.EmjiveSeries.resolveDesign(product, key).view;
-    syncDesignChoices(product);
+    if (state.shapeDial) state.shapeDial.select(key);
     renderLabelDesign(product);
     renderLabelThumb();
     if (state.iconFallbackImg) {
       state.iconFallbackImg.src = H.assetFor(state.view, "icons", state.selectedMetal);
     }
     if (state.posterImg) state.posterImg.src = H.posterFor(state.view, state.selectedMetal);
-    syncPosters();
-    renderSpecs();
+    renderCosts();
     renderPlanViews();
     preloadIcons(state.view);
     if (state.modelHandle && state.modelHandle.setProduct) {
@@ -1135,17 +1026,31 @@
 
   /* ---- 3. metal selection ---- */
 
-  // Two pickers (the page's and the Select sheet's), each mirroring the other.
+  // The material dial (a metal's swatch as its preview) and the Select
+  // sheet's picker, each mirroring the other.
   function renderMetalOptions(product) {
-    var pagePicker = null;
     var sheetPicker = null;
-    pagePicker = window.EmjiveMetalPicker.mount(document.getElementById("productMetals"), {
-      metals: state.metals,
+    var dial = window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
+      name: "Material",
+      mode: "fill",
+      options: state.metals.map(function (metal) {
+        return {
+          key: metal,
+          label: metal,
+          // The swatch as css/style.css draws it (the metal picker's rule).
+          preview: function () {
+            var swatch = el("span", "product-dial__swatch");
+            swatch.setAttribute("data-metal", metal);
+            return swatch;
+          }
+        };
+      }),
       selected: state.selectedMetal,
       onSelect: function (metal) {
         if (sheetPicker) sheetPicker.select(metal);
         onMetalSelect(product, metal);
-      }
+      },
+      onShow: showDialName
     });
     var sheetMetals = document.getElementById("sizeModalMetals");
     if (!sheetMetals) return;
@@ -1154,7 +1059,7 @@
       selected: state.selectedMetal,
       row: true,
       onSelect: function (metal) {
-        pagePicker.select(metal);
+        dial.select(metal);
         onMetalSelect(product, metal);
       }
     });
@@ -1186,13 +1091,15 @@
     }
     // The poster too, if the viewer isn't in yet.
     if (state.posterImg) state.posterImg.src = H.posterFor(view, metal);
-    renderSpecs();
+    // The shape previews are the designs in this metal.
+    if (state.shapeDial) state.shapeDial.setOptions(shapeOptions(product));
+    renderCosts();
     renderPrinting();
     renderComposition();
     tintAfterPaint();
   }
 
-  /* ---- specs ---- */
+  /* ---- costs ---- */
 
   // Weight and costs for one metal from the piece's volume and the metal's
   // "metal-costs": raw materials = weight x (1 + loss margin) x price per gram
@@ -1213,7 +1120,7 @@
   // The cost chart at the chosen size (weight only feeds it), from the volume
   // at that size. Uses the design's print geometry (geometry.print, from its
   // STL) when measured: that's what is made and priced.
-  function renderSpecs() {
+  function renderCosts() {
     var geometry = (state.view && state.view.geometry) || {};
     var printed = geometry.print || geometry;
     var volume = H.volumeAt(printed, state.sizeMm);
@@ -1233,28 +1140,29 @@
   }
 
   // How the chosen metal is printed.
+  // Its drawer, hidden without one.
   function renderPrinting() {
-    var section = document.getElementById("productPrinting");
+    var drawer = document.getElementById("productPrinting");
     var tech = state.technologies[state.metalTechnology[state.selectedMetal]];
-    var wasShown = !section.hidden;
-    var from = wasShown ? section.offsetHeight : 0;
-    section.hidden = !tech;
+    var from = drawer.hidden ? 0 : drawer.offsetHeight;
+    drawer.hidden = !tech;
     if (!tech) return;
     document.getElementById("productPrintingName").textContent = tech.name;
     document.getElementById("productPrintingText").textContent = tech.description;
-    // A different text height: glide instead of snapping.
-    if (wasShown && from > 0) tweenHeight(section, from);
+    // A different text height in an open drawer: glide instead of snapping.
+    if (from > 0) tweenHeight(drawer, from);
   }
 
-  // The chosen metal's composition, with the same glide.
+  // The chosen metal's composition, its drawer as the printing technology's.
   function renderComposition() {
+    var drawer = document.getElementById("productCompositionDrawer");
     var node = document.getElementById("productComposition");
-    if (!node) return;
+    if (!drawer || !node) return;
     var text = state.compositions[state.selectedMetal] || "";
-    var from = node.hidden ? 0 : node.offsetHeight;
-    node.hidden = !text;
+    var from = drawer.hidden ? 0 : drawer.offsetHeight;
+    drawer.hidden = !text;
     node.textContent = text;
-    if (text && from > 0) tweenHeight(node, from);
+    if (text && from > 0) tweenHeight(drawer, from);
   }
 
   // Animates `node`'s height from `from` to `to` (default: its new natural
@@ -1285,55 +1193,36 @@
     }, 260);
   }
 
-  /* ---- plan views (specs) ---- */
+  /* ---- plan views ---- */
 
-  // The model's front and side views (scripts/auto-render.js): a button for
-  // each, in two tiles under the model's. A tap turns the
-  // model to the view for PLAN_HOLD_MS before it eases back; the button stays
-  // pressed until then (setModelAway). Once the model is there, the view's
-  // outline drawing fades in over it, laid exactly on the model
-  // (placeOutline), and fades out as the hold ends (showOutline). A drawing
+  // The model's front and side views: a button for each, stacked under the
+  // reset button in the model box's top-right corner. A tap turns the model
+  // to the view and holds it there until a drag, the reset button or another
+  // tap on it; the button stays pressed until then.
+  // Once the model is there, the viewer draws its outline over it on every
+  // frame (js/three-viewer.js), and here its dimensions are laid on it
+  // (placeOutline), fading in and out with the hold (showOutline). A view
   // carries lines, one per axis it measures (x and y on the front, z on the
-  // side; EmjiveHelpers.PLAN_VIEWS), each running between its two farthest
-  // points along its axis, at the height (or column) of one of them, with the
-  // axis's letter past the end that is on the outline; an end off the
-  // outline gets a dashed line reaching on to the outline point it stands for
-  // (placed once the picture is in: measureMark). Beside each letter, its
-  // length at the chosen size in cm. The pictures are drawn in their design's
-  // plan frame (EmjiveHelpers.planFrame) at a size and cropped to one
-  // rectangle for both (--plan-ratio: its proportions): the stored ones at
-  // the reference size, others drawn by the viewer when a view is shown
-  // (syncPlanPicture). Hidden without the pictures or the frame.
-  var PLAN_HOLD_MS = 4000;
+  // side; EmjiveHelpers.PLAN_VIEWS), each running between the model's two
+  // farthest points along its axis, at the height (or column) of one of them,
+  // with the axis's letter past the end that is on the outline; an end off
+  // the outline gets a dashed line reaching on to the outline point it stands
+  // for (measureMark, on the viewer's silhouette of the model, each frame it
+  // draws: onViewDrawn). Beside each letter, its length at the chosen size in
+  // cm. The lines are placed in the view's rectangle of its design's plan
+  // frame (EmjiveHelpers.planFrame) at the size (--plan-ratio: its
+  // proportions). Hidden without the frame.
   var PLAN_NAMES = { top: "Top", front: "Front", side: "Side" };
   var PLAN_AXES = ["x", "y", "z"];
-  // A picture's pixel counts as drawn from this alpha (of 255).
+  // A silhouette's pixel counts as the model's from this alpha (of 255).
   var PLAN_DRAWN_ALPHA = 60;
-  // How far, in picture pixels, a line's end may sit from the drawing and
+  // How far, in silhouette pixels, a line's end may sit from the model and
   // still count as on the outline.
   var PLAN_ON_PX = 2;
 
-  // A picture's alpha, read once on a shared canvas: { w, h, data }, null if
-  // it can't be read.
-  var planPixelCanvas = null;
-  function readPlanPicture(img) {
-    var w = img.naturalWidth;
-    var h = img.naturalHeight;
-    if (!w || !h) return null;
-    try {
-      if (!planPixelCanvas) planPixelCanvas = document.createElement("canvas");
-      planPixelCanvas.width = w;
-      planPixelCanvas.height = h;
-      var ctx = planPixelCanvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(img, 0, 0);
-      return { w: w, h: h, data: ctx.getImageData(0, 0, w, h).data };
-    } catch (err) {
-      return null;
-    }
-  }
-
-  // The line for one axis of a picture, `horizontal` (along its width)
-  // or not: from the drawing's first drawn pixel to its last along that axis,
+  // The line for one axis of a view's silhouette (the viewer's planMask),
+  // `horizontal` (along its width) or not: from the model's first pixel to
+  // its last along that axis,
   // at the row (or column) of one of those two extreme points, the middle of
   // the run of rows reaching it. The line takes the extreme whose far end
   // still lands on the drawing; with neither or both, the right one of a
@@ -1394,12 +1283,11 @@
 
   // Lays a view's lines and letters on its picture, and the reach
   // from a line end off the drawing to its extreme point; they stay hidden
-  // until the picture has been read.
-  function placeMarks(name) {
+  // until the silhouette has been read.
+  function placeMarks(name, picture) {
     var view = state.planViews && state.planViews[name];
     var drawing = state.planFrame && state.planFrame.views[name];
     if (!view || !drawing) return;
-    var picture = view.marks.length && view.img.getAttribute("src") ? readPlanPicture(view.img) : null;
     drawing.measures.forEach(function (measure, i) {
       var mark = view.marks[i];
       var reach = view.reaches[i];
@@ -1421,21 +1309,36 @@
     });
   }
 
-  // The buttons' cubes, in oblique view: the front square, the top and the
-  // right face drawn in a hairline at any size, no hidden edges, and the face
-  // the view looks at filled.
-  var PLAN_CUBE = "M4 8 H16 V20 H4 Z M4 8 L8 4 H20 L16 8 M20 4 V16 L16 20";
-  var PLAN_FACES = { front: "M4 8 H16 V20 H4 Z", side: "M16 8 L20 4 V16 L16 20 Z" };
+  // The buttons' icons, the band ring's outline as the view sees it, in a
+  // hairline at any size: from the front its rim, two circles; from the
+  // side its band, a narrow upright rectangle rounded at the corners, as a
+  // domed wedding band's.
+  var PLAN_OUTLINES = {
+    front: "M20 12 A8 8 0 1 1 4 12 A8 8 0 1 1 20 12 Z M17 12 A5 5 0 1 1 7 12 A5 5 0 1 1 17 12 Z",
+    side: "M11.25 4 H12.75 A1.75 1.75 0 0 1 14.5 5.75 V18.25 A1.75 1.75 0 0 1 12.75 20 H11.25 A1.75 1.75 0 0 1 9.5 18.25 V5.75 A1.75 1.75 0 0 1 11.25 4 Z"
+  };
   function planIcon(name) {
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "product-plan__icon");
-    // Cropped to the cube, so its label sits right under it.
+    // Cropped to the ring.
     svg.setAttribute("viewBox", "3.5 3.5 17 17");
     svg.setAttribute("aria-hidden", "true");
     svg.setAttribute("focusable", "false");
-    svg.innerHTML = '<path d="' + (PLAN_FACES[name] || "") + '" fill="currentColor" opacity="0.15"/>' +
-      '<path d="' + PLAN_CUBE + '" fill="none" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+    svg.innerHTML = '<path d="' + (PLAN_OUTLINES[name] || "") + '" fill="none" stroke="currentColor" stroke-width="0.75" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
     return svg;
+  }
+
+  function onViewTap(name) {
+    var handle = state.modelHandle;
+    if (!handle || !handle.showView) return;
+    // The held view's button lets go of it.
+    if (state.outlineView === name) {
+      setModelAway(false);
+      handle.returnHome();
+      return;
+    }
+    handle.showView(name);
+    markPlanView(name);
   }
 
   function buildPlanViews(host, outlines) {
@@ -1446,23 +1349,11 @@
       button.setAttribute("data-view", name);
       button.setAttribute("aria-pressed", "false");
       button.appendChild(planIcon(name));
-      button.appendChild(el("span", "product-plan__name", PLAN_NAMES[name] || name));
-      button.addEventListener("click", function () {
-        if (!state.modelHandle || !state.modelHandle.showView) return;
-        state.modelHandle.showView(name, PLAN_HOLD_MS);
-        markPlanView(name);
-      });
+      button.addEventListener("click", function () { onViewTap(name); });
       host.appendChild(button);
 
       var outline = el("div", "product-outline");
       outline.setAttribute("data-view", name);
-      var img = document.createElement("img");
-      img.className = "product-outline__img";
-      img.alt = "";
-      img.decoding = "async";
-      img.draggable = false;
-      img.addEventListener("load", function () { placeMarks(name); });
-      outline.appendChild(img);
       var reaches = [];
       var values = [];
       var marks = H.PLAN_VIEWS[name].measures.map(function () {
@@ -1480,7 +1371,7 @@
         return mark;
       });
       outlines.appendChild(outline);
-      views[name] = { button: button, outline: outline, img: img, marks: marks, reaches: reaches, values: values };
+      views[name] = { button: button, outline: outline, marks: marks, reaches: reaches, values: values };
     });
     return views;
   }
@@ -1489,58 +1380,32 @@
     var host = document.getElementById("productPlans");
     var outlines = document.getElementById("productOutlines");
     if (!host || !outlines || !state.view) return;
-    var paths = (state.view.assets && state.view.assets["plan-views"]) || {};
     var frame = H.planFrame(state.view);
-    var names = Object.keys(H.PLAN_VIEWS);
-    state.planFrame = frame && names.every(function (name) { return paths[name]; }) ? frame : null;
-    host.hidden = !state.planFrame;
-    outlines.hidden = !state.planFrame;
-    if (!state.planFrame) return;
+    state.planFrame = frame;
+    host.hidden = !frame;
+    outlines.hidden = !frame;
+    if (!frame) return;
     if (!state.planViews) state.planViews = buildPlanViews(host, outlines);
-    names.forEach(function (name) {
+    Object.keys(H.PLAN_VIEWS).forEach(function (name) {
       var view = state.planViews[name];
       frame.views[name].measures.forEach(function (measure, i) {
         view.marks[i].firstChild.firstChild.textContent = PLAN_AXES[measure.axis];
       });
-      view.pictureMm = null;
-      syncPlanPicture(name);
+      // Hidden until measured on this design.
+      placeMarks(name, null);
     });
     syncPlanSizes();
     placeOutline();
   }
 
-  // A view's picture at the chosen size: the stored one at the reference
-  // size, else drawn by the viewer (planPicture), once the model is in.
-  function syncPlanPicture(name) {
-    var view = state.planViews && state.planViews[name];
-    var mm = state.sizeMm;
-    if (!view || !state.planFrame || !state.planImagesOn || view.pictureMm === mm) return;
-    var src = state.view.assets["plan-views"][name];
-    if (mm !== H.REFERENCE_SIZE_MM) {
-      var handle = state.modelHandle;
-      var color = getComputedStyle(view.outline).color;
-      var picture = handle && handle.planPicture ? handle.planPicture(name, mm, color) : null;
-      if (!picture) return;
-      src = picture.toDataURL("image/png");
-    }
-    view.pictureMm = mm;
-    var frame = H.planFrame(state.view, mm);
-    view.outline.style.setProperty("--plan-ratio", (frame.crop.w / frame.crop.h).toFixed(4));
-    // A picture already in (a design change that kept it) fires no load.
-    if (view.img.getAttribute("src") !== src) view.img.src = src;
-    else placeMarks(name);
-  }
-
-  // The shown view's picture once the size has settled.
-  var PLAN_REDRAW_MS = 150;
-  var planRedrawTimer = 0;
-  function schedulePlanPicture() {
-    clearTimeout(planRedrawTimer);
-    if (!state.outlineView) return;
-    planRedrawTimer = setTimeout(function () {
-      syncPlanPicture(state.outlineView);
-      placeOutline();
-    }, PLAN_REDRAW_MS);
+  // Each frame the viewer draws over the held view: its lines measured on
+  // the model's silhouette as drawn, and laid on it, so they follow the size
+  // as it changes.
+  function onViewDrawn(name) {
+    var handle = state.modelHandle;
+    if (name !== state.outlineView || !handle || !handle.planMask) return;
+    placeMarks(name, handle.planMask(name));
+    placeOutline();
   }
 
   // Each measure at the chosen size: its axis of the model's box in cm,
@@ -1559,21 +1424,19 @@
     });
   }
 
-  // The view whose window is running ("" for none). Its picture is drawn now,
-  // while the model turns to it.
+  // The view being turned to or held ("" for none): its button pressed.
   function markPlanView(name) {
-    if (name) syncPlanPicture(name);
     if (!state.planViews) return;
     Object.keys(state.planViews).forEach(function (key) {
       state.planViews[key].button.setAttribute("aria-pressed", String(key === name));
     });
   }
 
-  // The outline of the view the model holds ("" for none), from the viewer
+  // The lines of the view the model holds ("" for none), from the viewer
   // (onViewHeld).
   function showOutline(name) {
     state.outlineView = name || "";
-    if (state.outlineView) syncPlanPicture(state.outlineView);
+    if (!state.outlineView) markPlanView("");
     placeOutline();
     if (!state.planViews) return;
     Object.keys(state.planViews).forEach(function (key) {
@@ -1581,32 +1444,31 @@
     });
   }
 
-  // Lays the shown outline on the model: the viewer's figures for the view
-  // (viewPlacement: its centre and a mm, shares of the canvas, which is the
-  // model's box), set as shares of the box for CSS to place it against the
-  // box (.product-outline), the width its picture's. Re-run whenever the
-  // model's scale may have changed.
+  // Lays the shown view's lines on the model: the viewer's figures for the
+  // view (viewPlacement: its centre and a mm, shares of the canvas, which is
+  // the model's box), set as shares of the box for CSS to place the view's
+  // rectangle at the chosen size against the box (.product-outline,
+  // --plan-ratio its proportions), where the viewer draws the outline.
+  // Re-run whenever the model's size or scale may have changed.
   function placeOutline() {
     var view = state.planViews && state.planViews[state.outlineView];
     var handle = state.modelHandle;
     var place = view && state.planFrame && handle && handle.viewPlacement ? handle.viewPlacement(state.outlineView) : null;
     if (!place) return;
-    var crop = H.planFrame(state.view, view.pictureMm || H.REFERENCE_SIZE_MM).crop;
+    var crop = H.planFrame(state.view, state.sizeMm).crop;
+    view.outline.style.setProperty("--plan-ratio", (crop.w / crop.h).toFixed(4));
     view.outline.style.setProperty("--outline-x", place.x.toFixed(5));
     view.outline.style.setProperty("--outline-y", place.y.toFixed(5));
     view.outline.style.setProperty("--outline-w", (crop.w * place.mm).toFixed(5));
   }
 
-  /* ---- the three stages ---- */
+  /* ---- the two stages ---- */
 
-  // js/product-stages.js publishes the eased transitions and CSS fades in
-  // phases (out, blank, in). This handles the rest: the feed's room and the model.
-  // Inspiration -> design is a plain fade; the model holds still before it.
-  // Design -> specs: an inversion band sweeps up the screen, and the model's
-  // metal -> blueprint sweep is its passage across the model, from foot to
-  // head. The first fade ends (--t0) as the band reaches the model, the second
-  // starts (--t1) as it leaves, and the model's fit follows; all derived from
-  // the model's screen position.
+  // js/product-stages.js publishes the eased transition and CSS fades in
+  // phases (out, blank, in). This handles the rest: the feed's room, the
+  // design column's room, and the model. Inspiration -> design: an inversion
+  // band sweeps up the screen, revealing the model behind it; the model holds
+  // still before it.
   function wireStages() {
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
@@ -1614,7 +1476,7 @@
     // mount() published before this handle existed: fit the feed into the track now.
     fitFeed();
     stages.update();
-    // Design: back to the pose.
+    // Back to the pose.
     if (resetEl) {
       resetEl.addEventListener("click", function () {
         resetEl.blur();
@@ -1622,55 +1484,99 @@
         if (state.modelHandle) state.modelHandle.returnHome();
       });
     }
-    var resizeQueued = false;
-    window.addEventListener("resize", function () {
-      if (resizeQueued) return;
-      resizeQueued = true;
+    var refreshQueued = false;
+    function queueRefresh() {
+      if (refreshQueued) return;
+      refreshQueued = true;
       requestAnimationFrame(function () {
-        resizeQueued = false;
-        fitSizeTape();
+        refreshQueued = false;
         refreshStage();
       });
-    });
+    }
+    window.addEventListener("resize", queueRefresh);
+    // The column grows and shrinks (a drawer opening, a text's glide, the
+    // size row wrapping): the design stretch follows.
+    var below = document.querySelector(".product-below");
+    if (below && window.ResizeObserver) new ResizeObserver(queueRefresh).observe(below);
   }
 
   function onStageChange(stage) {
     state.toDesign = stage.toDesign;
-    state.toSpecs = stage.toSpecs;
-    state.along = stage.along || 0;
-    state.ramp = stage.ramp || 1;
     state.flow = stage.stage === "flow";
     refreshStage();
-    // The cost chart builds once specs is fully in, and resets once left (all at once in flow).
-    var costs = document.getElementById("productCosts");
-    if (costs) {
-      if ((stage.stage === "flow" || stage.toSpecs >= 0.999) && !costs.classList.contains("is-built")) {
-        costs.classList.add("is-built");
-        // After the cascade (ends by 1.65 s in CSS), figure changes move all bars at once.
-        clearTimeout(state.settleTimer);
-        state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 1800);
-      } else if (stage.stage !== "flow" && stage.toSpecs < 0.5 && costs.classList.contains("is-built")) {
-        clearTimeout(state.settleTimer);
-        costs.classList.remove("is-built", "is-settled");
-      }
-    }
-    // The size field gets its starting value as design's controls start leaving.
-    if ((stage.toSpecs > 0 || stage.leave > 0) && !state.sizeSeeded && state.seedSize) state.seedSize();
-    // In design a released model stays put (the reset button returns it); in
-    // specs and flow it eases home. Out of sight it pauses.
+    // The size field gets its starting value once design is fully in.
+    if (!state.flow && stage.toDesign >= 1 && !state.sizeSeeded && state.seedSize) state.seedSize();
+    // In design a released model stays put (the reset button returns it);
+    // elsewhere it eases home. Out of sight it pauses.
     var autoReturn = stage.stage !== "design";
     if (autoReturn !== state.autoReturn) {
       state.autoReturn = autoReturn;
       var handle = state.modelHandle;
       if (handle) {
         handle.setAutoReturn(autoReturn);
-        if (autoReturn && (stage.stage === "specs" || stage.stage === "flow")) handle.returnHome();
+        if (autoReturn && stage.stage === "flow") handle.returnHome();
       }
     }
     var out = !state.flow && stage.toDesign <= MODEL_FROM;
     if (out === state.designOut) return;
     state.designOut = out;
     if (state.modelHandle) state.modelHandle.setPaused(out);
+  }
+
+  // The information drawers: a tap on a label's + opens its value under it,
+  // another closes it. The cost chart builds as its drawer opens and resets
+  // once closed.
+  function wireDrawers() {
+    var drawers = document.querySelectorAll(".product-drawer");
+    Array.prototype.forEach.call(drawers, function (drawer) {
+      var toggle = drawer.querySelector(".product-drawer__toggle");
+      if (!toggle) return;
+      function flip() {
+        var open = !drawer.classList.contains("is-open");
+        // What a close gives back: the drawer as it is, less its label row.
+        var freed = open ? 0 : drawer.offsetHeight - drawerClosedHeight(drawer);
+        drawer.classList.toggle("is-open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        if (drawer.classList.contains("product-costs")) buildCosts(drawer, open);
+        // The design stretch takes its new length at once, not frame by frame.
+        refreshStage();
+        if (open) revealDrawer(drawer);
+        // A close scrolls back by what it frees, the page under it staying put.
+        else if (freed > 0 && stages) stages.scrollBy(-freed);
+      }
+      // The label, or the + under the value (a pointer's twin of the label).
+      toggle.addEventListener("click", flip);
+      var plus = drawer.querySelector(".product-drawer__plus");
+      if (plus) plus.addEventListener("click", flip);
+    });
+  }
+
+  // An opening drawer scrolls the page up just enough to show the next
+  // drawer's label (the last drawer: its own end) clear of the bottom bars by
+  // DESIGN_CLEAR_REM, if it would end under them; a closing one leaves the
+  // page where it is.
+  function revealDrawer(drawer) {
+    var drawers = Array.prototype.slice.call(document.querySelectorAll(".product-drawer:not([hidden])"));
+    var next = drawers[drawers.indexOf(drawer) + 1];
+    var bottom = drawer.getBoundingClientRect().top + drawerOpenHeight(drawer);
+    if (next) {
+      // Where the next label will end once this drawer is open.
+      var head = next.querySelector(".product-drawer__head");
+      bottom = next.getBoundingClientRect().top + drawerOpenHeight(drawer) - drawer.offsetHeight + (head ? head.offsetHeight : 0);
+    }
+    var past = bottom - (barsTopPx() - DESIGN_CLEAR_REM * remPx());
+    if (past > 0 && stages) stages.scrollBy(past);
+  }
+
+  function buildCosts(costs, on) {
+    clearTimeout(state.settleTimer);
+    if (!on) {
+      costs.classList.remove("is-built", "is-settled");
+      return;
+    }
+    costs.classList.add("is-built");
+    // After the cascade (ends by 1.65 s in CSS), figure changes move all bars at once.
+    state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 1800);
   }
 
   // The inspiration stretch scrolls the feed up until its end (the trail, already
@@ -1724,33 +1630,23 @@
     return -new DOMMatrix(t).m42;
   }
 
-  // The design stretch's browse distance (--room-1, found by fitDesignRoom), read off a probe.
-  var designRoomProbe = null;
-  function designRoomPx() {
-    if (!designRoomProbe) designRoomProbe = lengthProbe(document.getElementById("productStage"), "width:0;height:var(--room-1)");
-    return designRoomProbe.offsetHeight;
-  }
-
-  // Design's controls (the options, then the material cluster) can reach under
-  // the bottom bars: the design stretch scrolls the show up until the last
-  // clears them by DESIGN_CLEAR_REM (--design-room). Measured unshifted (browse
-  // and lift removed) so it holds still; frozen once the controls are gone
-  // (.is-specs-layout).
-  var DESIGN_CLEAR_REM = 0;
+  // The design column (the configuration, then the drawers) can reach under
+  // the bottom bars: the design stretch scrolls the show up until its end
+  // clears them by DESIGN_CLEAR_REM (--design-room). Measured with the browse
+  // removed and the model's lift in, and with every drawer open
+  // (drawersAllOpen), so it holds still as they open and close. Never under
+  // the browse already done, so a re-fit never pulls the page from under the
+  // finger.
+  var DESIGN_CLEAR_REM = 4;
   var designRoom = 0;
   function fitDesignRoom() {
     if (!stageEl) return;
-    var room = designRoom;
-    if (state.flow) {
-      room = 0;
-    } else if (!stageEl.classList.contains("is-specs-layout")) {
-      var last = document.querySelector(".product-design-panel");
-      room = 0;
-      if (last) {
-        var rem = remPx();
-        var bottom = last.getBoundingClientRect().bottom + browsePx() + state.lift;
-        room = Math.max(0, bottom - (barsTopPx() - DESIGN_CLEAR_REM * rem));
-      }
+    var room = 0;
+    var below = document.querySelector(".product-below");
+    if (!state.flow && below) {
+      var browsed = browsePx();
+      var bottom = below.getBoundingClientRect().bottom + browsed + drawersAllOpen();
+      room = Math.max(0, browsed, bottom - (barsTopPx() - DESIGN_CLEAR_REM * remPx()));
     }
     if (Math.abs(room - designRoom) < 0.5) return;
     designRoom = room;
@@ -1759,82 +1655,31 @@
     if (stages) stages.update();
   }
 
-  // The model's sweep span on screen (top, bottom): the viewer's own figures,
-  // else the model box's (close enough to time the fades).
-  function modelSpan() {
-    var handle = state.modelHandle;
-    var own = handle && handle.scanSpan();
-    if (own) {
-      var top = handle.el.getBoundingClientRect().top;
-      return { top: top + own.top, bottom: top + own.bottom };
-    }
-    if (!modelBoxEl || !modelBoxEl.classList.contains("is-model")) return null;
-    var r = modelBoxEl.getBoundingClientRect();
-    var mid = r.top + r.height / 2;
-    return { top: mid - r.height * 0.44, bottom: mid + r.height * 0.44 };
+  // How much taller the drawers would be all open than they are now, px:
+  // the room is always theirs all open, so it holds as they open and close.
+  function drawersAllOpen() {
+    var change = 0;
+    Array.prototype.forEach.call(document.querySelectorAll(".product-drawer:not([hidden])"), function (drawer) {
+      change += drawerOpenHeight(drawer) - drawer.offsetHeight;
+    });
+    return change;
   }
 
-  // The model's lift (px above rest) at progress w through the design stretch
-  // and transition, with its specs place `place` up. It rises with the show's
-  // browsing (`room` by the stretch's end, easing in like the show over `ramp`),
-  // then carries on at the same pace and slows to a stop at its place, so the
-  // show settling as specs arrives never drags it. Everything is offset by
-  // `base`, where design holds the model.
-  function modelRise(w, place, room, ratio, ramp, base) {
-    var wh = ratio / (ratio + 1);
-    var x = clamp(w, 0, 1);
-    var a = ramp > 0 ? Math.min(1, ramp) : 1;
-    if (x <= wh) return base + (wh > 0 ? room * browseEntry(x / wh, a) : 0);
-    var u = (x - wh) / (1 - wh);
-    var dist = place - room - base;
-    // The browse's final pace relative to a straight line.
-    var pace = 1 / (1 - a / 2);
-    if (dist > 1) return base + room + dist * (1 - Math.pow(1 - u, clamp(room * pace / (ratio * dist), 1.5, 6)));
-    return base + room + dist * H.smoothstep(0, 1, u);
+  // A drawer's height closed: its label row, px.
+  function drawerClosedHeight(drawer) {
+    var head = drawer.querySelector(".product-drawer__head");
+    var plus = drawer.querySelector(".product-drawer__plus");
+    return Math.max(head ? head.offsetHeight : 0, plus ? plus.offsetHeight : 0);
   }
 
-  // The browse progress at u through a stretch (js/product-stages.js entry()).
-  function browseEntry(u, a) {
-    var stages = window.EmjiveProductStages;
-    if (stages && stages.entry) return stages.entry(u, a);
-    return clamp(u, 0, 1);
-  }
-
-  // Monotone cubic interpolation (Fritsch-Carlson) through (xs, ys) at x, so
-  // the band never turns back. Linear if the points aren't strictly falling.
-  function bandAt(xs, ys, x) {
-    var n = xs.length;
-    var d = [];
-    var m = [];
-    var i;
-    for (i = 0; i < n - 1; i++) {
-      if (!(xs[i + 1] > xs[i]) || !(ys[i + 1] < ys[i] - 1)) {
-        var f = clamp(x, 0, 1);
-        return ys[0] + (ys[n - 1] - ys[0]) * f;
-      }
-      d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
-    }
-    m.push(d[0]);
-    for (i = 1; i < n - 1; i++) m.push((d[i - 1] + d[i]) / 2);
-    m.push(d[n - 2]);
-    for (i = 0; i < n - 1; i++) {
-      var a = m[i] / d[i];
-      var b = m[i + 1] / d[i];
-      var r = a * a + b * b;
-      if (r > 9) {
-        var tau = 3 / Math.sqrt(r);
-        m[i] = tau * a * d[i];
-        m[i + 1] = tau * b * d[i];
-      }
-    }
-    var seg = 0;
-    while (seg < n - 2 && x > xs[seg + 1]) seg++;
-    var w = xs[seg + 1] - xs[seg];
-    var u = clamp((x - xs[seg]) / w, 0, 1);
-    var u2 = u * u;
-    var u3 = u2 * u;
-    return (2 * u3 - 3 * u2 + 1) * ys[seg] + (u3 - 2 * u2 + u) * w * m[seg] +
-      (-2 * u3 + 3 * u2) * ys[seg + 1] + (u3 - u2) * w * m[seg + 1];
+  // A drawer's height open: the taller of its label and its value with the
+  // + under it, px.
+  function drawerOpenHeight(drawer) {
+    var head = drawer.querySelector(".product-drawer__head");
+    var inner = drawer.querySelector(".product-drawer__inner");
+    var plus = drawer.querySelector(".product-drawer__plus");
+    if (!head || !inner || !plus) return drawer.offsetHeight;
+    return Math.max(head.offsetHeight, inner.scrollHeight + plus.offsetHeight);
   }
 
   // The stable small-viewport height (js/product-stages.js screenPx):
@@ -1843,168 +1688,67 @@
     return window.EmjiveProductStages && window.EmjiveProductStages.screenPx ? window.EmjiveProductStages.screenPx() : window.innerHeight;
   }
 
-  // Derives the show from state.toSpecs and the model's position: phase timing,
-  // the band, the model's sweep and lift. Runs on every scroll and resize
-  // change and when a viewer arrives.
-  function refreshStage() {
-    var band = document.getElementById("productScan");
-    if (!stageEl) return;
-    var t = state.toSpecs;
-    var t0 = 0.3;
-    var t1 = 0.6;
-    var sweep = 0;
-    var barOn = false;
+  // Where design holds the model, as its lift (px up from rest): its middle
+  // at DESIGN_ANCHOR of the screen (or under the title bar), then
+  // DESIGN_GAP_REM lower. Everything placed against
+  // the model but the x-ray goes with it.
+  var DESIGN_ANCHOR = 1 / 3;
+  var DESIGN_GAP_REM = 4.5;
+  // The model's approximate half-height as a share of its tile.
+  var DESIGN_HALF_HEIGHT = 0.13;
+  function designLift() {
+    if (!designFrameEl || state.flow) return 0;
+    var titleBar = labelBar();
+    var titleBottom = titleBar ? titleBar.getBoundingClientRect().bottom : 0;
     var browsed = browsePx();
-    var ratio = parseFloat(getComputedStyle(stageEl).getPropertyValue("--hold-ratio"));
-    if (!(ratio >= 0)) ratio = 0.5;
+    var box = designFrameEl.getBoundingClientRect();
+    var half = DESIGN_HALF_HEIGHT * box.height;
+    var target = Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBottom + half + 8 : 0) + DESIGN_GAP_REM * remPx();
+    return Math.max(0, box.top + box.height / 2 + browsed - target);
+  }
+
+  // Derives the show from state.toDesign and the page's layout: the model's
+  // lift, the design column's room and the band's reveal. Runs on every scroll
+  // and resize change and when a viewer arrives.
+  function refreshStage() {
+    if (!stageEl) return;
+    var band = document.getElementById("productScan");
+    state.lift = designLift();
+    stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
     fitDesignRoom();
-    var room = designRoomPx();
-    // The model's specs place: `place` is how far up its middle is from rest
-    // (negative when it sits lower than rest).
-    var place = 0;
-    // Design's hold (`hold`, from rest): the model's middle at DESIGN_ANCHOR of
-    // the screen (or under the title bar), then DESIGN_GAP_REM lower. Everything
-    // placed against the model but the x-ray goes with it.
-    var hold = 0;
-    if (designFrameEl && !state.flow) {
-      var box = designFrameEl.getBoundingClientRect();
-      var titleBar = document.querySelector(".product-detail__label-bar");
-      // The model's approximate half-height at its fitted size.
-      var half = DESIGN_HALF_HEIGHT * box.height;
-      var rem = remPx();
-      hold = Math.max(0, box.top + box.height / 2 + browsed - (Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBar.getBoundingClientRect().bottom + half + 8 : 0) + DESIGN_GAP_REM * rem));
-      // Specs' model top where design's stands, its larger half under it,
-      // then SPECS_RAISE_REM higher.
-      place = hold + half - specsHalfHeight() + SPECS_RAISE_REM * rem;
-    }
-    var path = modelRise(state.along, place, room, ratio, state.ramp, hold);
-    var span = state.flow ? null : modelSpan();
-    if (span && span.bottom > span.top) {
-      // The model's foot and head at rest. Fades are timed from where they stand
-      // after the design stretch's browse; the band passes monotonically through
-      // four points: below the screen at 0, the foot at t0, the head at t1 (as the
-      // risen model has them), above the screen at 1. The sweep is the band's
-      // passage across the model as it stands now.
-      var restBottom = span.bottom + state.lift + browsed;
-      var restTop = span.top + state.lift + browsed;
-      var viewport = screenHeight();
-      var h = band ? band.offsetHeight : 0;
-      t0 = clamp(1 - (restBottom - room + h / 2) / (viewport + h), 0.08, 0.7);
-      t1 = clamp(1 - (restTop - room + h / 2) / (viewport + h), t0 + 0.1, 0.92);
-      var along = function (x) {
-        return modelRise((ratio + invEase(x)) / (ratio + 1), place, room, ratio, state.ramp, hold);
-      };
-      var knots = [0, t0, t1, 1];
-      var places = [viewport + h / 2, restBottom - along(t0), restTop - along(t1), -h / 2];
-      var barY = bandAt(knots, places, t);
-      var bottom = restBottom - path;
-      var top = restTop - path;
-      sweep = clamp((bottom - barY) / (bottom - top), 0, 1);
-      barOn = t > 0 && t < 1;
-      if (band && barOn) band.style.top = barY.toFixed(1) + "px";
-    }
-    // Inspiration -> design uses the same band, rising with the scroll; the model
-    // shows behind it by cutting its box at the band's top edge (--model-cut), so
-    // the poster and icon reveal like the live model. Design's controls come in
-    // from when the band's top meets the title bar (--d-from).
-    var labelBar = document.querySelector(".product-detail__label-bar");
-    if (band && labelBar && !state.flow) {
+    // The band rises with the scroll; the model shows behind it by cutting its
+    // box at the band's top edge (--model-cut), so the poster and icon reveal
+    // like the live model. Design's controls come in from when the band's top
+    // meets the title bar (--d-from).
+    var titleBar = labelBar();
+    if (band && titleBar && !state.flow) {
       var fromH = screenHeight();
-      var dFrom = (fromH - labelBar.getBoundingClientRect().bottom) / (fromH + band.offsetHeight);
+      var dFrom = (fromH - titleBar.getBoundingClientRect().bottom) / (fromH + band.offsetHeight);
       stageEl.style.setProperty("--d-from", clamp(dFrom, 0.3, 0.95).toFixed(4));
     }
-    var cutting = band && !barOn && !state.flow && t === 0 && state.toDesign > 0 && state.toDesign < 1;
+    var cutting = !!band && !state.flow && state.toDesign > 0 && state.toDesign < 1;
     if (cutting) {
       var bandH = band.offsetHeight;
       var viewportH = screenHeight();
       var cutY = viewportH + bandH / 2 - (viewportH + bandH) * state.toDesign;
       band.style.top = cutY.toFixed(1) + "px";
-      barOn = true;
       if (modelBoxEl) modelBoxEl.style.setProperty("--model-cut", (cutY - bandH / 2 - modelBoxEl.getBoundingClientRect().top).toFixed(1) + "px");
     } else if (modelBoxEl) {
       modelBoxEl.style.removeProperty("--model-cut");
     }
-    state.sweep = sweep;
-    // Design's room is measured only until the blank is half through (fitDesignRoom).
-    stageEl.classList.toggle("is-specs-layout", !state.flow && t > (t0 + t1) / 2);
-    state.fit = clamp((t - t1) / (1 - t1), 0, 1);
-    // The model's own lift: the path less what the show's browse already does
-    // (it rises for the design stretch and settles as specs arrives, --browse-px).
-    var wh = ratio / (ratio + 1);
-    var browsing = room * (wh > 0 ? browseEntry(clamp(state.along / wh, 0, 1), state.ramp > 0 ? Math.min(1, state.ramp) : 1) : 1) * (1 - state.fit);
-    state.lift = path - browsing;
-    stageEl.style.setProperty("--lift", state.lift.toFixed(1) + "px");
-    stageEl.style.setProperty("--t0", t0.toFixed(4));
-    stageEl.style.setProperty("--t1", t1.toFixed(4));
-    if (band) band.classList.toggle("is-on", barOn);
-    fitBrowse(stageEl);
-    fitSpecsBox();
+    if (band) band.classList.toggle("is-on", cutting);
     fitFeed();
     applyStageToViewer();
   }
 
-  // The specs column can end under the bottom bars, out of reach: its stretch
-  // scrolls the show up until the last block clears the bars by
-  // BROWSE_CLEAR_REM (--browse-room, at least the bars' height in CSS).
-  // Measured unshifted so it holds still.
-  var BROWSE_CLEAR_REM = 8;
-  var browseRoom = 0;
-  function fitBrowse(stageEl) {
-    var room = 0;
-    var blocks = stageEl.querySelectorAll(".product-logistics__block");
-    var bar = document.getElementById("productSelectBar");
-    if (!state.flow && blocks.length && bar) {
-      var clear = BROWSE_CLEAR_REM * remPx();
-      var bottom = blocks[blocks.length - 1].getBoundingClientRect().bottom + browsePx();
-      room = Math.max(0, bottom - (bar.getBoundingClientRect().top - clear));
-    }
-    if (Math.abs(room - browseRoom) < 0.5) return;
-    browseRoom = room;
-    stageEl.style.setProperty("--browse-room", room.toFixed(1) + "px");
-  }
-
   function applyStageToViewer() {
-    syncPosters();
     if (!state.modelHandle) return;
-    state.modelHandle.setFitZoom(specsZoom());
-    state.modelHandle.setBlueprint(state.sweep, state.fit);
     state.modelHandle.setSize(state.sizeMm);
     placeOutline();
   }
 
-  // Before the viewer: fallback-img (drawn filling the box, so brought to
-  // the model's share of it, modelRest, as the viewer draws it) hands over
-  // to the specs-poster (drawn fitted, at the base size) with the fit,
-  // scaled by roughly how much the size grows the model: its front view,
-  // the plane the size widens.
-  function sizeGrowth() {
-    var at = H.planFrame(state.view, state.sizeMm);
-    var base = H.planFrame(state.view);
-    if (!at || !base) return 1;
-    return (at.views.front.w + at.views.front.h) / (base.views.front.w + base.views.front.h);
-  }
-  function syncPosters() {
-    var specs = state.specsPosterImg;
-    if (!specs || !state.posterImg) return;
-    var rest = modelRest();
-    state.posterImg.style.transform = "scale(" + (rest + (1 - rest) * state.fit).toFixed(4) + ")";
-    var src = (state.view && state.view.assets && state.view.assets["specs-poster"]) || "";
-    if (!src) {
-      specs.removeAttribute("src");
-      specs.hidden = true;
-      state.posterImg.style.opacity = "";
-      return;
-    }
-    if (specs.getAttribute("src") !== src) specs.src = src;
-    specs.hidden = false;
-    state.posterImg.style.opacity = (1 - state.fit).toFixed(3);
-    specs.style.opacity = state.fit.toFixed(3);
-    var zoom = specsZoom();
-    specs.style.transform = "scale(" + (1 + (sizeGrowth() * zoom - 1) * state.fit).toFixed(4) + ")";
-  }
-
-  // The model's share of its box in design: 1 / --model-room (css/style.css,
-  // the design frame), the rest being room for larger sizes. Read once.
+  // The model's share of its box: 1 / --model-room (css/style.css, the design
+  // frame), the rest being room for larger sizes. Read once.
   var modelRestShare = 0;
   function modelRest() {
     if (!modelRestShare) {
@@ -2014,56 +1758,10 @@
     return modelRestShare;
   }
 
-  // Specs' model tile (css/style.css, the design frame): the picture square
-  // (the probe's width) and the tile's height (its height).
-  var specsRowProbe = null;
-  function specsProbe() {
-    if (!specsRowProbe) specsRowProbe = lengthProbe(designFrameEl, "width:var(--plan-tile);height:var(--plan-cell-h)");
-    return specsRowProbe;
-  }
-  // The model's approximate half-height in specs, at the starting size.
-  var SPECS_HALF_SHARE = 0.3;
-  var SPECS_RAISE_REM = 3;
-  function specsHalfHeight() {
-    return SPECS_HALF_SHARE * specsProbe().offsetWidth;
-  }
-
-  // The model box's scale once in specs (--model-k on the frame, css/style.css
-  // .product-model): its side brought to SPECS_VIEWER_GROW x --plan-model,
-  // overhanging its tile. Measured here, not in CSS, so the box's scale and
-  // the fit zoom read the same figures and can't disagree.
-  var SPECS_VIEWER_GROW = 1.5;
-  var specsModelProbe = null;
-  function fitSpecsBox() {
-    if (!modelBoxEl || !designFrameEl) return;
-    if (!specsModelProbe) specsModelProbe = lengthProbe(designFrameEl, "width:var(--plan-model);height:0");
-    var box = modelBoxEl.offsetWidth;
-    var side = specsModelProbe.offsetWidth * SPECS_VIEWER_GROW;
-    var k = box > 0 && side > 0 ? +(side / box).toFixed(4) : 1;
-    if (k === state.modelK) return;
-    state.modelK = k;
-    designFrameEl.style.setProperty("--model-k", String(k));
-    designFrameEl.style.setProperty("--model-grow", String(SPECS_VIEWER_GROW));
-  }
-
-  // The fitted model's zoom in specs: the drawing, SPECS_MODEL_SHARE of the
-  // box at the largest size, fills the picture square once the box has
-  // shrunk (fitSpecsBox); smaller sizes shrink it.
-  function specsZoom() {
-    var box = modelBoxEl ? modelBoxEl.offsetWidth * state.modelK : 0;
-    var square = designFrameEl ? specsProbe().offsetWidth : 0;
-    return box > 0 && square > 0 ? square / (box * SPECS_MODEL_SHARE) : 1;
-  }
-  var SPECS_MODEL_SHARE = 0.66;
-  // Where design holds it: a third down, then DESIGN_GAP_REM lower. The model's
-  // half-height as a share of its tile.
-  var DESIGN_ANCHOR = 1 / 3;
-  var DESIGN_GAP_REM = 4.5;
-  var DESIGN_HALF_HEIGHT = 0.13;
   // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
   // the bounds are the product's size-range, set on render. setModelSize sizes
-  // the model, specs and tape to a typed size (none: the base), clamped to
-  // the range; only a size within it goes on the label and prices it.
+  // the model, costs, plan views and tape to a typed size (none: the base),
+  // clamped to the range; only a size within it goes on the label and prices it.
   var SIZE_BASE_MM = H.REFERENCE_SIZE_MM;
   var SIZE_MIN_MM = 40;
   var SIZE_MAX_MM = 80;
@@ -2075,157 +1773,253 @@
     state.sizeText = state.product && sel.isOrderableSize(state.product, raw) ? String(+mm.toFixed(2)) : "";
     applyStageToViewer();
     if (state.product) {
-      renderSpecs();
+      renderCosts();
       renderLabelType(state.product);
       renderLabelPrice(state.product);
       var field = document.getElementById("productSizeInput");
       if (field) sel.syncSizeField(field, state.product);
     }
     syncPlanSizes();
-    schedulePlanPicture();
-    syncSizeTape();
+    syncSizeDial();
   }
 
-  /* ---- the size tape ---- */
+  /* ---- the size dial ---- */
 
-  // A slider drawn as a tape measure: a mark every mm from SIZE_MIN_MM (left
-  // end) to SIZE_MAX_MM (right end) across its width, a long one every
-  // TAPE_MAJOR_MM, and the needle travelling along them to the size.
-  var TAPE_MAJOR_MM = 5;
-  // Key steps in mm: arrows, Shift+arrows, PageUp/PageDown.
-  var TAPE_KEY_STEP = 0.5;
-  var TAPE_KEY_FINE = 0.1;
-  var TAPE_KEY_PAGE = 5;
-  var TAPE_TOUCH_SLOP_PX = 6;
-  // A drag moves the size by the finger's travel times a gain that falls
-  // with its speed (smoothed over TAPE_SPEED_MS): 1 at TAPE_FAST_PX_MS and
-  // over, TAPE_FINE_GAIN at TAPE_SLOW_PX_MS and under, for fine settings.
-  var TAPE_FAST_PX_MS = 0.2;
-  var TAPE_SLOW_PX_MS = 0.03;
-  var TAPE_FINE_GAIN = 0.2;
-  var TAPE_SPEED_MS = 60;
+  // The size as a dial beside the others: a circle holding the size, the
+  // unit under it. Open, the circle gives way to a vertical line from
+  // SIZE_MIN_MM (its foot) to SIZE_MAX_MM (its head), a marker at the size,
+  // and "Find my size" to its left. Sliding up raises the size, down lowers
+  // it, by the pointer's travel at the line's pitch times a gain that falls
+  // with its speed (smoothed over SIZE_SPEED_MS): 1 at SIZE_FAST_PX_MS and
+  // over, SIZE_FINE_GAIN at SIZE_SLOW_PX_MS and under, for fine settings.
+  // A fine pointer that hovers: hovering opens, a press slides, leaving
+  // closes. Touch: a tap opens (then a slide on the line moves the size, a
+  // tap elsewhere closes); a press held SIZE_HOLD_MS, or slid, opens it under
+  // the finger and slides, closing on release (a hold released unmoved
+  // leaves it open). Keyboard: the arrows, Shift+arrows and PageUp/PageDown
+  // step the size; Enter or Space opens and closes, Escape closes.
+  var SIZE_KEY_STEP = 0.5;
+  var SIZE_KEY_FINE = 0.1;
+  var SIZE_KEY_PAGE = 5;
+  var SIZE_HOLD_MS = 250;
+  var SIZE_SLOP_PX = 6;
+  var SIZE_FAST_PX_MS = 0.2;
+  var SIZE_SLOW_PX_MS = 0.03;
+  var SIZE_FINE_GAIN = 0.2;
+  var SIZE_SPEED_MS = 60;
+  // Leaving the dial closes it after this long; coming back keeps it.
+  var SIZE_LEAVE_MS = 200;
+  var sizeHoverMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
 
-  // Moves the needle to the size (--tape-at, its share of the way). Runs on any size change.
-  function syncSizeTape() {
-    var tape = state.sizeTape;
-    if (!tape) return;
+  // A size as the dial shows it: "62", "62.5".
+  function sizeLabel(mm) {
+    return String(Math.round(mm * 10) / 10);
+  }
+
+  // The dial at the size: its number, the marker's place on the line
+  // (--size-at, its share of the way up), and its name over the model while
+  // open. Runs on any size change.
+  function syncSizeDial() {
+    var dial = state.sizeDial;
+    if (!dial) return;
     var mm = clamp(state.sizeMm, SIZE_MIN_MM, SIZE_MAX_MM);
-    tape.el.style.setProperty("--tape-at", ((mm - SIZE_MIN_MM) / (SIZE_MAX_MM - SIZE_MIN_MM)).toFixed(4));
+    var text = sizeLabel(mm);
     var given = state.sizeText !== "";
-    var now = given ? state.sizeText : String(SIZE_BASE_MM);
-    tape.el.classList.toggle("is-unset", !given);
-    tape.el.setAttribute("aria-valuenow", now);
-    tape.el.setAttribute("aria-valuetext", now + " mm");
+    dial.value.textContent = text;
+    dial.host.style.setProperty("--size-at", ((mm - SIZE_MIN_MM) / (SIZE_MAX_MM - SIZE_MIN_MM)).toFixed(4));
+    dial.host.classList.toggle("is-unset", !given);
+    dial.button.setAttribute("aria-valuenow", given ? state.sizeText : String(SIZE_BASE_MM));
+    dial.button.setAttribute("aria-valuetext", text + " " + dial.unit);
+    if (dial.isOpen()) showDialName(text + " " + dial.unit);
   }
 
-  // Lays the marks at the tape's pitch (its width over the range): their
-  // spacing and where they fall. Runs whenever the tape's width changes.
-  function fitSizeTape() {
-    var tape = state.sizeTape;
-    if (!tape) return;
-    var pitch = tape.el.clientWidth / (SIZE_MAX_MM - SIZE_MIN_MM);
-    if (!(pitch > 0)) return;
-    var major = Math.ceil(SIZE_MIN_MM / TAPE_MAJOR_MM) * TAPE_MAJOR_MM;
-    tape.pitch = pitch;
-    tape.marks.style.setProperty("--tape-mm", pitch.toFixed(3) + "px");
-    tape.marks.style.setProperty("--tape-major", (TAPE_MAJOR_MM * pitch).toFixed(3) + "px");
-    tape.marks.style.setProperty("--tape-minor-x", ((Math.ceil(SIZE_MIN_MM) - SIZE_MIN_MM) * pitch).toFixed(2) + "px");
-    tape.marks.style.setProperty("--tape-major-x", ((major - SIZE_MIN_MM) * pitch).toFixed(2) + "px");
-  }
-
-  // The tape as a slider: a mouse press puts the needle under the pointer; a
-  // drag then moves it with the pointer, more finely as it slows (the gain);
-  // a touch drags it sideways (vertical swipes stay the page's, touch-action,
-  // and leave the size alone) or, as a tap, puts it there. The field and the
-  // model follow.
-  function wireSizeTape(field) {
-    var el = document.getElementById("productSizeTape");
-    if (!el) return;
-    var marks = el.querySelector(".product-size-tape__window");
-    el.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
-    el.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
-
-    state.sizeTape = { el: el, marks: marks, pitch: 0 };
-    if (window.ResizeObserver) new ResizeObserver(fitSizeTape).observe(el);
-    fitSizeTape();
+  // Wires the size dial, which writes the size into `field` (the size as the
+  // sheets' field holds it); the model follows (setModelSize).
+  function wireSizeDial(field, unit) {
+    var host = document.getElementById("productSizeDial");
+    if (!host) return;
+    var button = host.querySelector(".product-dial__button");
+    var track = host.querySelector(".product-size-dial__track");
+    var isOpen = false;
+    var leaveTimer = 0;
+    host.hidden = false;
+    host.querySelector(".product-dial__label").textContent = unit;
+    button.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
+    button.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
+    state.sizeDial = {
+      host: host,
+      button: button,
+      value: host.querySelector(".product-size-dial__value"),
+      unit: unit,
+      isOpen: function () { return isOpen; }
+    };
 
     function setSize(mm) {
       mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
       field.value = mm.toFixed(1);
       setModelSize(field.value);
     }
-
     function currentSize() {
       var mm = parseFloat(field.value);
       return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
     }
 
-    // The size under a pointer at x, the ends holding past the tape.
-    function sizeAt(x) {
-      var r = el.getBoundingClientRect();
-      return SIZE_MIN_MM + clamp((x - r.left) / r.width, 0, 1) * (SIZE_MAX_MM - SIZE_MIN_MM);
+    function open() {
+      clearTimeout(leaveTimer);
+      if (isOpen) return;
+      isOpen = true;
+      host.classList.add("is-open");
+      button.setAttribute("aria-expanded", "true");
+      document.addEventListener("pointerdown", onOutside, true);
+      syncSizeDial();
+    }
+    function close() {
+      clearTimeout(leaveTimer);
+      if (!isOpen) return;
+      isOpen = false;
+      host.classList.remove("is-open");
+      button.setAttribute("aria-expanded", "false");
+      document.removeEventListener("pointerdown", onOutside, true);
+      showDialName("");
+    }
+    function onOutside(e) {
+      if (!host.contains(e.target)) close();
     }
 
-    // Registered before dragPointer's, so a touch the page took for a scroll
-    // (pointercancel) is marked before its end runs.
-    var held = null;
-    el.addEventListener("pointercancel", function () {
-      if (held) held.cancelled = true;
-    });
-    H.dragPointer(el, function (e) {
-      el.classList.add("is-held");
-      held = { touch: e.pointerType !== "mouse", x: e.clientX, y: e.clientY, moved: false, scroll: false, cancelled: false, mm: currentSize(), lastX: e.clientX, lastT: e.timeStamp, speed: TAPE_FAST_PX_MS };
-      if (!held.touch) {
-        held.mm = sizeAt(e.clientX);
-        setSize(held.mm);
+    /* ---- sliding ---- */
+
+    var slide = null;
+    function slideFrom(e, target) {
+      slide = { id: e.pointerId, lastY: e.clientY, lastT: e.timeStamp, speed: SIZE_FAST_PX_MS, mm: currentSize() };
+      target.setPointerCapture(e.pointerId);
+    }
+    function slideTo(e) {
+      if (!slide || e.pointerId !== slide.id) return;
+      // The events' own times: a busy frame that delays handling doesn't read as a slow finger.
+      var dt = Math.max(1, e.timeStamp - slide.lastT);
+      var dy = e.clientY - slide.lastY;
+      slide.lastY = e.clientY;
+      slide.lastT = e.timeStamp;
+      var pitch = track.offsetHeight / (SIZE_MAX_MM - SIZE_MIN_MM);
+      if (dy === 0 || !(pitch > 0)) return;
+      slide.speed += (Math.abs(dy) / dt - slide.speed) * (1 - Math.exp(-dt / SIZE_SPEED_MS));
+      var gain = SIZE_FINE_GAIN + (1 - SIZE_FINE_GAIN) * H.smoothstep(SIZE_SLOW_PX_MS, SIZE_FAST_PX_MS, slide.speed);
+      slide.mm = clamp(slide.mm - (dy / pitch) * gain, SIZE_MIN_MM, SIZE_MAX_MM);
+      setSize(slide.mm);
+    }
+
+    /* ---- the button ---- */
+
+    var press = null;
+    var suppressClick = false;
+    function startPress() {
+      if (!press || press.dragging) return;
+      clearTimeout(press.timer);
+      press.dragging = true;
+      open();
+    }
+    button.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "mouse") {
+        open();
+        slideFrom(e, button);
+        return;
       }
-      return held;
-    }, function (e, drag) {
-      if (drag.scroll) return;
-      // A touch is a drag once it has gone TAPE_TOUCH_SLOP_PX mostly sideways,
-      // else a scroll the page is taking: the drift on its way leaves the size alone.
-      if (drag.touch && !drag.moved) {
-        var ax = Math.abs(e.clientX - drag.x);
-        var ay = Math.abs(e.clientY - drag.y);
-        if (Math.max(ax, ay) < TAPE_TOUCH_SLOP_PX) return;
-        if (ay >= ax) {
-          drag.scroll = true;
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, dragging: false, moved: false, timer: setTimeout(startPress, SIZE_HOLD_MS) };
+      slideFrom(e, button);
+    });
+    button.addEventListener("pointermove", function (e) {
+      if (press && e.pointerId === press.id && !press.moved) {
+        var dx = e.clientX - press.x;
+        var dy = e.clientY - press.y;
+        if (dx * dx + dy * dy < SIZE_SLOP_PX * SIZE_SLOP_PX) {
+          // Under the slop: the slide starts from here, not from the touch.
+          if (slide) slide.lastY = e.clientY;
           return;
         }
+        press.moved = true;
+        startPress();
       }
-      drag.moved = true;
-      // The events' own times: a busy frame that delays handling doesn't read as a slow finger.
-      var dt = Math.max(1, e.timeStamp - drag.lastT);
-      var dx = e.clientX - drag.lastX;
-      drag.lastX = e.clientX;
-      drag.lastT = e.timeStamp;
-      if (dx === 0 || !state.sizeTape.pitch) return;
-      drag.speed += (Math.abs(dx) / dt - drag.speed) * (1 - Math.exp(-dt / TAPE_SPEED_MS));
-      var gain = TAPE_FINE_GAIN + (1 - TAPE_FINE_GAIN) * H.smoothstep(TAPE_SLOW_PX_MS, TAPE_FAST_PX_MS, drag.speed);
-      drag.mm = clamp(drag.mm + dx / state.sizeTape.pitch * gain, SIZE_MIN_MM, SIZE_MAX_MM);
-      setSize(drag.mm);
-    }, function (drag) {
-      el.classList.remove("is-held");
-      if (drag.touch && !drag.moved && !drag.scroll && !drag.cancelled) setSize(sizeAt(drag.x));
-      held = null;
+      if (press && !press.dragging) return;
+      slideTo(e);
     });
-
-    // A sideways trackpad swipe moves the needle with the fingers (deltaX is
-    // against them); vertical wheels are left to the page.
-    el.addEventListener("wheel", function (e) {
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || !state.sizeTape.pitch) return;
-      e.preventDefault();
-      var px = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
-      setSize(currentSize() - px / state.sizeTape.pitch);
-    }, { passive: false });
-
-    el.addEventListener("keydown", function (e) {
-      var step = e.shiftKey ? TAPE_KEY_FINE : TAPE_KEY_STEP;
-      var next = H.sliderKey(e, currentSize(), step, TAPE_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
+    function endButtonPress(e) {
+      if (slide && e.pointerId === slide.id) slide = null;
+      if (!press || e.pointerId !== press.id) return;
+      clearTimeout(press.timer);
+      var dragging = press.dragging;
+      var moved = press.moved;
+      press = null;
+      if (!dragging) return;
+      // The click that follows the release isn't a tap.
+      suppressClick = true;
+      setTimeout(function () { suppressClick = false; }, 0);
+      if (moved) close();
+    }
+    button.addEventListener("pointerup", endButtonPress);
+    button.addEventListener("pointercancel", endButtonPress);
+    button.addEventListener("click", function () {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      if (isOpen && !sizeHoverMedia.matches) close();
+      else open();
+    });
+    button.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        close();
+        return;
+      }
+      var step = e.shiftKey ? SIZE_KEY_FINE : SIZE_KEY_STEP;
+      var next = H.sliderKey(e, currentSize(), step, SIZE_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
       if (next === null) return;
       e.preventDefault();
       setSize(next);
     });
+
+    /* ---- the line, while open ---- */
+
+    track.addEventListener("pointerdown", function (e) {
+      if (!isOpen) return;
+      slideFrom(e, track);
+    });
+    track.addEventListener("pointermove", slideTo);
+    function endTrackSlide(e) {
+      if (slide && e.pointerId === slide.id) slide = null;
+    }
+    track.addEventListener("pointerup", endTrackSlide);
+    track.addEventListener("pointercancel", endTrackSlide);
+
+    // A vertical wheel or trackpad over the open dial moves the size.
+    host.addEventListener("wheel", function (e) {
+      if (!isOpen || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      var pitch = track.offsetHeight / (SIZE_MAX_MM - SIZE_MIN_MM);
+      if (!(pitch > 0)) return;
+      e.preventDefault();
+      var px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      setSize(currentSize() - px / pitch);
+    }, { passive: false });
+
+    /* ---- hover, focus, "Find my size" ---- */
+
+    host.addEventListener("pointerenter", function (e) {
+      if (e.pointerType !== "mouse" || !sizeHoverMedia.matches) return;
+      open();
+    });
+    host.addEventListener("pointerleave", function (e) {
+      if (e.pointerType !== "mouse" || !sizeHoverMedia.matches || !isOpen || slide) return;
+      clearTimeout(leaveTimer);
+      leaveTimer = setTimeout(close, SIZE_LEAVE_MS);
+    });
+    host.addEventListener("focusout", function (e) {
+      if (isOpen && e.relatedTarget && !host.contains(e.relatedTarget)) close();
+    });
+    var finder = document.getElementById("productSizeFinderToggle");
+    if (finder) finder.addEventListener("click", close);
+    // A long press is the dial's: no context menu, which would cancel it.
+    host.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+    syncSizeDial();
   }
 
   function pageColor(token, fallback) {
@@ -2248,7 +2042,7 @@
     var customInput = document.getElementById("sizeModalCustomInput");
     var customUnit = document.getElementById("sizeModalCustomUnit");
     var finderToggle = document.getElementById("sizeModalFinderToggle");
-    // The size finder, from the sheet and the specs stage, using the category's
+    // The size finder, from the sheet and the size row, using the category's
     // size guide; no button without one.
     var guide = info["size-guide"];
     var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
@@ -2289,40 +2083,32 @@
 
     var modal = document.getElementById("sizeModal");
 
-    // The specs size: a field and the size tape, kept in step
-    // (setModelSize). The sheet opens with the field's value but never writes
-    // back. Enter opens the sheet.
-    var specsSize = document.getElementById("productSizeInput");
-    document.getElementById("productSizeUnit").textContent = unit;
-    document.getElementById("productSize").hidden = false;
-    // The specs stage's "Find my size".
-    var specsFinderToggle = document.getElementById("productSizeFinderToggle");
-    specsFinderToggle.hidden = !hasFinder;
-    // The specs field shows one decimal, as the tape writes it ("62.0").
+    // The size dial (wireSizeDial) writes the size into a hidden field, in the
+    // sheets' form; the sheet opens with its value but never writes back.
+    var sizeField = document.getElementById("productSizeInput");
+    // The size dial's "Find my size".
+    var rowFinderToggle = document.getElementById("productSizeFinderToggle");
+    rowFinderToggle.hidden = !hasFinder;
+    // The field holds one decimal, as the dial writes it ("62.0").
     function oneDecimal(size) {
       var mm = parseFloat(window.EmjiveSelection.normalizeSize(size));
       return isFinite(mm) ? mm.toFixed(1) : "";
     }
-    specsFinderToggle.addEventListener("click", function () { openFinder(specsFinderToggle, specsSize, oneDecimal); });
-    // The first time specs comes in, the field starts at the model's size, within the range.
+    rowFinderToggle.addEventListener("click", function () { openFinder(rowFinderToggle, sizeField, oneDecimal); });
+    // The first time design is fully in, the field starts at the model's size, within the range.
     state.seedSize = function () {
       state.sizeSeeded = true;
       state.seedSize = null;
-      if (specsSize.value !== "") return;
-      specsSize.value = clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
-      setModelSize(specsSize.value);
+      if (sizeField.value !== "") return;
+      sizeField.value = clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
+      setModelSize(sizeField.value);
     };
-    window.EmjiveSelection.syncSizeField(specsSize, product);
-    wireSizeTape(specsSize);
-    specsSize.addEventListener("input", function () {
-      var cleaned = window.EmjiveSelection.sanitizeSizeInput(specsSize.value);
-      if (cleaned !== specsSize.value) specsSize.value = cleaned;
-      setModelSize(specsSize.value);
-    });
-    specsSize.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      if (!modal.classList.contains("is-open")) openModal();
+    wireSizeDial(sizeField, unit);
+    // "Find my size" fills it as if typed.
+    sizeField.addEventListener("input", function () {
+      var cleaned = window.EmjiveSelection.sanitizeSizeInput(sizeField.value);
+      if (cleaned !== sizeField.value) sizeField.value = cleaned;
+      setModelSize(sizeField.value);
     });
 
     // The Select bar's button: "Select" opens the sheet, "Add" confirms while it
@@ -2368,8 +2154,8 @@
     });
 
     function openModal() {
-      // Pre-filled from the specs field when it holds an orderable size.
-      customInput.value = orderable(specsSize) ? specsSize.value : "";
+      // Pre-filled from the size field when it holds an orderable size.
+      customInput.value = orderable(sizeField) ? sizeField.value : "";
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();

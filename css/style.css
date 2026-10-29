@@ -38,8 +38,9 @@
   /* The site's horizontal edge inset, header to footer. */
   --edge-px: clamp(20px, 2.5vw, 28px);
 
-  /* The label | value tables (specs, logistics, size sheets): label column and
-     gap; and the metal picker's squares. */
+  /* The label | value tables (the product page's design options, the order
+     page's shipping and returns, size sheets): label column and gap; and the
+     metal picker's squares. */
   --label-col: calc(4.5rem * var(--text-scale));
   --label-gap: 1.5rem;
   --metal-square: 1.5rem;
@@ -488,7 +489,8 @@ button, input, textarea {
   width: auto;
 }
 
-/* "+" from two bars; turning the vertical one 90° makes it "-". */
+/* "+" from two bars; turning the vertical one 90° makes it "-". The product
+   page's drawers (.product-drawer__bar) draw theirs the same way. */
 .menu-toggle {
   position: relative;
   flex-shrink: 0;
@@ -499,24 +501,28 @@ button, input, textarea {
   border: none;
   cursor: pointer;
 }
-.menu-toggle__bar {
+.menu-toggle__bar,
+.product-drawer__bar {
   position: absolute;
   top: 50%;
   left: 50%;
   background: var(--black);
 }
-.menu-toggle__bar--h {
+.menu-toggle__bar--h,
+.product-drawer__bar--h {
   width: 100%;
   height: 1.5px;
   transform: translate(-50%, -50%);
 }
-.menu-toggle__bar--v {
+.menu-toggle__bar--v,
+.product-drawer__bar--v {
   width: 1.5px;
   height: 100%;
   transform: translate(-50%, -50%) rotate(0deg);
   transition: transform 0.3s ease;
 }
-.menu-toggle.is-open .menu-toggle__bar--v {
+.menu-toggle.is-open .menu-toggle__bar--v,
+.product-drawer.is-open .product-drawer__bar--v {
   transform: translate(-50%, -50%) rotate(90deg);
 }
 
@@ -1541,6 +1547,30 @@ body:has(.site-header__menu.is-open) .gallery-control {
 .order-shipping__option-name { flex: 1; }
 .order-shipping__option-price { flex: 0 0 auto; margin-left: 1rem; }
 
+/* ---- shipping and returns: label | text rows (--label-col, --label-gap) ----
+   Set in from the margin as the options' and terms' text. */
+.order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-left: 7px;
+}
+.order-info__row {
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+}
+.order-info__title,
+.order-info__text {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+}
+.order-info__title { color: var(--black); }
+.order-info__text { color: var(--category-col); }
+
 /* ---- terms: text on the left, the tick box (a plain square) on the right ---- */
 .order-terms {
   display: flex;
@@ -1749,8 +1779,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   /* Where the stage sticks and the content starts, from the first scroll pixel;
      never above the header. */
   --stage-top: max(clamp(4rem, 10vw, 7rem), var(--header-height));
-  /* Scroll length of the transition to specs (the show's length knob), and the shorter one to design. */
-  --stage-step: 200svh;
+  /* Scroll length of the transition to design. */
   --stage-step-in: 100svh;
   max-width: var(--max);
   margin: 0 auto;
@@ -1758,20 +1787,16 @@ body:has(.order-checkout-bar:not([hidden])) {
   background: var(--bg);
 }
 
-/* ---- the show: three stages on one sticky stage ----
+/* ---- the show: two stages on one sticky stage ----
    .product-stage is a tall track; .product-stage__pin sticks inside it.
-   js/product-stages.js publishes --to-design and --to-specs (eased 0..1).
-   Nothing crossfades: one stage's things fade out, a blank, the next's fade
-   in, each phase a 0..1 variable:
+   js/product-stages.js publishes --to-design (eased 0..1). Nothing
+   crossfades: the feed fades out, a blank, design fades in, each phase a
+   0..1 variable:
      --i-out   the feed leaving: the first 0.45 of the way to design
      --d-in    design arriving: from --d-from (the band about to pass under the
                title bar, js/product.js) to the end; the model itself is
                revealed by the band
-     --p-out   design leaving: linear from the design stretch's start
-               (--leave) to --to-specs = --t0
-     --s-in    specs arriving: --t1 -> 1
-   --t0, --t1 and --lift come from js/product.js (the blank is the model's
-   sweep under the band). --d-on and --specs-on are what each stage shows.
+   --lift comes from js/product.js (where design holds the model).
    data-stage only decides what takes taps; out-of-sight parts take none
    (.is-feed-gone, .is-design-out).
    The pin fills the screen between the stick point and the bottom bars, in
@@ -1779,51 +1804,35 @@ body:has(.order-checkout-bar:not([hidden])) {
    exactly where the page does. */
 .product-stage {
   --to-design: 0;
-  --to-specs: 0;
-  /* Design's leave progress (linear from its stretch's start); --t0 is where it
-     ends, in --to-specs (js/product-stages.js). */
-  --leave: 0;
-  --t0: 0.3;
-  --t1: 0.6;
-  --hold-ratio: 0.3;
   --d-from: 0.55;
   --i-out: clamp(0, 1 - var(--to-design) / 0.45, 1);
   --d-in: clamp(0, (var(--to-design) - var(--d-from)) / (1 - var(--d-from)), 1);
-  --p-out: clamp(0, 1 - var(--leave), 1);
-  --d-on: calc(var(--d-in) * var(--p-out));
-  --s-in: clamp(0, (var(--to-specs) - var(--t1)) / (1 - var(--t1)), 1);
-  --specs-on: var(--s-in);
   --lift: 0px;
-  /* The columns' two vertical gaps: between rows, and between clusters
-     (design's options and material; specs' tile cluster, size, costs, shipping
-     and returns). A cluster's first row carries --gap-extra. */
+  /* The column's two vertical gaps: between rows, and between clusters (the
+     design options; the material and size; the drawers). A cluster's first
+     row carries --gap-extra. */
   --gap-row: 1.25rem;
   --gap-group: 4rem;
   --gap-extra: calc(var(--gap-group) - var(--gap-row));
-  /* Browsing (js/product-stages.js): --browse-0/1/2 are the progress through
-     each stage's stretch. Inspiration moves the feed by --feed-room
-     (js/product.js fitFeed). Design moves the show by --room-1 (until the last
-     control clears the bottom bars), held through the fade to specs until the
-     model's fit (--s-in), then back. Specs moves it by --browse-room
-     (js/product.js fitBrowse), at least --room-0. */
+  /* Browsing (js/product-stages.js): inspiration moves the feed by
+     --feed-room (js/product.js fitFeed) times --browse-0, its progress
+     through the stretch. Design moves the show up by --design-browse (px),
+     up to --design-room, until the column's end clears the bottom bars
+     (js/product.js fitDesignRoom). */
   --bars-h: calc(var(--selection-bar-height) + var(--select-bar-height));
-  /* The minimum browse: the bars' height plus 4rem. */
-  --room-0: calc(var(--bars-h) + 4rem);
-  /* Design's room (--design-room, js/product.js fitDesignRoom); its stretch
-     covers it (--hold-ratio, js/product-stages.js syncDesignHold). */
   --design-room: 0px;
-  --room-1: var(--design-room);
   --browse-0: 0;
-  --browse-1: 0;
-  --browse-2: 0;
+  --design-browse: 0px;
   --feed-room: 0px;
-  --browse-room: 0px;
-  --browse-px: calc(var(--room-1) * var(--browse-1) * (1 - var(--s-in)) + max(var(--room-0), var(--browse-room)) * var(--browse-2));
+  --browse-px: var(--design-browse);
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
   /* Track height: the inspiration stretch (--feed-hold), the transition to
-     design, the design stretch and the transition to specs, then the end
-     stretch (--end-hold, else as long as the design stretch). */
-  height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + (var(--hold-ratio) + 1) * var(--stage-step) + var(--end-hold, calc(var(--hold-ratio) * var(--stage-step))));
+     design, then the design stretch (--design-hold), the stretches from
+     js/product-stages.js. */
+  height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + var(--design-hold, 25svh));
+  /* The track's length changes under the visitor (a drawer opening): the
+     browser must not shift the scroll to hold an element in place. */
+  overflow-anchor: none;
 }
 .product-stage__pin {
   position: sticky;
@@ -1839,8 +1848,8 @@ body:has(.order-checkout-bar:not([hidden])) {
   z-index: 3;
 }
 
-/* The remaining height goes to the show: the feed and the design frame (the
-   specs column over the same room). A size container, so the tile can be
+/* The remaining height goes to the show: the feed and the design frame over
+   the same room. A size container, so the tile can be
    bounded by its height (100cqh). Nothing clips: the frame breaks out to the
    screen edges and the x-ray reaches behind the title bar and bottom bars. */
 .product-stage__show {
@@ -1857,13 +1866,13 @@ body:has(.order-checkout-bar:not([hidden])) {
   transform: translateY(calc(var(--browse-px) * -1));
 }
 
-/* Only the current stage's controls take taps (focus reaches all;
-   js/product-stages.js scrolls to its stage). Out-of-sight parts are hidden
-   outright, so they take no taps and show no loader. */
-.product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__controls,
-.product-stage:is([data-stage="inspiration"], [data-stage="design"]) .product-size__finder-toggle,
-.product-stage[data-stage="specs"] :is(.product-options, .product-option__choices, .product-metals) {
-  pointer-events: none;
+/* Only design's controls take taps, and only in design (focus reaches all;
+   js/product-stages.js scrolls to its stage): what lies over the model and the
+   x-ray takes none (.product-below), its controls opting back
+   in here. Out-of-sight parts are hidden outright, so they take no taps and
+   show no loader. */
+.product-stage:is([data-stage="design"], [data-stage="flow"]) :is(.product-dial__button, :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel, .product-dial--size.is-open .product-size-dial__track, .product-plan > *, .product-drawer__toggle, .product-drawer__plus) {
+  pointer-events: auto;
 }
 .product-stage.is-feed-gone .product-feed,
 .product-stage.is-design-out .product-design-frame {
@@ -2022,10 +2031,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.016) 12.5%, rgba(0, 0, 0, 0.104) 25%, rgba(0, 0, 0, 0.275) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.725) 62.5%, rgba(0, 0, 0, 0.896) 75%, rgba(0, 0, 0, 0.984) 87.5%, #000 100%);
 }
 
-/* The scan band: a full-width inversion band riding the cut of the model's
-   metal -> blueprint sweep, as the hero's frontier band does. Fixed, placed by
-   js/product.js; on only during the sweep, and once across the screen as
-   inspiration gives way to design. */
+/* The scan band: a full-width inversion band, as the hero's frontier band,
+   once across the screen as inspiration gives way to design, revealing the
+   model behind it. Fixed, placed by js/product.js; on only while it passes. */
 .product-stage__scan {
   position: fixed;
   left: 0;
@@ -2299,141 +2307,71 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   white-space: nowrap;
 }
 
-/* ---- 2. the design frame (design, then specs) ----
+/* ---- 2. the design frame ----
    A full-width band (100vw) as tall as the model's tile (--tile: at most
    560px, 4rem narrower than the screen, no taller than the show). It holds
-   the model over its x-ray and everything placed against it: picker, design
-   options, the plan views, the specs column. Not a container: --tile reads 100vw and the
-   show's 100cqh. */
+   the model over its x-ray and everything placed against it: the corner
+   column, the outlines, the dials' name, the column under it. Not a container: --tile reads 100vw and
+   the show's 100cqh. */
 .product-design-frame {
   position: relative;
   flex-shrink: 0;
   width: 100vw;
   --tile: min(560px, 100vw - 4rem, 100cqh);
   height: var(--tile);
-  /* The model's size: three quarters of the tile, two thirds on a phone.
-     Its box is --model-room times that, centred on the same point, so a
+  /* The model's size: three quarters of the tile, near two thirds on a phone. Its box
+     (--model-box) is --model-room times that, centred on the same point, so a
      larger ring size (js/three-viewer.js sizeShiftShader) has room: the
-     viewer draws the model at 1 / --model-room of its box in design
-     (js/product.js), and what is placed against the model (x-ray, reset,
-     design's controls) reads --model-size. */
+     viewer draws the model at 1 / --model-room of its box (js/product.js),
+     and what is placed against the model reads --model-size. */
   --model-size: calc(var(--tile) * 0.75);
   --model-room: 1.2;
-  /* The page's left edge for anchored content (the picker, the column). */
+  --model-box: calc(var(--model-size) * var(--model-room));
+  /* The page's left edge for anchored content (the column). */
   --edge-left: max(0px, calc(50% - var(--max) / 2));
-  /* The model box's bottom from the frame's top, rising with the lift; design's controls hang from here. */
+  /* The model's centre from the frame's left edge (the screen's). */
+  --model-cx: 50%;
+  /* The model size the x-ray is sized from. */
+  --xray-model: var(--model-size);
+  /* The model box's top from the frame's top, rising with the lift. */
+  --box-top: calc(var(--tile) / 2 - var(--model-box) / 2 - var(--lift));
+  /* The model's bottom from the frame's top, rising with the lift; the column hangs from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
-  /* The gap under the model before design's controls. */
+  /* The gap under the model before the column. */
   --model-gap: 3rem;
-  /* Under specs' model tile: --plan-gap-above, the view buttons
-     (.product-plans: a --plan-cube cube, --plan-cube-gap, a line of the
-     secondary button text), then --plan-gap-below before the information. */
-  --plan-gap-above: 3rem;
-  --plan-cube: 2.5rem;
-  --plan-cube-gap: 0.25rem;
-  --plan-buttons-h: calc(var(--plan-cube) + var(--plan-cube-gap) + 1.4 * var(--button-secondary-font-size));
-  --plan-gap-below: 9rem;
-  --row-gap-below: calc(var(--plan-gap-above) + var(--plan-buttons-h) + var(--plan-gap-below));
-  /* Specs' model tile, the front and side view buttons hanging under it
-     (.product-plans). It is --plan-cell-w x --plan-cell-h: --plan-hug of the picture square
-     (--plan-tile, the model's scale; the model fills about that share of it
-     at the largest size) with --plan-room on each side for the outlines'
-     horizontal labels and --plan-room-y above and below for the vertical
-     ones, never wider than the page margins. The square grows with the
-     screen (--plan-p: 0 at 400px and under, 1 at 1280px and over, linear
-     between; tan(atan2(a, b)) is the unitless a / b): 1.2 x a third of the
-     row less 2rem up to 400px, then from there (6.6rem) to 12.5rem at
-     1280px, the smaller of the two so it never shrinks, all times
-     --plan-scale. The tile is centred on the model (--lift above the
-     frame's middle). */
+  /* The outlines' labels. */
   --plan-text: 0.5rem;
-  --plan-p: clamp(0, tan(atan2(100vw - 400px, 880px)), 1);
-  --plan-row-w: calc(100vw - 2 * var(--edge-px));
-  --plan-scale: 1.5;
-  --plan-tile: calc(var(--plan-scale) * min(1.2 * (var(--plan-row-w) / 3 - 2rem), 6.6rem + 5.9rem * var(--plan-p)));
-  --plan-hug: 0.64;
-  --plan-room: calc(1.5rem + 0.5rem * var(--plan-p));
-  --plan-room-y: calc(var(--plan-text) + 0.4rem);
-  --plan-cell-w: min(var(--plan-row-w), var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room));
-  --plan-cell-h: calc(var(--plan-tile) * var(--plan-hug) + 2 * var(--plan-room-y));
-  /* The side the model's box shrinks to in specs: its tile's shorter one. */
-  --plan-model: min(var(--plan-cell-w), var(--plan-cell-h));
-  /* Where the specs column starts: --row-gap-below under the model's tile, so
-     --plan-gap-below under the view buttons. */
-  --below-top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--row-gap-below));
 }
 @media (min-width: 641px) {
   .product-design-frame {
     --plan-text: 0.7rem;
   }
 }
+/* Phones: the x-ray sized from two thirds of the tile, the model a little
+   under that. */
 @media (max-width: 640px) {
   .product-design-frame {
-    --model-size: calc(var(--tile) * 0.66);
+    --xray-model: calc(var(--tile) * 0.66);
+    --model-size: calc(var(--xray-model) * 0.975);
+    --model-gap: 2rem;
   }
 }
 
-/* The model's box, centred and raised by the lift. During the way to design
-   it's cut at the band (--model-cut from js/product.js; negative margins so
-   overhangs aren't cut). In specs it greys and fills its
-   tile: the box shrinks to --model-grow x --plan-model with specs' arrival,
-   overhanging its tile, as a scale (--model-k and --model-grow, from
-   js/product.js fitSpecsBox; resizing would rebuild the canvas every frame),
-   and the fit zoom (js/product.js specsZoom) sizes the model against the
-   shrunk box, so it keeps the tiles' scale. Only the
-   viewer's circle takes drags, in specs the tile's inscribed circle (37.5%:
-   its radius without --hit-scale, hitCircle in js/product.js), so the
-   button tiles the box overhangs still scroll the page. A non-live model
-   (poster, icon) greys too. */
+/* The model's box, at --model-cx, raised by the lift. During the way to
+   design it's cut at the band (--model-cut from js/product.js; negative
+   margins so overhangs aren't cut). Only the viewer's circle takes drags, the
+   one around the model at its size, not the box's (--hit-scale: hitCircle in
+   js/product.js). */
 .product-model {
   position: absolute;
   z-index: 1;
-  left: 50%;
+  left: var(--model-cx);
   top: 50%;
-  width: calc(var(--model-size) * var(--model-room));
-  height: calc(var(--model-size) * var(--model-room));
-  transform: translate(-50%, calc(-50% - var(--lift))) scale(calc(1 + (var(--model-k, 1) - 1) * var(--s-in)));
+  width: var(--model-box);
+  height: var(--model-box);
+  transform: translate(-50%, calc(-50% - var(--lift)));
   clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
-  /* In design, the circle around the model at its size, not the box's. */
-  --hit-rest: calc(1 / var(--model-room) + (1 - 1 / var(--model-room)) * var(--s-in));
-  --hit-scale: calc(var(--hit-rest) * (1 + var(--s-in) / 3) / (1 + (var(--model-grow, 1) - 1) * var(--s-in)));
-}
-/* The reset button, centred above the model's box: shown once the model is
-   turned off its pose (.is-away), fading with design; tappable only in design. */
-.product-reset {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift));
-  transform: translate(-50%, -100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--black);
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--fade-standard) ease;
-}
-.product-reset svg {
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-}
-.product-reset.is-away {
-  opacity: var(--d-on);
-}
-.product-stage[data-stage="design"] .product-reset.is-away {
-  pointer-events: auto;
-}
-@media (hover: hover) {
-  .product-stage[data-stage="design"] .product-reset.is-away:hover { opacity: 0.6; }
+  --hit-scale: calc(1 / var(--model-room));
 }
 .product-model .emjive-3d-viewer {
   position: relative;
@@ -2445,37 +2383,163 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   position: absolute;
   inset: 0;
 }
+/* The poster and the icon at the model's size, as the viewer draws it. */
+.product-model .size-modal__model-poster img,
+.product-model__icon {
+  transform: scale(calc(1 / var(--model-room)));
+}
 .product-model__icon {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  /* At the model's size in design, as the viewer draws it. */
-  transform: scale(calc(1 / var(--model-room) + (1 - 1 / var(--model-room)) * var(--s-in)));
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
-.product-model img {
-  filter: grayscale(var(--to-specs));
+
+/* At the model box's top-right corner, 1.5rem out, rising with the lift: a
+   column of the view buttons, fading with design, then the reset button.
+   Only the buttons take taps. Nothing here fades by opacity around the
+   reset, whose inversion it would cut off from what's behind it. */
+.product-corner {
+  position: absolute;
+  z-index: 2;
+  left: calc(var(--model-cx) + var(--model-box) / 2 + 1.5rem);
+  top: var(--box-top);
+  transform: translateX(-100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+/* The reset button: shown once the model is turned off its pose (.is-away),
+   tappable only in design. Its arrow is a backdrop inversion cut to the
+   arrow's shape, so it shows over the model, the x-ray and the page alike.
+   It comes and goes by scale, never by opacity: an opacity under 1 would cut
+   the inversion off from what's behind it. */
+.product-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  pointer-events: none;
+}
+/* mask-image directly, never through a var() (rules.md). */
+.product-reset__arrow {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  -webkit-backdrop-filter: invert(1);
+  backdrop-filter: invert(1);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 12 A8 8 0 1 1 15.5 4.8 M13 1.6 L15.5 4.8 L12 6.8' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 12 A8 8 0 1 1 15.5 4.8 M13 1.6 L15.5 4.8 L12 6.8' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  transform: scale(0);
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.product-reset.is-away .product-reset__arrow {
+  transform: scale(1);
+}
+.product-stage[data-stage="design"] .product-reset.is-away {
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .product-stage[data-stage="design"] .product-reset.is-away:hover .product-reset__arrow { transform: scale(1.12); }
+}
+/* The view buttons (js/product.js renderPlanViews): an icon per view, the
+   front, the side, the band ring's outline as the view sees it, in a
+   hairline, --category-col, --black while its view is held (aria-pressed).
+   Each takes taps a little around its icon (::before). */
+.product-plans {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  opacity: var(--d-in);
+}
+.product-plans[hidden] {
+  display: none;
+}
+.product-plan {
+  position: relative;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--category-col);
+  cursor: pointer;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease, color var(--fade-quick) ease;
+}
+.product-plan[aria-pressed="true"] {
+  color: var(--black);
+}
+.product-plan::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem;
+}
+.product-plan > * {
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .product-stage[data-stage="design"] .product-plan:hover { opacity: 0.6; }
+}
+.product-plan__icon {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
-/* The x-ray backdrop: 3:4, centred on the model, its top edge --xray-above
-   over the model's box, a share of its width so it scales with it, following
-   the model's lift. A fixed multiple of the model's box, scaled down where its
-   foot would leave the screen, but never under 375px wide. At --xray-opacity,
-   fading with design's controls (--d-on). Source and visibility from
+/* While a dial is open (.is-shown, js/product.js), its active option's name,
+   centred over the model, fading in and out. */
+.product-dial-name {
+  position: absolute;
+  z-index: 2;
+  left: var(--model-cx);
+  top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift) - 1rem);
+  transform: translate(-50%, -100%);
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-dial-name.is-shown {
+  opacity: var(--d-in);
+}
+
+/* The x-ray backdrop: 3:4, centred on the screen, its top edge --xray-above
+   over the model's top, a share of its width so it scales with it, following
+   the model's lift. A fixed multiple of --xray-model, scaled down where its
+   foot would leave the screen, but never under 375px wide. At
+   --xray-opacity, fading with design (--d-in). Source and visibility from
    js/product.js. */
 .product-design__xray {
   --xray-opacity: 0.8;
   /* 6rem at the 375px minimum. */
   --xray-above-k: 0.256;
-  /* The model's box top on the screen at rest: the frame is centred in the
+  /* The model's top on the screen at rest: the frame is centred in the
      show (100cqh), which ends at the pin's foot. */
   --model-top: calc(var(--stage-top) + var(--pin-h) - 100cqh / 2 - var(--model-size) / 2);
   /* The widest x-ray whose foot stays on the screen (its top rises with its width). */
   --xray-fit: calc((100svh - var(--model-top)) * 3 / (4 - 3 * var(--xray-above-k)));
-  --xray-width: max(375px, min(var(--model-size) * 2.43, 100vw, var(--xray-fit)));
+  --xray-width: max(375px, min(var(--xray-model) * 2.43, 100vw, var(--xray-fit)));
   --xray-above: calc(var(--xray-width) * var(--xray-above-k));
   position: absolute;
   top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift) - var(--xray-above));
@@ -2487,312 +2551,341 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   max-width: none;
   height: calc(var(--xray-width) * 4 / 3);
   pointer-events: none;
-  opacity: calc(var(--xray-opacity) * var(--d-on));
+  opacity: calc(var(--xray-opacity) * var(--d-in));
 }
 
 
-/* Under the model, one column of label | value tables (--label-col,
-   --label-gap): the material cluster and the design options in design; size,
-   costs, shipping and returns in specs. Transparent over the x-ray;
-   only its controls take taps. */
+/* Under the model (--model-gap), rising with the lift and fading with design,
+   the page wide between its margins: the dials and the size centred under
+   the model, then, 4.5rem lower (10.5rem past the breakpoint), the
+   information drawers in a column on the left. Transparent over the x-ray;
+   only its controls take taps. Everything in it but the dials' discs fades
+   with design: an opacity around a disc would cut its blurs off from what's
+   behind them. */
 .product-below {
   position: absolute;
   z-index: 2;
   left: calc(var(--edge-left) + var(--edge-px));
-  /* Starts at the frame's top, its padding placing it under the model, so the
-     absolutely placed picker measures from the frame. */
-  top: 0;
-  box-sizing: border-box;
-  padding-top: var(--below-top);
-  width: calc(100vw - 2 * var(--edge-px));
-  max-width: 36rem;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--gap-row);
-  pointer-events: none;
-}
-/* Design's controls, under the model's box (--model-gap), rising with the lift
-   and fading with design (--d-on): the design options (js/product.js
-   renderDesigns), then the material cluster. */
-.product-design-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
+  right: calc(var(--edge-left) + var(--edge-px));
   top: calc(var(--model-bottom) + var(--model-gap));
   display: flex;
   flex-direction: column;
-  gap: var(--gap-row);
-  opacity: var(--d-on);
+  align-items: stretch;
+  gap: 4.5rem;
+  pointer-events: none;
 }
-.product-design-panel > * {
+@media (min-width: 641px) {
+  .product-below {
+    gap: 10.5rem;
+  }
+}
+.product-below > :not(.product-dials),
+.product-dial > :not(.product-dial__wheel) {
+  opacity: var(--d-in);
+}
+.product-below > * {
   min-width: 0;
 }
-/* The picker as a label | value row ("Material", then the squares and the
-   chosen name), the metal's composition under the squares. */
-.product-material {
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-  align-items: start;
+/* ---- the option dials (js/option-dial.js) ----
+   A row centred under the model: shape (with more than one design),
+   material, then the size (js/product.js wireSizeDial, below). Each a
+   circular button showing its active option, its name under it. Open
+   (.is-open), a disc grows from the button's centre over three frosted
+   blurs (the strongest at the centre, all reaching past the disc), divided into a section per option, each always
+   in the same place (--dial-x, --dial-y: its direction), between the
+   neutral middle (--dial-inner) and the edge (--dial-outer), the active one
+   dotted (--dial-dot-r out, turning round the middle to it: --dial-turn).
+   Open, the button loses its circle and keeps its option. Shape (--icons):
+   an icon per section, at --dial-ring. Material (--fill): each section
+   filled with its swatch from the button's edge, fading out at the disc's
+   through three layers (.product-dial__fade). */
+.product-dials {
+  align-self: center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 3.5rem;
 }
-.product-material__label {
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  /* A square's height, so the label sits on the first square's line. */
-  line-height: var(--metal-square);
-  color: var(--black);
-}
-/* Its height change is tweened (js/product.js renderComposition). */
-.product-material__composition {
-  grid-column: 2;
-  margin: 0.6rem 0 0;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--category-col);
-}
-.product-material__composition.is-resizing {
-  overflow: hidden;
-  transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
-}
-.product-stage .product-metals {
-  pointer-events: auto;
-}
-/* The design options, one label | choices row per option. Choices carry the
-   selection dot (always reserved). Dimmed choices wouldn't land on their exact
-   combination; the last one on of a multiple option can't be turned off. */
-.product-options {
+.product-dial {
+  --dial-size: 2.75rem;
+  --dial-inner: 1.625rem;
+  --dial-outer: 4.375rem;
+  --dial-ring: 3rem;
+  --dial-dot-r: 3rem;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--gap-row) / 2);
-}
-.product-options[hidden] {
-  display: none;
-}
-/* The material cluster is set apart from the options above it. */
-.product-options:not([hidden]) + .product-material {
-  margin-top: var(--gap-extra);
-}
-.product-option {
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-  align-items: baseline;
-}
-.product-option__label {
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.5;
-  color: var(--black);
-}
-.product-option__choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 1.25rem;
-  pointer-events: auto;
-}
-.product-option__choice {
-  display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0;
-  border: none;
-  background: none;
-  font-family: var(--font-secondary);
-  font-size: calc(0.65rem * var(--text-scale));
-  line-height: 1.5;
-  color: var(--category-col);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity var(--fade-quick) ease;
-}
-.product-option__choice::before {
-  content: "";
-  flex: none;
-  width: var(--dot);
-  height: var(--dot);
-  margin-right: 0.45rem;
-  border-radius: 50%;
-  background: transparent;
-}
-.product-option__choice[aria-pressed="true"]::before {
-  background: var(--category-col);
-}
-.product-option__choice.is-unavailable {
-  opacity: 0.35;
-}
-.product-option__choice[aria-disabled="true"] {
-  cursor: default;
-}
-/* The specs size, the information's first cluster (a logistics block):
-   "Size" | the field (the sheet's own, iOS no-zoom included), the size tape
-   beside it and "Find my size": against the value column's right edge when
-   the line has the room, else on the column's next row. Fades with specs. */
-.product-size {
-  align-items: start;
-  opacity: var(--specs-on);
-}
-.product-size[hidden] {
-  display: none;
-}
-/* On the field's line: its line box (12px at 1.4, whatever --text-scale
-   does to the label), lowered by the input's 0.3rem padding. Over
-   .product-logistics__title, which comes later. */
-.product-logistics__title.product-size__label {
-  padding-top: 0.3rem;
-  line-height: calc(12px * 1.4);
-}
-/* The value column, the container its line's room is read against. */
-.product-size__value {
-  min-width: 0;
-  container: size-value / inline-size;
-}
-/* The field, then the tape taking the line's rest (up to its cap); "Find my
-   size" breaks onto a row of its own (its wrapper a whole line) unless the
-   column holds the field, the tape at its cap and the button (the query's
-   width, measured with their gaps), where it moves to the line's end. */
-.product-size__line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: 1rem;
-  row-gap: var(--gap-row);
-}
-.product-size__finder {
-  flex: 0 0 100%;
-  display: flex;
-}
-.product-size__finder:has(> [hidden]) {
-  display: none;
-}
-@container size-value (min-width: 24rem) {
-  .product-size__finder {
-    flex: none;
-    margin-left: auto;
-  }
-}
-/* The room the field gives up against the sheets' (below) goes to the gap
-   before the tape. */
-.product-size__controls {
-  flex: none;
-  margin-right: calc(2.4rem - 1.875rem);
-  pointer-events: auto;
-  display: flex;
-}
-/* One decimal here ("62.5"), not the sheets' two: the text and a caret's
-   room. Against the unit, whatever its digits. */
-.product-size__field .size-modal__custom-input {
-  --size-input-width: 1.875rem;
-  text-align: right;
-}
-.product-size__field {
-  position: relative;
-  flex: none;
-  display: flex;
-}
-/* No underline here, the tape beside it says it's adjustable; transparent,
-   not none, so nothing moves. */
-.product-size__field .size-modal__custom-underline {
-  border-bottom-color: transparent;
-}
-
-/* ---- the size tape (js/product.js wireSizeTape) ----
-   A slider drawn as a tape measure: mm marks fixed across its width, from
-   the smallest size at the left end to the largest at the right (a mark
-   every --tape-mm, a long one every --tape-major, laid out by
-   js/product.js fitSizeTape), and the needle travelling along them to the
-   size (--tape-at, its share of the way). */
-.product-size-tape {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 14.4rem;
-  height: 1.75rem;
-  color: var(--category-col);
-  pointer-events: none;
-  touch-action: pan-y;
-  cursor: pointer;
-  outline: none;
+  gap: 0.5rem;
+  /* As wide as its button whatever its label, so the row never moves. */
+  width: var(--dial-size);
+  /* A long press is the dial's (js/option-dial.js), not a selection or an
+     image's callout. */
+  -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  -webkit-tap-highlight-color: transparent;
 }
-.product-size-tape[hidden] {
+.product-dial[hidden] {
   display: none;
 }
-.product-size-tape.is-unset {
-  opacity: 0.35;
+/* Open: over the other dials and the drawers. */
+.product-dial.is-open {
+  z-index: 3;
 }
-.product-stage[data-stage="specs"] .product-size-tape {
-  pointer-events: auto;
+/* Above its disc; a held press drags over the disc, not the page. */
+.product-dial__button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--dial-size);
+  height: var(--dial-size);
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--category-col);
+  border-radius: 50%;
+  background: none;
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--fade-quick) ease, opacity var(--fade-quick) ease;
 }
-.product-size-tape.is-held {
-  cursor: grabbing;
+@media (hover: hover) {
+  .product-dial__button:hover { border-color: var(--black); }
 }
-/* Half a mark past each end, so the end marks show whole. */
-.product-size-tape__window {
+/* Open, the shape's and the material's button keep only their option; the
+   size's gives way to the line. */
+.product-dial--icons.is-open .product-dial__button,
+.product-dial--fill.is-open .product-dial__button {
+  border-color: transparent;
+}
+.product-dial--size.is-open .product-dial__button {
+  opacity: 0;
+}
+.product-dial__preview {
+  display: grid;
+  width: 100%;
+  height: 100%;
+}
+/* One per option, stacked, the active one shown. */
+.product-dial__face {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-dial__face.is-shown {
+  opacity: 1;
+}
+.product-dial__swatch {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: center / cover no-repeat;
+}
+.product-dial__icon {
+  display: block;
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+}
+.product-dial__label {
+  font-family: var(--font-secondary);
+  font-size: calc(0.65rem * var(--text-scale));
+  line-height: 1.4;
+  color: var(--category-col);
+  white-space: nowrap;
+}
+/* The disc, centred on the button. Always rendered, closed at no size, so
+   the blurs are there from the first frame of the opening, which only
+   scales it out from the centre: an opacity under 1 would cut the blurs off
+   from what's behind them. */
+.product-dial__wheel {
   position: absolute;
+  left: 50%;
+  top: calc(var(--dial-size) / 2);
+  width: calc(2 * var(--dial-outer));
+  height: calc(2 * var(--dial-outer));
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  pointer-events: none;
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.product-dial.is-open .product-dial__wheel {
+  transform: translate(-50%, -50%) scale(1);
+}
+.product-dial__sections,
+.product-dial__fade {
+  position: absolute;
+  inset: 0;
+}
+/* The blurs reach 1.4 times the disc's radius. */
+.product-dial__blur {
+  position: absolute;
+  inset: -20%;
+}
+/* As the header's veil (.site-header__veil): the same soft edge on each
+   blur, the stronger ones smaller, each a box cut round by its mask alone
+   (no border-radius, which Safari lets override the mask), and each a
+   little frosted, the frost building up toward the middle. */
+.product-dial__blur > span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-color: color-mix(in srgb, var(--bg) 15%, transparent);
+  -webkit-mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
+}
+.product-dial__blur > span:nth-child(1) {
+  width: 100%;
+  height: 100%;
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+}
+.product-dial__blur > span:nth-child(2) {
+  width: 75%;
+  height: 75%;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.product-dial__blur > span:nth-child(3) {
+  width: 50%;
+  height: 50%;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.product-dial--icons .product-dial__section {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.75rem;
+  height: 1.75rem;
+  transform: translate(calc(-50% + var(--dial-x) * var(--dial-ring)), calc(-50% + var(--dial-y) * var(--dial-ring)));
+}
+.product-dial--icons .product-dial__icon {
+  width: 100%;
+  height: 100%;
+}
+/* Three layers of the swatches, each mostly opaque and fading out over its
+   own reach, the shortest the soonest: opaque together near the middle,
+   thinning out in three steps toward the disc's edge. */
+.product-dial__fade:nth-child(1) {
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 100%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 100%);
+}
+.product-dial__fade:nth-child(2) {
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 88%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 88%);
+}
+.product-dial__fade:nth-child(3) {
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 76%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 76%);
+}
+/* Each cut to its section (js/option-dial.js sectorPolygon). */
+.product-dial--fill .product-dial__section {
+  position: absolute;
+  inset: 0;
+}
+/* The selection dot (--dot), as the metal picker's. */
+.product-dial__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: 50%;
+  background: var(--black);
+  transform: translate(-50%, -50%) rotate(var(--dial-turn, 0deg)) translateY(calc(-1 * var(--dial-dot-r)));
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- the size dial (js/product.js wireSizeDial) ----
+   The third dial: its button holds the size (in --category-col until one
+   is set, .is-unset), the unit under it. Open, the button gives way to a
+   vertical line through its centre, from the smallest size at its foot to
+   the largest at its head, growing from the centre, a marker at the size
+   (--size-at, its share of the way up), and "Find my size" by the line's
+   head, to its right, both over a disc of blurs as the other dials' (taking no
+   taps: one on it closes the dial). The line's track, wider than the line,
+   takes the slides. */
+.product-dial--size {
+  --dial-outer: 6rem;
+}
+.product-size-dial__value {
+  font-family: var(--font-secondary);
+  font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1;
+  color: var(--black);
+}
+.product-dial--size.is-unset .product-size-dial__value {
+  color: var(--category-col);
+}
+/* A zero-size point at the button's centre. */
+.product-size-dial__menu {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--dial-size) / 2);
+  width: 0;
+  height: 0;
+}
+.product-size-dial__track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2.5rem;
+  height: 10rem;
+  transform: translate(-50%, -50%) scaleY(0);
+  touch-action: none;
+  pointer-events: none;
+  cursor: ns-resize;
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.product-dial--size.is-open .product-size-dial__track {
+  transform: translate(-50%, -50%) scaleY(1);
+}
+.product-size-dial__line {
+  position: absolute;
+  left: 50%;
   top: 0;
   bottom: 0;
-  left: -0.5px;
-  right: -0.5px;
-  opacity: 0.45;
-  background-image:
-    linear-gradient(to right, currentColor 1px, transparent 1px),
-    linear-gradient(to right, currentColor 1px, transparent 1px);
-  background-size: var(--tape-major) 0.5rem, var(--tape-mm) 0.25rem;
-  background-position: var(--tape-major-x) center, var(--tape-minor-x) center;
-  background-repeat: repeat-x;
-}
-/* The two end marks, taller than the long ones. */
-.product-size-tape__window::before,
-.product-size-tape__window::after {
-  content: "";
-  position: absolute;
-  top: 50%;
   width: 1px;
-  height: 0.75rem;
-  margin-top: -0.375rem;
-  background: currentColor;
-}
-.product-size-tape__window::before { left: 0; }
-.product-size-tape__window::after { right: 0; }
-.product-size-tape__needle {
-  position: absolute;
-  left: calc(var(--tape-at, 0.5) * 100%);
-  top: 50%;
-  width: 2px;
-  height: 0.875rem;
-  margin: -0.4375rem 0 0 -1px;
-  border-radius: 1px;
+  margin-left: -0.5px;
   background: var(--category-col);
 }
-/* A fifth smaller on phones. */
-@media (max-width: 640px) {
-  .product-size-tape {
-    max-width: 11.52rem;
-    height: 1.4rem;
-  }
-  .product-size-tape__window {
-    background-size: var(--tape-major) 0.4rem, var(--tape-mm) 0.2rem;
-  }
-  .product-size-tape__window::before,
-  .product-size-tape__window::after {
-    height: 0.6rem;
-    margin-top: -0.3rem;
-  }
-  .product-size-tape__needle {
-    height: 0.7rem;
-    margin-top: -0.35rem;
-  }
+.product-size-dial__marker {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--size-at, 0.5) * 100%);
+  width: 0.875rem;
+  height: 2px;
+  margin: 0 0 -1px -0.4375rem;
+  border-radius: 1px;
+  background: var(--black);
+}
+.product-dial--size .product-size__finder-toggle {
+  position: absolute;
+  left: 0.75rem;
+  top: -5rem;
+  transform: translateY(-50%);
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--fade-quick) ease, visibility 0s linear var(--fade-quick);
+}
+.product-dial--size.is-open .product-size__finder-toggle {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--fade-quick) ease, visibility 0s;
 }
 
 /* ---- the metal picker (js/metal-picker.js) ----
    Squares --metal-gap apart, each its metal's swatch (scripts/auto-render.js),
    a dot on the chosen one, its name beside its square (moved by
-   --metal-index). In a row (.product-metals--row, and the product page's
-   picker) the squares sit side by side and the name follows the last. */
+   --metal-index). In a row (.product-metals--row) the squares sit side by
+   side and the name follows the last. */
 .product-metals {
   position: relative;
   display: flex;
@@ -2816,10 +2909,11 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 /* background-image directly, never through a var(): the stage's properties
    change every scroll frame and are inherited, and a url() behind a var() is
-   re-resolved on each restyle, making the squares blink. */
-.product-metals__option[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
-.product-metals__option[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
-.product-metals__option[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
+   re-resolved on each restyle, making the squares blink. Shared with the
+   product page's material dial (.product-dial__swatch). */
+:is(.product-metals__option, .product-dial__swatch)[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
+:is(.product-metals__option, .product-dial__swatch)[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
+:is(.product-metals__option, .product-dial__swatch)[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
 /* The selection dot (--dot), on every picker. */
 .product-metals__option[aria-pressed="true"]::after {
   content: "";
@@ -2846,12 +2940,12 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   pointer-events: none;
   transition: transform var(--fade-standard) ease;
 }
-/* Rows: the Modify sheet's picker and the product page's. */
-:is(.product-metals--row, .product-stage .product-metals) {
+/* Rows: the sheets' pickers. */
+.product-metals--row {
   flex-direction: row;
   align-items: center;
 }
-:is(.product-metals--row, .product-stage .product-metals) .product-metals__tag {
+.product-metals--row .product-metals__tag {
   left: calc(var(--metal-count, 3) * (var(--metal-square) + var(--metal-gap)) - var(--metal-gap) + 0.6rem);
   transform: none;
 }
@@ -2916,105 +3010,34 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-select-bar__label { transition: opacity var(--fade-fast) ease; }
 .product-select-bar__label.is-swapping { opacity: 0; }
 
-/* ---- specs: the plan views (js/product.js renderPlanViews) ----
-   Two tiles 3rem apart, as small as their content, both as wide as the
-   wider (equal grid columns over a max-content row), centred on the screen
-   and --plan-gap-above under the model's tile (the design frame's --plan-cell-h,
-   centred on the model), placed against design's blank above the model
-   (js/product.js refreshStage), rising with the lift. In each tile, a secondary button: the front view, the side
-   view, each a cube drawn in a hairline above its label, in the outline's
-   colour, black while its view is held (aria-pressed). Fades with specs;
-   tappable only in it. */
-.product-plans {
-  position: absolute;
-  z-index: 2;
-  left: 50%;
-  top: calc(var(--tile) / 2 - var(--lift) + var(--plan-cell-h) / 2 + var(--plan-gap-above));
-  width: max-content;
-  transform: translateX(-50%);
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  column-gap: 3rem;
-  opacity: var(--specs-on);
-  /* Over the model's box: only the buttons take taps, the model its drags. */
-  pointer-events: none;
-}
-.product-plans[hidden] {
-  display: none;
-}
-.product-plan {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--plan-cube-gap);
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-secondary-font-size);
-  letter-spacing: var(--button-secondary-letter-spacing);
-  text-transform: var(--button-text-transform);
-  /* In step with --plan-buttons-h. */
-  line-height: 1.4;
-  color: var(--category-col);
-  white-space: nowrap;
-  cursor: pointer;
-  pointer-events: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity var(--fade-quick) ease, color var(--fade-quick) ease;
-}
-.product-plan[aria-pressed="true"] {
-  color: var(--black);
-}
-/* A tap takes on the icon and name, not the room around them. */
-.product-plan > * {
-  pointer-events: none;
-}
-.product-stage[data-stage="specs"] .product-plan > * {
-  pointer-events: auto;
-}
-@media (hover: hover) {
-  .product-stage[data-stage="specs"] .product-plan:hover { opacity: 0.6; }
-}
-.product-plan__icon {
-  flex: none;
-  width: var(--plan-cube);
-  height: var(--plan-cube);
-}
-
-/* ---- specs: the outlines over the model ----
-   The held view's outline drawing (js/product.js showOutline), laid on the
-   model: anchored at the model box's middle (as .product-model places it,
-   with its lift), its centre and width shares of the box (--outline-x,
-   --outline-y, --outline-w, from the viewer: js/product.js placeOutline)
-   times the box's specs scale (--plan-k), so it falls exactly on the turned
-   model. Shown (.is-shown) once the model holds the view, fading in and out.
-   On the picture, a solid line per measured axis between the drawing's two
-   farthest points (--cut-from, --cut-to, --cut-at, shares of the picture,
-   set once js/product.js has read it; .is-vertical for a vertical axis), the
-   axis's label past its end on the drawing and, when its other end is off
+/* ---- the dimensions over the model ----
+   The held view's lines (js/product.js showOutline) over the outline the
+   viewer draws on the model (js/three-viewer.js): in the view's drawing
+   rectangle at the chosen size, anchored at the model box's middle (as
+   .product-model places it, with its lift), its centre and width shares of
+   the box (--outline-x, --outline-y, --outline-w, from the viewer:
+   js/product.js placeOutline), so it falls exactly on the turned model.
+   Shown (.is-shown) once the model holds the view, fading in and out.
+   In it, a solid line per measured axis between the model's two farthest
+   points (--cut-from, --cut-to, --cut-at, shares of the rectangle, measured
+   on each frame the viewer draws; .is-vertical for a vertical axis), the
+   axis's label past its end on the outline and, when its other end is off
    the outline, a dashed line reaching on to the outline point. A label is
    the axis's letter, then its length at the chosen size, 0.5rem apart:
    beside a horizontal line, past its end; above or below a vertical one, the
-   letter centred on the line. Everything is in the outline's colour, at
-   full strength; phones draw it finer and smaller. Fades with specs. */
+   letter centred on the line. All in --black; phones draw it finer and
+   smaller. Fades with design. */
 .product-outlines {
   --plan-line: 0.5px;
   --plan-dash: 3px;
-  --plan-k: calc(1 + (var(--model-k, 1) - 1) * var(--s-in));
   position: absolute;
   z-index: 2;
-  left: 50%;
+  left: var(--model-cx);
   top: calc(50% - var(--lift));
   width: 0;
   height: 0;
-  /* The outline's colour (scripts/auto-render.js bakes --category-col into the pictures). */
-  color: var(--category-col);
-  opacity: var(--specs-on);
+  color: var(--black);
+  opacity: var(--d-in);
   pointer-events: none;
 }
 @media (min-width: 641px) {
@@ -3028,9 +3051,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .product-outline {
   position: absolute;
-  left: calc(var(--outline-x, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
-  top: calc(var(--outline-y, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
-  width: calc(var(--outline-w, 0) * var(--model-size) * var(--model-room) * var(--plan-k));
+  left: calc(var(--outline-x, 0) * var(--model-box));
+  top: calc(var(--outline-y, 0) * var(--model-box));
+  width: calc(var(--outline-w, 0) * var(--model-box));
   aspect-ratio: var(--plan-ratio);
   transform: translate(-50%, -50%);
   opacity: 0;
@@ -3039,14 +3062,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-outline.is-shown {
   opacity: 1;
   transition-duration: var(--fade-standard);
-}
-.product-outline__img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  -webkit-user-drag: none;
-  user-select: none;
-  -webkit-user-select: none;
 }
 /* A mark is a solid line (a box, not a border: a border's width is snapped to
    whole device pixels, a box's isn't). Hidden until the picture has been read
@@ -3140,83 +3155,141 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin-left: 0.5rem;
 }
 
-/* ---- design: the printing technology ----
-   Label, then the technology's name beside it and its description below
-   (--category-col). */
-.product-printing {
+/* ---- the information drawers (js/product.js wireDrawers) ----
+   Clusters (.product-drawers__group) of drawers, with no lines, on two
+   columns all share: the labels (--label-col), then the values. A drawer's
+   label, its value and its + (at the column's right edge) start on the same
+   row; open (.is-open), the value unfolds in the second column from there,
+   the + (the header's two bars, the vertical one turning to make a -)
+   riding down under it. The
+   header menu's 0fr/1fr grid row animates the opening without knowing the
+   value's height; visibility, delayed on close, keeps a closed value out of
+   the tab order. */
+.product-drawers {
+  width: min(100%, 36rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+.product-drawers__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-row);
+}
+/* A cluster with no drawer shown takes no room. */
+.product-drawers__group:not(:has(> .product-drawer:not([hidden]))) {
+  display: none;
+}
+.product-drawer {
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
-  row-gap: 0.15rem;
+  align-items: start;
 }
-.product-printing[hidden] {
+.product-drawer[hidden] {
   display: none;
 }
-/* Its height change is tweened (js/product.js renderPrinting), clipped meanwhile. */
-.product-printing.is-resizing {
+/* Its height change is tweened (js/product.js renderPrinting,
+   renderComposition), clipped meanwhile. */
+.product-drawer.is-resizing {
   overflow: hidden;
   transition: height var(--fade-quick) cubic-bezier(0.22, 1, 0.36, 1);
 }
-.product-printing__label,
-.product-printing__name,
-.product-printing__text {
+.product-drawer__head {
   margin: 0;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  font-weight: 400;
-  line-height: 1.5;
+  font: inherit;
 }
-.product-printing__label,
-.product-printing__name { color: var(--black); }
-.product-printing__text {
-  grid-column: 2;
-  color: var(--category-col);
-}
-
-/* Specs' information under the tile cluster: size, costs, shipping and returns. */
-.product-below__stage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-row);
-}
-.product-below__stage > * {
-  min-width: 0;
-}
-
-/* ---- logistics: cost, shipping and returns ----
-   label | text blocks in the specs column; the cost chart is "Production
-   cost"'s text. */
-.product-logistics {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-row);
-  pointer-events: none;
-  opacity: var(--specs-on);
-}
-/* The size, the costs, and shipping with returns, are separate clusters
-   (with no size, the costs open the information). */
-.product-size:not([hidden]) + .product-logistics,
-.product-logistics > .product-costs + .product-logistics__block {
-  margin-top: var(--gap-extra);
-}
-.product-logistics__block {
-  display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
-}
-.product-logistics__title {
+.product-drawer__toggle {
+  display: block;
+  width: 100%;
   margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
   font-weight: 400;
   line-height: 1.5;
   color: var(--black);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
 }
+.product-drawer__value {
+  min-width: 0;
+}
+/* The value column's whole row, a line high, taking taps across it, the +
+   at its right edge. */
+.product-drawer__plus {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: calc(12px * var(--text-scale) * 1.5);
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
+}
+@media (hover: hover) {
+  .product-drawer__toggle:hover,
+  .product-drawer__plus:hover { opacity: 0.6; }
+}
+/* The header's + (.menu-toggle) at half its size, finer, in --category-col. */
+.product-drawer__cross {
+  position: relative;
+  display: block;
+  width: calc(var(--header-image-size) * 0.15);
+  height: calc(var(--header-image-size) * 0.15);
+}
+.product-drawer__bar {
+  background: var(--category-col);
+}
+.product-drawer__bar--h {
+  height: 1px;
+}
+.product-drawer__bar--v {
+  width: 1px;
+}
+.product-drawer__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 0.35s ease, visibility 0s linear 0.35s;
+}
+.product-drawer.is-open .product-drawer__body {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows 0.35s ease, visibility 0s;
+}
+.product-drawer__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.product-drawer__text {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--category-col);
+}
+.product-drawer__text + .product-drawer__text {
+  margin-top: 0.15rem;
+}
+.product-drawer__text--strong {
+  color: var(--black);
+}
+
 /* The cost chart: labels, bars, amounts in three aligned columns. Raw
    materials and manufacturing get a row each; the total only an amount, in
    black. The bars share one scale (--from, --to per row from js/product.js
-   renderSpecs): raw from the left, manufacturing from where it ends; each is
-   its bar cell's ::before. Once the stage arrives (.is-built) bars grow one
+   renderCosts): raw from the left, manufacturing from where it ends; each is
+   its bar cell's ::before. As its drawer opens (.is-built) bars grow one
    after another, amounts fading in after their bars. */
 .product-costs {
   --bar-h: 0.3rem;
@@ -3295,13 +3368,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition: left var(--resize) ease, width var(--resize) ease;
   transition-delay: 0s;
 }
-.product-logistics p {
-  margin: 0;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.5;
-  color: var(--category-col);
-}
 
 /* ---- too short to pin the stage (a phone on its side) ----
    A plain column with everything shown at once, the title bar still sticky.
@@ -3366,59 +3432,43 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
     top: calc(var(--xray-above) * -1);
     opacity: var(--xray-opacity);
   }
+  /* In the column, under the model: the view buttons in a row. */
+  .product-corner {
+    --d-in: 1;
+    position: static;
+    transform: none;
+  }
+  .product-plans {
+    flex-direction: row;
+    gap: 3rem;
+  }
   .product-reset {
+    display: none;
+  }
+  .product-dial-name {
     display: none;
   }
   .product-below {
     position: static;
-    padding-top: 0;
-    width: auto;
-    margin-left: calc(var(--edge-left) + var(--edge-px));
-    align-self: flex-start;
-    pointer-events: auto;
+    margin: 0 calc(var(--edge-left) + var(--edge-px)) 3rem;
+    align-self: stretch;
+    --d-in: 1;
   }
-  .product-design-panel {
-    position: static;
-    opacity: 1;
-  }
-  /* In the column, under the model. */
-  .product-plans {
-    position: static;
-    transform: none;
-    opacity: 1;
-  }
-  .product-plan > * {
-    pointer-events: auto;
-  }
-  /* The model's box heads the frame, unscaled. */
+  /* The model's box heads the frame, in its middle. */
   .product-outlines {
-    --plan-k: 1;
-    top: calc(var(--model-size) * var(--model-room) / 2);
+    left: 50%;
+    top: calc(var(--model-box) / 2);
     opacity: 1;
-  }
-  .product-size {
-    opacity: 1;
-  }
-  .product-logistics {
-    opacity: 1;
-  }
-  .product-below__stage {
-    margin-bottom: 3rem;
-  }
-  .product-size-tape {
-    display: none;
   }
 }
 
 /* The model's loader (js/product.js) on the design frame: screen wide at the
-   model's height, over the frame's controls, rising with the model. It fades
-   out as specs comes in, where the specs-poster stands in unannounced. */
+   model's height, over the frame's controls, rising with the model. */
 .product-design-frame > .loader {
   inset: 0 0 auto 0;
   height: var(--tile);
   z-index: 5;
   transform: translateY(calc(var(--lift) * -1));
-  opacity: calc(1 - var(--specs-on));
 }
 
 /* ---- size sheets ----
@@ -3537,7 +3587,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 
 /* ---- the sheets' rows ----
-   label | control, in the specs stage's two columns (--label-col,
+   label | control, in the product page's two columns (--label-col,
    --label-gap). The material row holds the metal picker; the size row the
    field and "Find my size". The row is the container the input's width
    scales against. */
@@ -3615,7 +3665,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 
 /* ---- "Find my size" ----
    Opens js/size-finder.js; a secondary button. Beside the size field in the
-   sheets, after the size tape or under it in specs. */
+   sheets, beside the open size dial's line on the product page. */
 .size-modal__finder-toggle,
 .product-size__finder-toggle {
   align-self: flex-end;
@@ -3647,10 +3697,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal__finder-toggle {
   margin-left: auto;
 }
-/* On the product page: in the size row's value column (.product-size__finder places it). */
+/* On the product page: placed by the size dial (.product-dial--size). */
 .product-size__finder-toggle {
-  align-self: center;
-  padding: 0;
   pointer-events: auto;
 }
 .size-guide__how {

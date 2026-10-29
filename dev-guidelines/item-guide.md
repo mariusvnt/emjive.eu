@@ -50,12 +50,12 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 **One folder per product, `<name>_<category>`**, holding everything that product is made of. The tools build that path, so a hand-renamed folder gets a new one beside it. Files follow the name:
 
 - `<name>_gltf.glb`, the model: what the site draws;
-- `<name>_wireframe.glb`, its wireframe: drawn over it in the specs stage, as thin solid bars;
+- `<name>_wireframe.glb`, its wireframe (not shown by the site at present);
 - `<name>_stl.stl`, the print model: what is printed, weighed and priced;
 - `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`;
 - `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
-- `<name>_specs-poster.webp`, the render of the model as the item page's specs stage draws it, one for all metals;
-- `<name>_plan-<front|side>.webp`, its outline views, one set for all metals;
+- `<name>_specs-poster.webp`, the model grey under its wireframe, one for all metals (not shown by the site at present);
+- `<name>_plan-<front|side>.webp`, its outline views, one set for all metals (not shown by the site at present);
 - `<name>_xray.webp`, the design stage's backdrop;
 - `<Name>_photo<N>.webp`, photography.
 
@@ -88,8 +88,8 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
    - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
-   - the **specs poster** is the specs stage's first frame: the model grey, fitted, at the reference size, its wireframe in the category colour, framed like the fallback image. It stands in for an item page opened (reloaded) in specs, where the metal fallback image would give the missing model away. One per product and per design, since the grey hides the metal;
-   - the **plan views** are the specs stage's front and side outline drawings: the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design, at the reference size: the page draws any other size live, with the same code;
+   - the **specs poster** is the model grey, fitted, at the reference size, its wireframe in the category colour, framed like the fallback image. One per product and per design, since the grey hides the metal. The item page doesn't show it at present;
+   - the **plan views** are front and side outline drawings (the item page doesn't show them at present, measuring its dimensions off the live model): the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design, at the reference size;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
    Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--specs-posters-only`, `--plan-views-only`, `--image-variants`).

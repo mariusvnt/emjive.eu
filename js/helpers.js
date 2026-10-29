@@ -15,6 +15,11 @@
     return node;
   }
 
+  // The root font size, px: what 1rem is.
+  function remPx() {
+    return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  }
+
   /* ---- numbers ---- */
 
   function clamp(x, lo, hi) {
@@ -59,6 +64,23 @@
 
   function easeInOutCubic(t) {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // Cubic-bezier easing (control points (x1, y1), (x2, y2)), solved by
+  // Newton-Raphson as browsers do for CSS.
+  function cubicBezierEase(t, x1, y1, x2, y2) {
+    function componentAt(u, a, b) {
+      var v = 1 - u;
+      return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
+    }
+    var u = t;
+    for (var i = 0; i < 8; i++) {
+      var x = componentAt(u, x1, x2) - t;
+      var dx = 3 * (1 - u) * (1 - u) * x1 + 6 * (1 - u) * u * (x2 - x1) + 3 * u * u * (1 - x2);
+      if (Math.abs(dx) < 1e-6) break;
+      u = clamp01(u - x / dx);
+    }
+    return componentAt(u, y1, y2);
   }
 
   /* ---- timing ---- */
@@ -155,6 +177,43 @@
     }
     if (previous) html.style.scrollBehavior = previous;
     else html.style.removeProperty("scroll-behavior");
+  }
+
+  // Scrolls the page to `top` over --fade-standard, CSS's ease-in-out; at
+  // once under reduced motion. A newer call, or the reader taking the scroll
+  // (wheel, touch, a key), stops it where it is. easeScrollTarget(): where
+  // the page is headed (where it is, with none under way).
+  var easeScrollRaf = 0;
+  var easeScrollTo = 0;
+  function easeScrollTarget() {
+    return easeScrollRaf ? easeScrollTo : window.pageYOffset;
+  }
+  function stopEaseScroll() {
+    cancelAnimationFrame(easeScrollRaf);
+    easeScrollRaf = 0;
+    ["wheel", "touchstart", "keydown"].forEach(function (type) {
+      window.removeEventListener(type, stopEaseScroll, true);
+    });
+  }
+  function easeScroll(top) {
+    stopEaseScroll();
+    var from = window.pageYOffset;
+    if (reducedMotion.matches || Math.abs(top - from) < 1) {
+      jumpScroll(top);
+      return;
+    }
+    var ms = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--fade-standard")) || 0.3) * 1000;
+    var start = performance.now();
+    easeScrollTo = top;
+    ["wheel", "touchstart", "keydown"].forEach(function (type) {
+      window.addEventListener(type, stopEaseScroll, { capture: true, passive: true });
+    });
+    (function step(now) {
+      var t = Math.min(1, (now - start) / ms);
+      jumpScroll(from + (top - from) * cubicBezierEase(t, 0.42, 0, 0.58, 1));
+      if (t < 1) easeScrollRaf = requestAnimationFrame(step);
+      else stopEaseScroll();
+    })(start);
   }
 
   /* ---- storage ----
@@ -318,7 +377,7 @@
 
   /* ---- plan views ---- */
 
-  // The specs stage's outline views of a model, in the ring's own frame, where
+  // The product page's outline views of a model, in the ring's own frame, where
   // z runs along the finger and y is up: scripts/auto-render.js draws them,
   // js/product.js marks their measurements, js/three-viewer.js turns the live
   // model to them. `eye` is the camera's side, `up` the drawing's up. As on a
@@ -443,6 +502,7 @@
 
   window.EmjiveHelpers = {
     el: el,
+    remPx: remPx,
     clamp: clamp,
     clamp01: clamp01,
     lerp: lerp,
@@ -451,6 +511,7 @@
     invSmootherstep: invSmootherstep,
     easeOutCubic: easeOutCubic,
     easeInOutCubic: easeInOutCubic,
+    cubicBezierEase: cubicBezierEase,
     wait: wait,
     whenIdle: whenIdle,
     afterPaint: afterPaint,
@@ -458,6 +519,8 @@
     transitionDone: transitionDone,
     imageReady: imageReady,
     jumpScroll: jumpScroll,
+    easeScroll: easeScroll,
+    easeScrollTarget: easeScrollTarget,
     readStorage: readStorage,
     readStorageJson: readStorageJson,
     writeStorage: writeStorage,

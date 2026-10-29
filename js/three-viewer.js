@@ -183,7 +183,7 @@ export { toolkit };
     });
   }
 
-  // ---- blueprint (options.blueprint, the product page's specs stage) ----
+  // ---- blueprint (options.blueprint, the product page's model) ----
   // A horizontal cut, level on screen, sweeps up the model: above it the metal,
   // below it a flat grey shaded like a 3D editor's solid view (one fixed light,
   // no reflections). Appended after <colorspace_fragment>, so the grey is an
@@ -352,23 +352,6 @@ export { toolkit };
     var parts = str.trim().split(/\s+/).map(parseFloat);
     if (parts.length < 3 || parts.some(function (n) { return isNaN(n); })) return null;
     return new THREE.Vector3(parts[0], parts[1], parts[2]);
-  }
-
-  // Cubic-bezier easing (control points (x1, y1), (x2, y2)), solved by
-  // Newton-Raphson as browsers do for CSS.
-  function cubicBezierEase(t, x1, y1, x2, y2) {
-    function componentAt(u, a, b) {
-      var v = 1 - u;
-      return 3 * v * v * u * a + 3 * v * u * u * b + u * u * u;
-    }
-    var u = t;
-    for (var i = 0; i < 8; i++) {
-      var x = componentAt(u, x1, x2) - t;
-      var dx = 3 * (1 - u) * (1 - u) * x1 + 6 * (1 - u) * u * (x2 - x1) + 3 * u * u * (1 - x2);
-      if (Math.abs(dx) < 1e-6) break;
-      u = H.clamp01(u - x / dx);
-    }
-    return componentAt(u, y1, y2);
   }
 
   // Slerp between unit vectors: constant angular speed and stable near
@@ -670,7 +653,7 @@ export { toolkit };
   //                   it is; only goHome(true) brings it back
   //   onAway(away)    optional: turned off its default pose (true) or back/returning (false)
   //   onHold(holding) optional: a goTo() pose reached (true), its hold over or cut short (false)
-  //   wake()          optional: restart the caller's loop (goTo's hold ends on a timer)
+  //   wake()          optional: restart the caller's loop (a timed goTo() hold ends on a timer)
   //
   // The damping seed assumes 60fps; step() re-derives the per-frame factor from
   // SPIN_DECAY_LAMBDA and the real dt, so the spin-down is frame-rate independent
@@ -699,9 +682,11 @@ export { toolkit };
     var resetTweenFromPosition = new THREE.Vector3();
     var resetTweenFromUp = new THREE.Vector3();
     // goTo(): the pose the tween heads for instead of home ({ position, up }),
-    // then the stillness held there before the ease back.
+    // then the stillness held there (holding), timed (holdTimeoutId) or until
+    // a drag or goHome().
     var tweenPose = null;
     var holdMs = 0;
+    var holding = false;
     var holdTimeoutId = null;
     // How far the view is flattened toward a goTo() pose's straight-on
     // projection (0..1, flatness()): in with the turn there, held, out with the
@@ -737,9 +722,10 @@ export { toolkit };
         clearTimeout(pauseTimeoutId);
         pauseTimeoutId = null;
       }
-      if (holdTimeoutId) {
+      if (holding) {
         clearTimeout(holdTimeoutId);
         holdTimeoutId = null;
+        holding = false;
         if (options.onHold) options.onHold(false);
       }
     }
@@ -754,6 +740,7 @@ export { toolkit };
 
     function endHold() {
       holdTimeoutId = null;
+      holding = false;
       if (options.onHold) options.onHold(false);
       beginHome();
       if (options.wake) options.wake();
@@ -774,10 +761,10 @@ export { toolkit };
     function step(dt) {
       var home = options.home();
       // Holding a goTo() pose: nothing moves, not even the drift.
-      if (holdTimeoutId) return;
+      if (holding) return;
       if (resetTweenActive) {
         var t = Math.min(1, (performance.now() - resetTweenStartTime) / ROLLBACK_DURATION);
-        var eased = cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
+        var eased = H.cubicBezierEase(t, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
         var to = tweenPose || home;
 
         fromDirection.copy(resetTweenFromPosition).sub(controls.target).normalize();
@@ -792,7 +779,8 @@ export { toolkit };
           resetTweenActive = false;
           if (tweenPose) {
             tweenPose = null;
-            holdTimeoutId = setTimeout(endHold, holdMs);
+            holding = true;
+            if (holdMs > 0) holdTimeoutId = setTimeout(endHold, holdMs);
             if (options.onHold) options.onHold(true);
           } else {
             setAway(false);
@@ -897,13 +885,14 @@ export { toolkit };
     }
 
     // Turns to `pose` ({ position, up }, at the home radius), holds it for
-    // `ms`, then eases home. A drag or another goTo() replaces it; the pose
-    // already held only restarts the hold.
+    // `ms`, then eases home; without `ms` it holds until a drag or goHome().
+    // A drag or another goTo() replaces it; the pose already held only
+    // restarts the hold.
     function goTo(pose, ms) {
       if (isDragging) return;
-      if (holdTimeoutId && camera.position.distanceTo(pose.position) < 1e-6 * pose.position.distanceTo(controls.target) && camera.up.angleTo(pose.up) < 1e-4) {
+      if (holding && camera.position.distanceTo(pose.position) < 1e-6 * pose.position.distanceTo(controls.target) && camera.up.angleTo(pose.up) < 1e-4) {
         clearTimeout(holdTimeoutId);
-        holdTimeoutId = setTimeout(endHold, ms);
+        holdTimeoutId = ms > 0 ? setTimeout(endHold, ms) : null;
         return;
       }
       cancelReturn();
@@ -924,7 +913,7 @@ export { toolkit };
       // Not at rest in its default pose: dragging, coasting, pausing, easing back
       // or letting go of a flattening.
       isBusy: function () {
-        return isDragging || waitingForSettle || pauseTimeoutId !== null || resetTweenActive || (flat > 0 && !holdTimeoutId);
+        return isDragging || waitingForSettle || pauseTimeoutId !== null || resetTweenActive || (flat > 0 && !holding);
       },
       dispose: function () {
         cancelReturn();
@@ -1294,6 +1283,10 @@ export { toolkit };
       autoReturn: function () { return autoReturn; },
       onAway: options.onAway,
       onHold: function (holding) {
+        if (blueprint) {
+          planHeld = holding;
+          invalidate();
+        }
         if (options.onViewHeld) options.onViewHeld(holding ? heldView : "");
       },
       onHome: function () { scheduleIdleNudge(); },
@@ -1396,7 +1389,7 @@ export { toolkit };
     }
 
     /* ---- blueprint (options.blueprint) ----
-       The specs stage, driven by handle.setBlueprint(sweep, fit) (0..1 each) and
+       Driven by handle.setBlueprint(sweep, fit) (0..1 each) and
        handle.setSize(mm):
        - sweep: BLUEPRINT_FRAGMENT's cut at uScanY (view space) going from below
          the model (0: all metal) to above it (1: all grey); handle.scanSpan() gives
@@ -1412,6 +1405,21 @@ export { toolkit };
     var sizeUniforms = blueprint ? sizeShiftUniforms(product) : null;
     // The plan view showView() last turned to.
     var heldView = "";
+    // Where a plan view's drawing at the chosen size lands on the canvas with
+    // the model turned to it (handle.viewPlacement).
+    function viewPlacement(name) {
+      var frame = H.planFrame(product, sizeMm);
+      var view = frame && frame.views[name];
+      if (!blueprint || !view || !modelLoaded || !defaultRadius) return null;
+      var scale = fittedScale();
+      var unit = 1 / (2 * defaultRadius * Math.tan((camera.fov * Math.PI) / 360));
+      var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(scale * unit);
+      return {
+        x: offset.dot(new THREE.Vector3().fromArray(view.right)),
+        y: -offset.dot(new THREE.Vector3().fromArray(view.up)),
+        mm: scale * unit
+      };
+    }
     var viewerPaused = false;
     var bpUniforms = null;
     if (blueprint) {
@@ -1671,7 +1679,7 @@ export { toolkit };
 
         frameCamera(defaultOrbit);
         modelLoaded = true;
-        // The page may already be in specs (reload, rebuild): the first frame matches.
+        // A sweep or fit set before the model arrived: the first frame matches.
         if (blueprint) {
           computeFit();
           updateBlueprint();
@@ -1953,8 +1961,9 @@ export { toolkit };
         spin.goHome(true);
         invalidate();
       },
-      // Blueprint viewers: turn to one of the specs stage's plan views, as
-      // drawn (EmjiveHelpers.planFrame), hold it for holdMs, then ease back;
+      // Blueprint viewers: turn to one of the product page's plan views, as
+      // drawn (EmjiveHelpers.planFrame), and hold it, for holdMs then easing
+      // back, or without holdMs until a drag or returnHome();
       // options.onViewHeld(name) once there, onViewHeld("") as the hold ends.
       // The view flattens to the drawing's projection on the way (drawFlat).
       // Even under reduced motion: the visitor asked.
@@ -1974,26 +1983,39 @@ export { toolkit };
       // on the canvas with the model turned to it: its centre's offset from
       // the canvas centre (x right, y down) and a millimetre at the model's
       // current scale, all as shares of the canvas height. null before the model.
-      viewPlacement: function (name) {
+      viewPlacement: viewPlacement,
+      // Blueprint viewers, while a plan view is held: the
+      // model's silhouette within the view's drawing rectangle at the chosen
+      // size (H.planFrame's crop, placed by viewPlacement), as the last frame
+      // drew it: { w, h, data }, RGBA rows top down, opaque where the model
+      // is. Run from options.onViewDrawn. null before.
+      planMask: function (name) {
+        var place = viewPlacement(name);
         var frame = H.planFrame(product, sizeMm);
-        var view = frame && frame.views[name];
-        if (!blueprint || !view || !modelLoaded || !defaultRadius) return null;
-        var scale = fittedScale();
-        var unit = 1 / (2 * defaultRadius * Math.tan((camera.fov * Math.PI) / 360));
-        var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(scale * unit);
-        return {
-          x: offset.dot(new THREE.Vector3().fromArray(view.right)),
-          y: -offset.dot(new THREE.Vector3().fromArray(view.up)),
-          mm: scale * unit
-        };
-      },
-      // Blueprint viewers: a plan view's outline drawing of the model at a
-      // size, lines in lineColor (drawPlanView). null before the model.
-      planPicture: function (name, mm, lineColor) {
-        if (!blueprint || !modelLoaded || isDisposed) return null;
-        var picture = drawPlanView(renderer, modelRoot, product, name, mm, lineColor);
-        invalidate();
-        return picture;
+        if (!place || !frame || !planSilhouette || !planSilhouette.drawn) return null;
+        var bw = planSilhouette.size.x;
+        var bh = planSilhouette.size.y;
+        var w = Math.max(1, Math.round(frame.crop.w * place.mm * bh));
+        var h = Math.max(1, Math.round(frame.crop.h * place.mm * bh));
+        var left = Math.round(bw / 2 + place.x * bh - w / 2);
+        var top = Math.round(bh / 2 + place.y * bh - h / 2);
+        // The part on the canvas; the rest stays empty.
+        var x0 = Math.max(0, left);
+        var y0 = Math.max(0, top);
+        var x1 = Math.min(bw, left + w);
+        var y1 = Math.min(bh, top + h);
+        var data = new Uint8Array(w * h * 4);
+        if (x1 > x0 && y1 > y0) {
+          var rw = x1 - x0;
+          var rh = y1 - y0;
+          var read = new Uint8Array(rw * rh * 4);
+          // The target's rows run bottom up.
+          renderer.readRenderTargetPixels(planSilhouette.target, x0, bh - y1, rw, rh, read);
+          for (var row = 0; row < rh; row++) {
+            data.set(read.subarray((rh - 1 - row) * rw * 4, (rh - row) * rw * 4), ((y0 - top + row) * w + (x0 - left)) * 4);
+          }
+        }
+        return { w: w, h: h, data: data };
       },
       // Out of sight: no drawing or nudge until resumed (then one redraw, in case the canvas was discarded).
       setPaused: function (paused) {
@@ -2045,6 +2067,7 @@ export { toolkit };
         // explicitly (late arrivals are freed by the load callbacks). The blueprint's
         // parts first, then the model.
         disposeBlueprint();
+        disposePlanSilhouette();
         disposeObject3D(modelRoot);
         releaseHeldCpuBytes();
         if (environmentTarget) environmentTarget.dispose();
@@ -2120,9 +2143,72 @@ export { toolkit };
         drawFlat(flat);
       } else {
         if (blueprint) updateBlueprint();
-        renderer.render(scene, camera);
+        renderFrame();
+      }
+      // Once the camera is back as the spin left it (drawFlat moves it for the
+      // draw only), so viewPlacement reads it right.
+      if (planDrawnDuringHold) {
+        planDrawnDuringHold = false;
+        if (options.onViewDrawn) options.onViewDrawn(heldView);
       }
       return true;
+    }
+
+    function renderFrame() {
+      renderer.render(scene, camera);
+      if (planHeld) drawPlanSilhouette();
+    }
+
+    /* ---- the held plan view's silhouette (blueprint viewers) ----
+       While a plan view is held, each frame also draws the model alone (at
+       its size, with the frame's camera) into planSilhouette.target, opaque
+       where the model is; handle.planMask() reads it, and
+       options.onViewDrawn(name) follows each such frame (drawIfChanged). */
+    var planSilhouette = null;
+    var planHeld = false;
+    // The silhouette was drawn during the hold this frame (drawIfChanged reports it).
+    var planDrawnDuringHold = false;
+    function makePlanSilhouette() {
+      var size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      var target = new THREE.WebGLRenderTarget(size.x, size.y);
+      var material = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+      material.onBeforeCompile = function (shader) { sizeShiftShader(shader, sizeUniforms); };
+      material.customProgramCacheKey = function () { return "emjive-sized"; };
+      return { target: target, material: material, size: size, drawn: false };
+    }
+    function disposePlanSilhouette() {
+      if (!planSilhouette) return;
+      planSilhouette.target.dispose();
+      planSilhouette.material.dispose();
+      planSilhouette = null;
+    }
+    var planMeshMaterials = new Map();
+    // Run right after the frame's own draw, with its camera (flattened or not).
+    function drawPlanSilhouette() {
+      if (!blueprint || !modelRoot || !modelLoaded) return;
+      var size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      if (planSilhouette && (planSilhouette.size.x !== size.x || planSilhouette.size.y !== size.y)) disposePlanSilhouette();
+      if (!planSilhouette) planSilhouette = makePlanSilhouette();
+      var o = planSilhouette;
+      planMeshMaterials.clear();
+      modelRoot.traverse(function (node) {
+        if (!node.isMesh) return;
+        planMeshMaterials.set(node, node.material);
+        node.material = o.material;
+      });
+      var previousColor = renderer.getClearColor(new THREE.Color());
+      var previousAlpha = renderer.getClearAlpha();
+      renderer.setClearColor(0x000000, 0);
+      renderer.setRenderTarget(o.target);
+      renderer.clear();
+      // The model alone, under its fitting group's transform.
+      renderer.render(modelRoot, camera);
+      planMeshMaterials.forEach(function (material, node) { node.material = material; });
+      planMeshMaterials.clear();
+      renderer.setRenderTarget(null);
+      renderer.setClearColor(previousColor, previousAlpha);
+      o.drawn = true;
+      if (heldView) planDrawnDuringHold = true;
     }
 
     // A plan view's drawing is a straight-on (orthographic) projection; the
@@ -2150,7 +2236,7 @@ export { toolkit };
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld();
       if (blueprint) updateBlueprint();
-      renderer.render(scene, camera);
+      renderFrame();
       camera.position.copy(flatSavedPosition);
       camera.fov = fov;
       camera.near = near;
@@ -2182,7 +2268,7 @@ export { toolkit };
 
       if (nudgeActive) {
         var nt = Math.min(1, (performance.now() - nudgePhaseStartTime) / ROLLBACK_DURATION);
-        var neased = cubicBezierEase(nt, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
+        var neased = H.cubicBezierEase(nt, ROLLBACK_BEZIER[0], ROLLBACK_BEZIER[1], ROLLBACK_BEZIER[2], ROLLBACK_BEZIER[3]);
 
         slerpVectors(tweenDirection, nudgeWaypoints[nudgePhase], nudgeWaypoints[(nudgePhase + 1) % 3], neased);
         camera.position.copy(tweenDirection).multiplyScalar(defaultRadius).add(controls.target);

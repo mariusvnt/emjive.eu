@@ -18,9 +18,9 @@
   },
 
   "metal-shaders": {
-    "steel":  { "color": [120, 120, 135], "metalness": 1,    "roughness": 0.15 },
-    "silver": { "color": [240, 240, 240], "metalness": 1,    "roughness": 0.09 },
-    "bronze": { "color": [255, 156, 41],  "metalness": 0.95, "roughness": 0.08 }
+    "steel":  { "color": [120, 120, 135], "metalness": 1, "roughness": 0.2 },
+    "silver": { "color": [240, 240, 240], "metalness": 1, "roughness": 0.1 },
+    "bronze": { "color": [255, 153, 10], "metalness": 0.95, "roughness": 0.08 }
   },
 
   "hand-shader": { "edge": 0, "face": 190, "falloff": 1, "sheen": 200, "sheen-from": 0.05, "sheen-to": 1, "sheen-roughness": 0.3, "fade-top": 0.65, "fade-bottom": 0.3 },

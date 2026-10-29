@@ -121,7 +121,7 @@
           </div>
 
           <!-- Design stage: the model over its x-ray, then the configuration and
-               the information drawers under it. Everything placed against the
+               the information under it. Everything placed against the
                model lives in this frame and shares its --tile. -->
           <div class="product-design-frame" id="productDesignFrame">
             <img class="product-design__xray" id="productDesignXray" alt="" decoding="async" hidden />
@@ -143,14 +143,13 @@
             <!-- A held view's dimensions over the model (js/product.js renderPlanViews). -->
             <div class="product-outlines" id="productOutlines" aria-hidden="true" hidden></div>
 
-            <!-- Under the model: the dials, centred, then the
-                 information drawers. -->
+            <!-- Under the model: the dials, centred, then the information. -->
             <div class="product-below" data-stage-owner="design">
 
               <!-- Shape (only with more than one design) and material, each a
                    sectioned disc (js/option-dial.js), then the size (js/product.js
                    wireSizeDial: open, a vertical line to slide along, "Find my
-                   size" to its left; hidden for unitless categories). -->
+                   size" by its head; hidden for unitless categories). -->
               <div class="product-dials">
                 <div id="productShapeDial" hidden></div>
                 <div id="productMaterialDial"></div>
@@ -175,101 +174,64 @@
               </div>
 
               <!-- The information, in clusters (the material; the cost; shipping
-                   and returns), each drawer a label | value row: the value
-                   opening in the second column once its label or its + is
-                   tapped, the + under it (js/product.js wireDrawers). -->
-              <div class="product-drawers">
+                   and returns), each a label | value row. -->
+              <div class="product-info">
 
-                <div class="product-drawers__group">
+                <div class="product-info__group">
                   <!-- The chosen metal's composition. -->
-                  <section class="product-drawer" id="productCompositionDrawer" hidden>
-                    <h2 class="product-drawer__head">
-                      <button class="product-drawer__toggle" type="button" aria-expanded="false" aria-controls="productCompositionBody">Composition</button>
-                    </h2>
-                    <div class="product-drawer__value">
-                      <div class="product-drawer__body" id="productCompositionBody">
-                        <div class="product-drawer__inner">
-                          <p class="product-drawer__text" id="productComposition"></p>
-                        </div>
-                      </div>
-                      <button class="product-drawer__plus" type="button" tabindex="-1" aria-hidden="true"><span class="product-drawer__cross"><span class="product-drawer__bar product-drawer__bar--h"></span><span class="product-drawer__bar product-drawer__bar--v"></span></span></button>
+                  <section class="product-info__item" id="productCompositionItem" aria-labelledby="productCompositionLabel" hidden>
+                    <h2 class="product-info__label" id="productCompositionLabel">Composition</h2>
+                    <div class="product-info__value">
+                      <p class="product-info__text" id="productComposition"></p>
                     </div>
                   </section>
 
                   <!-- The chosen metal's printing technology: its name, then its description. -->
-                  <section class="product-drawer" id="productPrinting" hidden>
-                    <h2 class="product-drawer__head">
-                      <button class="product-drawer__toggle" type="button" aria-expanded="false" aria-controls="productPrintingBody">Printing technology</button>
-                    </h2>
-                    <div class="product-drawer__value">
-                      <div class="product-drawer__body" id="productPrintingBody">
-                        <div class="product-drawer__inner">
-                          <p class="product-drawer__text product-drawer__text--strong" id="productPrintingName"></p>
-                          <p class="product-drawer__text" id="productPrintingText"></p>
-                        </div>
-                      </div>
-                      <button class="product-drawer__plus" type="button" tabindex="-1" aria-hidden="true"><span class="product-drawer__cross"><span class="product-drawer__bar product-drawer__bar--h"></span><span class="product-drawer__bar product-drawer__bar--v"></span></span></button>
+                  <section class="product-info__item" id="productPrinting" aria-labelledby="productPrintingLabel" hidden>
+                    <h2 class="product-info__label" id="productPrintingLabel">Printing technology</h2>
+                    <div class="product-info__value">
+                      <p class="product-info__text product-info__text--strong" id="productPrintingName"></p>
+                      <p class="product-info__text" id="productPrintingText"></p>
                     </div>
                   </section>
                 </div>
 
-                <div class="product-drawers__group">
-                  <!-- Production cost chart (js/product.js renderSpecs; animates in on .is-built, as it opens). -->
-                  <section class="product-drawer product-costs" id="productCosts">
-                    <h2 class="product-drawer__head">
-                      <button class="product-drawer__toggle" type="button" aria-expanded="false" aria-controls="productCostsBody">Production cost</button>
-                    </h2>
-                    <div class="product-drawer__value">
-                      <div class="product-drawer__body" id="productCostsBody">
-                        <div class="product-drawer__inner">
-                          <dl class="product-costs__list">
-                            <div class="product-costs__row product-costs__row--raw">
-                              <dt>Raw materials</dt>
-                              <dd class="product-costs__bar" aria-hidden="true"></dd>
-                              <dd class="product-costs__amount" id="productCostRaw">—</dd>
-                            </div>
-                            <div class="product-costs__row product-costs__row--manufacturing">
-                              <dt>Manufacturing</dt>
-                              <dd class="product-costs__bar" aria-hidden="true"></dd>
-                              <dd class="product-costs__amount" id="productCostManufacturing">—</dd>
-                            </div>
-                            <div class="product-costs__row product-costs__row--production">
-                              <dt class="visually-hidden">Total</dt>
-                              <dd class="product-costs__amount" id="productCostProduction">—</dd>
-                            </div>
-                          </dl>
+                <div class="product-info__group">
+                  <!-- Production cost chart (js/product.js renderCosts; animates in on .is-built, once in view). -->
+                  <section class="product-info__item product-costs" id="productCosts" aria-labelledby="productCostsLabel">
+                    <h2 class="product-info__label" id="productCostsLabel">Production cost</h2>
+                    <div class="product-info__value">
+                      <dl class="product-costs__list">
+                        <div class="product-costs__row product-costs__row--raw">
+                          <dt>Raw materials</dt>
+                          <dd class="product-costs__bar" aria-hidden="true"></dd>
+                          <dd class="product-costs__amount" id="productCostRaw">—</dd>
                         </div>
-                      </div>
-                      <button class="product-drawer__plus" type="button" tabindex="-1" aria-hidden="true"><span class="product-drawer__cross"><span class="product-drawer__bar product-drawer__bar--h"></span><span class="product-drawer__bar product-drawer__bar--v"></span></span></button>
+                        <div class="product-costs__row product-costs__row--manufacturing">
+                          <dt>Manufacturing</dt>
+                          <dd class="product-costs__bar" aria-hidden="true"></dd>
+                          <dd class="product-costs__amount" id="productCostManufacturing">—</dd>
+                        </div>
+                        <div class="product-costs__row product-costs__row--production">
+                          <dt class="visually-hidden">Total</dt>
+                          <dd class="product-costs__amount" id="productCostProduction">—</dd>
+                        </div>
+                      </dl>
                     </div>
                   </section>
                 </div>
 
-                <div class="product-drawers__group">
-                  <section class="product-drawer">
-                    <h2 class="product-drawer__head">
-                      <button class="product-drawer__toggle" type="button" aria-expanded="false" aria-controls="productShippingBody">Shipping</button>
-                    </h2>
-                    <div class="product-drawer__value">
-                      <div class="product-drawer__body" id="productShippingBody">
-                        <div class="product-drawer__inner">
-                          <p class="product-drawer__text">Each item's production only begins once an order is placed. Please allow 3 to 4 weeks before dispatch.</p>
-                        </div>
-                      </div>
-                      <button class="product-drawer__plus" type="button" tabindex="-1" aria-hidden="true"><span class="product-drawer__cross"><span class="product-drawer__bar product-drawer__bar--h"></span><span class="product-drawer__bar product-drawer__bar--v"></span></span></button>
+                <div class="product-info__group">
+                  <section class="product-info__item" aria-labelledby="productShippingLabel">
+                    <h2 class="product-info__label" id="productShippingLabel">Shipping</h2>
+                    <div class="product-info__value">
+                      <p class="product-info__text">Each item's production only begins once an order is placed. Please allow 3 to 4 weeks before dispatch.</p>
                     </div>
                   </section>
-                  <section class="product-drawer">
-                    <h2 class="product-drawer__head">
-                      <button class="product-drawer__toggle" type="button" aria-expanded="false" aria-controls="productReturnsBody">Returns</button>
-                    </h2>
-                    <div class="product-drawer__value">
-                      <div class="product-drawer__body" id="productReturnsBody">
-                        <div class="product-drawer__inner">
-                          <p class="product-drawer__text">Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
-                        </div>
-                      </div>
-                      <button class="product-drawer__plus" type="button" tabindex="-1" aria-hidden="true"><span class="product-drawer__cross"><span class="product-drawer__bar product-drawer__bar--h"></span><span class="product-drawer__bar product-drawer__bar--v"></span></span></button>
+                  <section class="product-info__item" aria-labelledby="productReturnsLabel">
+                    <h2 class="product-info__label" id="productReturnsLabel">Returns</h2>
+                    <div class="product-info__value">
+                      <p class="product-info__text">Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
                     </div>
                   </section>
                 </div>

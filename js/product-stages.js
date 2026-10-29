@@ -1,7 +1,7 @@
 // The product page's two-stage show: a tall track (.product-stage) holding
 // one sticky stage, where scrolling steps inspiration (description and photo
 // feed) -> design (the model and its configuration: design options, metal,
-// size, plan views; then the information drawers). Each stage is a stretch the
+// size, plan views; then the information). Each stage is a stretch the
 // show browses through, with an eased transition between them.
 //
 // Track order: inspiration stretch (--feed-hold), transition
@@ -17,8 +17,7 @@
 //   data-stage                "inspiration" | "design" | "flow" (too short to pin)
 //   .is-feed-gone, .is-design-out, .is-model-out   for what CSS can't fade
 // and calls onChange({ toDesign, stage }).
-// Returns { scrollToStage(index), scrollBy(px), update() }; scrollBy moves
-// the show up px more, or down for a negative px (within the design stretch). Keyboard focus
+// Returns { scrollToStage(index), update() }. Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
 // scrolls there.
 
@@ -197,24 +196,6 @@
       window.scrollTo({ top: Math.max(0, Math.round(top)), left: 0 });
     }
 
-    // Scrolls to where the design browse is px further (within its room), by
-    // undoing entry(); a plain scroll when the stage isn't pinned. Eased
-    // (H.easeScroll), from where an eased scroll under way is headed.
-    function scrollBy(px) {
-      var ahead = H.easeScrollTarget() - window.pageYOffset;
-      if (flow.matches) {
-        H.easeScroll(Math.max(0, window.pageYOffset + ahead + px));
-        return;
-      }
-      var m = measure();
-      if (!(m.hold > 0) || !(designRoom > 0)) return;
-      var a = Math.min(1, (screenPx() * ENTRY_SCREENS) / m.hold);
-      var current = designRoom * entry(clamp01((m.scrolled + ahead - m.offset) / m.hold), a);
-      var y = (Math.max(0, Math.min(designRoom, current + px)) / designRoom) * (1 - a / 2);
-      var t = y < a / 2 ? Math.sqrt(2 * a * y) : y + a / 2;
-      H.easeScroll(Math.max(0, stops[1] + t * m.hold));
-    }
-
     stageEl.addEventListener("focusin", function (e) {
       if (flow.matches) return;
       if (!e.target.matches(":focus-visible")) return;
@@ -233,7 +214,7 @@
     window.addEventListener("pageshow", requestUpdate);
     update();
 
-    return { scrollToStage: scrollToStage, scrollBy: scrollBy, update: requestUpdate };
+    return { scrollToStage: scrollToStage, update: requestUpdate };
   }
 
   window.EmjiveProductStages = { mount: mount, screenPx: screenPx };

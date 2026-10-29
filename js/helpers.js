@@ -179,43 +179,6 @@
     else html.style.removeProperty("scroll-behavior");
   }
 
-  // Scrolls the page to `top` over --fade-standard, CSS's ease-in-out; at
-  // once under reduced motion. A newer call, or the reader taking the scroll
-  // (wheel, touch, a key), stops it where it is. easeScrollTarget(): where
-  // the page is headed (where it is, with none under way).
-  var easeScrollRaf = 0;
-  var easeScrollTo = 0;
-  function easeScrollTarget() {
-    return easeScrollRaf ? easeScrollTo : window.pageYOffset;
-  }
-  function stopEaseScroll() {
-    cancelAnimationFrame(easeScrollRaf);
-    easeScrollRaf = 0;
-    ["wheel", "touchstart", "keydown"].forEach(function (type) {
-      window.removeEventListener(type, stopEaseScroll, true);
-    });
-  }
-  function easeScroll(top) {
-    stopEaseScroll();
-    var from = window.pageYOffset;
-    if (reducedMotion.matches || Math.abs(top - from) < 1) {
-      jumpScroll(top);
-      return;
-    }
-    var ms = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--fade-standard")) || 0.3) * 1000;
-    var start = performance.now();
-    easeScrollTo = top;
-    ["wheel", "touchstart", "keydown"].forEach(function (type) {
-      window.addEventListener(type, stopEaseScroll, { capture: true, passive: true });
-    });
-    (function step(now) {
-      var t = Math.min(1, (now - start) / ms);
-      jumpScroll(from + (top - from) * cubicBezierEase(t, 0.42, 0, 0.58, 1));
-      if (t < 1) easeScrollRaf = requestAnimationFrame(step);
-      else stopEaseScroll();
-    })(start);
-  }
-
   /* ---- storage ----
      `area` is "localStorage" or "sessionStorage". Storage can throw (Safari
      private mode, a full quota, blocked site data): reads come back empty and
@@ -519,8 +482,6 @@
     transitionDone: transitionDone,
     imageReady: imageReady,
     jumpScroll: jumpScroll,
-    easeScroll: easeScroll,
-    easeScrollTarget: easeScrollTarget,
     readStorage: readStorage,
     readStorageJson: readStorageJson,
     writeStorage: writeStorage,

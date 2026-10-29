@@ -27,7 +27,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product, and the landing for legacy ?id= links.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/metal-picker.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/option-dial.js (defer), js/product-stages.js (defer), js/product.js (defer)
-  - landmarks: #productDetail, #productCompositionDrawer, #productPrinting, #productCosts
+  - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
   - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
   - landmarks: #hdriSection, #sunSection, #cameraSection, #shaderSection, #saveSection
@@ -49,7 +49,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, easeScroll, easeScrollTarget, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
+    - sets `EmjiveHelpers` { el, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
@@ -61,9 +61,9 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveOptionDial` { mount }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
     - sets `EmjiveOrderRows` { create, notice }
-  - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (the model and its configuration: design options, metal, size, plan views; then the information drawers).
+  - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (the model and its configuration: design options, metal, size, plan views; then the information).
     - sets `EmjiveProductStages` { mount, screenPx }
-  - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, photo feed, model, design options, metal picker, size, plan views, the information drawers and the selection flow across the two stages js/product-stages.js drives, handling what CSS can't (the band's reveal of the model, its lift, the feed's and the design column's room).
+  - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, photo feed, model, design options, metal picker, size, plan views, the information and the selection flow across the two stages js/product-stages.js drives, handling what CSS can't (the band's reveal of the model, its lift, the feed's and the design column's room).
   - [scroll-memory.js](../js/scroll-memory.js) — Homepage scroll memory (index.html only): Back returns to the exact offset on the first painted frame.
     - sets `EmjiveScrollMemory` { isRestoring, holdUntil, landing, remember, rememberWheel, wheel, contentReady }
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (or "No selected item") and "Order (N) ›".

@@ -1,6 +1,6 @@
 // The product page: resolves the item from the address and renders its label,
 // photo feed, model, design options, metal picker, size, plan views, the
-// information drawers and the selection flow across the two stages
+// information and the selection flow across the two stages
 // js/product-stages.js drives, handling what CSS can't (the band's reveal of
 // the model, its lift, the feed's and the design column's room).
 
@@ -247,7 +247,7 @@
     renderPlanViews();
     renderPrinting();
     renderComposition();
-    wireDrawers();
+    wireCosts();
     wireSelectButton(product);
 
     loadingEl.hidden = true;
@@ -1139,30 +1139,29 @@
     });
   }
 
-  // How the chosen metal is printed.
-  // Its drawer, hidden without one.
+  // How the chosen metal is printed: its row, hidden without one.
   function renderPrinting() {
-    var drawer = document.getElementById("productPrinting");
+    var item = document.getElementById("productPrinting");
     var tech = state.technologies[state.metalTechnology[state.selectedMetal]];
-    var from = drawer.hidden ? 0 : drawer.offsetHeight;
-    drawer.hidden = !tech;
+    var from = item.hidden ? 0 : item.offsetHeight;
+    item.hidden = !tech;
     if (!tech) return;
     document.getElementById("productPrintingName").textContent = tech.name;
     document.getElementById("productPrintingText").textContent = tech.description;
-    // A different text height in an open drawer: glide instead of snapping.
-    if (from > 0) tweenHeight(drawer, from);
+    // A different text height: glide instead of snapping.
+    if (from > 0) tweenHeight(item, from);
   }
 
-  // The chosen metal's composition, its drawer as the printing technology's.
+  // The chosen metal's composition, its row as the printing technology's.
   function renderComposition() {
-    var drawer = document.getElementById("productCompositionDrawer");
+    var item = document.getElementById("productCompositionItem");
     var node = document.getElementById("productComposition");
-    if (!drawer || !node) return;
+    if (!item || !node) return;
     var text = state.compositions[state.selectedMetal] || "";
-    var from = drawer.hidden ? 0 : drawer.offsetHeight;
-    drawer.hidden = !text;
+    var from = item.hidden ? 0 : item.offsetHeight;
+    item.hidden = !text;
     node.textContent = text;
-    if (text && from > 0) tweenHeight(drawer, from);
+    if (text && from > 0) tweenHeight(item, from);
   }
 
   // Animates `node`'s height from `from` to `to` (default: its new natural
@@ -1494,8 +1493,8 @@
       });
     }
     window.addEventListener("resize", queueRefresh);
-    // The column grows and shrinks (a drawer opening, a text's glide, the
-    // size row wrapping): the design stretch follows.
+    // The column grows and shrinks (a text's glide, a row wrapping): the
+    // design stretch follows.
     var below = document.querySelector(".product-below");
     if (below && window.ResizeObserver) new ResizeObserver(queueRefresh).observe(below);
   }
@@ -1506,6 +1505,8 @@
     refreshStage();
     // The size field gets its starting value once design is fully in.
     if (!state.flow && stage.toDesign >= 1 && !state.sizeSeeded && state.seedSize) state.seedSize();
+    var costs = document.getElementById("productCosts");
+    if (costs && !state.flow && stage.toDesign < 0.5 && costs.classList.contains("is-built")) buildCosts(costs, false);
     // In design a released model stays put (the reset button returns it);
     // elsewhere it eases home. Out of sight it pauses.
     var autoReturn = stage.stage !== "design";
@@ -1523,49 +1524,20 @@
     if (state.modelHandle) state.modelHandle.setPaused(out);
   }
 
-  // The information drawers: a tap on a label's + opens its value under it,
-  // another closes it. The cost chart builds as its drawer opens and resets
-  // once closed.
-  function wireDrawers() {
-    var drawers = document.querySelectorAll(".product-drawer");
-    Array.prototype.forEach.call(drawers, function (drawer) {
-      var toggle = drawer.querySelector(".product-drawer__toggle");
-      if (!toggle) return;
-      function flip() {
-        var open = !drawer.classList.contains("is-open");
-        // What a close gives back: the drawer as it is, less its label row.
-        var freed = open ? 0 : drawer.offsetHeight - drawerClosedHeight(drawer);
-        drawer.classList.toggle("is-open", open);
-        toggle.setAttribute("aria-expanded", String(open));
-        if (drawer.classList.contains("product-costs")) buildCosts(drawer, open);
-        // The design stretch takes its new length at once, not frame by frame.
-        refreshStage();
-        if (open) revealDrawer(drawer);
-        // A close scrolls back by what it frees, the page under it staying put.
-        else if (freed > 0 && stages) stages.scrollBy(-freed);
-      }
-      // The label, or the + under the value (a pointer's twin of the label).
-      toggle.addEventListener("click", flip);
-      var plus = drawer.querySelector(".product-drawer__plus");
-      if (plus) plus.addEventListener("click", flip);
-    });
-  }
-
-  // An opening drawer scrolls the page up just enough to show the next
-  // drawer's label (the last drawer: its own end) clear of the bottom bars by
-  // DESIGN_CLEAR_REM, if it would end under them; a closing one leaves the
-  // page where it is.
-  function revealDrawer(drawer) {
-    var drawers = Array.prototype.slice.call(document.querySelectorAll(".product-drawer:not([hidden])"));
-    var next = drawers[drawers.indexOf(drawer) + 1];
-    var bottom = drawer.getBoundingClientRect().top + drawerOpenHeight(drawer);
-    if (next) {
-      // Where the next label will end once this drawer is open.
-      var head = next.querySelector(".product-drawer__head");
-      bottom = next.getBoundingClientRect().top + drawerOpenHeight(drawer) - drawer.offsetHeight + (head ? head.offsetHeight : 0);
+  // The cost chart builds once it's in view, and resets once design is left
+  // (onStageChange), to build again on the way back.
+  var COSTS_IN_VIEW = 0.5;
+  function wireCosts() {
+    var costs = document.getElementById("productCosts");
+    if (!costs || !window.IntersectionObserver) {
+      if (costs) buildCosts(costs, true);
+      return;
     }
-    var past = bottom - (barsTopPx() - DESIGN_CLEAR_REM * remPx());
-    if (past > 0 && stages) stages.scrollBy(past);
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting && !costs.classList.contains("is-built")) buildCosts(costs, true);
+      });
+    }, { threshold: COSTS_IN_VIEW }).observe(costs);
   }
 
   function buildCosts(costs, on) {
@@ -1630,13 +1602,11 @@
     return -new DOMMatrix(t).m42;
   }
 
-  // The design column (the configuration, then the drawers) can reach under
-  // the bottom bars: the design stretch scrolls the show up until its end
-  // clears them by DESIGN_CLEAR_REM (--design-room). Measured with the browse
-  // removed and the model's lift in, and with every drawer open
-  // (drawersAllOpen), so it holds still as they open and close. Never under
-  // the browse already done, so a re-fit never pulls the page from under the
-  // finger.
+  // The design column (the configuration, then the information) can reach
+  // under the bottom bars: the design stretch scrolls the show up until its
+  // end clears them by DESIGN_CLEAR_REM (--design-room). Measured with the
+  // browse removed and the model's lift in. Never under the browse already
+  // done, so a re-fit never pulls the page from under the finger.
   var DESIGN_CLEAR_REM = 4;
   var designRoom = 0;
   function fitDesignRoom() {
@@ -1645,7 +1615,7 @@
     var below = document.querySelector(".product-below");
     if (!state.flow && below) {
       var browsed = browsePx();
-      var bottom = below.getBoundingClientRect().bottom + browsed + drawersAllOpen();
+      var bottom = below.getBoundingClientRect().bottom + browsed;
       room = Math.max(0, browsed, bottom - (barsTopPx() - DESIGN_CLEAR_REM * remPx()));
     }
     if (Math.abs(room - designRoom) < 0.5) return;
@@ -1653,33 +1623,6 @@
     stageEl.style.setProperty("--design-room", room.toFixed(1) + "px");
     // The stretch is as long as covering the room takes.
     if (stages) stages.update();
-  }
-
-  // How much taller the drawers would be all open than they are now, px:
-  // the room is always theirs all open, so it holds as they open and close.
-  function drawersAllOpen() {
-    var change = 0;
-    Array.prototype.forEach.call(document.querySelectorAll(".product-drawer:not([hidden])"), function (drawer) {
-      change += drawerOpenHeight(drawer) - drawer.offsetHeight;
-    });
-    return change;
-  }
-
-  // A drawer's height closed: its label row, px.
-  function drawerClosedHeight(drawer) {
-    var head = drawer.querySelector(".product-drawer__head");
-    var plus = drawer.querySelector(".product-drawer__plus");
-    return Math.max(head ? head.offsetHeight : 0, plus ? plus.offsetHeight : 0);
-  }
-
-  // A drawer's height open: the taller of its label and its value with the
-  // + under it, px.
-  function drawerOpenHeight(drawer) {
-    var head = drawer.querySelector(".product-drawer__head");
-    var inner = drawer.querySelector(".product-drawer__inner");
-    var plus = drawer.querySelector(".product-drawer__plus");
-    if (!head || !inner || !plus) return drawer.offsetHeight;
-    return Math.max(head.offsetHeight, inner.scrollHeight + plus.offsetHeight);
   }
 
   // The stable small-viewport height (js/product-stages.js screenPx):

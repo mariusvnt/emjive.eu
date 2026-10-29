@@ -32,6 +32,7 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 - **The hero.** It plays on every landing from outside the site and never again within a visit.
 - **The view.** The wheel or the list, remembered within the visit.
 - **Back and reload.** They rebuild exactly what was left, mid-hero included.
+  Being on the wheel is remembered as such, not as an offset: the page's length follows the phone's browser bars, so the same offset can fall short of the wheel. iOS Safari can show a page back from its back-forward cache at the top and then reload it, so a page coming back saves nothing until it is touched. The gallery stays hidden until the restored page holds still, so what settles after doesn't show.
 
 All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page's height is built asynchronously (series index, hero bundle, products), and native scroll restoration would clamp to the top. CSS keys on the decision at first paint, so nothing flashes and then collapses.
 

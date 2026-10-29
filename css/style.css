@@ -164,8 +164,8 @@ html {
    reserved on body (.emjive-restore-reserve) until the content reaches it.
    overflow-anchor: none, since the hero grows above the restored offset and
    anchoring would shift it. The gallery is visibility: hidden (still laid
-   out, so lazy pictures load) until its visible pictures are decoded, or the
-   restore's deadline (.emjive-restoring-scroll). */
+   out, so lazy pictures load) until its visible pictures are decoded and the
+   page holds still, or the restore's deadline (.emjive-restoring-scroll). */
 html.emjive-restore-reserve body {
   min-height: var(--emjive-restore-height, 0);
   overflow-anchor: none;

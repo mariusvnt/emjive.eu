@@ -1182,6 +1182,20 @@
 
     // Nothing 3D is kept on a bfcache page; on return the pictures stand in until it rebuilds.
     window.addEventListener("pagehide", stopScene);
+    // A layout measured with the hand elsewhere (a restore landing on a page
+    // still settling, its end moving after) is checked once the scroll comes
+    // to rest, and when the page's height changes at once: an observer runs
+    // before the frame paints, so the wheel never shows for the old place.
+    // It only moves if the hand did.
+    var SETTLE_CHECK_MS = 150;
+    var settleTimer = 0;
+    function checkLayoutSoon() {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(checkLayout, SETTLE_CHECK_MS);
+    }
+    window.addEventListener("emjive:restore-end", checkLayout);
+    window.addEventListener("scroll", checkLayoutSoon, { passive: true });
+    if (typeof ResizeObserver === "function") new ResizeObserver(checkLayout).observe(document.body);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
       syncViewport();

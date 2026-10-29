@@ -164,7 +164,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
 | `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js`, `scripts/auto-render.js` |
-| `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/selection-bar.js`, `series/bones/hero.js` |
+| `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `series/bones/hero.js` |
 | `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |
 | `EmjiveLoadViewer` | `js/viewer-entry.js` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
@@ -196,7 +196,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | `emjive:modify-close` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:modify-open` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:pageready` | `js/gallery-stack.js`, `js/loader.js`, `js/viewer-entry.js` |
-| `emjive:restore-end` | `js/gallery.js`, `js/loader.js`, `js/scroll-memory.js` |
+| `emjive:restore-end` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/scroll-memory.js` |
 | `emjive:scroll:` | `js/scroll-memory.js` |
 | `emjive:selection-changed` | `js/selection-bar.js`, `js/selection-page.js`, `js/selection.js` |
 

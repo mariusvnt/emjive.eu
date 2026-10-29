@@ -30,7 +30,7 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 **The homepage decides what the visitor lands on before `<body>` is parsed.**
 
 - **The hero.** It plays on every landing from outside the site and never again within a visit.
-- **The view.** The wheel or the list, remembered within the visit.
+- **The view.** The wheel or the list, remembered within the visit. A switch happens under a veil that lifts only once the page holds still (a phone settles its bars after the jump), the wheel laid out last against the hand where it then is, so nothing moves into place in view.
 - **Back and reload.** They rebuild exactly what was left, mid-hero included.
   Being on the wheel is remembered as such, not as an offset: the page's length follows the phone's browser bars, so the same offset can fall short of the wheel. iOS Safari can show a page back from its back-forward cache at the top and then reload it, so a page coming back saves nothing until it is touched. The gallery stays hidden until the restored page holds still, so what settles after doesn't show.
 

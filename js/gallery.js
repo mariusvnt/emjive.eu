@@ -116,6 +116,33 @@
   document.body.appendChild(veil);
   var veilToken = 0;
 
+  // The veil lifts once the page under it holds still (its height, offset and
+  // viewport unchanged for VEIL_STILL_FRAMES frames: a phone settles its bars
+  // after a jump), the wheel checked against the hand last, so nothing moves
+  // into place in view. Given up at VEIL_STILL_CAP_MS.
+  var VEIL_STILL_FRAMES = 3;
+  var VEIL_STILL_CAP_MS = 1000;
+  function liftWhenStill(token) {
+    var cap = Date.now() + VEIL_STILL_CAP_MS;
+    var last = "";
+    var still = 0;
+    (function check() {
+      if (token !== veilToken) return;
+      var sig = html.scrollHeight + ":" + Math.round(window.pageYOffset || 0) + ":" + window.innerHeight;
+      still = sig === last ? still + 1 : 0;
+      last = sig;
+      if (still < VEIL_STILL_FRAMES && Date.now() < cap) {
+        requestAnimationFrame(check);
+        return;
+      }
+      if (state.stack && view() === "stack") state.stack.settleLayout();
+      // A frame for that to paint under the veil.
+      requestAnimationFrame(function () {
+        if (token === veilToken) veil.classList.remove("is-veiled");
+      });
+    })();
+  }
+
   function throughVeil(change) {
     var token = ++veilToken;
     var done = false;
@@ -124,12 +151,7 @@
       done = true;
       veil.removeEventListener("transitionend", onEnd);
       change();
-      // Two frames: the new layout is painted under the veil before it lifts.
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          if (token === veilToken) veil.classList.remove("is-veiled");
-        });
-      });
+      liftWhenStill(token);
     }
     function onEnd(e) {
       if (e.target === veil && e.propertyName === "opacity") swap();
@@ -159,10 +181,11 @@
       // Blocked storage: the default comes back next visit.
       H.writeStorage("localStorage", VIEW_KEY, next);
       remember({ view: next, hero: "skip" });
-      if (state.stack) state.stack.setActive(next === "stack");
-      // The page is tall again by now (the attributes above).
+      // The page is tall again by now (the attributes above). The offset and
+      // the hand first, then the wheel, laid out against the hand where it is.
       H.jumpScroll(next === "stack" ? html.scrollHeight : 0);
       if (hero()) hero().setMode();
+      if (state.stack) state.stack.setActive(next === "stack");
       placeEmptyMessage();
       syncControls();
     });

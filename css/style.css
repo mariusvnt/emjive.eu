@@ -17,7 +17,7 @@
   --category-col-inverted: #8d8d8d;
   /* The selection bar's summary row, also body's reserved bottom padding. */
   --selection-bar-height: 3.5rem;
-  /* The product page's Select bar on top of it; the size sheet reserves it too. */
+  /* The product page's Select bar on top of it; the review sheet reserves it too. */
   --select-bar-height: 2.5rem;
 
   /* Both self-hosted (@font-face below). */
@@ -38,14 +38,11 @@
   /* The site's horizontal edge inset, header to footer. */
   --edge-px: clamp(20px, 2.5vw, 28px);
 
-  /* The label | value tables (the product page's design options, the order
-     page's shipping and returns, size sheets): label column and gap; and the
-     metal picker's squares. */
+  /* The label | value tables (the product page's information, the order
+     page's shipping and returns, the review sheet): label column and gap. */
   --label-col: calc(4.5rem * var(--text-scale));
   --label-gap: 1.5rem;
-  --metal-square: 1.5rem;
-  --metal-gap: 0.75rem;
-  /* The selection dot: the picker's chosen name, the size slider's grip. */
+  /* The selection dot: a dial's chosen option, the size slider's grip. */
   --dot: 0.325rem;
 
   /* Every font-size reads through this, since rem also sizes spacing that must
@@ -162,14 +159,14 @@ html {
   text-size-adjust: 100%;
 }
 
-/* Homepage scroll restore (js/scroll-memory.js sets the class and
-   --emjive-restore-height on <html> before <body> parses; removed once the
-   content outgrows it).
-   min-height on body, not html: html's scrollHeight is what scroll-memory.js
-   measures. overflow-anchor: none, since the hero grows above the restored
-   offset and anchoring would shift it. The gallery is visibility: hidden (still
-   laid out, so lazy pictures load) until its visible pictures are decoded. */
-html.emjive-restoring-scroll body {
+/* Homepage scroll restore (js/scroll-memory.js sets the classes and
+   --emjive-restore-height on <html> before <body> parses). The height is
+   reserved on body (.emjive-restore-reserve) until the content reaches it.
+   overflow-anchor: none, since the hero grows above the restored offset and
+   anchoring would shift it. The gallery is visibility: hidden (still laid
+   out, so lazy pictures load) until its visible pictures are decoded, or the
+   restore's deadline (.emjive-restoring-scroll). */
+html.emjive-restore-reserve body {
   min-height: var(--emjive-restore-height, 0);
   overflow-anchor: none;
 }
@@ -196,6 +193,9 @@ a { color: inherit; text-decoration: none; }
 ol, ul { margin: 0; padding: 0; list-style: none; }
 
 img { max-width: 100%; display: block; }
+/* The rule above would otherwise lay out a hidden image, and a browser outlines
+   an image box with no picture. */
+img[hidden] { display: none; }
 
 button, input, textarea {
   font-family: var(--font-main);
@@ -1506,44 +1506,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
   white-space: nowrap;
 }
 
-/* ---- shipping: the picker's dot + label recipe, plus a right-aligned price.
-   Options come from js/selection-page.js. ---- */
-.order-shipping__options {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  /* Optical correction: a small dot at the left edge reads as further left than the margin. */
-  margin-left: 7px;
-}
-.order-shipping__option {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 0;
-  font-family: var(--font-main);
-  color: var(--category-col);
-  cursor: pointer;
-  text-align: left;
-}
-/* The selection dot, on every option so names never shift. */
-.order-shipping__option::before {
-  content: "";
-  flex: 0 0 auto;
-  display: inline-block;
-  width: 0.25rem;
-  height: 0.25rem;
-  margin-right: 0.5rem;
-  border-radius: 50%;
-  background: transparent;
-}
-.order-shipping__option.is-selected::before { background: var(--category-col); }
-.order-shipping__option-name { flex: 1; }
-.order-shipping__option-price { flex: 0 0 auto; margin-left: 1rem; }
-
-/* ---- shipping and returns: label | text rows (--label-col, --label-gap) ----
-   Set in from the margin as the options' and terms' text. */
+/* ---- shipping and returns: label | text rows (--label-col, --label-gap),
+   set in from the margin; then the terms ---- */
 .order-info {
   display: flex;
   flex-direction: column;
@@ -1566,17 +1530,18 @@ body:has(.site-header__menu.is-open) .gallery-control {
 .order-info__title { color: var(--black); }
 .order-info__text { color: var(--category-col); }
 
-/* ---- terms: text on the left, the tick box (a plain square) on the right ---- */
+/* The terms: the sentence in the texts' column, the tick box (a plain
+   square) at its right end, on its first line; set apart from the rows above
+   as a cluster of its own (4rem in all, as the product page's). */
 .order-terms {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  grid-template-columns: var(--label-col) minmax(0, 1fr) auto;
+  align-items: start;
+  margin-top: 2.75rem;
   cursor: pointer;
 }
 .order-terms__text {
-  flex: 1;
-  min-width: 0;
-  margin: 0 0 0 7px;
+  grid-column: 2;
+  margin: 0;
   font-family: var(--font-main);
   font-size: calc(0.9rem * var(--text-scale));
   line-height: 1.6;
@@ -1584,7 +1549,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 .order-terms__text a { color: var(--black); }
 .order-terms__toggle {
-  flex: 0 0 auto;
+  grid-column: 3;
   width: 0.9rem;
   height: 0.9rem;
   margin-top: 0.2rem;
@@ -2331,7 +2296,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   /* The model's bottom from the frame's top, rising with the lift; the column hangs from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before the column. */
-  --model-gap: 3rem;
+  --model-gap: 6rem;
   /* The outlines' labels. */
   --plan-text: 0.5rem;
 }
@@ -2346,13 +2311,15 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   .product-design-frame {
     --xray-model: calc(var(--tile) * 0.66);
     --model-size: calc(var(--xray-model) * 0.975);
-    --model-gap: 2rem;
+    --model-gap: 5rem;
   }
 }
 
 /* The model's box, at --model-cx, raised by the lift. During the way to
-   design it's cut at the band (--model-cut from js/product.js; negative
-   margins so overhangs aren't cut). Only the viewer's circle takes drags, the
+   design it's cut at the band (.is-cut, --model-cut from js/product.js;
+   negative margins so overhangs aren't cut). Only then: a clip-path makes
+   it a backdrop root, cutting the viewer's nudge hand (an invert) off from
+   what's behind the model. Only the viewer's circle takes drags, the
    one around the model at its size, not the box's (--hit-scale: hitCircle in
    js/product.js). */
 .product-model {
@@ -2363,8 +2330,10 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: var(--model-box);
   height: var(--model-box);
   transform: translate(-50%, calc(-50% - var(--lift)));
-  clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
   --hit-scale: calc(1 / var(--model-room));
+}
+.product-model.is-cut {
+  clip-path: inset(var(--model-cut, -999px) -999px -999px -999px);
 }
 .product-model .emjive-3d-viewer {
   position: relative;
@@ -2499,9 +2468,10 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    centred over the model, fading in and out. */
 .product-dial-name {
   position: absolute;
-  z-index: 2;
+  /* Over the column (2), so over an open disc too. */
+  z-index: 3;
   left: var(--model-cx);
-  top: calc(var(--tile) / 2 - var(--model-size) / 2 - var(--lift) - 1rem);
+  top: calc(var(--model-bottom) + var(--model-gap) - 4.5rem);
   transform: translate(-50%, -100%);
   margin: 0;
   font-family: var(--font-main);
@@ -2546,6 +2516,11 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   pointer-events: none;
   opacity: calc(var(--xray-opacity) * var(--d-in));
 }
+/* Until its first picture is in (js/product.js startXray): Safari outlines
+   an image box still loading. */
+.product-design__xray.is-loading {
+  visibility: hidden;
+}
 
 
 /* Under the model (--model-gap), rising with the lift and fading with design,
@@ -2580,12 +2555,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   min-width: 0;
 }
 /* ---- the option dials (js/option-dial.js) ----
-   A row centred under the model: shape (with more than one design),
-   material, then the size (js/product.js wireSizeDial, below). Each a
-   circular button showing its active option, its name under it. Open
-   (.is-open), a disc grows from the button's centre over three frosted
-   blurs (the strongest at the centre, all reaching past the disc), divided into a section per option, each always
-   in the same place (--dial-x, --dial-y: its direction), between the
+   A row centred under the model (and in the Modify sheet): shape (with
+   more than one design), material, then the size (mountSize, below). Each a
+   circular button showing its active option, its name under it, over
+   three frosted blurs (the strongest at the centre) cut to its circle.
+   Open (.is-open), the blurs spread past the disc, which grows from the
+   button's centre, divided into a section per option, each always in the
+   same place (--dial-x, --dial-y: its direction), between the
    neutral middle (--dial-inner) and the edge (--dial-outer), the active one
    dotted (--dial-dot-r out, turning round the middle to it: --dial-turn).
    Open, the button loses its circle and keeps its option. Shape (--icons):
@@ -2691,23 +2667,28 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   color: var(--category-col);
   white-space: nowrap;
 }
-/* The disc, centred on the button. Always rendered, closed at no size, so
-   the blurs are there from the first frame of the opening, which only
-   scales it out from the centre: an opacity under 1 would cut the blurs off
-   from what's behind them. */
+/* The disc, centred on the button. Its blurs are always there, cut to the
+   button's circle while closed (growing with design, --d-in) and to their
+   own reach when open; what opens out (.product-dial__disc) scales from the
+   centre. Neither fades by opacity, nor clips its blurs from an ancestor:
+   both would cut the blurs off from what's behind them. */
 .product-dial__wheel {
   position: absolute;
   left: 50%;
   top: calc(var(--dial-size) / 2);
   width: calc(2 * var(--dial-outer));
   height: calc(2 * var(--dial-outer));
-  border-radius: 50%;
-  transform: translate(-50%, -50%) scale(0);
+  transform: translate(-50%, -50%);
   pointer-events: none;
+}
+.product-dial__disc {
+  position: absolute;
+  inset: 0;
+  transform: scale(0);
   transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
 }
-.product-dial.is-open .product-dial__wheel {
-  transform: translate(-50%, -50%) scale(1);
+.product-dial.is-open .product-dial__disc {
+  transform: scale(1);
 }
 .product-dial__sections,
 .product-dial__fade {
@@ -2731,6 +2712,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   background-color: color-mix(in srgb, var(--bg) 15%, transparent);
   -webkit-mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
+  -webkit-clip-path: circle(calc(var(--dial-size) / 2 * var(--d-in, 1)) at 50% 50%);
+  clip-path: circle(calc(var(--dial-size) / 2 * var(--d-in, 1)) at 50% 50%);
+  transition: clip-path var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1), -webkit-clip-path var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.product-dial.is-open .product-dial__blur > span {
+  -webkit-clip-path: circle(100% at 50% 50%);
+  clip-path: circle(100% at 50% 50%);
 }
 .product-dial__blur > span:nth-child(1) {
   width: 100%;
@@ -2762,27 +2750,28 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: 100%;
   height: 100%;
 }
-/* Three layers of the swatches, each mostly opaque and fading out over its
-   own reach, the shortest the soonest: opaque together near the middle,
-   thinning out in three steps toward the disc's edge. */
+/* Three layers of the swatches, each part see-through and fading out over
+   its own reach, the shortest the soonest: thickest together near the
+   middle, thinning out in three steps toward the disc's edge, the blurs and
+   frost showing through. */
 .product-dial__fade:nth-child(1) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 100%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 100%);
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
 }
 .product-dial__fade:nth-child(2) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 88%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 88%);
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 88%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 88%);
 }
 .product-dial__fade:nth-child(3) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 76%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.8) 50%, transparent 76%);
+  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 76%);
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 76%);
 }
 /* Each cut to its section (js/option-dial.js sectorPolygon). */
 .product-dial--fill .product-dial__section {
   position: absolute;
   inset: 0;
 }
-/* The selection dot (--dot), as the metal picker's. */
+/* The selection dot (--dot). */
 .product-dial__dot {
   position: absolute;
   left: 50%;
@@ -2795,7 +2784,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ---- the size dial (js/product.js wireSizeDial) ----
+/* ---- the size dial (js/option-dial.js mountSize) ----
    The third dial: its button holds the size (in --category-col until one
    is set, .is-unset), the unit under it. Open, the button gives way to a
    vertical line through its centre, from the smallest size at its foot to
@@ -2874,74 +2863,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   transition: opacity var(--fade-quick) ease, visibility 0s;
 }
 
-/* ---- the metal picker (js/metal-picker.js) ----
-   Squares --metal-gap apart, each its metal's swatch (scripts/auto-render.js),
-   a dot on the chosen one, its name beside its square (moved by
-   --metal-index). In a row (.product-metals--row) the squares sit side by
-   side and the name follows the last. */
-.product-metals {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--metal-gap);
-}
-.product-metals__option {
-  position: relative;
-  flex: none;
-  width: var(--metal-square);
-  height: var(--metal-square);
-  padding: 0;
-  border: none;
-  cursor: pointer;
-  background: center / 100% 100% no-repeat;
-}
-/* The focus ring inside the square. */
-.product-metals__option:focus-visible {
-  outline-offset: -2px;
-}
-/* background-image directly, never through a var(): the stage's properties
-   change every scroll frame and are inherited, and a url() behind a var() is
-   re-resolved on each restyle, making the squares blink. Shared with the
-   product page's material dial (.product-dial__swatch). */
-:is(.product-metals__option, .product-dial__swatch)[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
-:is(.product-metals__option, .product-dial__swatch)[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
-:is(.product-metals__option, .product-dial__swatch)[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
-/* The selection dot (--dot), on every picker. */
-.product-metals__option[aria-pressed="true"]::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: var(--dot);
-  height: var(--dot);
-  margin: calc(var(--dot) / -2) 0 0 calc(var(--dot) / -2);
-  border-radius: 50%;
-  background: var(--black);
-}
-.product-metals__tag {
-  position: absolute;
-  top: 0;
-  left: calc(var(--metal-square) + 0.6rem);
-  transform: translateY(calc(var(--metal-index, 0) * (var(--metal-square) + var(--metal-gap))));
-  font-family: var(--font-secondary);
-  font-size: calc(0.65rem * var(--text-scale));
-  /* A square's height, so the name sits on its square's line. */
-  line-height: var(--metal-square);
-  color: var(--category-col);
-  white-space: nowrap;
-  pointer-events: none;
-  transition: transform var(--fade-standard) ease;
-}
-/* Rows: the sheets' pickers. */
-.product-metals--row {
-  flex-direction: row;
-  align-items: center;
-}
-.product-metals--row .product-metals__tag {
-  left: calc(var(--metal-count, 3) * (var(--metal-square) + var(--metal-gap)) - var(--metal-gap) + 0.6rem);
-  transform: none;
-}
+/* The material dial's swatches (scripts/auto-render.js). background-image
+   directly, never through a var(): the stage's properties change every
+   scroll frame and are inherited, and a url() behind a var() is re-resolved
+   on each restyle, making the swatches blink. */
+.product-dial__swatch[data-metal="steel"] { background-image: url("../assets/metal-sample_steel.webp"); }
+.product-dial__swatch[data-metal="silver"] { background-image: url("../assets/metal-sample_silver.webp"); }
+.product-dial__swatch[data-metal="bronze"] { background-image: url("../assets/metal-sample_bronze.webp"); }
 
 /* ---- 4. the Select bar ----
    A .glass bar riding on the selection bar and its drawer
@@ -2958,8 +2886,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   transform: translateZ(0);
   transition: bottom 0.3s ease, opacity var(--fade-standard) ease, background-color var(--fade-standard) ease;
 }
-/* Add mode: the size sheet slides out from behind it, so it gets a --bg ground for its blurs. */
-.product-select-bar.is-add {
+/* Confirm: the review sheet slides out from behind it, so it gets a --bg ground for its blurs. */
+.product-select-bar.is-confirm {
   background-color: var(--bg);
 }
 .product-select-bar.is-away,
@@ -2993,13 +2921,13 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 @media (hover: hover) {
   .product-select-bar__button:hover { opacity: 0.6; }
 }
-/* Nothing orderable yet: dimmed. aria-disabled, not disabled, so focus survives the Select -> Add swap. */
+/* Nothing orderable: dimmed. aria-disabled, not disabled, so focus survives the Add -> Confirm swap. */
 .product-select-bar__button[aria-disabled="true"],
 .product-select-bar__button[aria-disabled="true"]:hover {
   opacity: 0.35;
   cursor: not-allowed;
 }
-/* The Select <-> Add label fades through its change. */
+/* The Add <-> Confirm label fades through its change. */
 .product-select-bar__label { transition: opacity var(--fade-fast) ease; }
 .product-select-bar__label.is-swapping { opacity: 0; }
 
@@ -3391,7 +3319,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transform: translateY(calc(var(--lift) * -1));
 }
 
-/* ---- size sheets ----
+/* ---- the sheets (review, Modify) ----
    z-index 85: above the header (80), which the backdrop dims, below the bottom
    bars (90), so the sheets slide up from behind the bars they rest on. */
 .size-modal {
@@ -3433,7 +3361,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
      transition it at all (.is-open below). */
   transition: opacity var(--fade-standard) ease, visibility 0s linear 0.3s, padding-bottom 0.3s ease;
 }
-/* The size sheet rests on the Select bar too; the same 50vh cap over both. */
+/* The review sheet rests on the Select bar too; the same 50vh cap over both. */
 .size-modal--select-bar {
   --selection-bar-reserved: min(calc(var(--selection-bar-live-height, var(--selection-bar-height)) + var(--select-bar-height)), 50vh);
 }
@@ -3501,92 +3429,42 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin: 0 auto;
   padding: 2rem var(--edge-px) 0;
 }
-/* Double the sheet's other gaps, setting the model frame apart. */
+/* Room over the dials for their name (.size-modal__dial-name). */
 .size-modal--modify .size-modal__content {
-  padding-top: 3rem;
+  padding-top: 6rem;
 }
 
-/* ---- the sheets' rows ----
-   label | control, in the product page's two columns (--label-col,
-   --label-gap). The material row holds the metal picker; the size row the
-   field and "Find my size". The row is the container the input's width
-   scales against. */
-.size-modal__custom-row {
+/* ---- the review sheet's rows (js/product.js) ----
+   label | value, in the product page's two columns (--label-col,
+   --label-gap). */
+.size-modal__review {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 2rem;
+}
+.size-modal__review-row {
   display: grid;
   grid-template-columns: var(--label-col) minmax(0, 1fr);
   column-gap: var(--label-gap);
-  align-items: baseline;
-  margin-bottom: 1.5rem;
-  container-type: inline-size;
 }
-/* A real <label for>, naming the field. */
-.size-modal__custom-label {
+.size-modal__review-row[hidden] {
+  display: none;
+}
+.size-modal__review-row dt,
+.size-modal__review-row dd {
+  margin: 0;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
   line-height: 1.5;
-  color: var(--black);
 }
-/* The material label sits on the first square's line. */
-.size-modal__custom-row--material {
-  align-items: start;
-}
-.size-modal__custom-row--material .size-modal__custom-label {
-  line-height: var(--metal-square);
-}
-.size-modal__custom-field {
-  min-width: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: var(--label-gap);
-}
-/* flex-end, not baseline: the input is laid out at 16px and scaled, so
-   baseline would use its unscaled box. Same line-height and bottom padding
-   as the unit give them one baseline. */
-.size-modal__custom-underline {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.2rem;
-  border-bottom: 1px solid var(--category-col);
-}
-/* iOS zooms on any focused field under 16px, and this one is 12px. So it is
-   laid out at 16px and scaled to --size-input-scale (maximum-scale=1 would
-   also stop the zoom but blocks pinch-zoom on Android). The layout box is
-   compensated: width over the scale with a negative margin-right, padding at
-   0.3rem visually, a negative margin-top for the extra height. 2.4rem wide
-   fits a pre-filled "62.50". */
-.size-modal__custom-input {
-  /* 12px on every screen. */
-  --size-input-scale: 0.75;
-  --size-input-width: 2.4rem;
-  flex: 0 0 auto;
-  width: calc(var(--size-input-width) / var(--size-input-scale));
-  margin-top: calc((var(--size-input-scale) - 1) * (0.6rem / var(--size-input-scale) + 1.4em));
-  margin-right: calc(var(--size-input-width) - var(--size-input-width) / var(--size-input-scale));
-  padding: calc(0.3rem / var(--size-input-scale)) 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  font-family: var(--font-secondary);
-  font-size: 16px;
-  line-height: 1.4;
-  color: var(--category-col);
-  transform: scale(var(--size-input-scale));
-  transform-origin: left bottom;
-}
-/* Explicit, so the input can share it. */
-.size-modal__custom-unit {
-  flex: 0 0 auto;
-  padding-bottom: 0.3rem;
-  font-family: var(--font-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--category-col);
-}
+.size-modal__review-row dt { color: var(--black); }
+.size-modal__review-row dd { color: var(--category-col); }
 
 /* ---- "Find my size" ----
-   Opens js/size-finder.js; a secondary button. Beside the size field in the
-   sheets, beside the open size dial's line on the product page. */
-.size-modal__finder-toggle,
+   Opens js/size-finder.js; a secondary button, by the open size dial's
+   line (.product-dial--size). The dial's other controls take taps on the
+   product page only from design on; this one too. */
 .product-size__finder-toggle {
   align-self: flex-end;
   flex: none;
@@ -3606,18 +3484,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition: opacity var(--fade-quick) ease;
 }
 @media (hover: hover) {
-  .size-modal__finder-toggle:hover,
   .product-size__finder-toggle:hover { opacity: 0.6; }
 }
-.size-modal__finder-toggle[hidden],
-.product-size__finder-toggle[hidden] {
-  display: none;
-}
-/* In the sheets: at the size row's right end. */
-.size-modal__finder-toggle {
-  margin-left: auto;
-}
-/* On the product page: placed by the size dial (.product-dial--size). */
 .product-size__finder-toggle {
   pointer-events: auto;
 }
@@ -4030,10 +3898,18 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 
 /* ---- the Modify sheet's model frame ----
    A --mini-tile square slot centred in a full-width frame (js/modify-modal.js),
-   holding the model's slide. --mini-tile is on the modal so the panel's
-   height budget can subtract it. */
+   holding the model's slide. The viewer's box is --model-room times the
+   model's, which it draws at 1 / --model-room (js/modify-modal.js), so a
+   larger ring size has room. */
 .size-modal--modify {
   --mini-tile: min(240px, 50vw);
+  --model-room: 1.2;
+  --mini-model: 75%;
+}
+@media (max-width: 640px) {
+  .size-modal--modify {
+    --mini-model: 66%;
+  }
 }
 /* Its top half sticks out above the sheet: only the frame's lower half is
    painted (::after, behind the slot); isolation keeps ::after's z-index in the frame. */
@@ -4066,16 +3942,39 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   user-select: none;
   -webkit-user-select: none;
 }
-/* Smaller than the slot. */
+/* Smaller than the slot. Its own poster at the model's size, as the
+   viewer draws it. */
 .size-modal__slide--model .emjive-3d-viewer {
-  width: 75%;
-  height: 75%;
+  flex: none;
+  width: calc(var(--mini-model) * var(--model-room));
+  height: calc(var(--mini-model) * var(--model-room));
 }
-@media (max-width: 640px) {
-  .size-modal__slide--model .emjive-3d-viewer {
-    width: 66%;
-    height: 66%;
-  }
+.size-modal__slide--model .emjive-3d-viewer__poster {
+  transform: scale(calc(1 / var(--model-room)));
+}
+/* While a dial is open, its active option's name between the model and the
+   dials (js/modify-modal.js), 4.5rem over them, over an open disc. */
+.size-modal__content {
+  position: relative;
+}
+.size-modal__dial-name {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 1.5rem;
+  transform: translate(-50%, -100%);
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-quick) ease;
+}
+.size-modal__dial-name.is-shown {
+  opacity: 1;
 }
 .size-modal__frame::after {
   content: "";
@@ -4100,13 +3999,24 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal--modify.is-open .size-modal__panel {
   pointer-events: auto;
 }
-/* The frame comes out of the panel's height budget, or it could leave the top of a short screen. */
+/* The dials' discs reach past the panel: nothing is clipped. */
 .size-modal--modify .size-modal__panel {
-  max-height: calc(90vh - var(--selection-bar-reserved) - var(--mini-tile));
+  max-height: none;
+  overflow: visible;
 }
-/* "Go to page" (js/modify-modal.js): a secondary button at the content's right
-   margin, just under the sheet surface's top edge. The frame takes no taps,
-   so the button opts in. */
+/* The dials (js/option-dial.js), centred, with room under them for the
+   discs. As on the product page, an open disc takes taps. */
+.size-modal__dials {
+  justify-content: center;
+  padding-bottom: 3.5rem;
+}
+.size-modal--modify :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel,
+.size-modal--modify .product-dial--size.is-open .product-size-dial__track {
+  pointer-events: auto;
+}
+/* The item's name, leading to its page (js/modify-modal.js): a secondary
+   button at the content's right margin, just under the sheet surface's top
+   edge. The frame takes no taps, so the button opts in. */
 .size-modal__page-toggle {
   display: inline-flex;
   align-items: center;
@@ -4143,14 +4053,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    and placed like the viewer's poster, so the swap moves nothing. */
 .size-modal__slide--model .size-modal__model-poster {
   position: relative;
-  width: 75%;
-  height: 75%;
-}
-@media (max-width: 640px) {
-  .size-modal__slide--model .size-modal__model-poster {
-    width: 66%;
-    height: 66%;
-  }
+  flex: none;
+  width: var(--mini-model);
+  height: var(--mini-model);
 }
 .size-modal__model-poster img {
   position: absolute;
@@ -4528,7 +4433,7 @@ body.has-series-hero .selection-bar {
    page and sheets, --white on black surfaces (the selection bar, the order
    rows). The offset separates the ring from the control's own background;
    negative offsets where an outset ring would be clipped. Opt-outs: the
-   sheets' dialog roots, the size field, and focus handed back after a tap. */
+   sheets' dialog roots and focus handed back after a tap. */
 :root {
   --focus-ring: 1.6px solid var(--black);
   --focus-ring-inverted: 1.6px solid var(--white);
@@ -4584,13 +4489,6 @@ input:focus-visible,
 .products .gallery-control:focus-visible {
   position: fixed;
   z-index: 81;
-}
-
-/* No outline while typing in the size field (the caret marks it); :focus too,
-   as browsers treat text fields as keyboard-focused. */
-.size-modal__custom-input:focus,
-.size-modal__custom-input:focus-visible {
-  outline: none;
 }
 
 /* No ring on focus handed back after a tap (.is-focus-quiet, js/focus-trap.js,

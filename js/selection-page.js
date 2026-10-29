@@ -1,6 +1,6 @@
 // launch-order.html: the checkout review of window.EmjiveSelection — item rows
-// (js/order-rows.js; a tap opens the Modify sheet), shipping pick, terms
-// toggle, and a "Proceed to checkout" bar gated on both. While the Modify
+// (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a
+// "Proceed to checkout" bar gated on it. While the Modify
 // sheet is open the bar becomes its Unselect | Save strip, with a drawer
 // showing the tapped row under the sheet. Shows .selection-empty when empty.
 
@@ -14,7 +14,6 @@
   var itemsEl = document.getElementById("selectionItems");
   var backLink = emptyEl.querySelector(".selection-empty__back");
 
-  var shippingOptionsEl = document.getElementById("orderShippingOptions");
   var termsEl = document.getElementById("orderTerms");
   var termsToggleEl = document.getElementById("orderTermsToggle");
 
@@ -23,24 +22,10 @@
   var checkoutTotalEl = document.getElementById("orderCheckoutTotal");
   var checkoutButton = document.getElementById("orderCheckoutButton");
 
-  // Placeholder carriers and prices.
-  var SHIPPING_OPTIONS = [
-    { id: "standard", name: "Standard shipping", price: 0 },
-    { id: "express", name: "Express shipping", price: 15 }
-  ];
-  var selectedShippingId = SHIPPING_OPTIONS[0].id;
   var termsAccepted = false;
 
-  // Falls back to the first option, which is also the initial selection.
-  function selectedShippingOption() {
-    for (var i = 0; i < SHIPPING_OPTIONS.length; i++) {
-      if (SHIPPING_OPTIONS[i].id === selectedShippingId) return SHIPPING_OPTIONS[i];
-    }
-    return SHIPPING_OPTIONS[0];
-  }
-
   function updateCheckoutGate() {
-    checkoutButton.disabled = !(selectedShippingId && termsAccepted);
+    checkoutButton.disabled = !termsAccepted;
   }
 
   /* ---- checkout bar as the Modify sheet's strip ----
@@ -132,13 +117,13 @@
     setLiveHeight(null);
   }
 
-  // Recomputed from scratch after every change. Shipping is included in the
-  // one total shown; any unpriced (price 0) item makes it "TBD".
+  // Recomputed from scratch after every change; any unpriced (price 0) item
+  // makes it "TBD".
   function updateCheckoutSummary() {
     var items = window.EmjiveSelection.getSelection();
     checkoutBar.hidden = !items.length && !stripShown && !stripFading;
     checkoutBar.classList.toggle("is-empty", !items.length);
-    var total = selectedShippingOption().price || 0;
+    var total = 0;
     var unpriced = false;
     items.forEach(function (item) {
       total += item.price || 0;
@@ -254,38 +239,6 @@
     onModify: openModify
   });
 
-  /* ---- shipping ---- */
-
-  function renderShippingOptions() {
-    shippingOptionsEl.innerHTML = "";
-    SHIPPING_OPTIONS.forEach(function (option) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "order-shipping__option";
-      btn.classList.toggle("is-selected", option.id === selectedShippingId);
-      btn.setAttribute("aria-pressed", String(option.id === selectedShippingId));
-
-      var name = document.createElement("span");
-      name.className = "order-shipping__option-name";
-      name.textContent = option.name;
-
-      var price = document.createElement("span");
-      price.className = "order-shipping__option-price";
-      price.textContent = option.price ? window.EmjiveSelection.formatPrice(option.price) : "Free";
-
-      btn.appendChild(name);
-      btn.appendChild(price);
-      btn.addEventListener("click", function () {
-        selectedShippingId = option.id;
-        renderShippingOptions();
-        updateCheckoutGate();
-        // The one change to the total that doesn't go through storage.
-        updateCheckoutSummary();
-      });
-      shippingOptionsEl.appendChild(btn);
-    });
-  }
-
   /* ---- terms: a click anywhere on the row toggles, except on the link ---- */
   termsEl.addEventListener("click", function (e) {
     if (e.target.closest("a")) return;
@@ -341,7 +294,6 @@
 
   window.addEventListener("emjive:selection-changed", render);
 
-  renderShippingOptions();
   updateCheckoutGate();
   render();
 })();

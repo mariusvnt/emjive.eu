@@ -231,14 +231,20 @@
        bar's summary, full width. Its height uses 100svh (viewHeight()), not
        innerHeight, so the circle doesn't jump as the phone's browser bars come
        and go; resizes that only move them change nothing. */
+    var STALE_PROBE_SHARE = 0.5;
     var vhProbe = document.createElement("div");
     vhProbe.setAttribute("aria-hidden", "true");
     vhProbe.style.cssText = "position:absolute;top:0;left:0;width:0;visibility:hidden;pointer-events:none;height:100vh";
     vhProbe.style.height = "100svh";
     document.body.appendChild(vhProbe);
 
+    // A probe far off the page's own viewport height (the root's, which a
+    // pinch-zoom leaves alone) is stale: iOS Safari can keep the units of
+    // another viewport for a tab brought back after long.
     function viewHeight() {
-      return vhProbe.offsetHeight || window.innerHeight;
+      var probe = vhProbe.offsetHeight;
+      var page = document.documentElement.clientHeight || window.innerHeight;
+      return probe > 0 && !(page > 0 && Math.abs(probe - page) > page * STALE_PROBE_SHARE) ? probe : page;
     }
 
     function barHeight() {
@@ -1178,32 +1184,48 @@
     window.addEventListener("pagehide", stopScene);
     window.addEventListener("pageshow", function (e) {
       if (!e.persisted) return;
-      checkLayout();
+      syncViewport();
       whenPageRevealed(startScene);
     });
     document.addEventListener("visibilitychange", function () {
       if (state.scene) state.scene.setPaused(document.visibilityState === "hidden" || state.suspended);
-      // A tab returning after long (maybe rotated meanwhile): re-measure if moved.
-      if (document.visibilityState === "visible") checkLayout();
+      if (document.visibilityState === "visible") syncViewport();
     });
 
-    // Browser-bar resizes don't change the layout (domain()): only the canvas follows.
-    var resizeTimer = 0;
+    // The canvas follows the viewport; the layout only if the domain moved
+    // (browser-bar resizes don't move it: domain()). The hero re-measured
+    // first, as the wheel is measured against it.
     var laidOutFor = window.innerWidth + "x" + viewHeight();
-    window.addEventListener("resize", function () {
+    function syncViewport() {
+      var h = hero();
+      if (h && h.refresh) h.refresh();
+      if (state.scene) state.scene.resize();
+      var size = window.innerWidth + "x" + viewHeight();
+      if (size === laidOutFor) {
+        if (state.active && layoutDrifted()) remeasure();
+        else render();
+        return;
+      }
+      laidOutFor = size;
+      relayout(false);
+    }
+    var resizeTimer = 0;
+    function syncViewportSoon() {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        if (state.scene) state.scene.resize();
-        var size = window.innerWidth + "x" + viewHeight();
-        if (size === laidOutFor) {
-          if (layoutDrifted()) remeasure();
-          else render();
-          return;
-        }
-        laidOutFor = size;
-        relayout(false);
-      }, 150);
-    });
+      resizeTimer = setTimeout(syncViewport, 150);
+    }
+    window.addEventListener("resize", syncViewportSoon);
+    window.addEventListener("orientationchange", syncViewportSoon);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", syncViewportSoon);
+    // The canvas follows its layer's own box, the layout the screen's height
+    // (the probe), both observed: iOS Safari can change them without a resize
+    // event (a tab brought back after long), and an observer catches it
+    // before the frame paints, where a drawing for another height would
+    // show stretched.
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(function () { if (state.scene) state.scene.resize(); }).observe(stage);
+      new ResizeObserver(syncViewport).observe(vhProbe);
+    }
 
     /* ---- start ---- */
     orbitLayout();
@@ -1234,7 +1256,7 @@
     if (window.EmjiveHero && window.EmjiveHero.onLayout) window.EmjiveHero.onLayout(onLayoutChange);
     if (typeof ResizeObserver === "function") {
       var edges = new ResizeObserver(onLayoutChange);
-      [header, viewToggle, vhProbe, document.querySelector(".selection-bar__summary")].forEach(function (node) {
+      [header, viewToggle, document.querySelector(".selection-bar__summary")].forEach(function (node) {
         if (node) edges.observe(node);
       });
     }

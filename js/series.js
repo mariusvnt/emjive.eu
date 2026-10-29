@@ -136,8 +136,8 @@
   }
 
   // A product shown as one of its designs. The product's own fields are the
-  // default design; another design swaps in its model, wireframe, icons,
-  // fallback image and geometry, keeping the rest (name, prices, camera, x-ray,
+  // default design; another design swaps in its model, icons, fallback
+  // image, plan views and geometry, keeping the rest (name, prices, camera, x-ray,
   // photos). Returns { view, design }: view adds designKey and designName;
   // design is null without designs. An unknown key falls back to the default,
   // so an old selection still opens.
@@ -159,10 +159,8 @@
     if (design && design.key !== designs.default) {
       view.assets = Object.assign({}, product.assets, {
         model: design.model || "",
-        wireframe: design.wireframe || "",
         icons: design.icons || {},
         "fallback-img": design["fallback-img"] || {},
-        "specs-poster": design["specs-poster"] || "",
         "plan-views": design["plan-views"] || {}
       });
       view.geometry = design.geometry || null;

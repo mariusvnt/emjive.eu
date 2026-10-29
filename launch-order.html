@@ -100,10 +100,8 @@
     <!-- Item rows, built by js/selection-page.js. -->
     <ul class="order-items" id="selectionItems"></ul>
 
-    <section class="order-shipping">
-      <div class="order-shipping__options" id="orderShippingOptions"></div>
-    </section>
-    <!-- Shipping and returns: label | text rows. -->
+    <!-- Shipping and returns: label | text rows; then the terms, in the
+         texts' column. -->
     <section class="order-info" aria-labelledby="orderInfoHeading">
       <h2 class="visually-hidden" id="orderInfoHeading">Shipping &amp; Returns</h2>
       <div class="order-info__row">
@@ -114,13 +112,12 @@
         <h3 class="order-info__title">Returns</h3>
         <p class="order-info__text">Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
       </div>
+      <div class="order-info__row order-terms" id="orderTerms">
+        <p class="order-terms__text" id="orderTermsText">I have read and accept the <a href="/terms">terms &amp; conditions</a>.</p>
+        <!-- A checkbox to assistive tech, named by the sentence beside it. -->
+        <button type="button" class="order-terms__toggle" id="orderTermsToggle" role="checkbox" aria-checked="false" aria-labelledby="orderTermsText"></button>
+      </div>
     </section>
-
-    <div class="order-terms" id="orderTerms">
-      <p class="order-terms__text" id="orderTermsText">I have read and accept the <a href="/terms">terms &amp; conditions</a>.</p>
-      <!-- A checkbox to assistive tech, named by the sentence beside it. -->
-      <button type="button" class="order-terms__toggle" id="orderTermsToggle" role="checkbox" aria-checked="false" aria-labelledby="orderTermsText"></button>
-    </div>
   </div>
 </main>
 
@@ -144,7 +141,7 @@
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/order-rows.js" defer></script>
-<script src="js/metal-picker.js" defer></script>
+<script src="js/option-dial.js" defer></script>
 <script src="js/size-finder.js" defer></script>
 <script src="js/modify-modal.js" defer></script>
 <script src="js/selection-page.js" defer></script>

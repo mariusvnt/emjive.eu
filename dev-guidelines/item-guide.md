@@ -39,7 +39,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | Default camera angle, a series' HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
-| Icons, fallback images, wheel posters, hand posters, specs posters, plan views (paths and files) | `auto-render` |
+| Icons, fallback images, wheel posters, hand posters, plan views (paths and files) | `auto-render` |
 
 The files are hand-aligned, and every tool writes them by text surgery, never by re-serializing (rules.md).
 
@@ -50,11 +50,9 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 **One folder per product, `<name>_<category>`**, holding everything that product is made of. The tools build that path, so a hand-renamed folder gets a new one beside it. Files follow the name:
 
 - `<name>_gltf.glb`, the model: what the site draws;
-- `<name>_wireframe.glb`, its wireframe (not shown by the site at present);
 - `<name>_stl.stl`, the print model: what is printed, weighed and priced;
 - `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`;
 - `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
-- `<name>_specs-poster.webp`, the model grey under its wireframe, one for all metals (not shown by the site at present);
 - `<name>_plan-<front|side>.webp`, its outline views, one set for all metals (not shown by the site at present);
 - `<name>_xray.webp`, the design stage's backdrop;
 - `<Name>_photo<N>.webp`, photography.
@@ -80,7 +78,7 @@ Hand-added art is WebP. Don't put the hero art through `optimize-images`, whose 
 
 From a Blender export to a shippable item, in the order that works. None of these runs in the build: each is a deliberate pass whose output is committed and reviewed.
 
-1. **`npm run split-models`**: the models are authored together and exported as one glTF (a root node per model or design), one glTF of their wireframes and one binary STL of their print models. This cuts them into the files `products.json` names. The STL has no names, so its objects are paired with entries by triangle count: a print model is its model subdivided once or twice, so it has exactly 4× or 16× the triangles of the exported model. Only what a count can't settle, designs that share a mesh, is measured and matched by shape, and an ambiguous match is refused. A print model that isn't a plain subdivision of its model falls back to being measured, against the geometry last measured.
+1. **`npm run split-models`**: the models are authored together and exported as one glTF (a root node per model or design) and one binary STL of their print models. This cuts them into the files `products.json` names. The STL has no names, so its objects are paired with entries by triangle count: a print model is its model subdivided once or twice, so it has exactly 4× or 16× the triangles of the exported model. Only what a count can't settle, designs that share a mesh, is measured and matched by shape, and an ambiguous match is refused. A print model that isn't a plain subdivision of its model falls back to being measured, against the geometry last measured.
 2. **`npm run optimize-models`** (run by `split-models`): strips what the viewer never reads, welds and Draco-compresses. It re-reads what it wrote and fails unless the result decodes to the same shape, because it overwrites the only copy.
 3. **`npm run measure-models`**: each model's and print model's volume and minimum bounding box, and what the size does to them (the volume gained per mm of size, the smallest size, the box across the sizes), written as the product's `geometry`, pinned to the files' hashes. It refuses a model whose finger axis doesn't run through its origin (along its `finger-axis`, along Y for a print model), and warns when a print model's bore measures far from the reference size.
 4. **`npm run auto-render`**: the renders, through the site's own viewer code in Chrome with a real GPU, written next to the model and patched into `products.json`:
@@ -88,15 +86,14 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
    - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
-   - the **specs poster** is the model grey, fitted, at the reference size, its wireframe in the category colour, framed like the fallback image. One per product and per design, since the grey hides the metal. The item page doesn't show it at present;
    - the **plan views** are front and side outline drawings (the item page doesn't show them at present, measuring its dimensions off the live model): the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design, at the reference size;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
-   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--specs-posters-only`, `--plan-views-only`, `--image-variants`).
+   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--plan-views-only`, `--image-variants`).
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
-Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings, the wheel's drawing, or the specs look (its grey, the fit, the category colour, the plan views' look or axes), re-render what used it.
+Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings, the wheel's drawing, or the plan views' look (the category colour, their axes), re-render what used it.
 
 ## 5. Tools
 
@@ -145,7 +142,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 - its `metal-costs`, `metal-composition` and `metal-technology` in `data/series.json`;
 - a price in every product;
-- a swatch rule for its square in `css/style.css`.
+- a swatch rule for the material dial in `css/style.css`.
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.
 

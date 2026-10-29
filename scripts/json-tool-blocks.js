@@ -3,7 +3,7 @@
 // inserting, patching and removing entries in hand-aligned JSON without
 // re-serializing, and rendering whole product/series blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
-// wheel-poster, hand-poster, specs-poster, plan-views) from the on-disk product, never from form input.
+// wheel-poster, hand-poster, plan-views) from the on-disk product, never from form input.
 
 "use strict";
 
@@ -319,11 +319,9 @@ function renderDesignsBlock(designs, metals) {
       pad + '"picks": ' + picks(d.picks) + ",",
       ...(d.geometry ? [geometryLine(d.geometry, pad)] : []),
       pad + '"model": "' + esc(d.model) + '",',
-      ...(d.wireframe ? [pad + '"wireframe": "' + esc(d.wireframe) + '",'] : []),
       ...(d.stl ? [pad + '"stl": "' + esc(d.stl) + '",'] : []),
       pad + '"icons": ' + metalLine(d.icons) + ",",
       pad + '"fallback-img": ' + metalLine(d["fallback-img"]) + ",",
-      pad + '"specs-poster": "' + esc(d["specs-poster"]) + '",',
       pad + '"plan-views": ' + planViewsLine(d["plan-views"]),
       "          }"
     ].join("\n");
@@ -382,8 +380,6 @@ function renderProductBlock(p, metals) {
       (typeof cam.roll === "number" && Number.isFinite(cam.roll) ? ', "roll": ' + cam.roll : "") + " },",
     '      "assets": {',
     '        "model": "' + esc(assets.model) + '",',
-    // Optional, hand-added.
-    ...(assets.wireframe ? ['        "wireframe": "' + esc(assets.wireframe) + '",'] : []),
     ...(assets.stl ? ['        "stl": "' + esc(assets.stl) + '",'] : []),
     '        "icons": {',
     renderMetalPathMap(assets.icons, metals, "          "),
@@ -396,7 +392,6 @@ function renderProductBlock(p, metals) {
     "        },",
     '        "xray": "' + esc(assets.xray) + '",',
     '        "hand-poster": "' + esc(assets["hand-poster"]) + '",',
-    '        "specs-poster": "' + esc(assets["specs-poster"]) + '",',
     '        "plan-views": ' + planViewsLine(assets["plan-views"]) + ",",
     '        "photos": ' + photos,
     p.designs ? "      }," : "      }",

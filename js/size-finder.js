@@ -2,7 +2,8 @@
 // the product page (size row, Select sheet) and the Modify sheet.
 //
 // Steps:
-//   ask        has the visitor a fitting ring?
+//   ask        has the visitor a fitting ring? A desktop (a fine pointer
+//              that hovers) has no screen to lay one on: it opens on chart.
 //   calibrate  (yes, first time) a slider lowers a top band onto an upright
 //              ID-1 card, giving px per mm (the browser can't report it); kept
 //              in localStorage per screen and zoom
@@ -84,6 +85,7 @@
   // ending FIT_SLIDE in from its right end.
   var FIT_MS = 1100;
   var FIT_SLIDE = 0.05;
+  var desktopMedia = global.matchMedia("(hover: hover) and (pointer: fine)");
 
   var TEXT = {
     ask: "Do you have a fitting ring at your disposal?",
@@ -786,7 +788,7 @@
     global.EmjiveSelection.fillSizeGuide(nodes.chart, state.options.guide);
 
     nodes.root.classList.add("is-opening");
-    go("ask", true);
+    go(desktopMedia.matches ? "chart" : "ask", true);
     nodes.root.classList.remove("is-swapping");
     nodes.root.classList.add("is-open");
     nodes.root.setAttribute("aria-hidden", "false");

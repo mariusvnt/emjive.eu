@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 // Splits combined Blender exports into the per-model .glb files the site loads.
 // Each root node is one object, matched by slug to a design's "name" (products
-// with designs) or a product's "name", and written to the "model" or
-// "wireframe" path products.json already names; "<name>-wireframes" nodes are
-// wireframes and keep POSITION only. Later files replace same-named nodes.
+// with designs) or a product's "name", and written to the "model" path
+// products.json already names. Later files replace same-named nodes.
 //
 // Orientation guard: exports can lose a node's root rotation, which is part of
 // the pose the saved renders use. When a replaced file's bounds only match
-// under its old root rotation, that rotation is kept (and applied to the
-// wireframe too).
+// under its old root rotation, that rotation is kept.
 //
 // A combined .stl is cut into its closed objects (scripts/stl.js) and each is
 // paired with an entry by triangle count: a print model is its model
@@ -33,7 +31,6 @@ const { slugify } = require("./slugs");
 const stlFile = require("./stl");
 const { ROOT, SERIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
 
-const WIRE_SUFFIX = /-wireframes?$/i;
 // How far (mm) two bounding boxes may differ and still be the same pose.
 const BOUNDS_TOLERANCE_MM = 0.1;
 // Minimum lead over the next best assignment (in matchCost units) for a
@@ -43,7 +40,7 @@ const MATCH_MARGIN = 0.15;
 const COUNT_WEIGHT = 5;
 
 // Every model the catalog expects, keyed by node slug:
-// { label, model, wireframe, stl, geometry } (repo-relative paths, "" if unset).
+// { label, model, stl, geometry } (repo-relative paths, "" if unset).
 function catalogEntries() {
   const index = readJson(SERIES_JSON_PATH);
   const entries = new Map();
@@ -64,7 +61,6 @@ function catalogEntries() {
           add(slugify(design.name), {
             label: series.slug + "/" + product.name + " [" + design.key + "]",
             model: isDefault ? assets.model || "" : design.model || "",
-            wireframe: isDefault ? assets.wireframe || "" : design.wireframe || "",
             stl: isDefault ? assets.stl || "" : design.stl || "",
             geometry: isDefault ? product.geometry : design.geometry
           });
@@ -73,7 +69,6 @@ function catalogEntries() {
         add(slugify(product.name), {
           label: series.slug + "/" + product.name,
           model: assets.model || "",
-          wireframe: assets.wireframe || "",
           stl: assets.stl || "",
           geometry: product.geometry
         });
@@ -278,19 +273,6 @@ function boundsClose(a, b) {
 }
 
 // Quaternions as [x, y, z, w], glTF's order.
-function quatMultiply(a, b) {
-  return [
-    a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
-    a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
-    a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
-    a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]
-  ];
-}
-
-function quatInverse(q) {
-  return [-q[0], -q[1], -q[2], q[3]];
-}
-
 function fmtQuat(q) {
   return "[" + q.map((v) => Number(v.toFixed(4))).join(", ") + "]";
 }
@@ -332,18 +314,17 @@ async function main() {
   const entries = catalogEntries();
 
   // Every root node of every input; later files win.
-  const nodes = { model: new Map(), wireframe: new Map() };
+  const nodes = new Map();
   for (const file of inputs) {
     const document = await io.read(file);
     for (const scene of document.getRoot().listScenes()) {
       for (const node of scene.listChildren()) {
         const name = node.getName();
-        const kind = WIRE_SUFFIX.test(name) ? "wireframe" : "model";
-        const slug = slugify(name.replace(WIRE_SUFFIX, ""));
-        if (nodes[kind].has(slug)) {
-          console.log("  " + name + ": taken from " + file.split(/[\\/]/).pop() + " (replaces the one in " + nodes[kind].get(slug).file.split(/[\\/]/).pop() + ")");
+        const slug = slugify(name);
+        if (nodes.has(slug)) {
+          console.log("  " + name + ": taken from " + file.split(/[\\/]/).pop() + " (replaces the one in " + nodes.get(slug).file.split(/[\\/]/).pop() + ")");
         }
-        nodes[kind].set(slug, { document, node, name, file });
+        nodes.set(slug, { document, node, name, file });
       }
     }
   }
@@ -365,71 +346,50 @@ async function main() {
   const rows = [];
   const unmatched = [];
   const written = [];
-  // slug -> { from, to }: a model's exported and restored root rotation, reused for its wireframe.
-  const corrections = new Map();
   let failed = false;
 
-  for (const kind of ["model", "wireframe"]) {
-    for (const [slug, src] of nodes[kind]) {
-      const entry = entries.get(slug);
-      if (!entry) {
-        unmatched.push(src.name);
-        continue;
-      }
-      const targetRel = entry[kind];
-      if (!targetRel) {
-        console.error("  " + src.name + ": " + entry.label + " has no \"" + kind + "\" path in products.json — add one first");
-        failed = true;
-        continue;
-      }
-      const targetAbs = join(ROOT, targetRel);
-      const { target, node, scene } = isolate(src);
-      let note = "";
-
-      if (kind === "model" && existsSync(targetAbs)) {
-        const old = await io.read(targetAbs);
-        const oldScene = old.getRoot().getDefaultScene() || old.getRoot().listScenes()[0];
-        const oldRoot = oldScene && oldScene.listChildren()[0];
-        if (oldRoot) {
-          const oldBounds = getBounds(oldScene);
-          if (!boundsClose(oldBounds, getBounds(scene))) {
-            const exported = node.getRotation().slice();
-            node.setRotation(oldRoot.getRotation());
-            if (boundsClose(oldBounds, getBounds(scene))) {
-              corrections.set(slug, { from: exported, to: oldRoot.getRotation().slice() });
-              note = "kept the old file's rotation " + fmtQuat(oldRoot.getRotation()) + " (the export had " + fmtQuat(exported) + ")";
-            } else {
-              node.setRotation(exported);
-              note = "shape changed";
-            }
-          }
-        }
-      }
-
-      if (kind === "wireframe") {
-        for (const mesh of target.getRoot().listMeshes()) {
-          for (const prim of mesh.listPrimitives()) {
-            for (const semantic of prim.listSemantics()) {
-              if (semantic !== "POSITION") prim.setAttribute(semantic, null);
-            }
-            prim.setMaterial(null);
-          }
-        }
-        const fix = corrections.get(slug);
-        if (fix) {
-          node.setRotation(quatMultiply(fix.to, quatMultiply(quatInverse(fix.from), node.getRotation())));
-          note = "rotated with its model";
-        }
-      }
-
-      await target.transform(prune());
-      if (!dryRun) {
-        mkdirSync(dirname(targetAbs), { recursive: true });
-        await io.write(targetAbs, target);
-        written.push(targetRel);
-      }
-      rows.push({ node: src.name, to: targetRel, triangles: triangleCount(node), note });
+  for (const [slug, src] of nodes) {
+    const entry = entries.get(slug);
+    if (!entry) {
+      unmatched.push(src.name);
+      continue;
     }
+    const targetRel = entry.model;
+    if (!targetRel) {
+      console.error("  " + src.name + ": " + entry.label + " has no \"model\" path in products.json — add one first");
+      failed = true;
+      continue;
+    }
+    const targetAbs = join(ROOT, targetRel);
+    const { target, node, scene } = isolate(src);
+    let note = "";
+
+    if (existsSync(targetAbs)) {
+      const old = await io.read(targetAbs);
+      const oldScene = old.getRoot().getDefaultScene() || old.getRoot().listScenes()[0];
+      const oldRoot = oldScene && oldScene.listChildren()[0];
+      if (oldRoot) {
+        const oldBounds = getBounds(oldScene);
+        if (!boundsClose(oldBounds, getBounds(scene))) {
+          const exported = node.getRotation().slice();
+          node.setRotation(oldRoot.getRotation());
+          if (boundsClose(oldBounds, getBounds(scene))) {
+            note = "kept the old file's rotation " + fmtQuat(oldRoot.getRotation()) + " (the export had " + fmtQuat(exported) + ")";
+          } else {
+            node.setRotation(exported);
+            note = "shape changed";
+          }
+        }
+      }
+    }
+
+    await target.transform(prune());
+    if (!dryRun) {
+      mkdirSync(dirname(targetAbs), { recursive: true });
+      await io.write(targetAbs, target);
+      written.push(targetRel);
+    }
+    rows.push({ node: src.name, to: targetRel, triangles: triangleCount(node), note });
   }
 
   if (rows.length) console.table(rows);
@@ -440,14 +400,13 @@ async function main() {
   const missing = [];
   if (inputs.length) {
     for (const [slug, entry] of entries) {
-      if (!nodes.model.has(slug)) missing.push(entry.label + " (model)");
-      if (entry.wireframe && !nodes.wireframe.has(slug)) missing.push(entry.label + " (wireframe)");
+      if (!nodes.has(slug)) missing.push(entry.label);
     }
   }
   if (missing.length) console.log("Not in these files (left as they are): " + missing.join(", "));
 
   for (const file of printFiles) {
-    if (!(await splitPrintModels(file, entries, nodes.model, io, dryRun))) failed = true;
+    if (!(await splitPrintModels(file, entries, nodes, io, dryRun))) failed = true;
   }
 
   if (dryRun) {

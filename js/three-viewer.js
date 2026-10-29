@@ -183,25 +183,8 @@ export { toolkit };
     });
   }
 
-  // ---- blueprint (options.blueprint, the product page's model) ----
-  // A horizontal cut, level on screen, sweeps up the model: above it the metal,
-  // below it a flat grey shaded like a 3D editor's solid view (one fixed light,
-  // no reflections). Appended after <colorspace_fragment>, so the grey is an
-  // sRGB value. The cut is a thin black line while sweeping.
-  var BLUEPRINT_FRAGMENT = [
-    "{",
-    "  float bpY = -vViewPosition.y;",
-    "  float bpLit = dot( normalize( normal ), normalize( vec3( -0.35, 0.5, 0.8 ) ) );",
-    "  vec3 bpGrey = vec3( mix( 0.4, 0.84, clamp( bpLit * 0.5 + 0.5, 0.0, 1.0 ) ) );",
-    "  gl_FragColor.rgb = mix( gl_FragColor.rgb, bpGrey, step( bpY, uScanY ) );",
-    "  float bpPx = fwidth( bpY );",
-    "  float bpCut = 1.0 - smoothstep( bpPx * 0.5, bpPx * 1.5, abs( bpY - uScanY ) );",
-    "  gl_FragColor.rgb = mix( gl_FragColor.rgb, vec3( 0.0 ), bpCut * uScanOn );",
-    "}"
-  ].join("\n");
-
   // The sizes, mm, the page may show a model at: its "size-range", and the
-  // reference (no size given). The fit leaves room for the largest.
+  // reference (no size given).
   function sizeBounds(product) {
     var range = H.sizeRange(product);
     return { min: Math.min(range.min, H.REFERENCE_SIZE_MM), max: Math.max(range.max, H.REFERENCE_SIZE_MM) };
@@ -1049,10 +1032,10 @@ export { toolkit };
     // The canvas is always transparent; this only enables preserveDrawingBuffer
     // for the harness's screenshot readback.
     var preserveBuffer = !!options.transparentBackground;
-    // js/product.js only: { lineColor }. Enables the metal -> blueprint sweep,
-    // the wireframe and the fit scale, driven by handle.setBlueprint(sweep, fit);
-    // at 0, 0 it draws like a plain viewer.
-    var blueprint = options.blueprint && !options.swatch ? options.blueprint : null;
+    // { restScale }: the model sized to a ring size (handle.setSize), turned to
+    // the plan views and drawn at restScale of its canvas (js/product.js,
+    // js/modify-modal.js).
+    var sizing = options.sizing && !options.swatch ? options.sizing : null;
 
     var wrapper = document.createElement("div");
     wrapper.className = "emjive-3d-viewer";
@@ -1078,8 +1061,6 @@ export { toolkit };
     // and iOS Safari caps the page's total; callers with several viewers pass a
     // lower maxPixelRatio.
     configureRenderer(renderer, options.maxPixelRatio);
-    // The wireframe's clipping plane needs this.
-    if (blueprint) renderer.localClippingEnabled = true;
     renderer.domElement.className = "emjive-3d-viewer__canvas";
     wrapper.appendChild(renderer.domElement);
 
@@ -1216,7 +1197,7 @@ export { toolkit };
     // renders before the environment lands. The whole render target is kept so
     // dispose() can free it.
     var environmentTarget = null;
-    // options.environment === false: none (a blueprint-only viewer).
+    // options.environment === false: none.
     var environmentPromise = options.environment === false ? Promise.resolve() : loadEnvironment(renderer, options.hdri, function () { return isDisposed; }, options.environmentBlur).then(function (renderTarget) {
       // Arrived after dispose(): free it. (null when loadEnvironment saw the teardown first.)
       if (isDisposed) {
@@ -1283,7 +1264,7 @@ export { toolkit };
       autoReturn: function () { return autoReturn; },
       onAway: options.onAway,
       onHold: function (holding) {
-        if (blueprint) {
+        if (sizing) {
           planHeld = holding;
           invalidate();
         }
@@ -1302,13 +1283,13 @@ export { toolkit };
     var defaultRadius = 0;
     var nudgeWaypoints = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
-    // The model's bounding sphere at its own size: a blueprint viewer's fit scale
-    // is set aside while measuring (the next draw restores it).
+    // The model's bounding sphere at its own size: a sizing viewer's scale is
+    // set aside while measuring (the next draw restores it).
     function measureModel() {
-      if (fitGroup) {
-        fitGroup.scale.setScalar(1);
-        fitGroup.position.set(0, 0, 0);
-        fitGroup.updateMatrixWorld(true);
+      if (sizeGroup) {
+        sizeGroup.scale.setScalar(1);
+        sizeGroup.position.set(0, 0, 0);
+        sizeGroup.updateMatrixWorld(true);
       }
       var box = new THREE.Box3().setFromObject(modelRoot);
       return box.getBoundingSphere(new THREE.Sphere());
@@ -1318,9 +1299,7 @@ export { toolkit };
       if (!modelRoot) return;
       var orbit = parseOrbitConfig(orbitConfig);
       var sphere = measureModel();
-      frameSphere = sphere.clone();
-      framedRadius = sphere.radius * (orbit.radiusPercent / 100);
-      if (fitGroup) invalidate();
+      if (sizeGroup) invalidate();
       var target = orbit.target || explicitTarget || sphere.center;
       if (orbit.fov !== null && orbit.fov !== camera.fov) {
         camera.fov = orbit.fov;
@@ -1382,243 +1361,49 @@ export { toolkit };
         if (!node.isMesh) return;
         var previous = node.material;
         node.material = metalMaterial(currentMetal);
-        if (blueprint) blueprintMaterial(node.material);
+        if (sizing) sizedMaterial(node.material);
         // The replaced material is freed.
         disposeMaterial(previous);
       });
     }
 
-    /* ---- blueprint (options.blueprint) ----
-       Driven by handle.setBlueprint(sweep, fit) (0..1 each) and
-       handle.setSize(mm):
-       - sweep: BLUEPRINT_FRAGMENT's cut at uScanY (view space) going from below
-         the model (0: all metal) to above it (1: all grey); handle.scanSpan() gives
-         its screen span for the page's band.
-       - fit: model and wireframe shrink about the orbit target so the model at
-         its largest size (the min-box's reach, product.geometry["min-box"]) fits the canvas;
-         at 0 they are drawn at options.blueprint.restScale (default 1), the
-         canvas having room around the model.
-       The chosen size (sizeShiftShader) holds in every stage, fitted or not. */
-    var blueprintSweep = 0;
-    var blueprintFit = 0;
+    /* ---- sizing (options.sizing) ----
+       The model in a group drawn at restScale about the orbit target, the
+       canvas having room around it for larger sizes, and sized to the chosen
+       size (handle.setSize, sizeShiftShader). */
     var sizeMm = H.REFERENCE_SIZE_MM;
-    var sizeUniforms = blueprint ? sizeShiftUniforms(product) : null;
+    var sizeUniforms = sizing ? sizeShiftUniforms(product) : null;
     // The plan view showView() last turned to.
     var heldView = "";
+    var sizeGroup = null;
+    var restScale = sizing && sizing.restScale > 0 ? sizing.restScale : 1;
     // Where a plan view's drawing at the chosen size lands on the canvas with
     // the model turned to it (handle.viewPlacement).
     function viewPlacement(name) {
       var frame = H.planFrame(product, sizeMm);
       var view = frame && frame.views[name];
-      if (!blueprint || !view || !modelLoaded || !defaultRadius) return null;
-      var scale = fittedScale();
+      if (!sizing || !view || !modelLoaded || !defaultRadius) return null;
       var unit = 1 / (2 * defaultRadius * Math.tan((camera.fov * Math.PI) / 360));
-      var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(scale * unit);
+      var offset = new THREE.Vector3().fromArray(frame.center).sub(controls.target).multiplyScalar(restScale * unit);
       return {
         x: offset.dot(new THREE.Vector3().fromArray(view.right)),
         y: -offset.dot(new THREE.Vector3().fromArray(view.up)),
-        mm: scale * unit
+        mm: restScale * unit
       };
     }
     var viewerPaused = false;
-    var bpUniforms = null;
-    if (blueprint) {
-      bpUniforms = {
-        uScanY: { value: -1e6 },
-        uScanOn: { value: 0 }
-      };
-    }
-    // The group holding the model and wireframe, scaled by the fit.
-    var fitGroup = null;
-    var fitScale = 1;
-    // How much more of the canvas the fitted model may take (handle.setFitZoom).
-    var fitZoom = 1;
-    // The model's scale at fit 0 (options.blueprint.restScale).
-    var restScale = blueprint && blueprint.restScale > 0 ? blueprint.restScale : 1;
-    // The fit group's scale: from restScale to the fit's shrink with `fit`.
-    function fittedScale() {
-      return restScale + (fitScale - restScale) * blueprintFit;
-    }
-    // What frameCamera() framed: the sphere and the radius the view fits (sphere x zoom).
-    var frameSphere = null;
-    var framedRadius = 0;
-    // The wireframe (assets.wireframe): a second glTF of thin bars in the model's
-    // frame, drawn in the line colour and clipped below the cut like the grey.
-    var wirePlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);
-    var wireRoot = null;
-    var wireMaterial = null;
-    var wireStarted = false;
-    // Bumped when the model changes or is disposed, dropping a wireframe still loading for it.
-    var wireGeneration = 0;
-    // The wireframe's CPU arrays until uploaded.
-    var wireCpuBytes = 0;
-    // Resolves once the first model's wireframe is drawn in, or never will be
-    // (none, or failed): handle.wireframeSettled, for scripts/auto-render.js.
-    var settleWire;
-    var wireSettled = new Promise(function (resolve) { settleWire = resolve; });
-    // The model's min-box (readMinBox): only its reach is used.
-    var minBox = null;
-    function blueprintMaterial(material) {
-      material.onBeforeCompile = function (shader) {
-        sizeShiftShader(shader, sizeUniforms);
-        shader.uniforms.uScanY = bpUniforms.uScanY;
-        shader.uniforms.uScanOn = bpUniforms.uScanOn;
-        shader.fragmentShader = shader.fragmentShader
-          .replace("#include <common>", "#include <common>\nuniform float uScanY;\nuniform float uScanOn;")
-          .replace("#include <colorspace_fragment>", "#include <colorspace_fragment>\n" + BLUEPRINT_FRAGMENT);
-      };
-      material.customProgramCacheKey = function () { return "emjive-blueprint"; };
+    function sizedMaterial(material) {
+      material.onBeforeCompile = function (shader) { sizeShiftShader(shader, sizeUniforms); };
+      material.customProgramCacheKey = function () { return "emjive-sized"; };
     }
 
-    // After the first draw the arrays can go (as releaseGeometryArrays does for the model).
-    function releaseWireAfterDraw() {
-      var geometry = this.geometry;
-      if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
-      Object.keys(geometry.attributes).forEach(function (name) {
-        var attribute = geometry.attributes[name];
-        if (attribute.array) { wireCpuBytes -= attribute.array.byteLength; window.EmjiveMem.cpuGeometryBytes -= attribute.array.byteLength; attribute.array = null; }
-      });
-      if (geometry.index && geometry.index.array) {
-        wireCpuBytes -= geometry.index.array.byteLength;
-        window.EmjiveMem.cpuGeometryBytes -= geometry.index.array.byteLength;
-        geometry.index.array = null;
-      }
-      this.onAfterRender = function () {};
-    }
-
-    // Loaded once the model is on screen, into the fit group. None if absent or failing.
-    function loadWireframe() {
-      var src = product.assets && product.assets.wireframe;
-      if (!blueprint || wireStarted || isDisposed || !fitGroup) return;
-      if (!src) {
-        settleWire();
-        return;
-      }
-      wireStarted = true;
-      var generation = wireGeneration;
-      loadModelFile(src, function (gltf) {
-        if (isDisposed || generation !== wireGeneration) {
-          disposeObject3D(gltf.scene);
-          return;
-        }
-        wireRoot = gltf.scene;
-        bakeNodeTransforms(wireRoot);
-        wireMaterial = new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setStyle(blueprint.lineColor || "#727272"),
-          side: THREE.DoubleSide,
-          toneMapped: false,
-          clippingPlanes: [wirePlane],
-          // Pulled toward the camera so the bars win the depth test on the surface,
-          // while the model's far side still hides bars behind it.
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2
-        });
-        wireMaterial.onBeforeCompile = function (shader) { sizeShiftShader(shader, sizeUniforms); };
-        wireMaterial.customProgramCacheKey = function () { return "emjive-sized"; };
-        wireRoot.traverse(function (node) {
-          if (!node.isMesh) return;
-          node.material = wireMaterial;
-          node.renderOrder = 1;
-          node.onAfterRender = releaseWireAfterDraw;
-          Object.keys(node.geometry.attributes).forEach(function (name) {
-            if (node.geometry.attributes[name].array) wireCpuBytes += node.geometry.attributes[name].array.byteLength;
-          });
-          if (node.geometry.index && node.geometry.index.array) wireCpuBytes += node.geometry.index.array.byteLength;
-        });
-        window.EmjiveMem.cpuGeometryBytes += wireCpuBytes;
-        fitGroup.add(wireRoot);
-        invalidate();
-        // A static viewer has no loop to draw it.
-        if (isStatic) {
-          updateBlueprint();
-          renderer.render(scene, camera);
-        }
-        settleWire();
-      }, function (err) {
-        console.error("emjive: failed to load wireframe", src, err);
-        settleWire();
-      });
-    }
-
-    // From product.geometry "min-box" and "dimensions-mm"; without them the bounding sphere's reach is used.
-    function readMinBox() {
-      var geometry = product.geometry || {};
-      var pose = geometry["min-box"];
-      var dims = geometry["dimensions-mm"];
-      minBox = null;
-      if (!pose || !Array.isArray(pose.axes) || pose.axes.length !== 3 || !Array.isArray(dims) || dims.length !== 3) return;
-      minBox = {
-        center: new THREE.Vector3().fromArray(pose.center),
-        axes: pose.axes.map(function (a) { return new THREE.Vector3().fromArray(a).normalize(); }),
-        half: dims.map(function (d) { return d / 2; })
-      };
-    }
-
-    // The shrink making room for the largest size: the box's farthest corner
-    // from the target, plus that size's shift (no point moves farther),
-    // against the framed radius, never a growth, then times the zoom
-    // (handle.setFitZoom). Measured once framed.
-    function computeFit() {
-      fitScale = 1;
-      if (!framedRadius) return;
-      var reach = frameSphere ? frameSphere.radius : 0;
-      if (minBox) {
-        var corner = new THREE.Vector3();
-        reach = 0;
-        for (var s = 0; s < 8; s++) {
-          corner.copy(minBox.center);
-          for (var k = 0; k < 3; k++) corner.addScaledVector(minBox.axes[k], (s & (1 << k) ? 1 : -1) * minBox.half[k]);
-          reach = Math.max(reach, corner.distanceTo(controls.target));
-        }
-      }
-      var room = framedRadius * 0.95;
-      fitScale = Math.min(1, room / (reach + Math.max(0, H.sizeShift(sizeBounds(product).max)))) * fitZoom;
-    }
-
-    var bpCenter = new THREE.Vector3();
-    var bpScratch = new THREE.Vector3();
-    var bpUp = new THREE.Vector3();
-
-    // Before every draw of a blueprint viewer: the cut's screen height follows the orbit.
-    function updateBlueprint() {
-      if (!fitGroup || !frameSphere) return;
-      var sweep = blueprintSweep;
-      // The circle-fitting shrink, blended by `fit`; the size's shift in full.
-      var scale = fittedScale();
-      var shift = H.sizeShift(sizeMm);
-      sizeUniforms.uSizeShift.value = shift;
-      fitGroup.scale.setScalar(scale);
-      fitGroup.position.copy(controls.target).multiplyScalar(1 - scale);
-      fitGroup.updateMatrixWorld(true);
-      camera.updateMatrixWorld();
-
-      // The cut: a plane level in view space, from just under the sized and scaled sphere to just over it.
-      bpCenter.copy(frameSphere.center).applyMatrix4(fitGroup.matrixWorld);
-      var radius = (frameSphere.radius + Math.abs(shift)) * scale * 1.02;
-      var cutY = bpScratch.copy(bpCenter).applyMatrix4(camera.matrixWorldInverse).y + (2 * sweep - 1) * radius;
-      bpUniforms.uScanY.value = cutY;
-      bpUniforms.uScanOn.value = sweep > 0 && sweep < 1 ? 1 : 0;
-      // The same plane for the wireframe in world space, through view-space
-      // (0, cutY, 0), facing down (three keeps the side its normal points to).
-      bpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
-      bpScratch.copy(camera.position).addScaledVector(bpUp, cutY);
-      wirePlane.setFromNormalAndCoplanarPoint(bpUp.negate(), bpScratch);
-    }
-
-    // Removes and frees the blueprint's per-model parts (wireframe, box), on
-    // dispose or a model swap, so the next model builds its own.
-    function disposeBlueprint() {
-      wireGeneration++;
-      wireStarted = false;
-      if (wireRoot) {
-        if (wireRoot.parent) wireRoot.parent.remove(wireRoot);
-        disposeObject3D(wireRoot);
-        wireRoot = null;
-      }
-      window.EmjiveMem.cpuGeometryBytes -= wireCpuBytes;
-      wireCpuBytes = 0;
-      minBox = null;
+    // Before every draw of a sizing viewer.
+    function updateSizing() {
+      if (!sizeGroup) return;
+      sizeUniforms.uSizeShift.value = H.sizeShift(sizeMm);
+      sizeGroup.scale.setScalar(restScale);
+      sizeGroup.position.copy(controls.target).multiplyScalar(1 - restScale);
+      sizeGroup.updateMatrixWorld(true);
     }
 
     // options.swatch: the swatch sphere instead of a glTF (scene-tool.html,
@@ -1651,12 +1436,11 @@ export { toolkit };
             heldCpuBytes = cpuGeometryBytes(modelRoot);
             window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
             applyMaterial();
-            if (blueprint) {
+            if (sizing) {
               bakeNodeTransforms(modelRoot);
-              fitGroup = new THREE.Group();
-              fitGroup.add(modelRoot);
-              readMinBox();
-              scene.add(fitGroup);
+              sizeGroup = new THREE.Group();
+              sizeGroup.add(modelRoot);
+              scene.add(sizeGroup);
             } else {
               scene.add(modelRoot);
             }
@@ -1679,11 +1463,8 @@ export { toolkit };
 
         frameCamera(defaultOrbit);
         modelLoaded = true;
-        // A sweep or fit set before the model arrived: the first frame matches.
-        if (blueprint) {
-          computeFit();
-          updateBlueprint();
-        }
+        // A size set before the model arrived: the first frame matches.
+        if (sizing) updateSizing();
 
         renderer.render(scene, camera);
         // That draw uploaded every buffer; free the JS copies.
@@ -1701,7 +1482,6 @@ export { toolkit };
         if (loadGate) loadGate.done();
 
         scheduleIdleNudge();
-        if (blueprint) loadWireframe();
         if (options.onReady) options.onReady();
         // A model requested while this one was still loading.
         if (pendingSwap) {
@@ -1803,13 +1583,11 @@ export { toolkit };
        new viewer (context, PMREM, compiles, poster) per pick. `next` is the
        product as that design (EmjiveSeries.resolveDesign). The camera stays put
        (a product's designs share one frame) and the old model stays until the new
-       one is decoded; then the metal, blueprint state, box and wireframe are redone.
+       one is decoded; then the metal and the size are redone.
        The latest pick wins; one asked for before the first model waits for it.
        opts: { onReady, onError }. */
     var swapToken = 0;
     var pendingSwap = null;
-    var WIRE_AFTER_SWAP_MS = 1500;
-    var wireTimer = 0;
     function swapModel(next, opts) {
       opts = opts || {};
       var src = next && next.assets && next.assets.model;
@@ -1819,7 +1597,6 @@ export { toolkit };
         return;
       }
       var token = ++swapToken;
-      clearTimeout(wireTimer);
       if (src === (product.assets && product.assets.model)) {
         product = next;
         if (opts.onReady) opts.onReady();
@@ -1832,7 +1609,6 @@ export { toolkit };
           return;
         }
         var old = modelRoot;
-        if (blueprint) disposeBlueprint();
         if (old) {
           if (old.parent) old.parent.remove(old);
           disposeObject3D(old);
@@ -1844,28 +1620,17 @@ export { toolkit };
         heldCpuBytes = cpuGeometryBytes(modelRoot);
         window.EmjiveMem.cpuGeometryBytes += heldCpuBytes;
         applyMaterial();
-        if (blueprint && fitGroup) {
+        if (sizing && sizeGroup) {
           bakeNodeTransforms(modelRoot);
           sizeUniforms.uFingerAxis.value.fromArray(H.ringAxes(product)[2]);
-          fitGroup.add(modelRoot);
-          readMinBox();
+          sizeGroup.add(modelRoot);
+          updateSizing();
         } else {
           scene.add(modelRoot);
-        }
-        // The sweep spans the new model; the view keeps the radius it was framed for.
-        frameSphere = measureModel();
-        if (blueprint) {
-          computeFit();
-          updateBlueprint();
         }
         renderer.render(scene, camera);
         if (!isStatic && !isFreeOrbit) releaseGeometryArrays(modelRoot);
         invalidate();
-        // Its wireframe once the picks settle, or at once if the sweep is under way.
-        if (blueprint) {
-          if (blueprintSweep > 0) loadWireframe();
-          else wireTimer = setTimeout(loadWireframe, WIRE_AFTER_SWAP_MS);
-        }
         if (opts.onReady) opts.onReady();
       }, function (err) {
         if (token !== swapToken) return;
@@ -1881,7 +1646,6 @@ export { toolkit };
       // even after dispose (three's loaders can't be aborted), for callers that
       // ration concurrent loads.
       whenSettled: Promise.all([modelPromise.then(ignore, ignore), environmentPromise.then(ignore, ignore)]),
-      wireframeSettled: wireSettled,
       applyMetal: function (newMetalKey) {
         currentMetal = newMetalKey;
         if (modelLoaded) applyMaterial();
@@ -1899,52 +1663,14 @@ export { toolkit };
       },
       // Another model in this viewer, camera kept (swapModel).
       setProduct: swapModel,
-      // Blueprint viewers only: the metal -> grey sweep and the fit (the shrink
-      // for the largest size), 0..1 each. May be set before the model arrives.
-      setBlueprint: function (sweep, fit) {
-        if (!blueprint) return;
-        sweep = H.clamp01(Number(sweep) || 0);
-        fit = H.clamp01(Number(fit) || 0);
-        if (sweep === blueprintSweep && fit === blueprintFit) return;
-        blueprintSweep = sweep;
-        blueprintFit = fit;
-        // A swapped model's wireframe still waiting for picks to settle is wanted now.
-        if (sweep > 0 && modelLoaded) loadWireframe();
-        invalidate();
-      },
-      // Blueprint viewers: zoom the fitted model by `zoom` (1: the largest size
-      // just fits its canvas, more: it may run past it).
-      setFitZoom: function (zoom) {
-        zoom = Number(zoom) > 0 ? Number(zoom) : 1;
-        if (!blueprint || zoom === fitZoom) return;
-        fitZoom = zoom;
-        if (modelLoaded) computeFit();
-        invalidate();
-      },
-      // The chosen size, mm; the model is sized to it in every stage.
+      // Sizing viewers: the chosen size, mm, the model is sized to.
       setSize: function (mm) {
-        if (!blueprint) return;
+        if (!sizing) return;
         var bounds = sizeBounds(product);
         mm = H.clamp(Number(mm) || H.REFERENCE_SIZE_MM, bounds.min, bounds.max);
         if (mm === sizeMm) return;
         sizeMm = mm;
         invalidate();
-      },
-      // The cut's screen position (px from the viewer's top) at the model's bottom
-      // and top, before the fit; it moves linearly between them with `sweep`. null
-      // until the model is in.
-      scanSpan: function () {
-        if (!blueprint || !frameSphere || !modelLoaded) return null;
-        camera.updateMatrixWorld();
-        var v = bpScratch.copy(frameSphere.center).applyMatrix4(camera.matrixWorldInverse);
-        var depth = -v.z;
-        if (!(depth > 0)) return null;
-        var r = frameSphere.radius * 1.02;
-        var k = camera.projectionMatrix.elements[5] / depth;
-        return {
-          bottom: (1 - (v.y - r) * k) / 2 * currentHeight,
-          top: (1 - (v.y + r) * k) / 2 * currentHeight
-        };
       },
       // Multiplier of the stillness before easing back, from the next release.
       setRollbackPauseScale: function (scale) {
@@ -1961,7 +1687,7 @@ export { toolkit };
         spin.goHome(true);
         invalidate();
       },
-      // Blueprint viewers: turn to one of the product page's plan views, as
+      // Sizing viewers: turn to one of the plan views, as
       // drawn (EmjiveHelpers.planFrame), and hold it, for holdMs then easing
       // back, or without holdMs until a drag or returnHome();
       // options.onViewHeld(name) once there, onViewHeld("") as the hold ends.
@@ -1970,7 +1696,7 @@ export { toolkit };
       showView: function (name, holdMs) {
         var frame = H.planFrame(product);
         var view = (frame && frame.views[name]) || H.PLAN_VIEWS[name];
-        if (!blueprint || !view || !modelLoaded) return;
+        if (!sizing || !view || !modelLoaded) return;
         cancelNudge();
         heldView = name;
         spin.goTo({
@@ -1979,12 +1705,12 @@ export { toolkit };
         }, holdMs);
         invalidate();
       },
-      // Blueprint viewers: where a plan view's drawing at the chosen size lands
+      // Sizing viewers: where a plan view's drawing at the chosen size lands
       // on the canvas with the model turned to it: its centre's offset from
       // the canvas centre (x right, y down) and a millimetre at the model's
       // current scale, all as shares of the canvas height. null before the model.
       viewPlacement: viewPlacement,
-      // Blueprint viewers, while a plan view is held: the
+      // Sizing viewers, while a plan view is held: the
       // model's silhouette within the view's drawing rectangle at the chosen
       // size (H.planFrame's crop, placed by viewPlacement), as the last frame
       // drew it: { w, h, data }, RGBA rows top down, opaque where the model
@@ -2042,7 +1768,6 @@ export { toolkit };
         if (isDisposed) return;
         isDisposed = true;
         if (loopRaf) cancelAnimationFrame(loopRaf);
-        clearTimeout(wireTimer);
         // A loader still waiting has nothing left to wait for.
         if (loadGate) loadGate.done();
         spin.dispose();
@@ -2064,9 +1789,7 @@ export { toolkit };
         resizeObserver.disconnect();
         controls.dispose();
         // The model's buffers and the PMREM target belong to this context; free them
-        // explicitly (late arrivals are freed by the load callbacks). The blueprint's
-        // parts first, then the model.
-        disposeBlueprint();
+        // explicitly (late arrivals are freed by the load callbacks).
         disposePlanSilhouette();
         disposeObject3D(modelRoot);
         releaseHeldCpuBytes();
@@ -2142,7 +1865,7 @@ export { toolkit };
       if (flat > 0) {
         drawFlat(flat);
       } else {
-        if (blueprint) updateBlueprint();
+        if (sizing) updateSizing();
         renderFrame();
       }
       // Once the camera is back as the spin left it (drawFlat moves it for the
@@ -2159,7 +1882,7 @@ export { toolkit };
       if (planHeld) drawPlanSilhouette();
     }
 
-    /* ---- the held plan view's silhouette (blueprint viewers) ----
+    /* ---- the held plan view's silhouette (sizing viewers) ----
        While a plan view is held, each frame also draws the model alone (at
        its size, with the frame's camera) into planSilhouette.target, opaque
        where the model is; handle.planMask() reads it, and
@@ -2185,7 +1908,7 @@ export { toolkit };
     var planMeshMaterials = new Map();
     // Run right after the frame's own draw, with its camera (flattened or not).
     function drawPlanSilhouette() {
-      if (!blueprint || !modelRoot || !modelLoaded) return;
+      if (!sizing || !modelRoot || !modelLoaded) return;
       var size = renderer.getDrawingBufferSize(new THREE.Vector2());
       if (planSilhouette && (planSilhouette.size.x !== size.x || planSilhouette.size.y !== size.y)) disposePlanSilhouette();
       if (!planSilhouette) planSilhouette = makePlanSilhouette();
@@ -2235,7 +1958,7 @@ export { toolkit };
       camera.far = far + back;
       camera.updateProjectionMatrix();
       camera.updateMatrixWorld();
-      if (blueprint) updateBlueprint();
+      if (sizing) updateSizing();
       renderFrame();
       camera.position.copy(flatSavedPosition);
       camera.fov = fov;

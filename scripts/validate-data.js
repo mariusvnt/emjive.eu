@@ -318,11 +318,9 @@ const designsSchema = {
           picks: { type: "object", additionalProperties: { anyOf: [str, { type: "array", items: str }] } },
           geometry: geometrySchema,
           model: str,
-          wireframe: str,
           stl: str,
           icons: metalMap,
           "fallback-img": metalMap,
-          "specs-poster": str,
           "plan-views": planViewsSchema
         }
       }
@@ -368,11 +366,9 @@ const productSchema = {
     },
     assets: {
       type: "object",
-      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "specs-poster", "plan-views", "photos"],
+      required: ["model", "icons", "fallback-img", "wheel-poster", "xray", "hand-poster", "plan-views", "photos"],
       properties: {
         model: str,
-        // Optional, hand-added: drawn over the model in the specs stage.
-        wireframe: str,
         // Optional print model (scripts/split-models.js), measured into geometry.print;
         // kept out of the build.
         stl: str,
@@ -381,7 +377,6 @@ const productSchema = {
         "wheel-poster": metalMap,
         xray: str,
         "hand-poster": str,
-        "specs-poster": str,
         "plan-views": planViewsSchema,
         photos: {
           type: "array",
@@ -507,18 +502,16 @@ function checkDesigns(label, product, metals) {
     if (picked.has(signature.join("|"))) fail(at, "another design has the same picks");
     picked.add(signature.join("|"));
 
-    const own = ["model", "wireframe", "stl", "icons", "fallback-img", "specs-poster", "plan-views", "geometry"].filter((f) => design[f] !== undefined);
+    const own = ["model", "stl", "icons", "fallback-img", "plan-views", "geometry"].filter((f) => design[f] !== undefined);
     if (design.key === designs.default) {
       if (own.length) fail(at, "is the default design, which is the product's own: it can't have " + own.join(", ") + " of its own");
       continue;
     }
-    for (const field of ["model", "icons", "fallback-img", "specs-poster", "plan-views", "geometry"]) {
+    for (const field of ["model", "icons", "fallback-img", "plan-views", "geometry"]) {
       if (design[field] === undefined) fail(at, 'has no "' + field + '"');
     }
     if (!design.model || !design.icons || !design["fallback-img"] || !design.geometry) continue;
     checkPath(at + " model", design.model);
-    checkPath(at + " wireframe", design.wireframe);
-    checkPath(at + " specs-poster", design["specs-poster"]);
     for (const view of ["front", "side"]) checkPath(at + " plan-views." + view, (design["plan-views"] || {})[view]);
     for (const field of ["icons", "fallback-img"]) {
       for (const metal of metals) {
@@ -669,12 +662,10 @@ if (index && validate("data/series.json", indexSchema, index)) {
           checkVariants(label + " assets.icons." + metal, rel, ["128"]);
         }
         checkPath(label + " assets.model", product.assets.model);
-        checkPath(label + " assets.wireframe", product.assets.wireframe);
         checkGeometry(label, product.assets.model, product.geometry, product.assets.stl, product["size-range"]);
         if (product.designs) checkDesigns(label, product, metals);
         checkPath(label + " assets.xray", product.assets.xray);
         checkPath(label + " assets.hand-poster", product.assets["hand-poster"]);
-        checkPath(label + " assets.specs-poster", product.assets["specs-poster"]);
         for (const view of ["front", "side"]) checkPath(label + " assets.plan-views." + view, product.assets["plan-views"][view]);
         checkVariants(label + " assets.xray", product.assets.xray, ["lo", "m", "m_lo"]);
         product.assets.photos.forEach((photo, i) => checkPath(label + " assets.photos[" + i + "]", photo.src));

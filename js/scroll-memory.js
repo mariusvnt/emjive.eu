@@ -56,6 +56,13 @@
     return;
   }
   var RESTORING_CLASS = "emjive-restoring-scroll";
+  // The height reservation, kept past the restore until the content reaches
+  // it (keepReserve): dropped early, on a load slower than the deadline, the
+  // page would shrink under the offset and the browser clamp it, landing at
+  // the hero's start. Given up after RESERVE_CAP_MS.
+  var RESERVE_CLASS = "emjive-restore-reserve";
+  var RESERVE_CAP_MS = 15000;
+  var RESERVE_POLL_MS = 200;
   var HEIGHT_VAR = "--emjive-restore-height";
 
   // Hard cap on the restore; whatever hasn't landed is released as-is.
@@ -167,8 +174,25 @@
   var deadline = 0;
   var rafId = 0;
 
+  // The content's own height, which the reservation (body's min-height)
+  // hides from the page's: main's, overflow included, and the room under it.
   function tallEnough() {
-    return html.scrollHeight >= reservedHeight;
+    var main = document.getElementById("main");
+    if (!main || !document.body) return false;
+    var pad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+    return main.getBoundingClientRect().top + (window.pageYOffset || 0) + main.scrollHeight + pad >= reservedHeight;
+  }
+
+  function keepReserve() {
+    var cap = now() + RESERVE_CAP_MS;
+    (function check() {
+      if (!tallEnough() && now() < cap) {
+        setTimeout(check, RESERVE_POLL_MS);
+        return;
+      }
+      html.classList.remove(RESERVE_CLASS);
+      html.style.removeProperty(HEIGHT_VAR);
+    })();
   }
 
   function expired() {
@@ -195,9 +219,8 @@
     TAKEOVER_EVENTS.forEach(function (type) {
       window.removeEventListener(type, takeOver, true);
     });
-    // A no-op for layout by now: settle() waits for the content to reach the height.
     html.classList.remove(RESTORING_CLASS);
-    html.style.removeProperty(HEIGHT_VAR);
+    keepReserve();
     // "emjive:restore-end": js/loader.js and js/gallery.js wait on it.
     window.dispatchEvent(new Event("emjive:restore-end"));
   }
@@ -213,7 +236,7 @@
     deadline = now() + DEADLINE_MS;
 
     html.style.setProperty(HEIGHT_VAR, reservedHeight + "px");
-    html.classList.add(RESTORING_CLASS);
+    html.classList.add(RESTORING_CLASS, RESERVE_CLASS);
 
     // Capture phase, so handlers that stop propagation (TrackballControls) can't hide input.
     TAKEOVER_EVENTS.forEach(function (type) {

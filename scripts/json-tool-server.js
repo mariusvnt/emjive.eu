@@ -5,7 +5,7 @@
 // scripts/json-tool-blocks.js.
 //
 // Never: runs auto-render; writes the auto-render-owned maps (icons,
-// fallback-img, wheel-poster, hand-poster, specs-poster, plan-views); touches js/three-viewer.js or
+// fallback-img, wheel-poster, hand-poster, plan-views); touches js/three-viewer.js or
 // css/style.css for metals; edits "geometry" (measure-models.js's); writes
 // the swatch scene (scene-tool's).
 
@@ -70,7 +70,7 @@ const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+
 // A product folder, checked before a recursive delete.
 const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
-const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|specs-poster|plan-(?:front|side))[_.]/;
+const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|plan-(?:front|side))[_.]/;
 
 function isAllowedAssetDestPath(destPath) {
   if (typeof destPath !== "string" || !destPath) return false;
@@ -297,7 +297,7 @@ async function handleGlobalMetal(req, res) {
         'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s per-metal-specs/icons/' +
         "fallback-img/wheel-poster, and its metal-costs, metal-composition and metal-shaders entries. Still worth doing " +
         "by hand if you want a full cleanup (harmless if left, just dead code): remove the " +
-        '.product-metals__option[data-metal="' + metal + '"] rule from css/style.css.'
+        '.product-dial__swatch[data-metal="' + metal + '"] rule from css/style.css.'
     });
   }
 
@@ -314,7 +314,7 @@ async function handleGlobalMetal(req, res) {
     ok: true,
     reminder:
       'Added "' + metal + '" to data/series.json\'s metals list, with a neutral grey under "metal-shaders" to tune in ' +
-      'scene-tool. Still needed by hand: a .product-metals__option[data-metal="' + metal + '"] rule in css/style.css ' +
+      'scene-tool. Still needed by hand: a .product-dial__swatch[data-metal="' + metal + '"] rule in css/style.css ' +
       "— this tool does not touch it — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
       "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it), a \"" + metal +
       '" entry under "metal-composition" and one under "metal-technology". ' +
@@ -507,7 +507,7 @@ async function handleProductAdd(req, res) {
     return sendJson(res, 409, { error: 'a product already uses folder ' + folder + ' ("' + collision.name + '") — pick a different name/category' });
   }
 
-  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "hand-poster": "", "specs-poster": "", "plan-views": { top: "", front: "", side: "" }, photos: [] };
+  const assets = { model: "", icons: {}, "fallback-img": {}, "wheel-poster": {}, xray: "", "hand-poster": "", "plan-views": { top: "", front: "", side: "" }, photos: [] };
   metals.forEach((m) => {
     assets.icons[m] = "";
     assets["fallback-img"][m] = "";
@@ -568,7 +568,7 @@ async function handleProductAdd(req, res) {
     folder,
     written,
     reminder:
-      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/hand-posters/specs-posters/plan-views for this product, and " +
+      "Run `npm run auto-render` to generate icons/fallback-img/wheel-posters/hand-posters/plan-views for this product, and " +
       "`npm run measure-models` to measure its weight, size and cost (`npm run validate-data` fails until you do)."
   });
 }
@@ -617,7 +617,7 @@ async function handleProductEdit(req, res) {
   const moved = [];
   const warnings = [];
   if (oldFolder !== newFolder) {
-    ["model", "wireframe", "stl", "xray"].forEach((key) => {
+    ["model", "stl", "xray"].forEach((key) => {
       const oldRel = merged.assets[key];
       if (oldRel) {
         const newRel = newFolder + "/" + path.basename(oldRel);
@@ -635,7 +635,7 @@ async function handleProductEdit(req, res) {
       merged.designs = Object.assign({}, merged.designs, {
         list: (merged.designs.list || []).map((d) => {
           const next = Object.assign({}, d);
-          ["model", "wireframe", "stl"].forEach((key) => {
+          ["model", "stl"].forEach((key) => {
             if (!next[key]) return;
             const newRel = newFolder + "/" + path.basename(next[key]);
             moveAssetFile(next[key], newRel, moved, warnings);
@@ -647,7 +647,7 @@ async function handleProductEdit(req, res) {
     }
     warnings.push(
       "folder changed from " + oldFolder + " to " + newFolder +
-      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/hand-posters/specs-posters/plan-views there; stale renders were left behind in the old folder."
+      " — run `npm run auto-render` to regenerate icons/fallback-img/wheel-posters/hand-posters/plan-views there; stale renders were left behind in the old folder."
     );
   }
 

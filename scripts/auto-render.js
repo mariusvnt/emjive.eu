@@ -4,7 +4,7 @@
 // a real GPU (for MSAA; the startup log names the WebGL renderer). Set
 // CHROME_PATH to override the Chrome location.
 //
-//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--specs-posters-only] [--plan-views-only]
+//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--plan-views-only]
 //   node scripts/auto-render.js --image-variants [--series=<slug>]
 //
 // Defaults: every metal in data/series.json, every series.
@@ -12,7 +12,6 @@
 //   --swatches-only       only the metal squares
 //   --wheel-posters-only  only the wheel posters
 //   --hand-posters-only   only the hand posters
-//   --specs-posters-only  only the specs posters
 //   --plan-views-only     only the plan views
 //   --image-variants      no render: rewrites the size variants (make-image-variants.js)
 //
@@ -20,11 +19,7 @@
 //   hand-poster   512px, the ring as the wheel's own scene draws it on the hero's
 //                 hand (straight down, lower half cut, x-ray look, no metal), so
 //                 the swap to the live model changes nothing
-//   specs-poster  512px, the product page's viewer as specs draws it (all grey,
-//                 wireframe in --category-col, fitted, at the reference size),
-//                 framed like fallback-img: the poster on a page opened in specs.
-//                 Metal-free, so one per product and per non-default design
-//   plan-views    the specs stage's front and side views at the reference
+//   plan-views    the front and side views at the reference
 //                 size, drawn by the page's own drawPlanView (js/three-viewer.js,
 //                 which draws the other sizes live): the model in outline,
 //                 --category-col on transparent, cropped to the content of the
@@ -45,9 +40,7 @@
 //
 // Re-run for every metal after changing "metal-shaders", the swatch camera, an
 // HDRI, the "sun", the "hdri-blur" or the "reflection-detail", with
-// --hand-posters-only after changing "hand-shader", and with
-// --specs-posters-only after changing the blueprint look, the fit or --category-col,
-// and with --plan-views-only after changing the outline look (drawPlanView),
+// --hand-posters-only after changing "hand-shader", and with --plan-views-only after changing the outline look (drawPlanView),
 // PLAN_VIEWS, PLAN_PAD or --category-col.
 
 "use strict";
@@ -182,42 +175,6 @@ const HARNESS_HTML = `<!doctype html>
       // Fail loudly: this run exists to produce the fallback images.
       throw new Error("could not create a WebGL context while rendering the icon for " + product.name + " (" + metalKey + ")");
     }
-    handle.el.id = "target";
-    handle.el.style.width = "100%";
-    handle.el.style.height = "100%";
-    wrap.appendChild(handle.el);
-    currentHandle = handle;
-  };
-
-  // The product page's viewer fully in specs (js/product.js): blueprint sweep
-  // and fit at 1, the reference size, its wireframe drawn in.
-  window.__renderSpecsPoster = function (product, sizePx, hdriRelPath, lineColor) {
-    window.__renderReady = false;
-    disposeCurrentHandle();
-    var wrap = mountTargetWrap(sizePx);
-    var handle = window.EmjiveModelViewer(product, product["default-metal"], {
-      transparentBackground: true,
-      static: true,
-      poster: false,
-      hdri: hdriRelPath,
-      blueprint: { lineColor: lineColor },
-      onReady: function () {
-        handle.wireframeSettled.then(function () {
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              window.__renderReady = true;
-            });
-          });
-        });
-      },
-      onError: function () {
-        console.error("the model failed to load while rendering the specs poster for " + product.name);
-      }
-    });
-    if (!handle) {
-      throw new Error("could not create a WebGL context while rendering the specs poster for " + product.name);
-    }
-    handle.setBlueprint(1, 1);
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
@@ -412,16 +369,6 @@ async function renderHandPoster(page, product, outPath, hdriRelPath) {
   await writeWebp(sharp(buffer).resize(STACK_POSTER_SIZE, STACK_POSTER_SIZE), outPath);
 }
 
-// The same box and supersampling as fallback-img, so it lines up with the viewer.
-async function renderSpecsPoster(page, product, outPath, hdriRelPath, lineColor) {
-  await page.setViewport({ width: ICON_SIZE, height: ICON_SIZE, deviceScaleFactor: CAPTURE_SCALE });
-  await page.evaluate((p, s, h, c) => window.__renderSpecsPoster(p, s, h, c), product, ICON_SIZE, hdriRelPath, lineColor);
-  await page.waitForFunction("window.__renderReady === true", { timeout: 30000 });
-  const handle = await page.$("#target");
-  const buffer = await handle.screenshot({ omitBackground: true });
-  await writeWebp(sharp(buffer).resize(FALLBACK_IMG_SIZE, FALLBACK_IMG_SIZE), outPath);
-}
-
 // The plan views, drawn and cropped in the page (js/three-viewer.js drawPlanView).
 const PLAN_VIEW_NAMES = ["front", "side"];
 async function renderPlanView(page, product, viewName, outPath, lineColor) {
@@ -431,11 +378,11 @@ async function renderPlanView(page, product, viewName, outPath, lineColor) {
   await writeWebp(sharp(Buffer.from(png.slice(png.indexOf(",") + 1), "base64")), outPath);
 }
 
-// The wireframe's colour on the page: --category-col in css/style.css.
+// The plan views' colour on the page: --category-col in css/style.css.
 function categoryColour() {
   const css = fs.readFileSync(path.join(ROOT, "css", "style.css"), "utf8");
   const match = /--category-col:\s*([^;]+);/.exec(css);
-  if (!match) throw new Error("no --category-col found in css/style.css (the specs poster's wireframe colour)");
+  if (!match) throw new Error("no --category-col found in css/style.css (the plan views' colour)");
   return match[1].trim();
 }
 
@@ -486,18 +433,6 @@ function updateProductPathFieldInText(text, product, field, newRelPath) {
   return span && blocks.replaceInSpan(text, span, new RegExp(`("${field}":\\s*)"[^"]*"`), `$1"${newRelPath}"`);
 }
 
-// A product's "specs-poster", added after its "hand-poster" line if it has none
-// yet; null if neither is found.
-// The product's own span stops at its "designs", whose entries have their own.
-function updateProductSpecsPosterInText(text, product, newRelPath) {
-  const span = blocks.anchoredSpan(text, "id", product.id);
-  if (!span) return null;
-  const designsIdx = text.indexOf('"designs": {', span.start);
-  if (designsIdx !== -1 && designsIdx < span.end) span.end = designsIdx;
-  return blocks.replaceInSpan(text, span, /("specs-poster":\s*)"[^"]*"/, `$1"${newRelPath}"`) ||
-    blocks.replaceInSpan(text, span, /(\n([ \t]*)"hand-poster":\s*"[^"]*",)/, `$1\n$2"specs-poster": "${newRelPath}",`);
-}
-
 // A non-default design's entry, found by its "key" inside the product's "designs" list.
 function designSpanInText(text, product, designKey) {
   const productSpan = blocks.anchoredSpan(text, "id", product.id);
@@ -511,21 +446,14 @@ function updateDesignMetalFieldInText(text, product, designKey, blockKey, metal,
   return updateMetalFieldInSpan(text, designSpanInText(text, product, designKey), blockKey, metal, newRelPath);
 }
 
-// A design's "specs-poster", added after its "fallback-img" map if it has none yet.
-function updateDesignSpecsPosterInText(text, product, designKey, newRelPath) {
-  const span = designSpanInText(text, product, designKey);
-  if (!span) return null;
-  return blocks.replaceInSpan(text, span, /("specs-poster":\s*)"[^"]*"/, `$1"${newRelPath}"`) ||
-    blocks.replaceInSpan(text, span, /(\n([ \t]*)"fallback-img":\s*\{[^}]*\})/, `$1,\n$2"specs-poster": "${newRelPath}"`);
-}
-
 // The "plan-views" map, inline: { "front": ..., "side": ... }.
 function planViewsLine(paths) {
   return "{ " + PLAN_VIEW_NAMES.map((v) => `"${v}": "${paths[v]}"`).join(", ") + " }";
 }
 
-// A product's "plan-views", added after its "specs-poster" line if it has none
-// yet; null if neither is found. Same span as updateProductSpecsPosterInText.
+// A product's "plan-views", added after its "hand-poster" line if it has none
+// yet; null if neither is found. The product's own span stops at its
+// "designs", whose entries have their own.
 function updateProductPlanViewsInText(text, product, paths) {
   const span = blocks.anchoredSpan(text, "id", product.id);
   if (!span) return null;
@@ -533,16 +461,16 @@ function updateProductPlanViewsInText(text, product, paths) {
   if (designsIdx !== -1 && designsIdx < span.end) span.end = designsIdx;
   const line = planViewsLine(paths);
   return blocks.replaceInSpan(text, span, /("plan-views":\s*)\{[^}]*\}/, `$1${line}`) ||
-    blocks.replaceInSpan(text, span, /(\n([ \t]*)"specs-poster":\s*"[^"]*",)/, `$1\n$2"plan-views": ${line},`);
+    blocks.replaceInSpan(text, span, /(\n([ \t]*)"hand-poster":\s*"[^"]*",)/, `$1\n$2"plan-views": ${line},`);
 }
 
-// A design's "plan-views", added after its "specs-poster" if it has none yet.
+// A design's "plan-views", added after its "fallback-img" map if it has none yet.
 function updateDesignPlanViewsInText(text, product, designKey, paths) {
   const span = designSpanInText(text, product, designKey);
   if (!span) return null;
   const line = planViewsLine(paths);
   return blocks.replaceInSpan(text, span, /("plan-views":\s*)\{[^}]*\}/, `$1${line}`) ||
-    blocks.replaceInSpan(text, span, /(\n([ \t]*)"specs-poster":\s*"[^"]*")/, `$1,\n$2"plan-views": ${line}`);
+    blocks.replaceInSpan(text, span, /(\n([ \t]*)"fallback-img":\s*\{[^}]*\})/, `$1,\n$2"plan-views": ${line}`);
 }
 
 // A product shown as one of its designs: the design's model and renders, the
@@ -551,10 +479,8 @@ function designView(product, design) {
   return Object.assign({}, product, {
     assets: Object.assign({}, product.assets, {
       model: design.model,
-      wireframe: design.wireframe || "",
       icons: design.icons || {},
       "fallback-img": design["fallback-img"] || {},
-      "specs-poster": design["specs-poster"] || "",
       "plan-views": design["plan-views"] || {}
     }),
     geometry: design.geometry
@@ -571,7 +497,6 @@ async function main() {
   const swatchesOnly = args.includes("--swatches-only");
   const wheelPostersOnly = args.includes("--wheel-posters-only");
   const handPostersOnly = args.includes("--hand-posters-only");
-  const specsPostersOnly = args.includes("--specs-posters-only");
   const planViewsOnly = args.includes("--plan-views-only");
   // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
@@ -676,7 +601,7 @@ async function main() {
       );
     }
 
-    if (!wheelPostersOnly && !specsPostersOnly && !planViewsOnly) {
+    if (!wheelPostersOnly && !planViewsOnly) {
       console.log("\n--- hand posters ---");
       for (const target of targets) {
         for (const product of target.data.products) {
@@ -706,59 +631,7 @@ async function main() {
       }
     }
 
-    if (!wheelPostersOnly && !handPostersOnly && !planViewsOnly) {
-      console.log("\n--- specs posters ---");
-      const lineColor = categoryColour();
-      for (const target of targets) {
-        for (const product of target.data.products) {
-          if (onlyProducts && !onlyProducts.includes(folderSlug(product.name))) continue;
-          if (!(product.assets && product.assets.model)) continue;
-          const folder = productFolder(target.slug, product.name, product.category);
-          const relPath = folder + "/" + folderSlug(product.name) + "_specs-poster.webp";
-          console.log("  specs poster: [" + target.slug + "] " + product.name + " -> " + relPath);
-          await renderSpecsPoster(page, product, path.join(ROOT, relPath), target.hdri, lineColor);
-          const oldRelPath = product.assets["specs-poster"];
-          if (oldRelPath !== relPath) {
-            const patched = updateProductSpecsPosterInText(target.text, product, relPath);
-            if (patched) {
-              target.text = patched;
-              if (oldRelPath && path.resolve(path.join(ROOT, oldRelPath)) !== path.resolve(path.join(ROOT, relPath))) {
-                deleteIfExists(path.join(ROOT, oldRelPath));
-              }
-            } else {
-              console.warn(
-                "  could not find the assets.specs-poster or hand-poster line in " + repoPath(target.absPath) +
-                " for " + product.name + " — set it by hand: " + relPath
-              );
-            }
-          }
-
-          const designs = product.designs;
-          for (const design of (designs && designs.list) || []) {
-            if (design.key === designs.default || !design.model) continue;
-            const designRel = folder + "/" + folderSlug(product.name) + "-" + folderSlug(design.key) + "_specs-poster.webp";
-            console.log("  design " + design.key + ": [" + target.slug + "] " + product.name + " -> " + designRel);
-            await renderSpecsPoster(page, designView(product, design), path.join(ROOT, designRel), target.hdri, lineColor);
-            const oldDesignRel = design["specs-poster"];
-            if (oldDesignRel === designRel) continue;
-            const patched = updateDesignSpecsPosterInText(target.text, product, design.key, designRel);
-            if (patched) {
-              target.text = patched;
-              if (oldDesignRel && path.resolve(path.join(ROOT, oldDesignRel)) !== path.resolve(path.join(ROOT, designRel))) {
-                deleteIfExists(path.join(ROOT, oldDesignRel));
-              }
-            } else {
-              console.warn(
-                "  could not find design " + design.key + "'s specs-poster or fallback-img in " + repoPath(target.absPath) +
-                " for " + product.name + " — set it by hand: " + designRel
-              );
-            }
-          }
-        }
-      }
-    }
-
-    if (!wheelPostersOnly && !handPostersOnly && !specsPostersOnly) {
+    if (!wheelPostersOnly && !handPostersOnly) {
       console.log("\n--- plan views ---");
       const lineColor = categoryColour();
       // The views of one model as <base>_plan-<view>.webp; replaced files are deleted.
@@ -794,7 +667,7 @@ async function main() {
               dropReplaced(oldPaths, paths);
             } else {
               console.warn(
-                "  could not find the assets.plan-views or specs-poster line in " + repoPath(target.absPath) +
+                "  could not find the assets.plan-views or hand-poster line in " + repoPath(target.absPath) +
                 " for " + product.name + " — set it by hand: " + planViewsLine(paths)
               );
             }
@@ -815,7 +688,7 @@ async function main() {
               dropReplaced(design["plan-views"], designPaths);
             } else {
               console.warn(
-                "  could not find design " + design.key + "'s plan-views or specs-poster in " + repoPath(target.absPath) +
+                "  could not find design " + design.key + "'s plan-views or fallback-img in " + repoPath(target.absPath) +
                 " for " + product.name + " — set it by hand: " + planViewsLine(designPaths)
               );
             }
@@ -824,7 +697,7 @@ async function main() {
       }
     }
 
-    for (const metal of handPostersOnly || specsPostersOnly || planViewsOnly ? [] : metals) {
+    for (const metal of handPostersOnly || planViewsOnly ? [] : metals) {
       console.log("\n--- " + metal + " ---");
 
       for (const target of targets) {
@@ -942,7 +815,7 @@ async function main() {
 
     }
 
-    if (!onlyProducts && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly && !planViewsOnly) {
+    if (!onlyProducts && !wheelPostersOnly && !handPostersOnly && !planViewsOnly) {
       console.log("\n--- swatches ---");
       await renderSwatches(page, metals, swatchHdriPath, swatchBlur, swatchCamera);
     }
@@ -955,7 +828,7 @@ async function main() {
     }
 
     // The new icons are the source of the 128px thumbnails.
-    if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly && !specsPostersOnly && !planViewsOnly) {
+    if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly && !planViewsOnly) {
       console.log("\n--- icon thumbnails ---");
       await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
     }

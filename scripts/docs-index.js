@@ -35,7 +35,7 @@ const FOLDERS = {
   "assets/hdri/": "Environment maps the models are lit with.",
   "assets/series/": "One folder per series: its hero art and its products' files.",
   "hero/": "That series' homepage hero art.",
-  "products/": "One folder per product, <name>_<category>: model, wireframe, print model (not in git), renders, x-ray, photos.",
+  "products/": "One folder per product, <name>_<category>: model, print model (not in git), renders, x-ray, photos.",
   "scripts/": "Node tooling: the build checks, the catalog pipeline and the dev tools' servers.",
   "public/": "Copied as-is to the root of dist/.",
   ".github/workflows/": "CI: verify on every pull request, deploy on every push to main.",
@@ -47,7 +47,7 @@ const FOLDERS = {
   "assets/logo_compact.svg": "The compact mark, also the favicon.",
   "assets/hand-pointer-thumb-opened.svg": "The 3D viewer's idle nudge hand.",
   "assets/hand_normal.webp": "Unused, never shipped (NEVER_COPY in vite.config.js).",
-  "assets/metal-sample_*.webp": "The metal picker's swatches, rendered by npm run auto-render."
+  "assets/metal-sample_*.webp": "The material dial's swatches, rendered by npm run auto-render."
 };
 
 const problems = [];

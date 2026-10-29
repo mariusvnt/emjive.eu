@@ -137,8 +137,8 @@
                 <span class="product-reset__arrow" aria-hidden="true"></span>
               </button>
             </div>
-            <!-- While a dial is open, its active option's name over the model
-                 (js/product.js). -->
+            <!-- While a dial is open, its active option's name between the
+                 model and the dials (js/product.js). -->
             <p class="product-dial-name" id="productDialName" aria-hidden="true"></p>
             <!-- A held view's dimensions over the model (js/product.js renderPlanViews). -->
             <div class="product-outlines" id="productOutlines" aria-hidden="true" hidden></div>
@@ -147,30 +147,15 @@
             <div class="product-below" data-stage-owner="design">
 
               <!-- Shape (only with more than one design) and material, each a
-                   sectioned disc (js/option-dial.js), then the size (js/product.js
-                   wireSizeDial: open, a vertical line to slide along, "Find my
-                   size" by its head; hidden for unitless categories). -->
+                   sectioned disc, then the size (open, a vertical line to slide
+                   along, "Find my size" by its head; hidden for unitless
+                   categories), all built by js/option-dial.js. -->
               <div class="product-dials">
                 <div id="productShapeDial" hidden></div>
                 <div id="productMaterialDial"></div>
-                <div class="product-dial product-dial--size" id="productSizeDial" hidden>
-                  <button class="product-dial__button" type="button" role="slider" aria-label="Size" aria-orientation="vertical" aria-expanded="false">
-                    <span class="product-size-dial__value" aria-hidden="true"></span>
-                  </button>
-                  <span class="product-dial__label" aria-hidden="true"></span>
-                  <span class="product-dial__wheel" aria-hidden="true">
-                    <span class="product-dial__blur"><span></span><span></span><span></span></span>
-                  </span>
-                  <div class="product-size-dial__menu">
-                    <span class="product-size-dial__track" aria-hidden="true">
-                      <span class="product-size-dial__line"></span>
-                      <span class="product-size-dial__marker"></span>
-                    </span>
-                    <button class="product-size__finder-toggle" id="productSizeFinderToggle" type="button" hidden>Find my size</button>
-                  </div>
-                  <!-- The size, in the sheets' form ("62.0"). -->
-                  <input type="hidden" id="productSizeInput" />
-                </div>
+                <div id="productSizeDial" hidden></div>
+                <!-- The size, in the sheets' form ("62.0"). -->
+                <input type="hidden" id="productSizeInput" />
               </div>
 
               <!-- The information, in clusters (the material; the cost; shipping
@@ -180,7 +165,7 @@
                 <div class="product-info__group">
                   <!-- The chosen metal's composition. -->
                   <section class="product-info__item" id="productCompositionItem" aria-labelledby="productCompositionLabel" hidden>
-                    <h2 class="product-info__label" id="productCompositionLabel">Composition</h2>
+                    <h2 class="product-info__label" id="productCompositionLabel">Material</h2>
                     <div class="product-info__value">
                       <p class="product-info__text" id="productComposition"></p>
                     </div>
@@ -254,42 +239,37 @@
   <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
 </span>
 
-<!-- Select bar: "Select" opens the size sheet, "Add" while it is open
+<!-- Select bar: "Add" opens the review sheet, "Confirm" while it is open
      (js/product.js). -->
 <div class="product-select-bar glass" id="productSelectBar" hidden>
   <span class="glass__blur" aria-hidden="true">
     <span class="glass__blur-set glass__blur-set--top"><span></span><span></span><span></span></span>
     <span class="glass__blur-set glass__blur-set--bottom"><span></span><span></span><span></span></span>
   </span>
-  <button class="product-select-bar__button" id="selectButton" type="button"><span class="product-select-bar__label">Select</span></button>
+  <button class="product-select-bar__button" id="selectButton" type="button"><span class="product-select-bar__label">Add</span></button>
 </div>
 
-<!-- Size sheet, opened by the Select bar; a pure picker, confirmed by the
-     bar's "Add". role/aria-* sit here, not on the panel, because
-     js/focus-trap.js traps the whole modal; tabindex="-1" lets it take focus. -->
+<!-- Review sheet, opened by the Select bar's "Add": the item as configured,
+     confirmed by the bar's "Confirm" (js/product.js). role/aria-* sit here,
+     not on the panel, because js/focus-trap.js traps the whole modal;
+     tabindex="-1" lets it take focus. -->
 <div class="size-modal size-modal--drawer size-modal--select-bar" id="sizeModal" aria-hidden="true"
-     role="dialog" aria-modal="true" aria-label="Choose a size" tabindex="-1">
+     role="dialog" aria-modal="true" aria-label="Review your item" tabindex="-1">
   <div class="size-modal__backdrop" id="sizeModalBackdrop"></div>
   <div class="size-modal__sheet">
     <div class="size-modal__panel">
       <div class="size-modal__content">
-        <!-- The page's own metal picker, mirrored by js/product.js. -->
-        <div class="size-modal__custom-row size-modal__custom-row--material">
-          <span class="size-modal__custom-label" aria-hidden="true">Material</span>
-          <div class="size-modal__custom-field">
-            <div class="product-metals" id="sizeModalMetals"></div>
+        <dl class="size-modal__review">
+          <div class="size-modal__review-row" id="sizeModalShapeRow" hidden>
+            <dt>Shape</dt><dd id="sizeModalShape"></dd>
           </div>
-        </div>
-        <div class="size-modal__custom-row">
-          <label class="size-modal__custom-label" for="sizeModalCustomInput">Size</label>
-          <div class="size-modal__custom-field">
-            <span class="size-modal__custom-underline">
-              <input class="size-modal__custom-input" id="sizeModalCustomInput" type="text" inputmode="decimal" autocomplete="off" />
-              <span class="size-modal__custom-unit" id="sizeModalCustomUnit"></span>
-            </span>
-            <button class="size-modal__finder-toggle" id="sizeModalFinderToggle" type="button" hidden>Find my size</button>
+          <div class="size-modal__review-row">
+            <dt>Material</dt><dd id="sizeModalMaterial"></dd>
           </div>
-        </div>
+          <div class="size-modal__review-row">
+            <dt>Size</dt><dd id="sizeModalSize"></dd>
+          </div>
+        </dl>
       </div>
     </div>
   </div>
@@ -297,17 +277,17 @@
 
 <!-- Deferred, run in document order after the viewer-entry.js module (so
      window.EmjiveLoadViewer exists). Helpers precede their users:
-     focus-trap.js, option-dial.js and product-stages.js before product.js,
-     order-rows.js before selection-bar.js. -->
+     focus-trap.js and option-dial.js before modify-modal.js and product.js,
+     product-stages.js before product.js, order-rows.js before
+     selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
 <script src="js/order-rows.js" defer></script>
-<script src="js/metal-picker.js" defer></script>
 <script src="js/size-finder.js" defer></script>
+<script src="js/option-dial.js" defer></script>
 <script src="js/modify-modal.js" defer></script>
 <script src="js/selection-bar.js" defer></script>
 <script src="js/main.js" defer></script>
-<script src="js/option-dial.js" defer></script>
 <script src="js/product-stages.js" defer></script>
 <script src="js/product.js" defer></script>
 </body>

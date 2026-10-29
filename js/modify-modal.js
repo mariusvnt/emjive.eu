@@ -2,7 +2,9 @@
 // (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
 // A bottom sheet (.size-modal--drawer) above the page's bar holding the live
 // model (its poster until the sheet has slid in, scheduleViewer) with a
-// "Go to page" button, the metal picker, and the size field with "Find my size".
+// button named after the item leading to its page, and the product page's
+// dials (js/option-dial.js): shape (with more than one design), material,
+// size with "Find my size".
 //
 // Its buttons are a strip the page's bar turns into (options.bar): Unselect |
 // Save. Unselect removes the item and the list keeps its row as an Undo line
@@ -13,8 +15,8 @@
 // options:
 //   bar                         { el, show(strip), hide(strip) }: the strip goes
 //                               into el; the bar sequences the swap
-//   onPreview(index, values)    the draft changed: show { metal, size, price,
-//                               image } on the row without storing (null: revert)
+//   onPreview(index, values)    the draft changed: show { name, metal, size,
+//                               price, image } on the row without storing (null: revert)
 //   offerUndo(index, handlers)  hold the row as an Undo line (js/order-rows.js);
 //                               without it an Unselect is final
 //   onOpen(item), onClose()     the sheet is up / has closed
@@ -22,13 +24,13 @@
 //                               catches focus left on an expired Undo
 // Changes go through js/selection.js, whose "emjive:selection-changed" the
 // lists follow. Dispatches "emjive:modify-open" before building (js/product.js
-// closes its size sheet, js/gallery-stack.js frees its focused viewer's WebGL
-// context) and "emjive:modify-close" once the viewer is disposed.
+// closes its review sheet, js/gallery-stack.js frees its focused viewer's
+// WebGL context) and "emjive:modify-close" once the viewer is disposed.
 
 (function () {
   "use strict";
 
-  if (!window.EmjiveSelection || !window.EmjiveSeries) return;
+  if (!window.EmjiveSelection || !window.EmjiveSeries || !window.EmjiveOptionDial) return;
 
   // The sheet's 0.3s slide-out plus a margin: dispose the viewer only once out
   // of sight, or the model blanks mid-slide.
@@ -63,48 +65,22 @@
   var modelFrame = el("div", "size-modal__frame");
   var slot = el("div", "size-modal__slot");
   modelFrame.appendChild(slot);
-  var pageToggle = el("button", "size-modal__page-toggle", "Go to page");
+  var pageToggle = el("button", "size-modal__page-toggle");
   pageToggle.type = "button";
   pageToggle.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12 H21 M14 5 L21 12 L14 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
+  var pageLabel = el("span", "size-modal__page-label");
+  pageToggle.appendChild(pageLabel);
   modelFrame.appendChild(pageToggle);
 
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
-
-  var materialRow = el("div", "size-modal__custom-row size-modal__custom-row--material");
-  var materialLabel = el("span", "size-modal__custom-label", "Material");
-  materialLabel.setAttribute("aria-hidden", "true");
-  var materialField = el("div", "size-modal__custom-field");
-  var metalsRow = el("div", "product-metals");
-  materialField.appendChild(metalsRow);
-  materialRow.appendChild(materialLabel);
-  materialRow.appendChild(materialField);
-
-  var sizeRow = el("div", "size-modal__custom-row");
-  var sizeLabel = el("label", "size-modal__custom-label", "Size");
-  sizeLabel.htmlFor = "modifyModalCustomInput";
-  var sizeField = el("div", "size-modal__custom-field");
-  var sizeUnderline = el("span", "size-modal__custom-underline");
-  var sizeInput = el("input", "size-modal__custom-input");
-  sizeInput.id = "modifyModalCustomInput";
-  sizeInput.type = "text";
-  // Numeric keypad on mobile; js/selection.js filters the rest.
-  sizeInput.setAttribute("inputmode", "decimal");
-  sizeInput.setAttribute("autocomplete", "off");
-  var sizeUnit = el("span", "size-modal__custom-unit");
-  sizeUnderline.appendChild(sizeInput);
-  sizeUnderline.appendChild(sizeUnit);
-  sizeField.appendChild(sizeUnderline);
-  var finderToggle = el("button", "size-modal__finder-toggle", "Find my size");
-  finderToggle.type = "button";
-  finderToggle.hidden = true;
-  sizeField.appendChild(finderToggle);
-  sizeRow.appendChild(sizeLabel);
-  sizeRow.appendChild(sizeField);
-
-  content.appendChild(materialRow);
-  content.appendChild(sizeRow);
-
+  // While a dial is open, its active option's name (showDialName).
+  var dialName = el("p", "size-modal__dial-name");
+  dialName.setAttribute("aria-hidden", "true");
+  content.appendChild(dialName);
+  // The dials, built per open (mountDials).
+  var dials = el("div", "product-dials size-modal__dials");
+  content.appendChild(dials);
   panel.appendChild(content);
 
   var sheet = el("div", "size-modal__sheet");
@@ -152,11 +128,19 @@
     openToken: 0,
     item: null,
     index: null,
+    // The catalog product, and the product as the chosen design (state.product,
+    // EmjiveSeries.resolveDesign), which the model, icons and name follow.
+    base: null,
     product: null,
+    designKey: "",
     slug: null,
     selectedMetal: null,
-    // The category's size guide, for the size finder.
-    guide: null,
+    // The chosen size, mm.
+    sizeMm: H.REFERENCE_SIZE_MM,
+    // The dials (js/option-dial.js); shapeDial null without one, sizeDial
+    // null for a unitless category.
+    shapeDial: null,
+    sizeDial: null,
     options: {},
     modelHandle: null,
     // The model's slide (in the slot) and the image standing in for the model
@@ -180,6 +164,10 @@
   // The viewer's own poster image, so the swap moves nothing; the icon only without one.
   function posterSrc(metal) {
     return H.posterFor(state.product, metal);
+  }
+
+  function itemName() {
+    return state.product.designName || state.base.name || "";
   }
 
   // "modify" (Unselect | Save) or "saved" (band growing and fading, buttons
@@ -225,27 +213,113 @@
     });
   }
 
-  /* ---- metal picker: mounted per open, then updated in place (focus stays put) ---- */
-  function renderMetalOptions() {
-    window.EmjiveMetalPicker.mount(metalsRow, {
-      metals: window.EmjiveSeries.metals || [],
-      selected: state.selectedMetal,
-      row: true,
-      onSelect: selectMetal
+  /* ---- the dials: built per open, each on a fresh host (a dial's listeners
+     live on its host) ---- */
+  function dialHost() {
+    var host = el("div");
+    dials.appendChild(host);
+    return host;
+  }
+
+  function shapeOptions() {
+    return state.base.designs.list.map(function (design) {
+      return {
+        key: design.key,
+        label: design.key,
+        preview: function () {
+          var img = el("img", "product-dial__icon");
+          img.alt = "";
+          img.decoding = "async";
+          img.draggable = false;
+          var src = H.assetFor(window.EmjiveSeries.resolveDesign(state.base, design.key).view, "icons", state.selectedMetal);
+          if (src) img.src = src;
+          return img;
+        }
+      };
     });
   }
 
-  // The item as Save would store it now. An unorderable field keeps the item's
-  // size, so the row's label never blanks.
+  // "" hides it.
+  function showDialName(text) {
+    if (text) dialName.textContent = text;
+    dialName.classList.toggle("is-shown", !!text);
+  }
+
+  function mountDials() {
+    dials.innerHTML = "";
+    showDialName("");
+    var designs = state.base.designs;
+    state.shapeDial = designs && Array.isArray(designs.list) && designs.list.length > 1
+      ? window.EmjiveOptionDial.mount(dialHost(), {
+        name: "Shape",
+        mode: "icons",
+        options: shapeOptions(),
+        selected: state.designKey,
+        onSelect: selectDesign,
+        onShow: showDialName
+      })
+      : null;
+    window.EmjiveOptionDial.mount(dialHost(), {
+      name: "Material",
+      mode: "fill",
+      options: (window.EmjiveSeries.metals || []).map(function (metal) {
+        return {
+          key: metal,
+          label: metal,
+          // The swatch as css/style.css draws it.
+          preview: function () {
+            var swatch = el("span", "product-dial__swatch");
+            swatch.setAttribute("data-metal", metal);
+            return swatch;
+          }
+        };
+      }),
+      selected: state.selectedMetal,
+      onSelect: selectMetal,
+      onShow: showDialName
+    });
+    state.sizeDial = null;
+    var info = window.EmjiveSeries.categoryInfo(state.base.category);
+    if (!info.unit) return;
+    // "Find my size" with the category's size guide; none without one. Its
+    // result goes in as if dialled.
+    var guide = info["size-guide"];
+    var range = H.sizeRange(state.base);
+    var dial = window.EmjiveOptionDial.mountSize(dialHost(), {
+      unit: info.unit,
+      range: range,
+      onChange: selectSize,
+      onShow: showDialName,
+      onFind: window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length ? function () {
+        window.EmjiveSizeFinder.open({
+          guide: guide,
+          returnFocus: dial.finder,
+          onFill: function (size) {
+            var mm = H.clamp(Math.round(parseFloat(window.EmjiveSelection.normalizeSize(size)) * 10) / 10, range.min, range.max);
+            if (!isFinite(mm)) return;
+            dial.set(mm, true);
+            selectSize(mm);
+          }
+        });
+      } : null
+    });
+    dial.set(state.sizeMm, true);
+    state.sizeDial = dial;
+  }
+
+  // The item as Save would store it now.
   function draftValues() {
     var sel = window.EmjiveSelection;
-    var size = sel.isOrderableSize(state.product, sizeInput.value) ? sel.normalizeSize(sizeInput.value) : state.item.size;
-    return {
+    var size = sel.normalizeSize(String(state.sizeMm));
+    var values = {
+      name: itemName(),
       metal: state.selectedMetal,
       size: size,
-      price: sel.priceAt(state.product, state.selectedMetal, size),
+      price: sel.priceAt(state.base, state.selectedMetal, size),
       image: iconSrc(state.selectedMetal)
     };
+    if (state.base.designs) values.design = state.designKey;
+    return values;
   }
 
   // The row follows the draft live; nothing is stored until Save.
@@ -259,14 +333,38 @@
     if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
   });
 
+  // The stand-in images follow the design and metal.
+  function syncStandIns() {
+    if (state.posterImg) state.posterImg.src = posterSrc(state.selectedMetal);
+    if (state.iconImg) state.iconImg.src = iconSrc(state.selectedMetal);
+  }
+
   function selectMetal(metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
     previewDraft();
-    // The stand-in images need their own swap.
-    if (state.posterImg) state.posterImg.src = posterSrc(metal);
-    if (state.iconImg) state.iconImg.src = iconSrc(metal);
+    syncStandIns();
+    // The shape previews are the designs in this metal.
+    if (state.shapeDial) state.shapeDial.setOptions(shapeOptions());
     tintAfterPaint();
+  }
+
+  // Another design: the model swaps in place, camera kept (setProduct).
+  function selectDesign(key) {
+    if (key === state.designKey) return;
+    state.designKey = key;
+    state.product = window.EmjiveSeries.resolveDesign(state.base, key).view;
+    pageLabel.textContent = itemName();
+    previewDraft();
+    syncStandIns();
+    if (state.modelHandle && state.modelHandle.setProduct) state.modelHandle.setProduct(state.product);
+  }
+
+  function selectSize(mm) {
+    state.sizeMm = mm;
+    syncSave();
+    previewDraft();
+    if (state.modelHandle) state.modelHandle.setSize(mm);
   }
 
   /* ---- the model's slide: the poster (scheduleViewer), or the icon without a model ---- */
@@ -317,7 +415,7 @@
 
   // Already on that product's page: close and scroll to the top instead.
   function goToPage() {
-    var href = window.EmjiveSeries.productHref(state.product);
+    var href = window.EmjiveSeries.productHref(state.base);
     if (window.location.pathname.replace(/\/+$/, "") === href) {
       close();
       window.scrollTo({ top: 0, left: 0 });
@@ -351,6 +449,17 @@
     });
   }
 
+  // The model's share of the viewer's box: 1 / --model-room (css/style.css),
+  // the rest being room for larger sizes. Read once.
+  var modelRest = 0;
+  function readModelRest() {
+    if (!modelRest) {
+      var room = parseFloat(getComputedStyle(modal).getPropertyValue("--model-room"));
+      modelRest = room > 0 ? 1 / room : 1;
+    }
+    return modelRest;
+  }
+
   function buildViewer() {
     var slide = state.modelSlide;
     if (!state.isOpen || !slide || state.modelHandle) return;
@@ -358,10 +467,12 @@
       hdri: window.EmjiveSeries.hdriPath(state.slug),
       // The viewer's box has no visible edge.
       loaderBleed: true,
+      sizing: { restScale: readModelRest() },
       onError: function () { restorePoster(handle); }
     });
     // No WebGL context: the poster stays.
     if (!handle) return;
+    handle.setSize(state.sizeMm);
     state.modelHandle = handle;
     state.posterImg = null;
     slide.innerHTML = "";
@@ -405,22 +516,20 @@
   /* ---- Save, Unselect, Undo ---- */
 
   function orderable() {
-    return window.EmjiveSelection.isOrderableSize(state.product, sizeInput.value);
+    return window.EmjiveSelection.isOrderableSize(state.base, String(state.sizeMm));
   }
 
-  // Save stays visible but acts only on an orderable size; the field shows the range.
+  // Save stays visible but acts only on an orderable size.
   function syncSave() {
     saveBtn.disabled = !orderable();
-    window.EmjiveSelection.syncSizeField(sizeInput, state.product);
   }
 
-  // quiet: an Enter save hands focus back without a ring (js/focus-trap.js).
-  function save(quiet) {
+  function save() {
     if (!state.isOpen || !orderable()) return;
     window.EmjiveSelection.updateItem(state.index, draftValues());
     // The strip stays up for the band to play out; the row already shows what was saved.
     var bar = state.options.bar;
-    close({ keepStrip: true, keepPreview: true, quiet: quiet === true });
+    close({ keepStrip: true, keepPreview: true });
     leaveAfterSave(bar);
   }
 
@@ -504,33 +613,6 @@
   saveBtn.addEventListener("click", save);
   unselectBtn.addEventListener("click", unselect);
 
-  // Written back only when changed, so the caret doesn't jump.
-  sizeInput.addEventListener("input", function () {
-    var cleaned = window.EmjiveSelection.sanitizeSizeInput(sizeInput.value);
-    if (cleaned !== sizeInput.value) sizeInput.value = cleaned;
-    syncSave();
-    previewDraft();
-  });
-
-  // Enter saves, like the bar's Save.
-  sizeInput.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    save(true);
-  });
-
-  // The finder's result goes in as if typed.
-  finderToggle.addEventListener("click", function () {
-    window.EmjiveSizeFinder.open({
-      guide: state.guide,
-      returnFocus: finderToggle,
-      onFill: function (size) {
-        sizeInput.value = window.EmjiveSelection.normalizeSize(size);
-        sizeInput.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    });
-  });
-
   backdrop.addEventListener("click", function () { close(); });
 
   /* ---- open / close ---- */
@@ -549,22 +631,24 @@
 
     state.item = item;
     state.index = index;
-    state.product = product;
+    state.base = product;
+    // Shown in the item's chosen design.
+    state.product = window.EmjiveSeries.resolveDesign(product, item.design).view;
+    state.designKey = state.product.designKey;
     state.slug = slug;
     state.selectedMetal = item.metal;
+    var mm = parseFloat(item.size);
+    state.sizeMm = isFinite(mm) ? mm : H.REFERENCE_SIZE_MM;
     state.options = options;
 
     // Every metal's icon and poster decoded now, so picks swap at once.
-    var assets = product.assets || {};
+    var assets = state.product.assets || {};
     H.preload(
       Object.keys(assets.icons || {}).map(function (m) { return assets.icons[m]; })
         .concat(Object.keys(assets["fallback-img"] || {}).map(function (m) { return assets["fallback-img"][m]; }))
     );
-    renderMetalOptions();
-    sizeUnit.textContent = window.EmjiveSeries.categoryInfo(item.category).unit || "";
-    sizeInput.value = window.EmjiveSelection.normalizeSize(item.size);
-    state.guide = window.EmjiveSeries.categoryInfo(item.category)["size-guide"];
-    finderToggle.hidden = !(window.EmjiveSizeFinder && state.guide && state.guide.rows && state.guide.rows.length);
+    pageLabel.textContent = itemName();
+    mountDials();
     buildSlide();
     // Mounted (normally already, via attach) before the mode is set, so it is laid out first.
     mountStrip(options.bar);
@@ -590,7 +674,6 @@
   // keepStrip    the strip stays up (a Save's band still to play)
   // keepPreview  the row keeps the draft (a Save, or an Unselect's leaving row)
   // focus        where focus goes instead of returnFocus
-  // quiet        no focus ring (an Enter save)
   function close(opts) {
     if (!state.isOpen) return;
     opts = opts || {};
@@ -600,7 +683,7 @@
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
     if (!opts.keepStrip && options.bar) options.bar.hide(strip);
-    window.EmjiveFocusTrap.release(opts.focus, opts.quiet === true);
+    window.EmjiveFocusTrap.release(opts.focus);
     // A pending viewer build is cancelled; a built one goes after the slide-out.
     if (state.cancelViewerBuild) {
       state.cancelViewerBuild();
@@ -627,8 +710,7 @@
             window.EmjiveOrderRows.notice("This item listing couldn't be found, please reload.");
             return;
           }
-          // Shown in the item's chosen design; the sheet doesn't change it.
-          show(item, index, window.EmjiveSeries.resolveDesign(product, item.design).view, slug, options || {});
+          show(item, index, product, slug, options || {});
         });
       })
       // A failed fetch gets the same notice as a missing product.

@@ -1,5 +1,5 @@
 // The product page: resolves the item from the address and renders its label,
-// photo feed, model, design options, metal picker, size, plan views, the
+// photo feed, model, dials (shape, material, size), plan views, the
 // information and the selection flow across the two stages
 // js/product-stages.js drives, handling what CSS can't (the band's reveal of
 // the model, its lift, the feed's and the design column's room).
@@ -78,7 +78,7 @@
     // A metal has been picked (the default isn't a pick): until then the price
     // reads from the cheapest metal.
     metalPicked: false,
-    // The size dial's elements (wireSizeDial).
+    // The size dial (js/option-dial.js mountSize; wireSelectButton).
     sizeDial: null,
     // The plan views' elements by view name and the design's frame
     // (EmjiveHelpers.planFrame).
@@ -241,6 +241,9 @@
 
     renderLabel(product);
     var modelParts = renderModel(product);
+    // Design's lead picture, as the feed's first photo is inspiration's: not
+    // held back by the first paint.
+    startXray(product);
     renderDesigns(product);
     renderMetalOptions(product);
     renderCosts();
@@ -267,7 +270,10 @@
   }
 
   // Resolves once the browser reports the feed's largest contentful paint, or
-  // after a cap, or after two frames without the LCP API.
+  // after a cap, or after two frames without the LCP API. Also after two
+  // frames when the feed's first photo isn't on screen (none, or the page
+  // opened past inspiration): the browser reports no paint for it, and the
+  // wait would run to the cap.
   var AFTER_PAINT_CAP_MS = 2000;
 
   function afterFirstPaint() {
@@ -280,8 +286,15 @@
         if (observer) observer.disconnect();
         resolve();
       }
-      setTimeout(finish, AFTER_PAINT_CAP_MS);
       var frame = document.getElementById("productFeedColumn");
+      var first = frame && frame.querySelector(".product-feed__photo img");
+      var box = first && first.getBoundingClientRect();
+      var onScreen = !!box && box.bottom > 0 && box.top < screenHeight() && getComputedStyle(first).visibility !== "hidden";
+      if (!onScreen) {
+        requestAnimationFrame(function () { requestAnimationFrame(finish); });
+        return;
+      }
+      setTimeout(finish, AFTER_PAINT_CAP_MS);
       try {
         observer = new PerformanceObserver(function (list) {
           list.getEntries().forEach(function (entry) {
@@ -299,7 +312,7 @@
   var FIRST_PAINT_WAIT_MS = 6000;
 
   // The x-ray behind the model in design: independent of metal and design;
-  // hidden without assets.xray. Loaded after the first paint.
+  // hidden without assets.xray. Started with the page (render).
   function startXray(product) {
     var xray = document.getElementById("productDesignXray");
     var xraySrc = product.assets && product.assets.xray;
@@ -312,6 +325,12 @@
     // narrower box in the phone CSS).
     var loader = window.EmjiveLoader;
     state.xraySrc = xraySrc;
+    // Ahead of the viewer's downloads, which would otherwise outrank an image;
+    // its low-res version is small.
+    xray.fetchPriority = "high";
+    // Hidden until its first picture is in (.is-loading).
+    xray.classList.add("is-loading");
+    xray.addEventListener("load", function () { xray.classList.remove("is-loading"); }, { once: true });
     if (loader) {
       loader.setSrc(xray, loader.versions(xraySrc, true).first, xraySrc);
       // Crossing the phone/desktop line reshapes the box: switch straight to the other set's high-res.
@@ -328,12 +347,11 @@
   }
 
   // After the first paint: other metals' icons, the rest of the feed, the
-  // viewer and the x-ray.
+  // viewer and the high-res x-ray.
   function loadRemainingAssets(product, feed, modelParts) {
     preloadIcons(state.view);
     feed.loadRest();
     modelParts.mountViewer();
-    startXray(product);
     // The high-res x-ray once the model is up (or after VIEWER_SETTLE_WAIT_MS), so
     // it never competes with the viewer's downloads.
     if (state.xraySrc && window.EmjiveLoader) {
@@ -784,7 +802,7 @@
         poster: false,
         // The size, plan views and outlines, and the model at its own size in
         // its roomier box (modelRest).
-        blueprint: { lineColor: pageColor("--category-col", "#727272"), restScale: modelRest() }
+        sizing: { restScale: modelRest() }
       });
     }
 
@@ -943,7 +961,8 @@
 
   /* ---- 2c. the dials: shape, material ---- */
 
-  // While a dial is open, its active option's name over the model ("" hides it).
+  // While a dial is open, its active option's name between the model and
+  // the dials ("" hides it).
   function showDialName(text) {
     var node = document.getElementById("productDialName");
     if (!node) return;
@@ -1026,11 +1045,9 @@
 
   /* ---- 3. metal selection ---- */
 
-  // The material dial (a metal's swatch as its preview) and the Select
-  // sheet's picker, each mirroring the other.
+  // The material dial: a metal's swatch as its preview.
   function renderMetalOptions(product) {
-    var sheetPicker = null;
-    var dial = window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
+    window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
       name: "Material",
       mode: "fill",
       options: state.metals.map(function (metal) {
@@ -1046,22 +1063,8 @@
         };
       }),
       selected: state.selectedMetal,
-      onSelect: function (metal) {
-        if (sheetPicker) sheetPicker.select(metal);
-        onMetalSelect(product, metal);
-      },
+      onSelect: function (metal) { onMetalSelect(product, metal); },
       onShow: showDialName
-    });
-    var sheetMetals = document.getElementById("sizeModalMetals");
-    if (!sheetMetals) return;
-    sheetPicker = window.EmjiveMetalPicker.mount(sheetMetals, {
-      metals: state.metals,
-      selected: state.selectedMetal,
-      row: true,
-      onSelect: function (metal) {
-        dial.select(metal);
-        onMetalSelect(product, metal);
-      }
     });
   }
 
@@ -1679,6 +1682,7 @@
     } else if (modelBoxEl) {
       modelBoxEl.style.removeProperty("--model-cut");
     }
+    if (modelBoxEl) modelBoxEl.classList.toggle("is-cut", cutting);
     if (band) band.classList.toggle("is-on", cutting);
     fitFeed();
     applyStageToViewer();
@@ -1726,247 +1730,9 @@
     syncSizeDial();
   }
 
-  /* ---- the size dial ---- */
-
-  // The size as a dial beside the others: a circle holding the size, the
-  // unit under it. Open, the circle gives way to a vertical line from
-  // SIZE_MIN_MM (its foot) to SIZE_MAX_MM (its head), a marker at the size,
-  // and "Find my size" to its left. Sliding up raises the size, down lowers
-  // it, by the pointer's travel at the line's pitch times a gain that falls
-  // with its speed (smoothed over SIZE_SPEED_MS): 1 at SIZE_FAST_PX_MS and
-  // over, SIZE_FINE_GAIN at SIZE_SLOW_PX_MS and under, for fine settings.
-  // A fine pointer that hovers: hovering opens, a press slides, leaving
-  // closes. Touch: a tap opens (then a slide on the line moves the size, a
-  // tap elsewhere closes); a press held SIZE_HOLD_MS, or slid, opens it under
-  // the finger and slides, closing on release (a hold released unmoved
-  // leaves it open). Keyboard: the arrows, Shift+arrows and PageUp/PageDown
-  // step the size; Enter or Space opens and closes, Escape closes.
-  var SIZE_KEY_STEP = 0.5;
-  var SIZE_KEY_FINE = 0.1;
-  var SIZE_KEY_PAGE = 5;
-  var SIZE_HOLD_MS = 250;
-  var SIZE_SLOP_PX = 6;
-  var SIZE_FAST_PX_MS = 0.2;
-  var SIZE_SLOW_PX_MS = 0.03;
-  var SIZE_FINE_GAIN = 0.2;
-  var SIZE_SPEED_MS = 60;
-  // Leaving the dial closes it after this long; coming back keeps it.
-  var SIZE_LEAVE_MS = 200;
-  var sizeHoverMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
-
-  // A size as the dial shows it: "62", "62.5".
-  function sizeLabel(mm) {
-    return String(Math.round(mm * 10) / 10);
-  }
-
-  // The dial at the size: its number, the marker's place on the line
-  // (--size-at, its share of the way up), and its name over the model while
-  // open. Runs on any size change.
+  // The size dial at the model's size, the visitor's once orderable.
   function syncSizeDial() {
-    var dial = state.sizeDial;
-    if (!dial) return;
-    var mm = clamp(state.sizeMm, SIZE_MIN_MM, SIZE_MAX_MM);
-    var text = sizeLabel(mm);
-    var given = state.sizeText !== "";
-    dial.value.textContent = text;
-    dial.host.style.setProperty("--size-at", ((mm - SIZE_MIN_MM) / (SIZE_MAX_MM - SIZE_MIN_MM)).toFixed(4));
-    dial.host.classList.toggle("is-unset", !given);
-    dial.button.setAttribute("aria-valuenow", given ? state.sizeText : String(SIZE_BASE_MM));
-    dial.button.setAttribute("aria-valuetext", text + " " + dial.unit);
-    if (dial.isOpen()) showDialName(text + " " + dial.unit);
-  }
-
-  // Wires the size dial, which writes the size into `field` (the size as the
-  // sheets' field holds it); the model follows (setModelSize).
-  function wireSizeDial(field, unit) {
-    var host = document.getElementById("productSizeDial");
-    if (!host) return;
-    var button = host.querySelector(".product-dial__button");
-    var track = host.querySelector(".product-size-dial__track");
-    var isOpen = false;
-    var leaveTimer = 0;
-    host.hidden = false;
-    host.querySelector(".product-dial__label").textContent = unit;
-    button.setAttribute("aria-valuemin", String(SIZE_MIN_MM));
-    button.setAttribute("aria-valuemax", String(SIZE_MAX_MM));
-    state.sizeDial = {
-      host: host,
-      button: button,
-      value: host.querySelector(".product-size-dial__value"),
-      unit: unit,
-      isOpen: function () { return isOpen; }
-    };
-
-    function setSize(mm) {
-      mm = clamp(Math.round(mm * 10) / 10, SIZE_MIN_MM, SIZE_MAX_MM);
-      field.value = mm.toFixed(1);
-      setModelSize(field.value);
-    }
-    function currentSize() {
-      var mm = parseFloat(field.value);
-      return window.EmjiveSelection.isValidSize(field.value) && isFinite(mm) ? mm : SIZE_BASE_MM;
-    }
-
-    function open() {
-      clearTimeout(leaveTimer);
-      if (isOpen) return;
-      isOpen = true;
-      host.classList.add("is-open");
-      button.setAttribute("aria-expanded", "true");
-      document.addEventListener("pointerdown", onOutside, true);
-      syncSizeDial();
-    }
-    function close() {
-      clearTimeout(leaveTimer);
-      if (!isOpen) return;
-      isOpen = false;
-      host.classList.remove("is-open");
-      button.setAttribute("aria-expanded", "false");
-      document.removeEventListener("pointerdown", onOutside, true);
-      showDialName("");
-    }
-    function onOutside(e) {
-      if (!host.contains(e.target)) close();
-    }
-
-    /* ---- sliding ---- */
-
-    var slide = null;
-    function slideFrom(e, target) {
-      slide = { id: e.pointerId, lastY: e.clientY, lastT: e.timeStamp, speed: SIZE_FAST_PX_MS, mm: currentSize() };
-      target.setPointerCapture(e.pointerId);
-    }
-    function slideTo(e) {
-      if (!slide || e.pointerId !== slide.id) return;
-      // The events' own times: a busy frame that delays handling doesn't read as a slow finger.
-      var dt = Math.max(1, e.timeStamp - slide.lastT);
-      var dy = e.clientY - slide.lastY;
-      slide.lastY = e.clientY;
-      slide.lastT = e.timeStamp;
-      var pitch = track.offsetHeight / (SIZE_MAX_MM - SIZE_MIN_MM);
-      if (dy === 0 || !(pitch > 0)) return;
-      slide.speed += (Math.abs(dy) / dt - slide.speed) * (1 - Math.exp(-dt / SIZE_SPEED_MS));
-      var gain = SIZE_FINE_GAIN + (1 - SIZE_FINE_GAIN) * H.smoothstep(SIZE_SLOW_PX_MS, SIZE_FAST_PX_MS, slide.speed);
-      slide.mm = clamp(slide.mm - (dy / pitch) * gain, SIZE_MIN_MM, SIZE_MAX_MM);
-      setSize(slide.mm);
-    }
-
-    /* ---- the button ---- */
-
-    var press = null;
-    var suppressClick = false;
-    function startPress() {
-      if (!press || press.dragging) return;
-      clearTimeout(press.timer);
-      press.dragging = true;
-      open();
-    }
-    button.addEventListener("pointerdown", function (e) {
-      if (e.pointerType === "mouse") {
-        open();
-        slideFrom(e, button);
-        return;
-      }
-      press = { id: e.pointerId, x: e.clientX, y: e.clientY, dragging: false, moved: false, timer: setTimeout(startPress, SIZE_HOLD_MS) };
-      slideFrom(e, button);
-    });
-    button.addEventListener("pointermove", function (e) {
-      if (press && e.pointerId === press.id && !press.moved) {
-        var dx = e.clientX - press.x;
-        var dy = e.clientY - press.y;
-        if (dx * dx + dy * dy < SIZE_SLOP_PX * SIZE_SLOP_PX) {
-          // Under the slop: the slide starts from here, not from the touch.
-          if (slide) slide.lastY = e.clientY;
-          return;
-        }
-        press.moved = true;
-        startPress();
-      }
-      if (press && !press.dragging) return;
-      slideTo(e);
-    });
-    function endButtonPress(e) {
-      if (slide && e.pointerId === slide.id) slide = null;
-      if (!press || e.pointerId !== press.id) return;
-      clearTimeout(press.timer);
-      var dragging = press.dragging;
-      var moved = press.moved;
-      press = null;
-      if (!dragging) return;
-      // The click that follows the release isn't a tap.
-      suppressClick = true;
-      setTimeout(function () { suppressClick = false; }, 0);
-      if (moved) close();
-    }
-    button.addEventListener("pointerup", endButtonPress);
-    button.addEventListener("pointercancel", endButtonPress);
-    button.addEventListener("click", function () {
-      if (suppressClick) {
-        suppressClick = false;
-        return;
-      }
-      if (isOpen && !sizeHoverMedia.matches) close();
-      else open();
-    });
-    button.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") {
-        close();
-        return;
-      }
-      var step = e.shiftKey ? SIZE_KEY_FINE : SIZE_KEY_STEP;
-      var next = H.sliderKey(e, currentSize(), step, SIZE_KEY_PAGE, SIZE_MIN_MM, SIZE_MAX_MM);
-      if (next === null) return;
-      e.preventDefault();
-      setSize(next);
-    });
-
-    /* ---- the line, while open ---- */
-
-    track.addEventListener("pointerdown", function (e) {
-      if (!isOpen) return;
-      slideFrom(e, track);
-    });
-    track.addEventListener("pointermove", slideTo);
-    function endTrackSlide(e) {
-      if (slide && e.pointerId === slide.id) slide = null;
-    }
-    track.addEventListener("pointerup", endTrackSlide);
-    track.addEventListener("pointercancel", endTrackSlide);
-
-    // A vertical wheel or trackpad over the open dial moves the size.
-    host.addEventListener("wheel", function (e) {
-      if (!isOpen || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      var pitch = track.offsetHeight / (SIZE_MAX_MM - SIZE_MIN_MM);
-      if (!(pitch > 0)) return;
-      e.preventDefault();
-      var px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      setSize(currentSize() - px / pitch);
-    }, { passive: false });
-
-    /* ---- hover, focus, "Find my size" ---- */
-
-    host.addEventListener("pointerenter", function (e) {
-      if (e.pointerType !== "mouse" || !sizeHoverMedia.matches) return;
-      open();
-    });
-    host.addEventListener("pointerleave", function (e) {
-      if (e.pointerType !== "mouse" || !sizeHoverMedia.matches || !isOpen || slide) return;
-      clearTimeout(leaveTimer);
-      leaveTimer = setTimeout(close, SIZE_LEAVE_MS);
-    });
-    host.addEventListener("focusout", function (e) {
-      if (isOpen && e.relatedTarget && !host.contains(e.relatedTarget)) close();
-    });
-    var finder = document.getElementById("productSizeFinderToggle");
-    if (finder) finder.addEventListener("click", close);
-    // A long press is the dial's: no context menu, which would cancel it.
-    host.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-
-    syncSizeDial();
-  }
-
-  function pageColor(token, fallback) {
-    return getComputedStyle(document.documentElement).getPropertyValue(token).trim() || fallback;
+    if (state.sizeDial) state.sizeDial.set(state.sizeMm, state.sizeText !== "");
   }
 
   function hideScanBand() {
@@ -1974,34 +1740,18 @@
     if (band) band.classList.remove("is-on");
   }
 
-  /* ---- 4. size sheet and selection ---- */
+  /* ---- 4. the size dial, the review sheet and the selection ---- */
 
+  // The Select bar's button: "Add" opens the sheet, the item as configured
+  // (shape, material, size) to review; "Confirm" adds it while the
+  // sheet is open (aria-disabled unless the size is orderable). The label
+  // fades through its change. Also wires the size dial, which writes the
+  // size into a hidden field ("62.0"); the model follows (setModelSize).
   function wireSelectButton(product) {
     var selectBtn = document.getElementById("selectButton");
     // The unit belongs to the category, in the global vocabulary.
     var info = window.EmjiveSeries.categoryInfo(product.category);
     var unit = info.unit || "";
-
-    var customInput = document.getElementById("sizeModalCustomInput");
-    var customUnit = document.getElementById("sizeModalCustomUnit");
-    var finderToggle = document.getElementById("sizeModalFinderToggle");
-    // The size finder, from the sheet and the size row, using the category's
-    // size guide; no button without one.
-    var guide = info["size-guide"];
-    var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
-    finderToggle.hidden = !hasFinder;
-    // The finder's result goes in as if typed: the sheet's way, or `format`'s.
-    function openFinder(toggle, input, format) {
-      window.EmjiveSizeFinder.open({
-        guide: guide,
-        returnFocus: toggle,
-        onFill: function (size) {
-          input.value = format ? format(size) : window.EmjiveSelection.normalizeSize(size);
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-      });
-    }
-    finderToggle.addEventListener("click", function () { openFinder(finderToggle, customInput); });
 
     var selectBar = document.getElementById("productSelectBar");
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
@@ -2015,29 +1765,46 @@
     window.addEventListener("emjive:modify-open", function () { setBarAway(true); });
     window.addEventListener("emjive:modify-close", function () { setBarAway(false); });
 
-    // A unitless category has nothing to measure: Select stays disabled.
+    // A unitless category has nothing to measure: Add stays disabled.
     if (!unit) {
       selectBtn.setAttribute("aria-disabled", "true");
       selectLabel.textContent = "No sizes available";
       return;
     }
 
-    customUnit.textContent = unit;
-
     var modal = document.getElementById("sizeModal");
-
-    // The size dial (wireSizeDial) writes the size into a hidden field, in the
-    // sheets' form; the sheet opens with its value but never writes back.
     var sizeField = document.getElementById("productSizeInput");
-    // The size dial's "Find my size".
-    var rowFinderToggle = document.getElementById("productSizeFinderToggle");
-    rowFinderToggle.hidden = !hasFinder;
     // The field holds one decimal, as the dial writes it ("62.0").
     function oneDecimal(size) {
       var mm = parseFloat(window.EmjiveSelection.normalizeSize(size));
       return isFinite(mm) ? mm.toFixed(1) : "";
     }
-    rowFinderToggle.addEventListener("click", function () { openFinder(rowFinderToggle, sizeField, oneDecimal); });
+    // "Find my size" on the dial, with the category's size guide; none without one.
+    var guide = info["size-guide"];
+    var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
+    var dialHost = document.getElementById("productSizeDial");
+    dialHost.hidden = false;
+    state.sizeDial = window.EmjiveOptionDial.mountSize(dialHost, {
+      unit: unit,
+      range: { min: SIZE_MIN_MM, max: SIZE_MAX_MM },
+      onChange: function (mm) {
+        sizeField.value = mm.toFixed(1);
+        setModelSize(sizeField.value);
+      },
+      onShow: showDialName,
+      // Its result goes in as if typed.
+      onFind: hasFinder ? function () {
+        window.EmjiveSizeFinder.open({
+          guide: guide,
+          returnFocus: state.sizeDial.finder,
+          onFill: function (size) {
+            sizeField.value = oneDecimal(size);
+            sizeField.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        });
+      } : null
+    });
+    syncSizeDial();
     // The first time design is fully in, the field starts at the model's size, within the range.
     state.seedSize = function () {
       state.sizeSeeded = true;
@@ -2046,16 +1813,12 @@
       sizeField.value = clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
       setModelSize(sizeField.value);
     };
-    wireSizeDial(sizeField, unit);
-    // "Find my size" fills it as if typed.
     sizeField.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(sizeField.value);
       if (cleaned !== sizeField.value) sizeField.value = cleaned;
       setModelSize(sizeField.value);
     });
 
-    // The Select bar's button: "Select" opens the sheet, "Add" confirms while it
-    // is open (aria-disabled until the size is orderable). The label fades through its change.
     var swapTimer = null;
     function setBarLabel(text) {
       if (selectLabel.textContent === text) return;
@@ -2067,62 +1830,58 @@
       }, 80);
     }
 
-    // A size within the product's range: what Add needs.
-    function orderable(input) {
-      return window.EmjiveSelection.isOrderableSize(product, input.value);
+    // A size within the product's range: what Confirm needs.
+    function orderable() {
+      return window.EmjiveSelection.isOrderableSize(product, sizeField.value);
     }
 
     function syncBar() {
       var isOpen = modal.classList.contains("is-open");
-      setBarLabel(isOpen ? "Add" : "Select");
-      // Add mode gives the bar its own ground (.product-select-bar.is-add).
-      selectBar.classList.toggle("is-add", isOpen);
-      var canAct = !isOpen || orderable(customInput);
-      selectBtn.setAttribute("aria-disabled", String(!canAct));
-      window.EmjiveSelection.syncSizeField(customInput, product);
+      setBarLabel(isOpen ? "Confirm" : "Add");
+      // Confirm gives the bar its own ground (.product-select-bar.is-confirm).
+      selectBar.classList.toggle("is-confirm", isOpen);
+      selectBtn.setAttribute("aria-disabled", String(isOpen && !orderable()));
     }
 
-    // Written back only when changed, so the caret doesn't jump.
-    customInput.addEventListener("input", function () {
-      var cleaned = window.EmjiveSelection.sanitizeSizeInput(customInput.value);
-      if (cleaned !== customInput.value) customInput.value = cleaned;
-      syncBar();
-    });
-
-    // Enter confirms: Add sits outside the focus trap, so the keyboard needs this.
-    customInput.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-      if (orderable(customInput)) confirmAdd(true);
-    });
+    // The review's values; the shape only with a shape dial.
+    function fillReview() {
+      var sel = window.EmjiveSelection;
+      var size = orderable() ? sel.normalizeSize(sizeField.value) : "";
+      document.getElementById("sizeModalShapeRow").hidden = !state.shapeDial;
+      document.getElementById("sizeModalShape").textContent = state.designKey;
+      document.getElementById("sizeModalMaterial").textContent = state.selectedMetal;
+      document.getElementById("sizeModalSize").textContent = size ? state.sizeText + " " + unit : "—";
+    }
 
     function openModal() {
-      // Pre-filled from the size field when it holds an orderable size.
-      customInput.value = orderable(sizeField) ? sizeField.value : "";
+      // Added before design was ever fully in: the model's size.
+      if (state.seedSize) state.seedSize();
+      fillReview();
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();
-      // After .is-open (focus() is a no-op while hidden). The trap also locks the page.
+      // After .is-open (focus() is a no-op while hidden). The trap also locks
+      // the page; Confirm, in the bar, is in its reach.
       window.EmjiveFocusTrap.activate(modal, {
+        include: selectBar,
         returnFocus: selectBtn,
         onEscape: closeModal
       });
     }
 
-    // quiet: an Enter add returns focus to Select without a ring (js/focus-trap.js).
-    function closeModal(quiet) {
+    function closeModal() {
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
       // Before the trap releases, so focus lands on a live button.
       syncBar();
-      window.EmjiveFocusTrap.release(undefined, quiet === true);
+      window.EmjiveFocusTrap.release();
     }
 
-    // Reached via Add or Enter, both for an orderable size; the guard covers stale callbacks.
-    function confirmAdd(quiet) {
-      if (!orderable(customInput)) return;
+    // Reached via Confirm for an orderable size; the guard covers stale callbacks.
+    function confirmAdd() {
+      if (!orderable()) return;
       var view = state.view;
-      var size = window.EmjiveSelection.normalizeSize(customInput.value);
+      var size = window.EmjiveSelection.normalizeSize(sizeField.value);
       var item = {
         // Ids are only unique within a series.
         series: state.seriesSlug,
@@ -2138,12 +1897,12 @@
       };
       if (product.designs) item.design = state.designKey;
       window.EmjiveSelection.addItem(item);
-      closeModal(quiet);
+      closeModal();
     }
 
     selectBtn.addEventListener("click", function () {
       if (!modal.classList.contains("is-open")) openModal();
-      else if (orderable(customInput)) confirmAdd();
+      else if (orderable()) confirmAdd();
     });
     document.getElementById("sizeModalBackdrop").addEventListener("click", closeModal);
     // Escape is the focus trap's onEscape.

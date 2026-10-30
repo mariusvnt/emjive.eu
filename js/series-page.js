@@ -29,7 +29,7 @@
 
       return window.EmjiveSeries.loadManifest(slug).then(function (manifest) {
         var title = manifest.title || entry.name || slug;
-        document.title = title + " — em·ji·ve";
+        document.title = "em·ji·ve: " + title.toLowerCase();
 
         document.getElementById("seriesManifestYear").textContent =
           manifest.year || entry.year || "";

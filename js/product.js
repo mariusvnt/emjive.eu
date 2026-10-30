@@ -226,7 +226,7 @@
   }
 
   function render(product) {
-    document.title = (product.name || "Product") + " — em·ji·ve";
+    document.title = "em·ji·ve: " + (product.name || "product").toLowerCase();
     updateSearchMetadata(product);
     state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
     var sizes = H.sizeRange(product);

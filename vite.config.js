@@ -238,10 +238,10 @@ function emitSitemap() {
 
 // Link-preview images (og:image, twitter:image): 1200x630 JPEG (not every
 // crawler reads WebP) on --bg read from css/style.css. dist/preview.jpg is the
-// logo; each item gets its default-metal fallback-img at
+// compact logo; each item gets its steel wheel-poster at
 // dist/assets/previews/<slug>.jpg.
 const PREVIEW_SIZE = { width: 1200, height: 630 };
-const PREVIEW_LOGO_WIDTH = 600;
+const PREVIEW_LOGO_SIZE = 420;
 
 function pageBackground() {
   const css = readFileSync(resolve(__dirname, "css/style.css"), "utf8");
@@ -310,17 +310,17 @@ function emitItemPages() {
 
       // The default card, and the items' folder.
       const background = pageBackground();
-      const logo = await sharp(resolve(__dirname, "assets/logo.svg"), { density: 400 }).resize({ width: PREVIEW_LOGO_WIDTH }).png().toBuffer();
+      const logo = await sharp(resolve(__dirname, "assets/logo_compact.svg"), { density: 400 }).resize({ width: PREVIEW_LOGO_SIZE }).png().toBuffer();
       writeFileSync(join(distDir, "preview.jpg"), await previewCard(background, logo));
       mkdirSync(join(distDir, "assets/previews"), { recursive: true });
 
       for (const { product, series, slug } of list) {
         const name = product.name || "Product";
-        const title = name + " \u2014 em\u00b7ji\u00b7ve";
+        const title = "em\u00b7ji\u00b7ve: " + name.toLowerCase();
         const description = product.description || "Item detail";
         const url = SITE_ORIGIN + "/" + slug;
-        const metal = product["default-metal"];
-        const poster = product.assets && product.assets["fallback-img"] && product.assets["fallback-img"][metal];
+        const metal = "steel";
+        const poster = product.assets && product.assets["wheel-poster"] && product.assets["wheel-poster"][metal];
 
         let html = template;
         html = swap(html, /<title>[^<]*<\/title>/, "<title>" + escapeAttr(title) + "</title>", "<title>");

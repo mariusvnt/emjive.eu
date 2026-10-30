@@ -146,7 +146,7 @@ for (const { product, series, slug } of items) {
   }
   if (!head.includes('<link rel="canonical" href="' + url + '" />')) fail(file + ": canonical is not " + url);
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(file + ": og:url is not " + url);
-  if (!head.includes("<title>" + product.name)) fail(file + ": <title> does not start with the item's name");
+  if (!head.includes("<title>em·ji·ve: " + product.name.toLowerCase())) fail(file + ": <title> is not the brand and the item's name");
   if (!head.includes('href="' + series.products + '"')) fail(file + ": no products.json hint for its series (" + series.products + ")");
 }
 

@@ -1,17 +1,22 @@
 // Option dials (js/product.js, js/modify-modal.js): a circular button
-// showing the active option, its name under it, opening a disc over three
+// showing the active option, the dial's name under it, opening a disc over three
 // blurs, divided into one section per option, each always in the same
-// place, the active one dotted (the dot turning round the middle to it).
+// place, the active one dotted (the button's circle shrinking to the dot,
+// turning round the middle to it).
 // Pointing into a section makes its option the active one; the disc's
 // middle changes nothing. The shape is mode "icons" (an icon per section),
-// the material mode "fill" (each section filled with its swatch, from the
-// button's edge to the disc's, fading out at it in three layers). Two icons
+// the material mode "fill" (each section a solid wedge of its swatch, from
+// the centre, fading out just by the disc's edge, the active swatch pooling
+// over the middle). Two icons
 // sit in the upper half, PAIR_SPREAD_DEG apart, each taking its half of the
 // disc (left, right) rather than a north and a south section; an odd number
 // leaves its extra one in the upper half, the easier to see.
 //
 // The button holds every option's preview, stacked, crossfading to the
-// active one. Closed, the blurs show within its circle.
+// active one. Closed, the blurs show within its circle. In "fill", its
+// swatch is drawn at the disc's scale, so the middle looks the same open or
+// closed; under it the pool, the active swatch alike, the button's circle
+// reaching on into its own section, turns round with the dot.
 //
 // The size has its own dial (mountSize, below).
 //
@@ -42,11 +47,10 @@
   var ICON_RING_MIN_REM = 3;
   var ICON_PITCH_REM = 2.2;
   var FILL_OUTER_REM = 4.375;
-  // The button's radius (.product-dial --dial-size) less its border, where
-  // the swatches start, under the border it loses while open.
+  // The button's radius (.product-dial --dial-size) less its border: the
+  // pool's edge (its share of FILL_OUTER_REM is in .product-dial__pool's
+  // mask), the dot midway between it and the disc's edge.
   var FILL_INNER_REM = 1.3125;
-  // The swatches, once per fade layer.
-  var FILL_FADES = 3;
   var PAIR_SPREAD_DEG = 120;
   var HOLD_MS = 250;
   // Hovering opens at once but picks only after this long, so crossing a
@@ -59,7 +63,7 @@
 
   // An annular sector, centred on angle `mid` (radians from the top,
   // clockwise) and `half` wide each side, from `inner` to 1 (shares of the
-  // radius), as a polygon() over its square.
+  // radius; 0, a wedge), as a polygon() over its square.
   function sectorPolygon(mid, half, inner) {
     var steps = 16;
     var points = [];
@@ -67,7 +71,22 @@
       return (50 + 50 * r * Math.sin(a)).toFixed(2) + "% " + (50 - 50 * r * Math.cos(a)).toFixed(2) + "%";
     };
     for (var i = 0; i <= steps; i++) points.push(at(1, mid - half + (2 * half * i) / steps));
-    for (var j = steps; j >= 0; j--) points.push(at(inner, mid - half + (2 * half * j) / steps));
+    if (!inner) points.push("50% 50%");
+    else for (var j = steps; j >= 0; j--) points.push(at(inner, mid - half + (2 * half * j) / steps));
+    return "polygon(" + points.join(", ") + ")";
+  }
+
+  // A circle of radius `inner` with the annular sector from it to 1, `half`
+  // wide each side of the top, as one polygon() over its square.
+  function keyholePolygon(half, inner) {
+    var steps = 16;
+    var round = 48;
+    var points = [];
+    var at = function (r, a) {
+      return (50 + 50 * r * Math.sin(a)).toFixed(2) + "% " + (50 - 50 * r * Math.cos(a)).toFixed(2) + "%";
+    };
+    for (var i = 0; i <= steps; i++) points.push(at(1, -half + (2 * half * i) / steps));
+    for (var j = 0; j <= round; j++) points.push(at(inner, half + ((2 * Math.PI - 2 * half) * j) / round));
     return "polygon(" + points.join(", ") + ")";
   }
 
@@ -93,10 +112,10 @@
     var face = el("span", "product-dial__preview");
     face.setAttribute("aria-hidden", "true");
     button.appendChild(face);
-    var label = el("span", "product-dial__label");
-    label.setAttribute("aria-hidden", "true");
+    var title = el("span", "product-dial__title", name);
+    title.setAttribute("aria-hidden", "true");
     // The disc: its blurs (the strongest the smallest), then what opens out
-    // from the middle: its sections and the dot.
+    // from the middle: its sections and the pool ("fill").
     var wheel = el("div", "product-dial__wheel");
     wheel.setAttribute("aria-hidden", "true");
     var blur = el("span", "product-dial__blur");
@@ -107,12 +126,21 @@
     var disc = el("div", "product-dial__disc");
     var sections = el("div", "product-dial__sections");
     disc.appendChild(sections);
-    var dot = el("span", "product-dial__dot");
-    disc.appendChild(dot);
+    // Shaped round the top and turned to the active section; its swatches
+    // turned back, so they stay in step with the sections'.
+    var pool = el("div", "product-dial__pool");
+    var poolSwatches = el("div", "product-dial__pool-swatches");
+    pool.appendChild(poolSwatches);
+    if (fill) disc.appendChild(pool);
     wheel.appendChild(disc);
+    // The button's circle, which open becomes the dot, turned to the active section.
+    var turner = el("span", "product-dial__turn");
+    turner.setAttribute("aria-hidden", "true");
+    turner.appendChild(el("span", "product-dial__ring"));
     host.appendChild(button);
-    host.appendChild(label);
+    host.appendChild(title);
     host.appendChild(wheel);
+    host.appendChild(turner);
 
     // A pair of icons (pairMode): left and right of the top.
     function pairMode() {
@@ -162,30 +190,30 @@
       // Where the dot sits on the active section: its middle, or its icon's.
       host.style.setProperty("--dial-dot-r", (fill ? (FILL_INNER_REM + outer) / 2 : ring).toFixed(3) + "rem");
       face.innerHTML = "";
+      poolSwatches.innerHTML = "";
+      if (fill) pool.style.clipPath = keyholePolygon(step / 2, FILL_INNER_REM / outer);
       options.forEach(function (option) {
         var layer = el("span", "product-dial__face");
         layer.setAttribute("data-key", option.key);
         layer.appendChild(option.preview());
         face.appendChild(layer);
+        if (!fill) return;
+        var swatch = el("span", "product-dial__pooled");
+        swatch.setAttribute("data-key", option.key);
+        swatch.appendChild(option.preview());
+        poolSwatches.appendChild(swatch);
       });
       sections.innerHTML = "";
-      for (var layer = 0; layer < (fill ? FILL_FADES : 1); layer++) {
-        var into = sections;
-        if (fill) {
-          into = el("span", "product-dial__fade");
-          sections.appendChild(into);
-        }
-        options.forEach(function (option, i) {
-          var mid = angleOf(i);
-          var section = el("span", "product-dial__section");
-          section.setAttribute("data-key", option.key);
-          section.style.setProperty("--dial-x", Math.sin(mid).toFixed(4));
-          section.style.setProperty("--dial-y", (-Math.cos(mid)).toFixed(4));
-          if (fill) section.style.clipPath = sectorPolygon(mid, step / 2, FILL_INNER_REM / outer);
-          section.appendChild(option.preview());
-          into.appendChild(section);
-        });
-      }
+      options.forEach(function (option, i) {
+        var mid = angleOf(i);
+        var section = el("span", "product-dial__section");
+        section.setAttribute("data-key", option.key);
+        section.style.setProperty("--dial-x", Math.sin(mid).toFixed(4));
+        section.style.setProperty("--dial-y", (-Math.cos(mid)).toFixed(4));
+        if (fill) section.style.clipPath = sectorPolygon(mid, step / 2, 0);
+        section.appendChild(option.preview());
+        sections.appendChild(section);
+      });
       host.style.setProperty("--dial-ring", ring.toFixed(3) + "rem");
       paint();
     }
@@ -193,14 +221,15 @@
     function paint() {
       var i = Math.max(0, indexOf(selected));
       var option = options[i];
-      Array.prototype.forEach.call(face.children, function (layer) {
-        layer.classList.toggle("is-shown", !!option && layer.getAttribute("data-key") === option.key);
+      [face, poolSwatches].forEach(function (stack) {
+        Array.prototype.forEach.call(stack.children, function (layer) {
+          layer.classList.toggle("is-shown", !!option && layer.getAttribute("data-key") === option.key);
+        });
       });
-      label.textContent = option ? option.label : "";
       button.setAttribute("aria-label", name + (option ? ": " + option.label : ""));
       var target = (angleOf(i) * 180) / Math.PI;
       turn += ((((target - turn) % 360) + 540) % 360) - 180;
-      dot.style.setProperty("--dial-turn", turn.toFixed(2) + "deg");
+      host.style.setProperty("--dial-turn", turn.toFixed(2) + "deg");
       Array.prototype.forEach.call(sections.querySelectorAll(".product-dial__section"), function (section) {
         section.classList.toggle("is-active", !!option && section.getAttribute("data-key") === option.key);
       });
@@ -394,9 +423,9 @@
   }
 
   /* ---- the size dial ----
-     A circle holding the size, the unit under it. Open, the circle gives
-     way to a vertical line from the range's least size (its foot) to its
-     most (its head), a marker at the size, and "Find my size" by its head. Sliding up
+     A circle holding the size, "Size" under it. Open, the size gives way to a
+     vertical line from the range's least size (its foot) to its most (its
+     head), the circle shrinking onto it at the size as its tick. Sliding up
      raises the size, down lowers it, by the pointer's travel at the line's
      pitch times a gain that falls with its speed (smoothed over
      SIZE_SPEED_MS): 1 at SIZE_FAST_PX_MS and over, SIZE_FINE_GAIN at
@@ -408,13 +437,14 @@
      Keyboard: the arrows, Shift+arrows and PageUp/PageDown step the size;
      Enter or Space opens and closes, Escape closes.
 
-     mountSize(host, { unit, range, onChange, onShow, onFind })
+     mountSize(host, { range, onChange, onShow, onFind })
        range         { min, max }, mm (EmjiveHelpers.sizeRange)
        onChange(mm)  the visitor moved it (to a tenth of a mm, in the range)
-       onShow(text)  the size and unit while open, "" once closed
+       onShow(text)  the size while open, "" once closed
        onFind()      "Find my size" (none without it)
      -> { set(mm, given), finder }: set() shows mm, as the visitor's size
-        (given) or a stand-in; finder is the "Find my size" button or null. */
+        (given) or a stand-in; finder is the "Find my size" button, for the
+        caller to place, or null. */
   var SIZE_KEY_STEP = 0.5;
   var SIZE_KEY_FINE = 0.1;
   var SIZE_KEY_PAGE = 5;
@@ -424,13 +454,7 @@
   var SIZE_FINE_GAIN = 0.2;
   var SIZE_SPEED_MS = 60;
 
-  // A size as the dial shows it: "62", "62.5".
-  function sizeLabel(mm) {
-    return String(Math.round(mm * 10) / 10);
-  }
-
   function mountSize(host, opts) {
-    var unit = opts.unit || "";
     var onChange = opts.onChange || function () {};
     var onShow = opts.onShow || function () {};
     var isOpen = false;
@@ -451,8 +475,8 @@
     var value = el("span", "product-size-dial__value");
     value.setAttribute("aria-hidden", "true");
     button.appendChild(value);
-    var label = el("span", "product-dial__label", unit);
-    label.setAttribute("aria-hidden", "true");
+    var title = el("span", "product-dial__title", "Size");
+    title.setAttribute("aria-hidden", "true");
     var wheel = el("span", "product-dial__wheel");
     wheel.setAttribute("aria-hidden", "true");
     var blur = el("span", "product-dial__blur");
@@ -464,8 +488,11 @@
     var track = el("span", "product-size-dial__track");
     track.setAttribute("aria-hidden", "true");
     track.appendChild(el("span", "product-size-dial__line"));
-    track.appendChild(el("span", "product-size-dial__marker"));
     menu.appendChild(track);
+    // The button's circle, which open becomes the line's tick.
+    var ring = el("span", "product-dial__ring product-size-dial__ring");
+    ring.setAttribute("aria-hidden", "true");
+    menu.appendChild(ring);
     var finder = null;
     if (opts.onFind) {
       finder = el("button", "product-size__finder-toggle", "Find my size");
@@ -474,22 +501,21 @@
         close();
         opts.onFind();
       });
-      menu.appendChild(finder);
     }
     host.appendChild(button);
-    host.appendChild(label);
+    host.appendChild(title);
     host.appendChild(wheel);
     host.appendChild(menu);
 
     function shownText() {
-      return sizeLabel(current) + (unit ? " " + unit : "");
+      return H.sizeText(current);
     }
 
-    // Its number, the marker's place on the line (--size-at, its share of
+    // Its number, the tick's place on the line (--size-at, its share of
     // the way up), and its text while open.
     function set(mm, given) {
       current = H.clamp(mm, range.min, range.max);
-      value.textContent = sizeLabel(current);
+      value.textContent = H.sizeText(current);
       host.style.setProperty("--size-at", ((current - range.min) / (range.max - range.min)).toFixed(4));
       host.classList.toggle("is-unset", !given);
       button.setAttribute("aria-valuenow", String(current));
@@ -670,5 +696,11 @@
     return { set: set, finder: finder };
   }
 
-  window.EmjiveOptionDial = { mount: mount, mountSize: mountSize };
+  window.EmjiveOptionDial = {
+    mount: mount,
+    mountSize: mountSize,
+    // The material disc's middle (the pool's edge) as a share of its
+    // radius, for scene-tool.html's dial overlay.
+    fillInner: FILL_INNER_REM / FILL_OUTER_REM
+  };
 })();

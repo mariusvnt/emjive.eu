@@ -309,6 +309,12 @@
       : { min: DEFAULT_SIZE_RANGE.min, max: DEFAULT_SIZE_RANGE.max };
   }
 
+  // A size as the site shows it: a plain number, no unit, to a tenth ("62",
+  // "62.5").
+  function sizeText(mm) {
+    return String(Math.round(mm * 10) / 10);
+  }
+
   // A ring changes size by moving every point of its model this many mm away
   // from the finger axis (scripts/ring-size.js): the difference of the inner
   // radii.
@@ -494,6 +500,7 @@
     posterFor: posterFor,
     REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
     sizeRange: sizeRange,
+    sizeText: sizeText,
     sizeShift: sizeShift,
     volumeAt: volumeAt,
     PLAN_VIEWS: PLAN_VIEWS,

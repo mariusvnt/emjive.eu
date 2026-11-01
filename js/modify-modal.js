@@ -78,9 +78,12 @@
   var dialName = el("p", "size-modal__dial-name");
   dialName.setAttribute("aria-hidden", "true");
   content.appendChild(dialName);
-  // The dials, built per open (mountDials).
-  var dials = el("div", "product-dials size-modal__dials");
-  content.appendChild(dials);
+  // The dials, built per open (mountDials), and under them the size dial's
+  // "Find my size".
+  var config = el("div", "product-config size-modal__config");
+  var dials = el("div", "product-dials");
+  config.appendChild(dials);
+  content.appendChild(config);
   panel.appendChild(content);
 
   var sheet = el("div", "size-modal__sheet");
@@ -246,6 +249,7 @@
   }
 
   function mountDials() {
+    if (state.sizeDial && state.sizeDial.finder) config.removeChild(state.sizeDial.finder);
     dials.innerHTML = "";
     showDialName("");
     var designs = state.base.designs;
@@ -286,7 +290,6 @@
     var guide = info["size-guide"];
     var range = H.sizeRange(state.base);
     var dial = window.EmjiveOptionDial.mountSize(dialHost(), {
-      unit: info.unit,
       range: range,
       onChange: selectSize,
       onShow: showDialName,
@@ -303,6 +306,7 @@
         });
       } : null
     });
+    if (dial.finder) config.appendChild(dial.finder);
     dial.set(state.sizeMm, true);
     state.sizeDial = dial;
   }

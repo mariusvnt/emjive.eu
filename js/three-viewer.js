@@ -310,16 +310,22 @@ export { toolkit };
   // frameCamera() measures the bounding sphere of the bounding box: sqrt(3) radii.
   var SWATCH_GROUP_RADIUS = Math.sqrt(3) * SWATCH_SPHERE_RADIUS;
 
+  // The frame's half-width, as a share of the silhouette's radius: 1, the
+  // whole sphere, its outline touching the frame's edges, so that it fills
+  // the material dial's round disc. Less crops in on its flat middle,
+  // losing the squeezed reflections by the rim that make it read as metal.
+  var SWATCH_FRAME = 1;
+
   // The swatch camera for `angles` ({ rotation, tilt, roll } in degrees,
   // data/series.json "swatch-camera"; defaults 0, 90, 0), looking at the
   // centre. The rest is solved: at distance d the sphere's silhouette has
-  // angular radius asin(r / d), and the frame is the largest square inside that
-  // disc, so fov = 2 * atan(tan(asin(r / d)) / sqrt(2)). frameCamera() stands at
+  // angular radius asin(r / d), and the frame reaches SWATCH_FRAME of it, so
+  // fov = 2 * atan(tan(asin(r / d)) * SWATCH_FRAME). frameCamera() stands at
   // sphereRadius / sin(fov / 2) * zoom / 100, giving zoom = d * sin(fov / 2) / sphereRadius.
   function swatchOrbit(angles) {
     var a = angles || {};
     var d = SWATCH_DISTANCE * SWATCH_SPHERE_RADIUS;
-    var halfFov = Math.atan(Math.tan(Math.asin(SWATCH_SPHERE_RADIUS / d)) / Math.SQRT2);
+    var halfFov = Math.atan(Math.tan(Math.asin(SWATCH_SPHERE_RADIUS / d)) * SWATCH_FRAME);
     return {
       rotation: typeof a.rotation === "number" ? a.rotation : 0,
       tilt: typeof a.tilt === "number" ? a.tilt : 90,

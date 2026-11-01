@@ -6,7 +6,7 @@
   ticked parts (HDRI, camera, blur, detail, sun, shader). The blur, the sun and
   the detail are the same in every scene, in both modes. The swatch scene's own
   settings are its HDRI, an extra blur and camera angles; distance and frame
-  are solved.
+  are solved. A dial overlay shows what the material dial cuts from it.
 -->
 <!doctype html>
 <html lang="en">
@@ -22,6 +22,7 @@
 }
 </script>
 <script src="js/helpers.js"></script>
+<script src="js/option-dial.js"></script>
 <script type="module" src="js/three-viewer.js"></script>
 <style>
   :root { color-scheme: light dark; }
@@ -114,6 +115,7 @@
     padding: 0;
   }
   #viewerContainer.is-swatch .emjive-3d-viewer { position: absolute; inset: 0; pointer-events: none; }
+  .dial-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   #statusMessage { font-size: 13px; opacity: 0.75; min-height: 1.2em; }
 
   /* The .emjive-3d-viewer rules this page needs (it doesn't load css/style.css). */
@@ -167,6 +169,7 @@
       <label>Model
         <select id="modelSelect"></select>
       </label>
+      <label class="check-row" id="dialOverlayRow" hidden><input type="checkbox" id="dialOverlayInput" checked> Dial overlay</label>
     </section>
 
     <section>
@@ -268,7 +271,7 @@ const els = {};
   "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
   "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults",
   "sunOnInput", "sunStrengthSlider", "sunStrengthInput", "saveSun", "hdriBlurSlider", "hdriBlurInput", "saveHdriBlur",
-  "detailSlider", "detailInput", "saveDetail"
+  "detailSlider", "detailInput", "saveDetail", "dialOverlayRow", "dialOverlayInput"
 ].forEach((id) => { els[id] = document.getElementById(id); });
 
 init().catch((err) => {
@@ -379,6 +382,7 @@ function currentModelSelection() {
 function wireEvents() {
   els.hdriSelect.addEventListener("change", () => rebuildViewer());
   els.modelSelect.addEventListener("change", () => rebuildViewer());
+  els.dialOverlayInput.addEventListener("change", renderDialOverlay);
   els.colorInput.addEventListener("input", onShaderInputChange);
   els.metalnessInput.addEventListener("input", onShaderInputChange);
   els.roughnessInput.addEventListener("input", onShaderInputChange);
@@ -514,6 +518,7 @@ function onSunInputChange() {
 function onMetalButtonClick(metal) {
   state.metal = metal;
   updateMetalButtonStates();
+  renderDialOverlay();
   populateShaderControls();
   if (!state.handle) return;
   // Re-tint in place, no rebuild.
@@ -601,14 +606,16 @@ async function rebuildViewer() {
   // The swatch's zoom is solved.
   els.zoomRow.hidden = swatch;
   els.blurRow.hidden = !swatch;
+  els.dialOverlayRow.hidden = !swatch;
   if (swatch) {
     fillSwatchCameraInputs();
     els.blurInput.value = state.swatchBlur;
     els.blurSlider.value = state.swatchBlur;
     els.statusMessage.textContent =
       "Swatch scene: one sphere under the HDRI. The metal buttons change the sphere's metal, as each swatch render does; " +
-      "the frame is the biggest square inside its disc, exactly what is saved as the swatch. " +
-      "Set the HDRI, its extra blur (a gaussian in pixels of the HDRI image, on top of Blur) and the camera's rotation, tilt and roll round the sphere; the rest is solved.";
+      "the frame is the whole sphere, its outline touching the edges, exactly what is saved as the swatch. " +
+      "Set the HDRI, its extra blur (a gaussian in pixels of the HDRI image, on top of Blur) and the camera's rotation, tilt and roll round the sphere; the rest is solved. " +
+      "The dial overlay leaves clear what the material dial shows of the metal: the middle (the closed button) and its section, the dashed ring where the section starts fading out.";
   }
 
   const hdriKey = els.hdriSelect.value;
@@ -654,6 +661,33 @@ async function rebuildViewer() {
   els.viewerContainer.appendChild(handle.el);
   updateMetalButtonStates();
   populateShaderControls();
+  renderDialOverlay();
+}
+
+// The material dial over the swatch frame, which is its disc: the selected
+// metal's middle and section clear (js/option-dial.js: the sections round
+// from the top in "metals" order, the middle EmjiveOptionDial.fillInner of
+// the radius), the rest veiled, and a dashed ring where the edge fade starts.
+// As .product-dial--fill .product-dial__sections's mask in css/style.css.
+const DIAL_FADE_FROM = 0.8;
+function renderDialOverlay() {
+  const old = els.viewerContainer.querySelector(".dial-overlay");
+  if (old) old.remove();
+  if (state.mode !== "swatch" || !els.dialOverlayInput.checked) return;
+  const metals = state.seriesIndex.metals || [];
+  const half = Math.PI / Math.max(2, metals.length);
+  const mid = Math.max(0, metals.indexOf(state.metal)) * 2 * half;
+  const inner = window.EmjiveOptionDial.fillInner;
+  const at = (r, a) => (r * Math.sin(a)).toFixed(4) + " " + (-r * Math.cos(a)).toFixed(4);
+  const shape = "M" + at(1, mid - half) + " A1 1 0 0 1 " + at(1, mid + half) +
+    " L" + at(inner, mid + half) + " A" + inner + " " + inner + " 0 1 1 " + at(inner, mid - half) + " Z";
+  const line = 'fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="1" vector-effect="non-scaling-stroke"';
+  els.viewerContainer.insertAdjacentHTML("beforeend",
+    '<svg class="dial-overlay" viewBox="-1 -1 2 2" aria-hidden="true">' +
+    '<path d="M-1 -1 H1 V1 H-1 Z ' + shape + '" fill-rule="evenodd" fill="rgba(248, 248, 248, 0.8)"/>' +
+    '<path d="' + shape + '" ' + line + "/>" +
+    '<circle r="' + DIAL_FADE_FROM + '" ' + line + ' stroke-dasharray="4 4"/>' +
+    "</svg>");
 }
 
 function setControlsDisabled(disabled) {

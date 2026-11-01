@@ -1054,7 +1054,7 @@
         return {
           key: metal,
           label: metal,
-          // The swatch as css/style.css draws it (the metal picker's rule).
+          // The swatch as css/style.css draws it.
           preview: function () {
             var swatch = el("span", "product-dial__swatch");
             swatch.setAttribute("data-metal", metal);
@@ -1637,9 +1637,9 @@
   // Where design holds the model, as its lift (px up from rest): its middle
   // at DESIGN_ANCHOR of the screen (or under the title bar), then
   // DESIGN_GAP_REM lower. Everything placed against
-  // the model but the x-ray goes with it.
+  // the model, the x-ray included, goes with it.
   var DESIGN_ANCHOR = 1 / 3;
-  var DESIGN_GAP_REM = 4.5;
+  var DESIGN_GAP_REM = 3;
   // The model's approximate half-height as a share of its tile.
   var DESIGN_HALF_HEIGHT = 0.13;
   function designLift() {
@@ -1749,9 +1749,9 @@
   // size into a hidden field ("62.0"); the model follows (setModelSize).
   function wireSelectButton(product) {
     var selectBtn = document.getElementById("selectButton");
-    // The unit belongs to the category, in the global vocabulary.
+    // Whether the category is sized at all is in the global vocabulary (its
+    // "unit"); sizes show as plain numbers.
     var info = window.EmjiveSeries.categoryInfo(product.category);
-    var unit = info.unit || "";
 
     var selectBar = document.getElementById("productSelectBar");
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
@@ -1766,7 +1766,7 @@
     window.addEventListener("emjive:modify-close", function () { setBarAway(false); });
 
     // A unitless category has nothing to measure: Add stays disabled.
-    if (!unit) {
+    if (!info.unit) {
       selectBtn.setAttribute("aria-disabled", "true");
       selectLabel.textContent = "No sizes available";
       return;
@@ -1779,13 +1779,12 @@
       var mm = parseFloat(window.EmjiveSelection.normalizeSize(size));
       return isFinite(mm) ? mm.toFixed(1) : "";
     }
-    // "Find my size" on the dial, with the category's size guide; none without one.
+    // "Find my size", under the dials, with the category's size guide; none without one.
     var guide = info["size-guide"];
     var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
     var dialHost = document.getElementById("productSizeDial");
     dialHost.hidden = false;
     state.sizeDial = window.EmjiveOptionDial.mountSize(dialHost, {
-      unit: unit,
       range: { min: SIZE_MIN_MM, max: SIZE_MAX_MM },
       onChange: function (mm) {
         sizeField.value = mm.toFixed(1);
@@ -1804,6 +1803,7 @@
         });
       } : null
     });
+    if (state.sizeDial.finder) document.getElementById("productConfig").appendChild(state.sizeDial.finder);
     syncSizeDial();
     // The first time design is fully in, the field starts at the model's size, within the range.
     state.seedSize = function () {
@@ -1850,7 +1850,7 @@
       document.getElementById("sizeModalShapeRow").hidden = !state.shapeDial;
       document.getElementById("sizeModalShape").textContent = state.designKey;
       document.getElementById("sizeModalMaterial").textContent = state.selectedMetal;
-      document.getElementById("sizeModalSize").textContent = size ? state.sizeText + " " + unit : "—";
+      document.getElementById("sizeModalSize").textContent = size ? state.sizeText : "—";
     }
 
     function openModal() {

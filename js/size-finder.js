@@ -722,8 +722,8 @@
     var text = TEXT[step] || "";
     if (step === "result") {
       text = state.lastResult.settled
-        ? "Measured size: " + state.lastSize.toFixed(1) + " mm."
-        : "Measured range: " + state.lastResult.lo.toFixed(1) + " to " + state.lastResult.hi.toFixed(1) + " mm.";
+        ? "Measured size: " + H.sizeText(state.lastSize) + "."
+        : "Measured range: " + H.sizeText(state.lastResult.lo) + " to " + H.sizeText(state.lastResult.hi) + ".";
     }
     var paragraphs = [].concat(text).filter(Boolean);
     nodes.label.innerHTML = "";

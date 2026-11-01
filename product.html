@@ -143,19 +143,22 @@
             <!-- A held view's dimensions over the model (js/product.js renderPlanViews). -->
             <div class="product-outlines" id="productOutlines" aria-hidden="true" hidden></div>
 
-            <!-- Under the model: the dials, centred, then the information. -->
+            <!-- Under the model: the dials and "Find my size", centred, then the information. -->
             <div class="product-below" data-stage-owner="design">
 
               <!-- Shape (only with more than one design) and material, each a
                    sectioned disc, then the size (open, a vertical line to slide
-                   along, "Find my size" by its head; hidden for unitless
-                   categories), all built by js/option-dial.js. -->
-              <div class="product-dials">
-                <div id="productShapeDial" hidden></div>
-                <div id="productMaterialDial"></div>
-                <div id="productSizeDial" hidden></div>
-                <!-- The size, in the sheets' form ("62.0"). -->
-                <input type="hidden" id="productSizeInput" />
+                   along; hidden for unitless categories), all built by
+                   js/option-dial.js; under them, in a row of its own, the size
+                   dial's "Find my size" (js/product.js). -->
+              <div class="product-config" id="productConfig">
+                <div class="product-dials">
+                  <div id="productShapeDial" hidden></div>
+                  <div id="productMaterialDial"></div>
+                  <div id="productSizeDial" hidden></div>
+                  <!-- The size, in the sheets' form ("62.0"). -->
+                  <input type="hidden" id="productSizeInput" />
+                </div>
               </div>
 
               <!-- The information, in clusters (the material; the cost; shipping

@@ -42,8 +42,8 @@
      page's shipping and returns, the review sheet): label column and gap. */
   --label-col: calc(4.5rem * var(--text-scale));
   --label-gap: 1.5rem;
-  /* The selection dot: a dial's chosen option, the size slider's grip. */
-  --dot: 0.325rem;
+  /* The selection dot: a dial's chosen option, the size dial's tick. */
+  --dot: 0.5rem;
 
   /* Every font-size reads through this, since rem also sizes spacing that must
      not scale with text. 1 on phones; larger past the breakpoint (below). */
@@ -132,6 +132,10 @@ body {
   -webkit-font-smoothing: antialiased;
   /* Repeated on body: some browsers key it off body. */
   overscroll-behavior-x: none;
+  /* Mobile browsers widen the page to whatever reaches past the screen
+     (an open dial's blurs, say) despite html's overflow-x: hidden; clip
+     cuts it off without making a scroll container, so sticky still works. */
+  overflow-x: clip;
 }
 /* The homepage has no vertical bounce: the wheel is the page's end and
    shouldn't be pulled off screen (this also removes pull-to-refresh). */
@@ -1830,7 +1834,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    x-ray takes none (.product-below), its controls opting back
    in here. Out-of-sight parts are hidden outright, so they take no taps and
    show no loader. */
-.product-stage:is([data-stage="design"], [data-stage="flow"]) :is(.product-dial__button, :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel, .product-dial--size.is-open .product-size-dial__track, .product-plan > *) {
+.product-stage:is([data-stage="design"], [data-stage="flow"]) :is(.product-dial__button, :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel, .product-dial--size.is-open .product-size-dial__track, .product-size__finder-toggle, .product-plan > *) {
   pointer-events: auto;
 }
 .product-stage.is-feed-gone .product-feed,
@@ -2142,7 +2146,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    Never faded (an opacity on a backdrop filter ghosts): switched off while a
    sheet rests here (html.is-modal-open) or a peek moves the bars. */
 .product-bottom-veil {
-  --S: 3.5rem;
+  --S: 3rem;
   position: fixed;
   z-index: 89;
   left: 0;
@@ -2297,7 +2301,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   /* The model's bottom from the frame's top, rising with the lift; the column hangs from here. */
   --model-bottom: calc(var(--tile) / 2 + var(--model-size) / 2 - var(--lift));
   /* The gap under the model before the column. */
-  --model-gap: 6rem;
+  --model-gap: 5rem;
   /* The outlines' labels. */
   --plan-text: 0.5rem;
 }
@@ -2312,7 +2316,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   .product-design-frame {
     --xray-model: calc(var(--tile) * 0.66);
     --model-size: calc(var(--xray-model) * 0.975);
-    --model-gap: 5rem;
+    --model-gap: 4rem;
   }
 }
 
@@ -2386,8 +2390,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.95rem;
+  height: 1.95rem;
   margin: 0;
   padding: 0;
   border: none;
@@ -2398,8 +2402,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 /* mask-image directly, never through a var() (rules.md). */
 .product-reset__arrow {
   display: block;
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 1.1375rem;
+  height: 1.1375rem;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20 12 A8 8 0 1 1 15.5 4.8 M13 1.6 L15.5 4.8 L12 6.8' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -2461,8 +2465,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 .product-plan__icon {
   flex: none;
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 1.1375rem;
+  height: 1.1375rem;
 }
 
 /* While a dial is open (.is-shown, js/product.js), its active option's name,
@@ -2472,7 +2476,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   /* Over the column (2), so over an open disc too. */
   z-index: 3;
   left: var(--model-cx);
-  top: calc(var(--model-bottom) + var(--model-gap) - 4.5rem);
+  top: calc(var(--model-bottom) + var(--model-gap) - 3.5rem);
   transform: translate(-50%, -100%);
   margin: 0;
   font-family: var(--font-main);
@@ -2526,7 +2530,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 
 /* Under the model (--model-gap), rising with the lift and fading with design,
    the page wide between its margins: the dials and the size centred under
-   the model, then, 4.5rem lower (10.5rem past the breakpoint), the
+   the model, "Find my size" in a row under them, then, 4.5rem lower (10.5rem past the breakpoint), the
    information in a column on the left. Transparent over the x-ray;
    only its controls take taps. Everything in it but the dials' discs fades
    with design: an opacity around a disc would cut its blurs off from what's
@@ -2548,7 +2552,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
     gap: 10.5rem;
   }
 }
-.product-below > :not(.product-dials),
+.product-below > :not(.product-config),
+.product-config > :not(.product-dials),
 .product-dial > :not(.product-dial__wheel) {
   opacity: var(--d-in);
 }
@@ -2558,19 +2563,28 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 /* ---- the option dials (js/option-dial.js) ----
    A row centred under the model (and in the Modify sheet): shape (with
    more than one design), material, then the size (mountSize, below). Each a
-   circular button showing its active option, its name under it, over
+   circular button showing its active option, the dial's name under it, over
    three frosted blurs (the strongest at the centre) cut to its circle.
    Open (.is-open), the blurs spread past the disc, which grows from the
    button's centre, divided into a section per option, each always in the
    same place (--dial-x, --dial-y: its direction), between the
    neutral middle (--dial-inner) and the edge (--dial-outer), the active one
-   dotted (--dial-dot-r out, turning round the middle to it: --dial-turn).
-   Open, the button loses its circle and keeps its option. Shape (--icons):
-   an icon per section, at --dial-ring. Material (--fill): each section
-   filled with its swatch from the button's edge, fading out at the disc's
-   through three layers (.product-dial__fade). */
+   dotted: the button's circle (.product-dial__ring) shrinks to the dot,
+   --dial-dot-r out, turning round the middle to it (--dial-turn). Shape
+   (--icons): the button keeps its option, an icon per section, at
+   --dial-ring. Material (--fill): each
+   section a solid wedge of its swatch from the centre, fading out just by
+   the disc's edge; the button's swatch, at the wedges' scale, stays, the
+   pool under it reaching on into the active section, turning to it. */
+/* The dials' row, then "Find my size" centred in its own (js/product.js,
+   js/modify-modal.js). */
+.product-config {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.25rem;
+}
 .product-dials {
-  align-self: center;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -2587,7 +2601,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  /* As wide as its button whatever its label, so the row never moves. */
+  /* As wide as its button whatever its name, so the row never moves. */
   width: var(--dial-size);
   /* A long press is the dial's (js/option-dial.js), not a selection or an
      image's callout. */
@@ -2612,26 +2626,59 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: var(--dial-size);
   margin: 0;
   padding: 0;
-  border: 1px solid var(--category-col);
+  /* Room for the circle, drawn apart (.product-dial__ring). */
+  border: 1px solid transparent;
   border-radius: 50%;
   background: none;
   overflow: hidden;
   cursor: pointer;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--fade-quick) ease, opacity var(--fade-quick) ease;
-}
-@media (hover: hover) {
-  .product-dial__button:hover { border-color: var(--black); }
+  transition: opacity var(--fade-quick) ease;
 }
 /* Open, the shape's and the material's button keep only their option; the
    size's gives way to the line. */
-.product-dial--icons.is-open .product-dial__button,
-.product-dial--fill.is-open .product-dial__button {
-  border-color: transparent;
-}
 .product-dial--size.is-open .product-dial__button {
   opacity: 0;
+}
+/* The circle round the button, over it; open, it shrinks to the selection
+   dot (--dot), filled with the page so nothing shows through it: the
+   shape's and the material's out on the active section (in
+   .product-dial__turn), the size's on its line. --dial-open (registered
+   with the blurs) eases the change both ways; what it moves to
+   (--dial-dot-r, --size-at) is read live. */
+.product-dial__ring {
+  --dial-open: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--dial-size) - (var(--dial-size) - var(--dot)) * var(--dial-open));
+  height: calc(var(--dial-size) - (var(--dial-size) - var(--dot)) * var(--dial-open));
+  border: 1px solid var(--category-col);
+  border-radius: 50%;
+  transform: translate(-50%, calc(-50% - var(--dial-dot-r) * var(--dial-open)));
+  pointer-events: none;
+  transition: --dial-open var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1), border-color var(--fade-quick) ease, background-color var(--fade-quick) ease;
+}
+.product-dial.is-open .product-dial__ring {
+  --dial-open: 1;
+  border-color: var(--black);
+  background-color: var(--bg);
+}
+@media (hover: hover) {
+  .product-dial__button:hover ~ * .product-dial__ring { border-color: var(--black); }
+}
+/* A point at the button's centre, over it, turned to the active section. */
+.product-dial__turn {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: calc(var(--dial-size) / 2);
+  width: 0;
+  height: 0;
+  transform: rotate(var(--dial-turn, 0deg));
+  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
 }
 .product-dial__preview {
   display: grid;
@@ -2655,24 +2702,29 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: 100%;
   background: center / cover no-repeat;
 }
+/* The button's swatch as large as the disc's, centred alike, so it shows
+   the very middle the open disc does, open or closed. */
+.product-dial--fill .product-dial__face .product-dial__swatch {
+  background-size: calc(2 * var(--dial-outer));
+}
 .product-dial__icon {
   display: block;
   width: 86%;
   height: 86%;
   object-fit: contain;
 }
-.product-dial__label {
-  font-family: var(--font-secondary);
-  font-size: calc(0.65rem * var(--text-scale));
-  line-height: 1.4;
-  color: var(--category-col);
+.product-dial__title {
+  font-family: var(--font-main);
+  font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1.2;
+  color: var(--black);
   white-space: nowrap;
 }
-/* The disc, centred on the button. Its blurs are always there, cut to the
-   button's circle while closed (growing with design, --d-in) and to their
-   own reach when open; what opens out (.product-dial__disc) scales from the
-   centre. Neither fades by opacity, nor clips its blurs from an ancestor:
-   both would cut the blurs off from what's behind them. */
+/* The disc, centred on the button. Its blurs are always there within the
+   button's circle (growing with design, --d-in) and fade in and out beyond
+   it as the dial opens and closes; what opens out (.product-dial__disc)
+   scales from the centre. Neither fades by opacity, nor clips its blurs
+   from an ancestor: both would cut the blurs off from what's behind them. */
 .product-dial__wheel {
   position: absolute;
   left: 50%;
@@ -2691,8 +2743,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-dial.is-open .product-dial__disc {
   transform: scale(1);
 }
-.product-dial__sections,
-.product-dial__fade {
+.product-dial__sections {
   position: absolute;
   inset: 0;
 }
@@ -2704,22 +2755,30 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 /* As the header's veil (.site-header__veil): the same soft edge on each
    blur, the stronger ones smaller, each a box cut round by its mask alone
    (no border-radius, which Safari lets override the mask), and each a
-   little frosted, the frost building up toward the middle. */
+   little frosted, the frost building up toward the middle. The mask is
+   solid within the button's circle (--blur-in) and, beyond it, scaled by
+   --dial-open, which eases between 0 (closed) and 1 (open): registered so
+   it can, the fade being the mask's, never an opacity. The circle
+   (.product-dial__ring) eases on it too. */
+@property --dial-open {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
 .product-dial__blur > span {
+  --dial-open: 0;
+  --blur-in: calc(var(--dial-size) / 2 * var(--d-in, 1));
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   background-color: color-mix(in srgb, var(--bg) 15%, transparent);
-  -webkit-mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 0%, #000 50%, rgba(0, 0, 0, 0.854) 62.5%, rgba(0, 0, 0, 0.5) 75%, rgba(0, 0, 0, 0.146) 87.5%, transparent 100%);
-  -webkit-clip-path: circle(calc(var(--dial-size) / 2 * var(--d-in, 1)) at 50% 50%);
-  clip-path: circle(calc(var(--dial-size) / 2 * var(--d-in, 1)) at 50% 50%);
-  transition: clip-path var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1), -webkit-clip-path var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+  -webkit-mask-image: radial-gradient(closest-side, #000 0, #000 var(--blur-in), rgba(0, 0, 0, var(--dial-open)) var(--blur-in), rgba(0, 0, 0, var(--dial-open)) 50%, rgba(0, 0, 0, calc(0.854 * var(--dial-open))) 62.5%, rgba(0, 0, 0, calc(0.5 * var(--dial-open))) 75%, rgba(0, 0, 0, calc(0.146 * var(--dial-open))) 87.5%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 0, #000 var(--blur-in), rgba(0, 0, 0, var(--dial-open)) var(--blur-in), rgba(0, 0, 0, var(--dial-open)) 50%, rgba(0, 0, 0, calc(0.854 * var(--dial-open))) 62.5%, rgba(0, 0, 0, calc(0.5 * var(--dial-open))) 75%, rgba(0, 0, 0, calc(0.146 * var(--dial-open))) 87.5%, transparent 100%);
+  transition: --dial-open var(--fade-standard) ease;
 }
 .product-dial.is-open .product-dial__blur > span {
-  -webkit-clip-path: circle(100% at 50% 50%);
-  clip-path: circle(100% at 50% 50%);
+  --dial-open: 1;
 }
 .product-dial__blur > span:nth-child(1) {
   width: 100%;
@@ -2751,51 +2810,64 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: 100%;
   height: 100%;
 }
-/* Three layers of the swatches, each part see-through and fading out over
-   its own reach, the shortest the soonest: thickest together near the
-   middle, thinning out in three steps toward the disc's edge, the blurs and
-   frost showing through. */
-.product-dial__fade:nth-child(1) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 100%);
-}
-.product-dial__fade:nth-child(2) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 88%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 88%);
-}
-.product-dial__fade:nth-child(3) {
-  -webkit-mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 76%);
-  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 0.4) 50%, transparent 76%);
+/* The swatches solid almost to the disc's edge, fading out just by it. */
+.product-dial--fill .product-dial__sections {
+  -webkit-mask-image: radial-gradient(closest-side, #000 80%, rgba(0, 0, 0, 0.854) 85%, rgba(0, 0, 0, 0.5) 90%, rgba(0, 0, 0, 0.146) 95%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 80%, rgba(0, 0, 0, 0.854) 85%, rgba(0, 0, 0, 0.5) 90%, rgba(0, 0, 0, 0.146) 95%, transparent 100%);
 }
 /* Each cut to its section (js/option-dial.js sectorPolygon). */
 .product-dial--fill .product-dial__section {
   position: absolute;
   inset: 0;
 }
-/* The selection dot (--dot). */
-.product-dial__dot {
+/* The pool: the button's circle with the top section's span beyond it
+   (js/option-dial.js keyholePolygon), turned with the dot to the active
+   section. Solid to the circle's edge (30%: FILL_INNER_REM over
+   FILL_OUTER_REM), so its edge is hard but where it reaches past, fading
+   out into the section there. Its swatches turned back alike, so they hold
+   still, as large as the disc, as the sections': the active one runs on
+   into its own with no seam. The active one shown. */
+.product-dial__pool,
+.product-dial__pool-swatches {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--dot);
-  height: var(--dot);
-  border-radius: 50%;
-  background: var(--black);
-  transform: translate(-50%, -50%) rotate(var(--dial-turn, 0deg)) translateY(calc(-1 * var(--dial-dot-r)));
+  inset: 0;
+  transform: rotate(var(--dial-turn, 0deg));
   transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
+}
+.product-dial__pool {
+  -webkit-mask-image: radial-gradient(closest-side, #000 30%, rgba(0, 0, 0, 0.854) 33.5%, rgba(0, 0, 0, 0.5) 37%, rgba(0, 0, 0, 0.146) 40.5%, transparent 44%);
+  mask-image: radial-gradient(closest-side, #000 30%, rgba(0, 0, 0, 0.854) 33.5%, rgba(0, 0, 0, 0.5) 37%, rgba(0, 0, 0, 0.146) 40.5%, transparent 44%);
+}
+.product-dial__pool-swatches {
+  transform: rotate(calc(-1 * var(--dial-turn, 0deg)));
+}
+.product-dial__pooled {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.product-dial__pooled.is-shown {
+  opacity: 1;
 }
 
 /* ---- the size dial (js/option-dial.js mountSize) ----
    The third dial: its button holds the size (in --category-col until one
-   is set, .is-unset), the unit under it. Open, the button gives way to a
+   is set, .is-unset), a plain number, "Size" under it, its circle drawn
+   apart (.product-dial__ring). Open, the number gives way to a
    vertical line through its centre, from the smallest size at its foot to
-   the largest at its head, growing from the centre, a marker at the size
-   (--size-at, its share of the way up), and "Find my size" by the line's
-   head, to its right, both over a disc of blurs as the other dials' (taking no
-   taps: one on it closes the dial). The line's track, wider than the line,
-   takes the slides. */
+   the largest at its head, growing from the centre, and the circle shrinks
+   onto the line at the size (--size-at, its share of the way up) as its
+   tick, over a disc of blurs as the other dials' (taking no taps: one on it
+   closes the dial). The line's track, wider than the line, takes the
+   slides. */
 .product-dial--size {
   --dial-outer: 6rem;
+  --size-line: 10rem;
+}
+.product-dial--size .product-dial__button,
+.product-dial--size .product-dial__button:hover {
+  border-color: transparent;
 }
 .product-size-dial__value {
   font-family: var(--font-secondary);
@@ -2819,7 +2891,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   left: 0;
   top: 0;
   width: 2.5rem;
-  height: 10rem;
+  height: var(--size-line);
   transform: translate(-50%, -50%) scaleY(0);
   touch-action: none;
   pointer-events: none;
@@ -2838,30 +2910,11 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   margin-left: -0.5px;
   background: var(--category-col);
 }
-.product-size-dial__marker {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--size-at, 0.5) * 100%);
-  width: 0.875rem;
-  height: 2px;
-  margin: 0 0 -1px -0.4375rem;
-  border-radius: 1px;
-  background: var(--black);
-}
-.product-dial--size .product-size__finder-toggle {
-  position: absolute;
-  left: 0.75rem;
-  top: -5rem;
-  transform: translateY(-50%);
-  padding: 0;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--fade-quick) ease, visibility 0s linear var(--fade-quick);
-}
-.product-dial--size.is-open .product-size__finder-toggle {
-  opacity: 1;
-  visibility: visible;
-  transition: opacity var(--fade-quick) ease, visibility 0s;
+/* The size's circle (.product-dial__ring): open, the tick on the line at
+   the size; --size-at stays unregistered, so the tick keeps up with a
+   slide. */
+.product-size-dial__ring {
+  transform: translate(-50%, calc(-50% + (0.5 - var(--size-at, 0.5)) * var(--size-line) * var(--dial-open)));
 }
 
 /* The material dial's swatches (scripts/auto-render.js). background-image
@@ -3463,16 +3516,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal__review-row dd { color: var(--category-col); }
 
 /* ---- "Find my size" ----
-   Opens js/size-finder.js; a secondary button, by the open size dial's
-   line (.product-dial--size). The dial's other controls take taps on the
-   product page only from design on; this one too. */
+   Opens js/size-finder.js; a secondary button in its own row under the
+   dials (.product-config), over an open dial's blurs (.product-dial.is-open
+   is z-index 3). Like the dials' controls, it takes taps on the product
+   page only from design on. Behind it, a --white strip as tall as its line,
+   solid from its first letter to its last and fading out over 3rem on
+   each side (::before, ::after). Its box ends one letter-spacing past the
+   last letter, so the solid part stops short of that. */
 .product-size__finder-toggle {
-  align-self: flex-end;
+  position: relative;
+  z-index: 4;
   flex: none;
-  /* Keeps its text on the typed size's baseline: 0.67rem less 0.4 of the font size. */
-  padding: 0 0 calc(0.67rem - 0.4 * var(--button-secondary-font-size));
+  padding: 0;
   border: none;
-  background: none;
+  background: linear-gradient(var(--white), var(--white)) 0 0 / calc(100% - var(--button-secondary-letter-spacing)) 100% no-repeat;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
   font-size: var(--button-secondary-font-size);
@@ -3484,11 +3541,26 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   cursor: pointer;
   transition: opacity var(--fade-quick) ease;
 }
+.product-size__finder-toggle::before,
+.product-size__finder-toggle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.product-size__finder-toggle::before {
+  left: -3rem;
+  right: 100%;
+  background: linear-gradient(to right, transparent, var(--white));
+}
+.product-size__finder-toggle::after {
+  left: calc(100% - var(--button-secondary-letter-spacing));
+  width: 3rem;
+  background: linear-gradient(to left, transparent, var(--white));
+}
 @media (hover: hover) {
   .product-size__finder-toggle:hover { opacity: 0.6; }
-}
-.product-size__finder-toggle {
-  pointer-events: auto;
 }
 .size-guide__how {
   margin: 0 0 0.75rem;
@@ -3498,15 +3570,39 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--category-col);
 }
 /* Transposed (labels as the first column, one column per size); scrolls on its own when too wide. */
+/* A thin scrollbar under the table (--guide-thumb), under the room below
+   the last row (--guide-room). Each edge fades out over 3rem while the
+   table runs on past it (js/selection.js); the bottom --guide-room, empty
+   but for the scrollbar, is left out of the fade. */
 .size-guide__scroll {
+  --guide-thumb: var(--category-col);
+  --guide-room: 0.75rem;
+  --fade-start: 0px;
+  --fade-end: 0px;
   overflow-x: auto;
   overflow-y: hidden;
-  /* Room under the last row. */
-  padding-bottom: 0.75rem;
-  scrollbar-width: none;
+  padding-bottom: var(--guide-room);
+  scrollbar-width: thin;
+  scrollbar-color: var(--guide-thumb) transparent;
+  -webkit-mask: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent) top / 100% calc(100% - var(--guide-room)) no-repeat, linear-gradient(#000, #000) bottom / 100% var(--guide-room) no-repeat;
+  mask: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent) top / 100% calc(100% - var(--guide-room)) no-repeat, linear-gradient(#000, #000) bottom / 100% var(--guide-room) no-repeat;
 }
+/* Safari, without scrollbar-color. */
 .size-guide__scroll::-webkit-scrollbar {
-  display: none;
+  height: 4px;
+}
+.size-guide__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.size-guide__scroll::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: var(--guide-thumb);
+}
+.size-guide__scroll.is-clipped-start {
+  --fade-start: 3rem;
+}
+.size-guide__scroll.is-clipped-end {
+  --fade-end: 3rem;
 }
 .size-guide__table {
   border-collapse: collapse;
@@ -3519,8 +3615,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-guide__table td {
   padding: 0 1.25rem 0.2rem 0;
   text-align: left;
+  /* A label on two lines keeps its values on its first. */
+  vertical-align: baseline;
 }
+/* The labels' column as narrow as its longest word ("Diameter"), a longer
+   label going on over another line ("(mm)"). */
 .size-guide__table th {
+  width: 1px;
+  white-space: normal;
   font-weight: 400;
   color: var(--category-col);
 }
@@ -3693,6 +3795,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .size-finder__chart .size-guide__table th {
   color: rgba(255, 255, 255, 0.6);
+}
+.size-finder__chart .size-guide__scroll {
+  --guide-thumb: rgba(255, 255, 255, 0.6);
 }
 .size-finder__chart .size-guide__table td {
   color: var(--white);
@@ -4005,11 +4110,13 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   max-height: none;
   overflow: visible;
 }
-/* The dials (js/option-dial.js), centred, with room under them for the
-   discs. As on the product page, an open disc takes taps. */
-.size-modal__dials {
-  justify-content: center;
+/* The dials (js/option-dial.js) and "Find my size", centred, with room
+   under them for the discs. As on the product page, an open disc takes taps. */
+.size-modal__config {
   padding-bottom: 3.5rem;
+}
+.size-modal__config:has(.product-size__finder-toggle) {
+  padding-bottom: 0.25rem;
 }
 .size-modal--modify :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel,
 .size-modal--modify .product-dial--size.is-open .product-size-dial__track {

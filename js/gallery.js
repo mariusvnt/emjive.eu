@@ -337,8 +337,7 @@
     if (key === "category") return el("dd", "", (product.category || "").toLowerCase());
     if (key === "size") {
       var range = H.sizeRange(product);
-      var unit = window.EmjiveSeries.categoryInfo(product.category).unit;
-      return el("dd", "", range.min + " – " + range.max + (unit ? " " + unit : ""));
+      return el("dd", "", range.min + " – " + range.max);
     }
     return el("dd", "", sel.formatPriceFrom(sel.priceFrom(product)));
   }

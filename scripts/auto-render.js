@@ -32,7 +32,7 @@
 //   icon          the same capture, trimmed and re-centred (normalizeIconFraming)
 //   wheel-poster  512px, drawn by the wheel's own scene (orthographic camera,
 //                 fixed environment), so the swap to the live model changes nothing
-// Each non-default design gets its own icon and fallback-img. Then one 72px
+// Each non-default design gets its own icon and fallback-img. Then one 420px
 // square per metal, assets/metal-sample_<metal>.webp: one sphere under the
 // "swatch-hdri", blurred by "swatch-blur", from "swatch-camera" (set in
 // scene-tool.html's swatch mode). products.json paths are patched in place;
@@ -66,11 +66,12 @@ const FALLBACK_IMG_SIZE = ICON_SIZE;
 // (js/stack-scene.js), at the wheel renderer's MAX_PIXEL_RATIO.
 const STACK_POSTER_SIZE = ICON_SIZE;
 const STACK_POSTER_SCALE = 2;
-// Captured through the biggest square inside the sphere's disc (swatchOrbit
-// in js/three-viewer.js); saved at 3x the picker's 1.5rem squares
-// (--metal-square), sharp on a 3x screen.
-const SWATCH_CAPTURE = 72;
-const SWATCH_SIZE = 72;
+// The whole sphere, framed to its outline (swatchOrbit in
+// js/three-viewer.js); saved at 3x the material dial's disc (twice
+// FILL_OUTER_REM in js/option-dial.js, at a 16px rem), which every swatch
+// is drawn across, sharp on a 3x screen.
+const SWATCH_CAPTURE = 420;
+const SWATCH_SIZE = 420;
 const SWATCH_CAMERA_DEFAULT = { rotation: 0, tilt: 90, roll: 0 };
 // Supersampling for sharp source pixels before the final downscale.
 const CAPTURE_SCALE = 2;

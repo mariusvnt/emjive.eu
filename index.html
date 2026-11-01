@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the list. -->
+<!-- The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the grid. -->
 <html lang="en" data-page-loader data-viewer="idle" data-products="eager">
 <head>
 <meta charset="UTF-8" />
@@ -102,12 +102,12 @@
   <div class="series-hero" id="seriesHero"></div>
 
   <section class="products" id="products">
-    <!-- Wheel/list toggle ("stack"/"grid" in code). Both icons and labels are in
+    <!-- Wheel/grid toggle ("stack"/"grid" in code). Both icons and labels are in
          the markup; data-gallery-view on <html> shows one, so nothing swaps. -->
-    <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button" aria-label="switch to list">
-      <svg class="gallery-control__icon gallery-control__icon--list" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16 M4 12h16 M4 17h16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <button class="gallery-control gallery-control--view" id="galleryViewToggle" type="button" aria-label="switch to grid">
+      <svg class="gallery-control__icon gallery-control__icon--grid" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6.5" height="6.5"/><rect x="13.5" y="4" width="6.5" height="6.5"/><rect x="4" y="13.5" width="6.5" height="6.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5"/></g></svg>
       <svg class="gallery-control__icon gallery-control__icon--wheel" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
-      <span class="gallery-control__label gallery-control__label--grid">list</span>
+      <span class="gallery-control__label gallery-control__label--grid">grid</span>
       <span class="gallery-control__label gallery-control__label--stack">wheel</span>
     </button>
 
@@ -121,7 +121,7 @@
     <div class="gallery-stage" id="galleryStage"></div>
 
     <div class="product-grid" id="productGrid">
-      <!-- List tiles, rendered by js/gallery.js. -->
+      <!-- Grid items, rendered by js/gallery.js. -->
     </div>
   </section>
 

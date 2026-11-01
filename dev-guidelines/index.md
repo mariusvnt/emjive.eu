@@ -14,7 +14,7 @@ The repo's structure, generated from the code. Each description is the first sen
 - [creation-process.html](../creation-process.html) — Creation process (/creation-process).
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
-- [index.html](../index.html) — The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the list.
+- [index.html](../index.html) — The homepage (/gallery): the featured series' hero, then its gallery as the wheel or the grid.
   - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #products
 - [json-tool.html](../json-tool.html) — Dev-only page (not built), served by scripts/json-tool-server.js (npm run json-tool): edit data/series.json's globals, series and products, with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray, photos).
@@ -67,7 +67,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (or "No selected item") and "Order (N) ›".
   - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on it.
   - [selection.js](../js/selection.js) — The selection (cart), in localStorage: window.EmjiveSelection.
-    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, formatPriceFrom, formatPriceRange, priceAt, priceRange, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
+    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, priceRange, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
   - [series-page.js](../js/series-page.js) — series.html: fills the requested series' title, year and subtitle from its manifest.
   - [series.js](../js/series.js) — Series resolution (window.EmjiveSeries), plus the page-wide helpers every page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage hero bundle loader.
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }

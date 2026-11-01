@@ -30,7 +30,7 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 **The homepage decides what the visitor lands on before `<body>` is parsed.**
 
 - **The hero.** It plays on every landing from outside the site and never again within a visit.
-- **The view.** The wheel or the list, remembered within the visit. A switch happens under a veil that lifts only once the page holds still (a phone settles its bars after the jump), the wheel laid out last against the hand where it then is, so nothing moves into place in view.
+- **The view.** The wheel or the grid, remembered within the visit. A switch happens under a veil that lifts only once the page holds still (a phone settles its bars after the jump), the wheel laid out last against the hand where it then is, so nothing moves into place in view.
 - **Back and reload.** They rebuild exactly what was left, mid-hero included.
   Being on the wheel is remembered as such, not as an offset: the page's length follows the phone's browser bars, so the same offset can fall short of the wheel. iOS Safari can show a page back from its back-forward cache at the top and then reload it, so a page coming back saves nothing until it is touched. The gallery stays hidden until the restored page holds still, so what settles after doesn't show.
 
@@ -38,10 +38,10 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 **The series hero is a swappable bundle.** `index.html` carries empty slots, and the featured series' hero (`series/<slug>/`: an HTML fragment of `<template>`s, a stylesheet and a script) is cloned into them at runtime. That lets each collection bring its own hero animation without the page changing. The hero's script is injected by a runtime string path, so Vite never sees it. It may not use bare imports, and it must be inert until called so the fragment, styles and script can all load in parallel. Two path conventions live side by side in a bundle: the fragment's image paths resolve against the page, the stylesheet's `url()`s against the stylesheet.
 
-**The gallery has two views of the same products** (the code calls them `stack` and `grid`):
+**The gallery has two views of the same products** (the code calls the wheel `stack`):
 
 - **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. Those rings are the wheel's own models, drawn in an x-ray look so they read as part of the radiograph, and they turn to metal as they leave the hand. The circle is then a plate the visitor turns to bring an item to the top. A scroll that stops short of the wheel still lands on it, with no snap: over the entrance's last stretch the shown progress runs ahead of the scroll, moving only when the scroll moves and in its direction, more during a fling's inertia than under a finger, so the help is never seen as a motion of its own.
-- **The list.** One row per item, no 3D: for a quick pick.
+- **The grid.** Each item is two tiles, its pictures over its facts, two items side by side on a phone, no 3D: for a quick pick.
 
 Filtering hides what is already built and never rebuilds it (see rules.md).
 

@@ -449,7 +449,7 @@
           // The arrival loader waits for the hero's first paint, not the products: the
           // images marked data-first-paint matching data-hero ("play": the photo,
           // "skip": the x-ray and what's in sight with it), else the slot's first
-          // <img>. A list landing without the hero is released by js/gallery.js instead.
+          // <img>. A grid landing without the hero is released by js/gallery.js instead.
           var mode = document.documentElement.getAttribute("data-hero") === "skip" ? "skip" : "play";
           var gridFirst = mode === "skip" && document.documentElement.getAttribute("data-gallery-view") === "grid";
           var heroImgs = Array.prototype.slice.call(slot.querySelectorAll('img[data-first-paint~="' + mode + '"]'));

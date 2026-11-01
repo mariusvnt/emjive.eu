@@ -1,7 +1,8 @@
 // Homepage gallery (index.html): one of two views, data-gallery-view on
 // <html> (set in the <head> by js/scroll-memory.js):
 //   stack  the wheel (js/gallery-stack.js, mounted here)
-//   grid   the list, built here: one row per product, its pictures a deck dealt by swiping
+//   grid   the grid, built here: two tiles per product, its pictures (a deck dealt by
+//          swiping) over its facts
 // data-hero="play" plays the hero reveal first, "skip" lands at rest.
 // Also owns product loading, the view toggle and its veil, the material
 // picker, the filter's effect on both views, and reporting changes to
@@ -25,8 +26,8 @@
   var VIEW_KEY = "emjive_gallery_view";
   // The veil's fade (--fade-standard); its fallback timer adds a margin.
   var VEIL_MS = 300;
-  // Longest the arrival loader waits on the list's first tiles.
-  var FIRST_TILES_MS = 4000;
+  // Longest the arrival loader waits on the grid's first items.
+  var FIRST_ITEMS_MS = 4000;
 
   var H = window.EmjiveHelpers;
   var el = H.el;
@@ -51,14 +52,14 @@
   var state = {
     products: null,
     slug: null,
-    tiles: [],
+    items: [],
     stack: null,
     cats: [],
     onShowAll: null,
     emptyMsg: null,
     stage: null,
-    // The list's top has come up past the hero (watchListTop()).
-    listReached: false
+    // The grid's top has come up past the hero (watchGridTop()).
+    gridReached: false
   };
 
   /* ---- arrival cover and the wheel ----
@@ -170,31 +171,31 @@
   function syncControls() {
     // Its icon and word are CSS's (same attribute); this is its name.
     if (!viewToggle) return;
-    viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to list");
+    viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to grid");
     // Wheel view: shown once the entrance has played out (mapStage, the roll back left out).
     var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
     var landed = stage !== null && stage >= 0.9;
     viewToggle.classList.toggle("is-ready", view() === "grid" || landed);
-    // The material picker: after the hero, the list's once it has scrolled by.
+    // The material picker: after the hero, the grid's once it has scrolled by.
     if (materialEl) {
-      materialEl.classList.toggle("is-ready", view() === "grid" ? heroMode() === "skip" || state.listReached : landed);
+      materialEl.classList.toggle("is-ready", view() === "grid" ? heroMode() === "skip" || state.gridReached : landed);
     }
   }
 
-  // Whether the list's top has reached the top of the screen.
-  function watchListTop() {
+  // Whether the grid's top has reached the top of the screen.
+  function watchGridTop() {
     if (typeof IntersectionObserver !== "function") {
-      state.listReached = true;
+      state.gridReached = true;
       return;
     }
     new IntersectionObserver(function (entries) {
       var box = entries[entries.length - 1].boundingClientRect;
-      state.listReached = box.top <= 0;
+      state.gridReached = box.top <= 0;
       syncControls();
     }, { rootMargin: "0px 0px -100% 0px" }).observe(section);
   }
 
-  // Either view lands at rest: the list at the top, the wheel at the hero's end.
+  // Either view lands at rest: the grid at the top, the wheel at the hero's end.
   function switchView(next) {
     if (next === view()) return;
     throughVeil(function () {
@@ -225,11 +226,11 @@
       syncControls();
     });
   }
-  watchListTop();
+  watchGridTop();
   syncControls();
 
   /* One metal for every item (EmjiveSeries.chooseMetal), in both views'
-     pictures, the list's prices and the item's page after: the metals'
+     pictures, the grid's prices and the item's page after: the metals'
      swatches in a row, the active one dotted, its name under them. Until
      the visitor picks, every item shows its own default metal, and the
      picker the one they share. */
@@ -266,7 +267,7 @@
       nameEl.textContent = current || "";
     }
 
-    // The first pick also prices the list, even in the metal already shown.
+    // The first pick also prices the grid, even in the metal already shown.
     function choose(metal) {
       if (metal === window.EmjiveSeries.chosenMetal()) return;
       window.EmjiveSeries.chooseMetal(metal);
@@ -279,26 +280,26 @@
   }
 
   function applyMetal(metal) {
-    state.tiles.forEach(function (tile) {
-      var src = cardPicture(tile.product, metal);
-      if (tile.firstImg && src) H.crossfadeSrc(tile.firstImg, src);
-      tile.price.textContent = priceText(tile.product);
+    state.items.forEach(function (item) {
+      var src = cardPicture(item.product, metal);
+      if (item.firstImg && src) H.crossfadeSrc(item.firstImg, src);
+      item.price.textContent = priceText(item.product);
     });
     if (state.stack) state.stack.setMetal(metal);
   }
 
-  /* ---- the list ----
-     A header row, then one row per product: index, a deck of pictures (the
-     model's fallback-img, or icon without a model, then the photos), and its
-     facts. A sideways swipe or a tap on a card behind deals the deck; any other
-     tap opens the product. */
+  /* ---- the grid ----
+     Each product takes two tiles: a square deck of pictures (the model's
+     fallback-img, or icon without a model, then the photos), and its facts
+     under it. A sideways swipe or a tap on a card behind deals the deck; any
+     other tap opens the product. */
   // Cards shown behind the front one; the rest wait under the last.
   var DECK_DEPTH = 3;
   // Sideways travel, in px, before a press deals a card.
   var DEAL_PX = 24;
 
   function card(src, alt, modifier) {
-    var img = el("img", "grid-tile__card " + modifier);
+    var img = el("img", "grid-item__card " + modifier);
     img.src = src;
     img.alt = alt;
     img.width = 512;
@@ -357,14 +358,14 @@
     deck.addEventListener("pointerup", release);
     deck.addEventListener("pointercancel", release);
 
-    // A dealing swipe isn't a tap on the tile; nor is a tap on a card behind.
+    // A dealing swipe isn't a tap on the item; nor is a tap on a card behind.
     deck.addEventListener("click", function (e) {
       if (dealt) {
         dealt = false;
         e.stopPropagation();
         return;
       }
-      var target = e.target.closest ? e.target.closest(".grid-tile__card") : null;
+      var target = e.target.closest ? e.target.closest(".grid-item__card") : null;
       if (target && !target.classList.contains("is-front")) {
         e.stopPropagation();
         deal(cards.indexOf(target));
@@ -382,35 +383,21 @@
     window.location.href = window.EmjiveSeries.productHref(product, state.slug);
   }
 
-  // Row facts. Price is the lowest over all metals, or the chosen one's
-  // once picked (it scales with size, js/selection.js priceAt).
+  // An item's facts, stacked; only the size's label is shown. Price runs
+  // over all metals, or the chosen one's once picked, smallest size to
+  // largest (it scales with size, js/selection.js priceAt).
   var FACTS = [
     { key: "name", label: "Id" },
     { key: "category", label: "Category" },
-    { key: "size", label: "Size" },
+    { key: "size", label: "size", shown: true },
     { key: "price", label: "Price" }
   ];
-
-  // Visual only: each row's facts carry their own labels for screen readers.
-  function buildHead() {
-    var head = el("div", "grid-tile grid-tile--head");
-    head.setAttribute("aria-hidden", "true");
-    head.appendChild(el("span", "grid-tile__index", "No."));
-    var body = el("div", "grid-tile__body");
-    var facts = el("div", "grid-tile__facts");
-    FACTS.forEach(function (fact) {
-      facts.appendChild(el("span", "grid-tile__fact grid-tile__fact--" + fact.key, fact.label));
-    });
-    body.appendChild(facts);
-    head.appendChild(body);
-    return head;
-  }
 
   function factValue(product, key) {
     var name = product.name || "";
     if (key === "name") {
       var dd = el("dd");
-      var open = el("button", "grid-tile__name", name);
+      var open = el("button", "grid-item__name", name);
       open.type = "button";
       open.setAttribute("aria-label", "Open " + name + (product.category ? ", " + product.category : ""));
       dd.appendChild(open);
@@ -426,7 +413,7 @@
 
   function priceText(product) {
     var sel = window.EmjiveSelection;
-    return sel.formatPriceFrom(sel.priceFrom(product, window.EmjiveSeries.chosenMetal() || ""));
+    return sel.formatPriceRange(sel.priceSpan(product, window.EmjiveSeries.chosenMetal() || ""));
   }
 
   // The deck's first card: the model's fallback-img, or its icon without a model.
@@ -436,35 +423,30 @@
   }
 
   function buildFacts(product) {
-    var list = el("dl", "grid-tile__facts");
+    var list = el("dl", "grid-item__facts");
     FACTS.forEach(function (fact) {
-      var row = el("div", "grid-tile__fact grid-tile__fact--" + fact.key);
-      row.appendChild(el("dt", "visually-hidden", fact.label));
+      var row = el("div", "grid-item__fact grid-item__fact--" + fact.key);
+      row.appendChild(el("dt", fact.shown ? "" : "visually-hidden", fact.label));
       row.appendChild(factValue(product, fact.key));
       list.appendChild(row);
     });
     return list;
   }
 
-  // The index is the product's place in the series, kept when the filter hides rows.
-  function buildTile(product, index) {
-    var tile = el("article", "grid-tile");
-    var number = index + 1;
-    var indexCell = el("span", "grid-tile__index", (number < 10 ? "0" : "") + number);
-    indexCell.setAttribute("aria-hidden", "true");
-    tile.appendChild(indexCell);
-    var frame = el("div", "grid-tile__frame");
-    var deck = el("div", "grid-tile__deck");
+  function buildItem(product) {
+    var item = el("article", "grid-item");
+    var frame = el("div", "grid-item__frame");
+    var deck = el("div", "grid-item__deck");
     var assets = product.assets || {};
     var name = product.name || "";
     var first = cardPicture(product, window.EmjiveSeries.metalFor(product));
     var firstImg = null;
     if (first) {
-      firstImg = card(first, name, "grid-tile__card--model");
+      firstImg = card(first, name, "grid-item__card--model");
       deck.appendChild(firstImg);
     }
     (assets.photos || []).forEach(function (photo) {
-      deck.appendChild(card(photo.src, photo.description || name, "grid-tile__card--photo"));
+      deck.appendChild(card(photo.src, photo.description || name, "grid-item__card--photo"));
     });
     frame.appendChild(deck);
 
@@ -475,38 +457,35 @@
       deck.setAttribute("aria-label", name + " pictures");
       wireDeck(frame, deck);
     }
-    var body = el("div", "grid-tile__body");
-    body.appendChild(frame);
-    body.appendChild(buildFacts(product));
-    tile.appendChild(body);
+    item.appendChild(frame);
+    item.appendChild(buildFacts(product));
 
-    tile.addEventListener("click", function () { openProduct(product); });
+    item.addEventListener("click", function () { openProduct(product); });
 
     if (firstImg && window.EmjiveLoader) {
       window.EmjiveLoader.cover(frame, H.imageReady(firstImg));
     }
-    return { product: product, el: tile, firstImg: firstImg, price: tile.querySelector(".grid-tile__fact--price dd") };
+    return { product: product, el: item, firstImg: firstImg, price: item.querySelector(".grid-item__fact--price dd") };
   }
 
   function renderGrid(products) {
     grid.innerHTML = "";
-    if (products.length) grid.appendChild(buildHead());
-    state.tiles = products.map(function (product, index) {
-      var tile = buildTile(product, index);
-      grid.appendChild(tile.el);
-      return tile;
+    state.items = products.map(function (product) {
+      var item = buildItem(product);
+      grid.appendChild(item.el);
+      return item;
     });
   }
 
-  // A list landing without the hero: its first visible tiles are the first paint.
-  function releaseLoaderOnTiles() {
+  // A grid landing without the hero: its first visible items are the first paint.
+  function releaseLoaderOnItems() {
     if (!window.EmjiveLoader) return;
     var top = window.innerHeight || 0;
-    var waits = state.tiles.filter(function (tile) {
-      if (!tile.firstImg || tile.el.hidden) return false;
-      return tile.el.getBoundingClientRect().top < top;
-    }).map(function (tile) { return H.imageReady(tile.firstImg); });
-    Promise.race([Promise.all(waits), H.wait(FIRST_TILES_MS)]).then(function () { window.EmjiveLoader.pageReady(); });
+    var waits = state.items.filter(function (item) {
+      if (!item.firstImg || item.el.hidden) return false;
+      return item.el.getBoundingClientRect().top < top;
+    }).map(function (item) { return H.imageReady(item.firstImg); });
+    Promise.race([Promise.all(waits), H.wait(FIRST_ITEMS_MS)]).then(function () { window.EmjiveLoader.pageReady(); });
   }
 
   /* ---- filtering ----
@@ -555,9 +534,9 @@
 
   function applyFilter() {
     var visible = 0;
-    state.tiles.forEach(function (tile) {
-      tile.el.hidden = !matches(tile.product);
-      if (!tile.el.hidden) visible++;
+    state.items.forEach(function (item) {
+      item.el.hidden = !matches(item.product);
+      if (!item.el.hidden) visible++;
     });
     if (state.stack) state.stack.setFilter(state.products.filter(matches).map(function (p) { return p.id; }));
     showEmpty(state.products.length > 0 && visible === 0);
@@ -612,7 +591,7 @@
       }
       applyFilter();
       window.dispatchEvent(new CustomEvent("emjive:gallery-filtered", { detail: { counts: counts() } }));
-      if (view() === "grid" && heroMode() === "skip") releaseLoaderOnTiles();
+      if (view() === "grid" && heroMode() === "skip") releaseLoaderOnItems();
       // The gallery is the last height change: js/scroll-memory.js finishes restoring on it.
       if (state.stack && view() === "stack" && isRestoring() && window.EmjiveScrollMemory.holdUntil) {
         window.EmjiveScrollMemory.holdUntil(function () { return state.stack.settleLayout(); });

@@ -2,7 +2,7 @@
 
 The website of em·ji·ve, a jewelry brand whose pieces are designed in 3D and printed in metal (steel, silver or bronze), each one made to order.
 
-The pieces come in **series**, collections with a theme of their own. The first, *Bones*, is a set of rings drawn from the shapes of the human skeleton. The homepage belongs to the current series: it opens on that series' own animation (an x-ray of a hand wearing the rings), then pulls back to a **wheel** of every piece in 3D, which the visitor turns to bring one to the front. A plain **list** of the pieces is one tap away for a quicker look. In either, a row of metal swatches shows every piece in one metal at once, and a piece's page then opens in it.
+The pieces come in **series**, collections with a theme of their own. The first, *Bones*, is a set of rings drawn from the shapes of the human skeleton. The homepage belongs to the current series: it opens on that series' own animation (an x-ray of a hand wearing the rings), then pulls back to a **wheel** of every piece in 3D, which the visitor turns to bring one to the front. A compact **grid** of the pieces, two side by side on a phone, is one tap away for a quicker look. In either, a row of metal swatches shows every piece in one metal at once, and a piece's page then opens in it.
 
 Each piece has its own page:
 

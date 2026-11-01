@@ -182,25 +182,32 @@
     return { min: priceAt(product, metal, range.min), max: priceAt(product, metal, range.max) };
   }
 
-  // Lowest price over one metal, or over every priced metal. 0 if none is priced.
-  function priceFrom(product, metal) {
+  // Lowest to highest price over one metal, or over every priced metal. 0s if none is priced.
+  function priceSpan(product, metal) {
     var specs = (product && product["per-metal-specs"]) || {};
-    var low = 0;
+    var span = { min: 0, max: 0 };
     (metal ? [metal] : Object.keys(specs)).forEach(function (m) {
-      var price = priceRange(product, m).min;
-      if (price > 0 && (!low || price < low)) low = price;
+      var range = priceRange(product, m);
+      if (!(range.min > 0)) return;
+      if (!span.min || range.min < span.min) span.min = range.min;
+      if (range.max > span.max) span.max = range.max;
     });
-    return low;
+    return span;
+  }
+
+  function priceFrom(product, metal) {
+    return priceSpan(product, metal).min;
   }
 
   function formatPriceFrom(price) {
     return price > 0 ? "from " + formatPrice(price) : "TBD";
   }
 
+  // "120 – 180 €" (the gallery grid's form).
   function formatPriceRange(range) {
     if (!(range.max > 0)) return "TBD";
-    if (range.min === range.max) return formatPrice(range.min);
-    return "€ " + range.min + " – " + range.max;
+    if (range.min === range.max) return range.max + " €";
+    return range.min + " – " + range.max + " €";
   }
 
   /* ---- sizes: rules shared by the size fields of #sizeModal and #modifyModal ---- */
@@ -322,6 +329,7 @@
     clear: clear,
     formatPrice: formatPrice,
     priceFrom: priceFrom,
+    priceSpan: priceSpan,
     formatPriceFrom: formatPriceFrom,
     formatPriceRange: formatPriceRange,
     priceAt: priceAt,

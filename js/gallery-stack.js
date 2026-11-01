@@ -1153,7 +1153,7 @@
           throw err;
         });
       }).catch(function (err) {
-        // The image rendering stays. Silent if merely abandoned (list view, page hide).
+        // The image rendering stays. Silent if merely abandoned (grid view, page hide).
         if (token === state.sceneToken) console.error("emjive: the 3D stack could not start", err);
       }).then(function () {
         if (token === state.sceneToken) state.sceneLoading = false;
@@ -1309,7 +1309,7 @@
         relayout(true);
       },
 
-      // View switched (js/gallery.js): the list needs none of this, nor its WebGL contexts.
+      // View switched (js/gallery.js): the grid needs none of this, nor its WebGL contexts.
       setActive: function (on) {
         if (on === state.active) return;
         state.active = on;

@@ -2,7 +2,7 @@
 // view) the entrance: more pinned scroll over which the camera pulls back from
 // the hand to the wheel round the wrist. Feeds js/gallery-stack.js through
 // window.EmjiveHero.publishStage, rings(), orbit(), wipeTop() and setZoom().
-// A skipped hero (data-hero="skip") lands at its end; the list view doesn't
+// A skipped hero (data-hero="skip") lands at its end; the grid view doesn't
 // show it.
 //
 // Loaded by js/series.js from a runtime path, so:
@@ -51,7 +51,7 @@
   var HAND_TOP_Y = 11.7;
   var XRAY_FADE_END = 0.8;
 
-  // Skipped hero in the list view: the end state is simply held. In the wheel
+  // Skipped hero in the grid view: the end state is simply held. In the wheel
   // view a skipped hero is landed at its end instead (landAtEnd).
   function isSkipped() {
     var root = document.documentElement;
@@ -149,7 +149,7 @@
     var rect = revealSection.getBoundingClientRect();
     // Unclamped: keeps driving the selection bar past the pin's release.
     var rawScrolled = Math.max(0, -rect.top);
-    // The wheel's entrance stretch (0 in the list view).
+    // The wheel's entrance stretch (0 in the grid view).
     var entrancePx = revealEntrance ? revealEntrance.getBoundingClientRect().height : 0;
     // Against the pin's height (100vh), not innerHeight, which the phone's bars
     // change mid-scroll and would make the wipe jump.

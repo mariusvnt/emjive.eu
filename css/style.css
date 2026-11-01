@@ -292,7 +292,7 @@ button, input, textarea {
   inset: 0;
   z-index: 1;
 }
-/* In the product list (products failed, or an empty filter). */
+/* In the product grid (products failed, or an empty filter). */
 .page-message--grid {
   grid-column: 1 / -1;
   padding: 3rem 0;
@@ -744,8 +744,8 @@ body:has(.product-stage) .site-header__veil {
 
 /* Two homepage views, data-gallery-view on <html> (js/scroll-memory.js, js/gallery.js):
      stack  the wheel, on .gallery-stage fixed over the hero's pin; .products takes no room
-     grid   the list (.product-grid), under the hero or at the page's top
-   data-hero="skip": the hero isn't played; the wheel lands, the list starts the page. */
+     grid   the grid (.product-grid), under the hero or at the page's top
+   data-hero="skip": the hero isn't played; the wheel lands, the grid starts the page. */
 .products {
   position: relative;
   padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
@@ -774,7 +774,7 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 
 /* ---- the view toggle ----
-   "list" / "wheel" (js/gallery.js), the view it switches to, in the secondary
+   "grid" / "wheel" (js/gallery.js), the view it switches to, in the secondary
    button format. mix-blend-mode keeps it legible over photo, x-ray and page.
    Above the header's veil, so it steps aside while the menu is open. In the
    wheel view only once the entrance is done (.is-ready). */
@@ -816,7 +816,7 @@ html[data-gallery-view="grid"] .gallery-stage {
 /* Shows the view it goes to. */
 html[data-gallery-view="stack"] .gallery-control__icon--wheel,
 html[data-gallery-view="stack"] .gallery-control__label--stack,
-html[data-gallery-view="grid"] .gallery-control__icon--list,
+html[data-gallery-view="grid"] .gallery-control__icon--grid,
 html[data-gallery-view="grid"] .gallery-control__label--grid {
   display: none;
 }
@@ -1091,83 +1091,55 @@ body:has(.site-header__menu.is-open) .gallery-material {
   outline-offset: var(--focus-ring-offset);
 }
 
-/* ---- the list ----
-   One product per row, no 3D. The index column (subgrid, so it aligns down
-   the page), 0.5rem, then the row's body: equal columns, on a phone the
-   picture and stacked facts, wider the picture and a column per fact.
-   1.5rem from picture to facts, --edge-px between facts. A header row names
-   the columns. Rows are 3rem apart on a phone, up to 15rem on desktop. The
-   picture is a deck of cards (the model's view, then photos) dealt by swiping;
-   a tap opens the product, except on a card behind, which comes to the front. */
+/* ---- the grid ----
+   Square tiles, as many columns as fit at --grid-tile and stretched to fill
+   the row, never fewer than two (a phone's two items side by side). Each
+   product takes two tiles: its picture square, its facts under it, as tall
+   as their text. The picture is a deck of cards (the model's view, then
+   photos) dealt by swiping; a tap opens the product, except on a card
+   behind, which comes to the front. */
 .product-grid {
-  --grid-cols: 2;
-  --grid-picture-gap: 1.5rem;
-  --grid-head-gap: 3rem;
-  /* 3rem at 375px, growing to 15rem at --max (1440px). */
-  --grid-row-gap: clamp(3rem, 18.03vw - 1.23rem, 15rem);
+  --grid-tile: 160px;
+  --grid-col-gap: var(--edge-px);
+  --grid-row-gap: clamp(2rem, 4vw, 3.5rem);
   position: relative;
   z-index: 1;
   max-width: var(--max);
-  /* The last product's margin taken back. */
-  margin: 0 auto calc(var(--grid-head-gap) - var(--grid-row-gap));
+  margin: 0 auto;
   padding: 0 var(--edge-px);
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  /* The gap is the header's; each product adds the rest as a margin (not
-     padding, so the space takes no tap). */
-  gap: var(--grid-head-gap) 0.5rem;
-}
-/* The picture, then Id, Category, Size, Price. */
-@media (min-width: 641px) {
-  .product-grid { --grid-cols: 5; --grid-fact-cols: 4; }
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--grid-tile), calc((100% - var(--grid-col-gap)) / 2)), 1fr));
+  gap: var(--grid-row-gap) var(--grid-col-gap);
+  align-items: start;
 }
 
-/* A row spans the grid's two columns (subgrid); index and facts centre on the
-   picture. [hidden] needs the override (the filter hides rows). */
-.grid-tile {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: center;
+/* [hidden] needs the override (the filter hides items). */
+.grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   min-width: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.grid-tile[hidden] { display: none; }
-.grid-tile:not(.grid-tile--head) {
-  margin-bottom: calc(var(--grid-row-gap) - var(--grid-head-gap));
-}
-.grid-tile--head { cursor: default; }
-.grid-tile__index { grid-column: 1; }
-/* The picture is as wide as one fact column. */
-.grid-tile__body {
-  grid-column: 2;
-  min-width: 0;
-  display: grid;
-  grid-template-columns:
-    calc((100% - var(--grid-picture-gap) - (var(--grid-cols) - 2) * var(--edge-px)) / var(--grid-cols))
-    minmax(0, 1fr);
-  column-gap: var(--grid-picture-gap);
-  align-items: center;
-}
+.grid-item[hidden] { display: none; }
 /* The deck: the front card against the square's left edge, up to
    --deck-depth cards behind (js/gallery.js), each --deck-peek further right
    and --deck-shrink smaller about its right edge, so each shows --deck-peek
    past the one before and the last reaches the square's edge. --pos is a
    card's place (0 = front). The model's card is frosted glass; photos cast a
    soft shadow in a deck. */
-.grid-tile__frame {
+.grid-item__frame {
   --deck-depth: 0;
   /* cqw: of the square (the container). */
   --deck-peek: 6cqw;
   --deck-shrink: 0.07;
-  grid-column: 1;
   position: relative;
   aspect-ratio: 1 / 1;
   container-type: inline-size;
 }
 /* isolation keeps the cards' z-indexes under the loader. */
-.grid-tile__deck {
+.grid-item__deck {
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   align-items: center;
@@ -1177,7 +1149,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   isolation: isolate;
   touch-action: pan-y;
 }
-.grid-tile__card {
+.grid-item__card {
   grid-area: 1 / 1;
   width: calc(100% - var(--deck-depth) * var(--deck-peek));
   height: auto;
@@ -1192,48 +1164,37 @@ body:has(.site-header__menu.is-open) .gallery-material {
   -webkit-user-drag: none;
   user-select: none;
 }
-.grid-tile__deck[role="group"] .grid-tile__card {
+.grid-item__deck[role="group"] .grid-item__card {
   box-shadow: 0 0 0.75rem rgba(0, 0, 0, 0.08);
 }
-.grid-tile__card--photo {
+.grid-item__card--photo {
   object-fit: cover;
 }
-.grid-tile__card--model {
+.grid-item__card--model {
   background: none;
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 /* The frost's edge: three inset shadows, darkest tightest, as on the glass bars. */
-.grid-tile__deck[role="group"] .grid-tile__card--model {
+.grid-item__deck[role="group"] .grid-item__card--model {
   box-shadow:
     inset 0 0 1px rgba(0, 0, 0, 0.1),
     inset 0 0 3px rgba(0, 0, 0, 0.06),
     inset 0 0 6px rgba(0, 0, 0, 0.04);
 }
-/* The facts (a <dl>; labels visually hidden), right-aligned: stacked on a
-   phone, wider one per column. */
-.grid-tile__facts {
-  grid-column: 2;
+/* The facts (a <dl>), stacked: 12px DINish, the name --black, the rest
+   --category-col. Labels are visually hidden but the size's, shown before
+   its value. */
+.grid-item__facts {
   margin: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  /* Right-aligned, so the last fact ends on the page margin. */
-  text-align: right;
 }
-@media (min-width: 641px) {
-  .grid-tile__facts {
-    display: grid;
-    grid-template-columns: repeat(var(--grid-fact-cols), minmax(0, 1fr));
-    column-gap: var(--edge-px);
-    align-items: baseline;
-  }
-}
-.grid-tile__fact { min-width: 0; }
-.grid-tile__fact dd { margin: 0; }
-/* 12px DINish; header labels --black, row values --category-col. */
-.grid-tile__index,
-.grid-tile__fact {
+.grid-item__fact {
+  display: flex;
+  gap: 0.35em;
+  min-width: 0;
   margin: 0;
   font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
@@ -1241,13 +1202,12 @@ body:has(.site-header__menu.is-open) .gallery-material {
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   color: var(--category-col);
+  overflow-wrap: anywhere;
 }
-.grid-tile--head .grid-tile__index,
-.grid-tile--head .grid-tile__fact {
-  color: var(--black);
-}
-/* The name is the row's keyboard button, styled as plain text. */
-.grid-tile__name {
+.grid-item__fact dd { margin: 0; min-width: 0; }
+.grid-item__fact--name { color: var(--black); }
+/* The name is the item's keyboard button, styled as plain text. */
+.grid-item__name {
   padding: 0;
   border: none;
   background: none;

@@ -108,7 +108,7 @@
 
     // The visible label is a dotted string, so the button gets a plain spoken name.
     function spokenLabel(item) {
-      return "Modify " + item.name + ", " + item.metal + ", size " + item.size;
+      return "Modify " + item.name + ", " + item.metal + ", size " + String(parseFloat(item.size));
     }
 
     function buildRow(item) {

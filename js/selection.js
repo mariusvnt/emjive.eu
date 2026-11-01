@@ -254,7 +254,8 @@
   }
 
   // Appends a size as text, its decimals as a small .size-fraction without the
-  // point: "." already separates .category.metal.size in the rows.
+  // point: "." already separates .category.metal.size in the rows. A whole
+  // size ("62", "62.00" as stored) shows no decimals.
   function appendSize(parent, size) {
     var str = String(size);
     var dot = str.indexOf(".");
@@ -264,7 +265,7 @@
     }
     parent.appendChild(document.createTextNode(str.slice(0, dot)));
     var digits = str.slice(dot + 1);
-    if (!digits) return;
+    if (!/[1-9]/.test(digits)) return;
     var frac = document.createElement("span");
     frac.className = "size-fraction";
     frac.textContent = digits.length === 1 ? digits + "0" : digits;

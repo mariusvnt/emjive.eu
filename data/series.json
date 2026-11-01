@@ -88,9 +88,9 @@
   "hdri-blur": 2,
   "reflection-detail": 2,
 
-  "swatch-hdri": "contrasted-studio",
-  "swatch-blur": 30,
-  "swatch-camera": { "rotation": 170, "tilt": 142, "roll": 24 },
+  "swatch-hdri": "studio",
+  "swatch-blur": 25,
+  "swatch-camera": { "rotation": -163, "tilt": 105, "roll": 38 },
 
   "series": [
     {
@@ -99,7 +99,7 @@
       "year": "2026",
       "categories": ["ring"],
       "products": "data/series/bones/products.json",
-      "hdri": "contrasted-studio",
+      "hdri": "studio",
       "manifest": "data/series/bones/manifest.json",
       "hero": {
         "fragment": "series/bones/hero.html",

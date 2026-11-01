@@ -193,7 +193,8 @@ const indexSchema = {
       type: "object",
       required: ["rotation", "tilt", "roll"],
       additionalProperties: false,
-      properties: { rotation: num, tilt: num, roll: num }
+      // frame: js/three-viewer.js swatchOrbit(), the share of the sphere's radius in the frame.
+      properties: { rotation: num, tilt: num, roll: num, frame: { type: "number", exclusiveMinimum: 0, maximum: 1 } }
     },
     series: {
       type: "array",

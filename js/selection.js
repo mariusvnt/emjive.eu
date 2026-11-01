@@ -307,18 +307,7 @@
     scroll.setAttribute("aria-label", "Size chart");
     scroll.appendChild(table);
     container.appendChild(scroll);
-    // Each edge fades while the table runs on past it (.is-clipped-start,
-    // .is-clipped-end). Observed, not measured once: it is built hidden.
-    function markClipped() {
-      scroll.classList.toggle("is-clipped-start", scroll.scrollLeft > 1);
-      scroll.classList.toggle("is-clipped-end", scroll.scrollLeft + scroll.clientWidth < scroll.scrollWidth - 1);
-    }
-    scroll.addEventListener("scroll", markClipped, { passive: true });
-    if (typeof ResizeObserver === "function") {
-      var observer = new ResizeObserver(markClipped);
-      observer.observe(scroll);
-      observer.observe(table);
-    }
+    window.EmjiveHelpers.edgeFades(scroll);
     return true;
   }
 

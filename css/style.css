@@ -1283,7 +1283,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
     padding-top var(--fade-standard) ease,
     padding-bottom var(--fade-standard) ease;
 }
-/* Collapsed: leaving (an Unselect) or about to grow back (an Undo, expand()).
+/* Collapsed: leaving (a Remove) or about to grow back (an Undo, expand()).
    Its item is gone from storage, so it takes no taps. */
 .order-item.is-removing {
   padding-top: 0;
@@ -1351,9 +1351,9 @@ body:has(.site-header__menu.is-open) .gallery-control {
   transition: none;
 }
 /* ---- the Undo line (js/order-rows.js offerUndo) ----
-   After an Unselect the row stays at full height as "Undo" for a few
+   After a Remove the row stays at full height as "Undo" for a few
    seconds: a band pinned to the screen's left edge grows across its left
-   quarter (like the Modify strip's Unselect), then "Undo" fades in, dark on
+   quarter (like the Modify strip's Remove), then "Undo" fades in, dark on
    the light band. Built when held, so .is-undo has a state to start from:
      .is-undo           the row's content and band fade; this band grows, then the label
      .is-undo-leaving   the offer ran out: the label goes, the band shrinks back
@@ -1483,14 +1483,11 @@ body:has(.site-header__menu.is-open) .gallery-control {
   transition-duration: 0.12s;
 }
 /* Name and attrs back to back read as one label. min-width: 0 lets it shrink,
-   clipped to one line with a fade mask instead of an ellipsis. */
+   to one line that scrolls sideways (.edge-scroll), not an ellipsis. */
 .order-item__meta {
+  --edge-fade: 15%;
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
-  mask-image: linear-gradient(90deg, #000 85%, transparent 100%);
 }
 .order-item__name { font-family: var(--font-main); color: var(--white); }
 .order-item__attrs {
@@ -1706,7 +1703,7 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__band {
   transition-delay: var(--fade-fast);
 }
-.order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__unselect,
+.order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__remove,
 .order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__save {
   transition-delay: calc(var(--fade-fast) * 2);
 }
@@ -1834,7 +1831,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    x-ray takes none (.product-below), its controls opting back
    in here. Out-of-sight parts are hidden outright, so they take no taps and
    show no loader. */
-.product-stage:is([data-stage="design"], [data-stage="flow"]) :is(.product-dial__button, :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel, .product-dial--size.is-open .product-size-dial__track, .product-size__finder-toggle, .product-plan > *) {
+.product-stage:is([data-stage="design"], [data-stage="flow"]) :is(.product-dial__button, .product-dial--icons.is-open .product-dial__wheel, .product-dial--size.is-open .product-size-dial__track, .product-size__finder-toggle, .product-plan > *) {
   pointer-events: auto;
 }
 .product-stage.is-feed-gone .product-feed,
@@ -2238,17 +2235,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   object-fit: contain;
   background: transparent;
 }
-/* A long name is clipped with a 1.5rem fade mask (as .order-item__meta), not an ellipsis. */
+/* A long name scrolls sideways (.edge-scroll), not an ellipsis. */
 .product-detail__label-text {
   flex: 1;
   min-width: 0;
   margin: 0;
   font-weight: 400;
   font-size: calc(1rem * var(--text-scale));
-  overflow: hidden;
-  white-space: nowrap;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%);
 }
 .product-detail__label-name {
   font-family: var(--font-main);
@@ -2570,12 +2563,9 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    same place (--dial-x, --dial-y: its direction), between the
    neutral middle (--dial-inner) and the edge (--dial-outer), the active one
    dotted: the button's circle (.product-dial__ring) shrinks to the dot,
-   --dial-dot-r out, turning round the middle to it (--dial-turn). Shape
-   (--icons): the button keeps its option, an icon per section, at
-   --dial-ring. Material (--fill): each
-   section a solid wedge of its swatch from the centre, fading out just by
-   the disc's edge; the button's swatch, at the wedges' scale, stays, the
-   pool under it reaching on into the active section, turning to it. */
+   --dial-dot-r out, turning round the middle to it (--dial-turn). The
+   button keeps its option; each section shows its preview at --dial-ring:
+   the shape's a design's icon, the material's a metal's round swatch. */
 /* The dials' row, then "Find my size" centred in its own (js/product.js,
    js/modify-modal.js). */
 .product-config {
@@ -2696,16 +2686,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-dial__face.is-shown {
   opacity: 1;
 }
+/* The whole swatch, in a circle. */
 .product-dial__swatch {
   display: block;
   width: 100%;
   height: 100%;
+  border-radius: 50%;
   background: center / cover no-repeat;
-}
-/* The button's swatch as large as the disc's, centred alike, so it shows
-   the very middle the open disc does, open or closed. */
-.product-dial--fill .product-dial__face .product-dial__swatch {
-  background-size: calc(2 * var(--dial-outer));
 }
 .product-dial__icon {
   display: block;
@@ -2810,46 +2797,6 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   width: 100%;
   height: 100%;
 }
-/* The swatches solid almost to the disc's edge, fading out just by it. */
-.product-dial--fill .product-dial__sections {
-  -webkit-mask-image: radial-gradient(closest-side, #000 80%, rgba(0, 0, 0, 0.854) 85%, rgba(0, 0, 0, 0.5) 90%, rgba(0, 0, 0, 0.146) 95%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 80%, rgba(0, 0, 0, 0.854) 85%, rgba(0, 0, 0, 0.5) 90%, rgba(0, 0, 0, 0.146) 95%, transparent 100%);
-}
-/* Each cut to its section (js/option-dial.js sectorPolygon). */
-.product-dial--fill .product-dial__section {
-  position: absolute;
-  inset: 0;
-}
-/* The pool: the button's circle with the top section's span beyond it
-   (js/option-dial.js keyholePolygon), turned with the dot to the active
-   section. Solid to the circle's edge (30%: FILL_INNER_REM over
-   FILL_OUTER_REM), so its edge is hard but where it reaches past, fading
-   out into the section there. Its swatches turned back alike, so they hold
-   still, as large as the disc, as the sections': the active one runs on
-   into its own with no seam. The active one shown. */
-.product-dial__pool,
-.product-dial__pool-swatches {
-  position: absolute;
-  inset: 0;
-  transform: rotate(var(--dial-turn, 0deg));
-  transition: transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
-}
-.product-dial__pool {
-  -webkit-mask-image: radial-gradient(closest-side, #000 30%, rgba(0, 0, 0, 0.854) 33.5%, rgba(0, 0, 0, 0.5) 37%, rgba(0, 0, 0, 0.146) 40.5%, transparent 44%);
-  mask-image: radial-gradient(closest-side, #000 30%, rgba(0, 0, 0, 0.854) 33.5%, rgba(0, 0, 0, 0.5) 37%, rgba(0, 0, 0, 0.146) 40.5%, transparent 44%);
-}
-.product-dial__pool-swatches {
-  transform: rotate(calc(-1 * var(--dial-turn, 0deg)));
-}
-.product-dial__pooled {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity var(--fade-quick) ease;
-}
-.product-dial__pooled.is-shown {
-  opacity: 1;
-}
 
 /* ---- the size dial (js/option-dial.js mountSize) ----
    The third dial: its button holds the size (in --category-col until one
@@ -2874,6 +2821,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   font-size: calc(0.75rem * var(--text-scale));
   line-height: 1;
   color: var(--black);
+  /* Or it shifts as the digits change with a slide. */
+  font-variant-numeric: tabular-nums;
 }
 .product-dial--size.is-unset .product-size-dial__value {
   color: var(--category-col);
@@ -3038,6 +2987,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   opacity: 1;
   transition-duration: var(--fade-standard);
 }
+/* A line moving to a new place (js/product.js, swapMark): a copy of it
+   fades out, then it fades in from nothing. */
+.product-outline__mark,
+.product-outline__reach {
+  transition: opacity var(--fade-quick) ease var(--fade-quick);
+}
+.product-outline__mark.is-leaving,
+.product-outline__reach.is-leaving {
+  opacity: 0;
+  transition-delay: 0s;
+}
+.product-outline__mark.is-arriving,
+.product-outline__reach.is-arriving {
+  opacity: 0;
+  transition: none;
+}
 /* A mark is a solid line (a box, not a border: a border's width is snapped to
    whole device pixels, a box's isn't). Hidden until the picture has been read
    (.is-cut). The letter sits past the end on the drawing (.is-label-to: the
@@ -3067,6 +3032,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   font-size: var(--plan-text);
   line-height: 1;
   white-space: nowrap;
+  /* Or the letter shifts as the digits change with the size. */
+  font-variant-numeric: tabular-nums;
 }
 .product-outline__mark.is-label-to .product-outline__label {
   right: auto;
@@ -3485,7 +3452,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 /* Room over the dials for their name (.size-modal__dial-name). */
 .size-modal--modify .size-modal__content {
-  padding-top: 6rem;
+  padding-top: 2rem;
 }
 
 /* ---- the review sheet's rows (js/product.js) ----
@@ -3572,11 +3539,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 /* Transposed (labels as the first column, one column per size); scrolls on its own when too wide. */
 /* A thin scrollbar under the table (--guide-thumb), under the room below
    the last row (--guide-room). Each edge fades out over 3rem while the
-   table runs on past it (js/selection.js); the bottom --guide-room, empty
+   table runs on past it, as .edge-scroll's; the bottom --guide-room, empty
    but for the scrollbar, is left out of the fade. */
 .size-guide__scroll {
   --guide-thumb: var(--category-col);
   --guide-room: 0.75rem;
+  --edge-fade: 3rem;
   --fade-start: 0px;
   --fade-end: 0px;
   overflow-x: auto;
@@ -3598,11 +3566,27 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   border-radius: 2px;
   background: var(--guide-thumb);
 }
-.size-guide__scroll.is-clipped-start {
-  --fade-start: 3rem;
+/* A one-line strip that scrolls sideways when its content doesn't fit, with
+   no scrollbar, each end fading out over --edge-fade (1.5rem unless set)
+   while it is cut off (js/helpers.js edgeFades). */
+.edge-scroll {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
 }
-.size-guide__scroll.is-clipped-end {
-  --fade-end: 3rem;
+.edge-scroll::-webkit-scrollbar {
+  display: none;
+}
+:is(.edge-scroll, .size-guide__scroll).is-clipped-start {
+  --fade-start: var(--edge-fade, 1.5rem);
+}
+:is(.edge-scroll, .size-guide__scroll).is-clipped-end {
+  --fade-end: var(--edge-fade, 1.5rem);
 }
 .size-guide__table {
   border-collapse: collapse;
@@ -4059,7 +4043,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transform: scale(calc(1 / var(--model-room)));
 }
 /* While a dial is open, its active option's name between the model and the
-   dials (js/modify-modal.js), 4.5rem over them, over an open disc. */
+   dials (js/modify-modal.js), 2.5rem over them, over an open disc. */
 .size-modal__content {
   position: relative;
 }
@@ -4067,7 +4051,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   position: absolute;
   z-index: 4;
   left: 50%;
-  top: 1.5rem;
+  top: -0.5rem;
   transform: translate(-50%, -100%);
   margin: 0;
   font-family: var(--font-main);
@@ -4115,10 +4099,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal__config {
   padding-bottom: 3.5rem;
 }
+/* With "Find my size" last, 2rem between it and the sheet's foot. */
 .size-modal__config:has(.product-size__finder-toggle) {
-  padding-bottom: 0.25rem;
+  padding-bottom: 2rem;
 }
-.size-modal--modify :is(.product-dial--icons, .product-dial--fill).is-open .product-dial__wheel,
+.size-modal--modify .product-dial--icons.is-open .product-dial__wheel,
 .size-modal--modify .product-dial--size.is-open .product-size-dial__track {
   pointer-events: auto;
 }
@@ -4393,16 +4378,16 @@ body.has-series-hero .selection-bar {
 /* ==== Modify strip ====
    What the page's bottom bar turns into while the Modify sheet is open: built
    by js/modify-modal.js, shown and hidden by the bar. On --black-bg:
-     Unselect  the left quarter, plain --white label
+     Remove    the left quarter, plain --white label
      Save      the rest, its label centred on the whole bar; dimmed while the
                size isn't orderable
    An invert band (.modify-strip__band) covers Save's area, so only Save's
    label reads dark. Save grows the band across the strip, then fades it
-   (.is-saved). Unselect just hides the strip; Undo lives on the row
+   (.is-saved). Remove just hides the strip; Undo lives on the row
    (.order-item__undo). Show and hide are staggered: the surface (::before,
    with the band) leads in and trails out, the buttons the reverse. */
 /* Geometry follows the content span: --span centred with --inset either
-   side, --q a quarter of it, --left-w Unselect's width; the bands reach the
+   side, --q a quarter of it, --left-w Remove's width; the bands reach the
    screen's edges from it. Percentages are of screen-wide elements. */
 .modify-strip,
 .order-item__undo {
@@ -4442,7 +4427,7 @@ body.has-series-hero .selection-bar {
   transition-delay: var(--fade-fast);
 }
 .modify-strip__save,
-.modify-strip__unselect,
+.modify-strip__remove,
 .order-item__undo-button {
   position: absolute;
   top: 0;
@@ -4476,8 +4461,8 @@ body.has-series-hero .selection-bar {
 }
 .modify-strip__save:disabled { cursor: default; }
 .modify-strip__save:disabled .modify-strip__label { opacity: 0.35; }
-/* No band under Unselect: a plain label on the strip. */
-.modify-strip__unselect {
+/* No band under Remove: a plain label on the strip. */
+.modify-strip__remove {
   left: 0;
   width: var(--left-w);
   padding-left: var(--inset);
@@ -4505,22 +4490,22 @@ body.has-series-hero .selection-bar {
   opacity: 0;
   transition: width var(--fade-standard) ease, opacity var(--fade-quick) ease var(--fade-standard);
 }
-.modify-strip.is-saved .modify-strip__unselect,
+.modify-strip.is-saved .modify-strip__remove,
 .modify-strip.is-saved .modify-strip__save {
   pointer-events: none;
 }
-.modify-strip.is-saved .modify-strip__unselect .modify-strip__label,
+.modify-strip.is-saved .modify-strip__remove .modify-strip__label,
 .modify-strip.is-saved .modify-strip__save .modify-strip__label {
   opacity: 0;
 }
 /* The buttons' half of the staggered show and hide: full shorthands, after
    the .is-saved rules, so they win whatever internal transition is running. */
-.modify-strip__unselect,
+.modify-strip__remove,
 .modify-strip__save {
   opacity: 1;
   transition: opacity var(--fade-fast) ease var(--fade-fast);
 }
-.modify-strip.is-hidden .modify-strip__unselect,
+.modify-strip.is-hidden .modify-strip__remove,
 .modify-strip.is-hidden .modify-strip__save {
   opacity: 0;
   transition: opacity var(--fade-fast) ease;
@@ -4587,7 +4572,7 @@ input:focus-visible,
    inside, light, and keeping their own absolute position. Three classes
    outrank the lists above. */
 .modify-strip .modify-strip__save:focus-visible,
-.modify-strip .modify-strip__unselect:focus-visible,
+.modify-strip .modify-strip__remove:focus-visible,
 .order-item .order-item__undo-button:focus-visible {
   position: absolute;
   outline: var(--focus-ring-inverted);

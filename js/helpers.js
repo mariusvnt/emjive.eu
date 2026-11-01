@@ -15,6 +15,22 @@
     return node;
   }
 
+  // Marks which ends of a sideways-scrolling strip are cut off
+  // (.is-clipped-start, .is-clipped-end), for its edge fades (.edge-scroll
+  // in css/style.css), kept up as it scrolls, resizes (shown, too: a strip
+  // built hidden measures nothing), its text changes and the fonts load.
+  function edgeFades(node) {
+    function mark() {
+      node.classList.toggle("is-clipped-start", node.scrollLeft > 1);
+      node.classList.toggle("is-clipped-end", node.scrollLeft + node.clientWidth < node.scrollWidth - 1);
+    }
+    node.addEventListener("scroll", mark, { passive: true });
+    if (typeof ResizeObserver === "function") new ResizeObserver(mark).observe(node);
+    if (typeof MutationObserver === "function") new MutationObserver(mark).observe(node, { childList: true, characterData: true, subtree: true });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(mark);
+    mark();
+  }
+
   // The root font size, px: what 1rem is.
   function remPx() {
     return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
@@ -296,6 +312,9 @@
   // The size, in mm, a product's model is drawn at and its per-metal prices are
   // given for. Mirrored in scripts/helpers.js (validate-data checks).
   var REFERENCE_SIZE_MM = 62;
+  // The size, in mm, a ring is first shown and offered at, and its sized
+  // renders are drawn at (scripts/auto-render.js).
+  var DEFAULT_SIZE_MM = 60;
   var DEFAULT_SIZE_RANGE = { min: 40, max: 80 };
 
   // A product's orderable sizes, { min, max } in mm; the default for a missing
@@ -471,6 +490,7 @@
 
   window.EmjiveHelpers = {
     el: el,
+    edgeFades: edgeFades,
     remPx: remPx,
     clamp: clamp,
     clamp01: clamp01,
@@ -499,6 +519,7 @@
     assetFor: assetFor,
     posterFor: posterFor,
     REFERENCE_SIZE_MM: REFERENCE_SIZE_MM,
+    DEFAULT_SIZE_MM: DEFAULT_SIZE_MM,
     sizeRange: sizeRange,
     sizeText: sizeText,
     sizeShift: sizeShift,

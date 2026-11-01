@@ -19,7 +19,7 @@
 //   hand-poster   512px, the ring as the wheel's own scene draws it on the hero's
 //                 hand (straight down, lower half cut, x-ray look, no metal), so
 //                 the swap to the live model changes nothing
-//   plan-views    the front and side views at the reference
+//   plan-views    the front and side views at the default
 //                 size, drawn by the page's own drawPlanView (js/three-viewer.js,
 //                 which draws the other sizes live): the model in outline,
 //                 --category-col on transparent, cropped to the content of the
@@ -32,7 +32,11 @@
 //   icon          the same capture, trimmed and re-centred (normalizeIconFraming)
 //   wheel-poster  512px, drawn by the wheel's own scene (orthographic camera,
 //                 fixed environment), so the swap to the live model changes nothing
-// Each non-default design gets its own icon and fallback-img. Then one 420px
+// Each non-default design gets its own icon and fallback-img. The fallback-img,
+// the icon and the plan views of a product with sizes (its category's "unit")
+// are drawn at EmjiveHelpers.DEFAULT_SIZE_MM, as the product page first shows
+// it, any other product's as modelled; the wheel and hand posters as the wheel
+// draws its models, unsized. Then one 132px
 // square per metal, assets/metal-sample_<metal>.webp: one sphere under the
 // "swatch-hdri", blurred by "swatch-blur", from "swatch-camera" (set in
 // scene-tool.html's swatch mode). products.json paths are patched in place;
@@ -66,12 +70,11 @@ const FALLBACK_IMG_SIZE = ICON_SIZE;
 // (js/stack-scene.js), at the wheel renderer's MAX_PIXEL_RATIO.
 const STACK_POSTER_SIZE = ICON_SIZE;
 const STACK_POSTER_SCALE = 2;
-// The whole sphere, framed to its outline (swatchOrbit in
-// js/three-viewer.js); saved at 3x the material dial's disc (twice
-// FILL_OUTER_REM in js/option-dial.js, at a 16px rem), which every swatch
-// is drawn across, sharp on a 3x screen.
-const SWATCH_CAPTURE = 420;
-const SWATCH_SIZE = 420;
+// The sphere, framed to just inside its rim (swatchOrbit in
+// js/three-viewer.js); saved at 3x the largest a dial draws it, its button
+// (.product-dial --dial-size, at a 16px rem), sharp on a 3x screen.
+const SWATCH_CAPTURE = 132;
+const SWATCH_SIZE = 132;
 const SWATCH_CAMERA_DEFAULT = { rotation: 0, tilt: 90, roll: 0 };
 // Supersampling for sharp source pixels before the final downscale.
 const CAPTURE_SCALE = 2;
@@ -155,6 +158,16 @@ const HARNESS_HTML = `<!doctype html>
     return wrap;
   }
 
+  // A product with sizes (its category among window.__sizedCategories, from
+  // data/series.json) is drawn at the default size, as the product page
+  // first shows it; any other as modelled.
+  function hasSizes(product) {
+    return (window.__sizedCategories || []).indexOf(product.category) !== -1;
+  }
+  function renderSizeMm(product) {
+    return hasSizes(product) ? window.EmjiveHelpers.DEFAULT_SIZE_MM : window.EmjiveHelpers.REFERENCE_SIZE_MM;
+  }
+
   window.__renderTarget = function (product, metalKey, sizePx, hdriRelPath) {
     window.__renderReady = false;
     disposeCurrentHandle();
@@ -162,6 +175,7 @@ const HARNESS_HTML = `<!doctype html>
     var handle = window.EmjiveModelViewer(product, metalKey, {
       transparentBackground: true,
       static: true,
+      sizing: hasSizes(product) ? {} : null,
       hdri: hdriRelPath,
       onReady: function () {
         // Two rAFs: the settled frame is the one screenshotted.
@@ -176,6 +190,8 @@ const HARNESS_HTML = `<!doctype html>
       // Fail loudly: this run exists to produce the fallback images.
       throw new Error("could not create a WebGL context while rendering the icon for " + product.name + " (" + metalKey + ")");
     }
+    // Before the model is in: its first, screenshotted frame is at this size.
+    handle.setSize(renderSizeMm(product));
     handle.el.id = "target";
     handle.el.style.width = "100%";
     handle.el.style.height = "100%";
@@ -183,7 +199,7 @@ const HARNESS_HTML = `<!doctype html>
     currentHandle = handle;
   };
 
-  // One plan view at the reference size, drawn by the product page's own
+  // One plan view at its render size (renderSizeMm), drawn by the product page's own
   // drawPlanView (js/three-viewer.js), handed back as a PNG data URL in
   // window.__planPicture.
   window.__renderPlanView = function (product, viewName, lineColor) {
@@ -202,7 +218,7 @@ const HARNESS_HTML = `<!doctype html>
     toolkit.loadModelFile(product.assets.model, function (gltf) {
       root = gltf.scene;
       toolkit.bakeNodeTransforms(root);
-      var picture = toolkit.drawPlanView(renderer, root, product, viewName, window.EmjiveHelpers.REFERENCE_SIZE_MM, lineColor);
+      var picture = toolkit.drawPlanView(renderer, root, product, viewName, renderSizeMm(product), lineColor);
       if (!picture) {
         console.error(product.name + " has no geometry.axis-box: run npm run measure-models");
         return;
@@ -584,6 +600,8 @@ async function main() {
     await page.evaluate((settings) => window.EmjiveModelViewer.setSun(settings), seriesIndex.sun);
     await page.evaluate((deg) => window.EmjiveModelViewer.setHdriBlur(deg), seriesIndex["hdri-blur"]);
     await page.evaluate((levels) => window.EmjiveModelViewer.setReflectionDetail(levels), seriesIndex["reflection-detail"]);
+    const categories = seriesIndex.categories || {};
+    await page.evaluate((sized) => { window.__sizedCategories = sized; }, Object.keys(categories).filter((key) => categories[key].unit));
 
     // Flags a software rasterizer (no real MSAA).
     const renderer = await page.evaluate(() => {

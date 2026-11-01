@@ -1,7 +1,7 @@
 // launch-order.html: the checkout review of window.EmjiveSelection — item rows
 // (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a
 // "Proceed to checkout" bar gated on it. While the Modify
-// sheet is open the bar becomes its Unselect | Save strip, with a drawer
+// sheet is open the bar becomes its Remove | Save strip, with a drawer
 // showing the tapped row under the sheet. Shows .selection-empty when empty.
 
 (function () {
@@ -31,7 +31,7 @@
   /* ---- checkout bar as the Modify sheet's strip ----
      The swap is CSS (.is-strip-active); this flips classes and makes the hidden
      half inert. stripFading keeps the bar up while the strip fades out after
-     the last item's Unselect. */
+     the last item's Remove. */
   var stripShown = false;
   var stripFading = false;
   var stripFadeTimer = 0;

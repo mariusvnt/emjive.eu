@@ -90,9 +90,6 @@
     shapeDial: null,
     // The model's lift where design holds it, px (refreshStage).
     lift: 0,
-    // Whether the size field has its starting value (62).
-    sizeSeeded: false,
-    seedSize: null,
     // Marks the cost chart as played out.
     settleTimer: 0
   };
@@ -382,6 +379,7 @@
   }
 
   function renderLabel(product) {
+    H.edgeFades(document.querySelector(".product-detail__label-text"));
     document.getElementById("productLabelName").textContent = product.name || "";
     renderLabelDesign(product);
     renderLabelType(product);
@@ -979,7 +977,6 @@
     host.hidden = false;
     state.shapeDial = window.EmjiveOptionDial.mount(host, {
       name: "Shape",
-      mode: "icons",
       options: shapeOptions(product),
       selected: state.designKey,
       onSelect: function (key) { onDesignSelect(product, key); },
@@ -1049,7 +1046,6 @@
   function renderMetalOptions(product) {
     window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
       name: "Material",
-      mode: "fill",
       options: state.metals.map(function (metal) {
         return {
           key: metal,
@@ -1221,6 +1217,8 @@
   // How far, in silhouette pixels, a line's end may sit from the model and
   // still count as on the outline.
   var PLAN_ON_PX = 2;
+  // A line's end already on the outline stays on it this much further.
+  var PLAN_KEEP_PX = 2;
 
   // The line for one axis of a view's silhouette (the viewer's planMask),
   // `horizontal` (along its width) or not: from the model's first pixel to
@@ -1233,7 +1231,10 @@
   // (the end on the drawing); `far`, when the other end is off the drawing,
   // the share along the lines of the drawing's extreme point it stands for,
   // else null.
-  function measureMark(picture, horizontal) {
+  // With `held`, the line measured on the previous frame of the hold: the
+  // line keeps its extreme and follows the runs it was on, as the silhouette
+  // changes shape with the size, instead of jumping between near-equal picks.
+  function measureMark(picture, horizontal, held) {
     var w = picture.w;
     var data = picture.data;
     var lines = horizontal ? picture.h : w;
@@ -1242,9 +1243,9 @@
       if (a < 0 || a >= across || l < 0 || l >= lines) return false;
       return data[((horizontal ? l * w + a : a * w + l) << 2) + 3] >= PLAN_DRAWN_ALPHA;
     };
-    var near = function (a, l) {
-      for (var da = -PLAN_ON_PX; da <= PLAN_ON_PX; da++) {
-        for (var dl = -PLAN_ON_PX; dl <= PLAN_ON_PX; dl++) if (drawn(a + da, l + dl)) return true;
+    var near = function (a, l, px) {
+      for (var da = -px; da <= px; da++) {
+        for (var dl = -px; dl <= px; dl++) if (drawn(a + da, l + dl)) return true;
       }
       return false;
     };
@@ -1259,33 +1260,70 @@
     }
     if (hi < 0) return null;
     var ends = [lo, hi];
-    var picks = ends.map(function (end, k) {
-      var best = { start: 0, len: 0 };
+    var runs = ends.map(function (end) {
+      var found = [];
       var run = 0;
-      for (var i = 0; i < lines; i++) {
+      for (var i = 0; i <= lines; i++) {
         var on = false;
-        for (var d = -PLAN_ON_PX; d <= PLAN_ON_PX && !on; d++) on = drawn(end + d, i);
-        run = on ? run + 1 : 0;
-        if (run > best.len) best = { start: i - run + 1, len: run };
+        for (var d = -PLAN_ON_PX; d <= PLAN_ON_PX && !on && i < lines; d++) on = drawn(end + d, i);
+        if (on) {
+          run++;
+        } else if (run) {
+          found.push({ start: i - run, len: run });
+          run = 0;
+        }
       }
-      var at = best.start + ((best.len - 1) >> 1);
-      return { k: k, at: at, reach: near(ends[1 - k], at) };
+      return found;
     });
-    var prefer = horizontal ? 1 : 0;
-    var pick = picks[prefer];
-    if (picks[1 - prefer].reach && !pick.reach) pick = picks[1 - prefer];
+    // The middle line of an end's longest run, or of its run nearest `close` (a line).
+    var middle = function (k, close) {
+      var best = null;
+      var bestScore = 0;
+      runs[k].forEach(function (run) {
+        var score = close === undefined ? -run.len : Math.max(0, run.start - close, close - (run.start + run.len - 1));
+        if (!best || score < bestScore) {
+          best = run;
+          bestScore = score;
+        }
+      });
+      return best.start + ((best.len - 1) >> 1);
+    };
+    var share = function (line) { return (line + 0.5) / lines; };
+    var lineAt = function (s) { return s * lines - 0.5; };
+    var k;
+    var at;
+    var far;
+    if (held) {
+      k = held.labelTo ? 1 : 0;
+      at = middle(k, lineAt(held.at));
+      var reached = near(ends[1 - k], at, held.far === null ? PLAN_ON_PX + PLAN_KEEP_PX : PLAN_ON_PX);
+      far = reached ? null : share(middle(1 - k, held.far === null ? at : lineAt(held.far)));
+    } else {
+      var picks = [0, 1].map(function (end) {
+        var line = middle(end);
+        return { k: end, at: line, reach: near(ends[1 - end], line, PLAN_ON_PX) };
+      });
+      var prefer = horizontal ? 1 : 0;
+      var pick = picks[prefer];
+      if (picks[1 - prefer].reach && !pick.reach) pick = picks[1 - prefer];
+      k = pick.k;
+      at = pick.at;
+      far = pick.reach ? null : share(picks[1 - k].at);
+    }
     return {
       from: lo / across,
       to: (hi + 1) / across,
-      at: (pick.at + 0.5) / lines,
-      labelTo: pick.k === 1,
-      far: pick.reach ? null : (picks[1 - pick.k].at + 0.5) / lines
+      at: share(at),
+      labelTo: k === 1,
+      far: far
     };
   }
 
   // Lays a view's lines and letters on its picture, and the reach
   // from a line end off the drawing to its extreme point; they stay hidden
-  // until the silhouette has been read.
+  // until the silhouette has been read. Each line follows its last placing
+  // in the hold (view.found); when a line's fresh pick stands apart from it
+  // and no swap of that line is running, the line swaps to it (swapMark).
   function placeMarks(name, picture) {
     var view = state.planViews && state.planViews[name];
     var drawing = state.planFrame && state.planFrame.views[name];
@@ -1293,7 +1331,13 @@
     drawing.measures.forEach(function (measure, i) {
       var mark = view.marks[i];
       var reach = view.reaches[i];
-      var found = picture && measureMark(picture, measure.horizontal);
+      var found = picture ? measureMark(picture, measure.horizontal, view.found[i]) : null;
+      var fresh = picture ? measureMark(picture, measure.horizontal, null) : null;
+      if (!view.ghosts[i] && markMoved(found, fresh)) {
+        swapMark(view, i);
+        found = fresh;
+      }
+      view.found[i] = found;
       mark.classList.toggle("is-cut", !!found);
       mark.classList.toggle("is-vertical", !measure.horizontal);
       reach.classList.toggle("is-cut", !!found && found.far !== null);
@@ -1309,6 +1353,46 @@
       reach.style.setProperty("--reach-from", Math.min(found.at, found.far).toFixed(4));
       reach.style.setProperty("--reach-len", Math.abs(found.far - found.at).toFixed(4));
     });
+  }
+
+  // A line moved, from one placing to the next, by more than this share of
+  // the picture.
+  var PLAN_MOVED = 0.01;
+  function markMoved(was, now) {
+    if (!was || !now) return false;
+    var off = function (a, b) { return Math.abs(a - b) > PLAN_MOVED; };
+    return was.labelTo !== now.labelTo || off(was.at, now.at) ||
+      (was.far === null) !== (now.far === null) || (now.far !== null && off(was.far, now.far));
+  }
+
+  // A copy of a view's line (and its reach) as it stands fades out, then the
+  // line fades in at its new place (css/style.css, .is-leaving and
+  // .is-arriving). Covers both fades: twice --fade-quick. Then the held view
+  // is measured again, for a swap held off meanwhile that no frame since
+  // has made (the size has stopped).
+  var PLAN_SWAP_MS = 400;
+  function swapMark(view, i) {
+    var parts = [view.marks[i], view.reaches[i]];
+    var ghosts = parts.map(function (part) {
+      var ghost = part.cloneNode(true);
+      part.parentNode.insertBefore(ghost, part);
+      part.classList.add("is-arriving");
+      return ghost;
+    });
+    // Both start from where they stand.
+    void ghosts[0].offsetWidth;
+    parts.forEach(function (part, k) {
+      ghosts[k].classList.add("is-leaving");
+      part.classList.remove("is-arriving");
+    });
+    view.ghosts[i] = ghosts;
+    setTimeout(function () {
+      ghosts.forEach(function (ghost) { ghost.remove(); });
+      if (view.ghosts[i] === ghosts) view.ghosts[i] = null;
+      var handle = state.modelHandle;
+      var name = state.outlineView;
+      if (name && state.planViews[name] === view && handle && handle.planMask) placeMarks(name, handle.planMask(name));
+    }, PLAN_SWAP_MS);
   }
 
   // The buttons' icons, the band ring's outline as the view sees it, in a
@@ -1373,7 +1457,7 @@
         return mark;
       });
       outlines.appendChild(outline);
-      views[name] = { button: button, outline: outline, marks: marks, reaches: reaches, values: values };
+      views[name] = { button: button, outline: outline, marks: marks, reaches: reaches, values: values, found: [], ghosts: [] };
     });
     return views;
   }
@@ -1443,7 +1527,8 @@
     if (!state.planViews) return;
     Object.keys(state.planViews).forEach(function (key) {
       state.planViews[key].outline.classList.toggle("is-shown", key === state.outlineView);
-    });
+      // A new hold picks its lines afresh.
+      state.planViews[key].found = [];    });
   }
 
   // Lays the shown view's lines on the model: the viewer's figures for the
@@ -1506,8 +1591,6 @@
     state.toDesign = stage.toDesign;
     state.flow = stage.stage === "flow";
     refreshStage();
-    // The size field gets its starting value once design is fully in.
-    if (!state.flow && stage.toDesign >= 1 && !state.sizeSeeded && state.seedSize) state.seedSize();
     var costs = document.getElementById("productCosts");
     if (costs && !state.flow && stage.toDesign < 0.5 && costs.classList.contains("is-built")) buildCosts(costs, false);
     // In design a released model stays put (the reset button returns it);
@@ -1639,7 +1722,7 @@
   // DESIGN_GAP_REM lower. Everything placed against
   // the model, the x-ray included, goes with it.
   var DESIGN_ANCHOR = 1 / 3;
-  var DESIGN_GAP_REM = 3;
+  var DESIGN_GAP_REM = 4.5;
   // The model's approximate half-height as a share of its tile.
   var DESIGN_HALF_HEIGHT = 0.13;
   function designLift() {
@@ -1804,15 +1887,9 @@
       } : null
     });
     if (state.sizeDial.finder) document.getElementById("productConfig").appendChild(state.sizeDial.finder);
-    syncSizeDial();
-    // The first time design is fully in, the field starts at the model's size, within the range.
-    state.seedSize = function () {
-      state.sizeSeeded = true;
-      state.seedSize = null;
-      if (sizeField.value !== "") return;
-      sizeField.value = clamp(SIZE_BASE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
-      setModelSize(sizeField.value);
-    };
+    // The field starts at the default size, within the range (syncs the dial).
+    if (sizeField.value === "") sizeField.value = clamp(H.DEFAULT_SIZE_MM, SIZE_MIN_MM, SIZE_MAX_MM).toFixed(1);
+    setModelSize(sizeField.value);
     sizeField.addEventListener("input", function () {
       var cleaned = window.EmjiveSelection.sanitizeSizeInput(sizeField.value);
       if (cleaned !== sizeField.value) sizeField.value = cleaned;
@@ -1854,8 +1931,6 @@
     }
 
     function openModal() {
-      // Added before design was ever fully in: the model's size.
-      if (state.seedSize) state.seedSize();
       fillReview();
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");

@@ -29,7 +29,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
-  - scripts: js/helpers.js (head, blocking), js/option-dial.js (head, blocking), js/three-viewer.js (module), inline (module)
+  - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
   - landmarks: #hdriSection, #sunSection, #cameraSection, #shaderSection, #saveSection
 - [series.html](../series.html) — A series' design manifest (/series?series=<slug>).
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
@@ -49,14 +49,14 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
   - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by tapping a row in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
     - sets `EmjiveModifyModal` { open, isOpen, attach }
   - [option-dial.js](../js/option-dial.js) — Option dials (js/product.js, js/modify-modal.js): a circular button showing the active option, the dial's name under it, opening a disc over three blurs, divided into one section per option, each always in the same place, the active one dotted (the button's circle shrinking to the dot, turning round the middle to it).
-    - sets `EmjiveOptionDial` { mount, mountSize, fillInner }
+    - sets `EmjiveOptionDial` { mount, mountSize }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
     - sets `EmjiveOrderRows` { create, notice }
   - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (the model and its configuration: design options, metal, size, plan views; then the information).
@@ -173,7 +173,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveMessage` | `js/series.js` | `js/gallery.js`, `js/product.js`, `js/series-page.js` |
 | `EmjiveModelViewer` | `js/three-viewer.js` | `scene-tool.html`, `js/modify-modal.js`, `js/product.js`, `js/viewer-entry.js`, `scripts/auto-render.js` |
 | `EmjiveModifyModal` | `js/modify-modal.js` | `js/selection-bar.js`, `js/selection-page.js` |
-| `EmjiveOptionDial` | `js/option-dial.js` | `scene-tool.html`, `js/modify-modal.js`, `js/product.js` |
+| `EmjiveOptionDial` | `js/option-dial.js` | `js/modify-modal.js`, `js/product.js` |
 | `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `series/bones/hero.js` |

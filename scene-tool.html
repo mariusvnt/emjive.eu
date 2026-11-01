@@ -5,8 +5,9 @@
   the sun, the reflection detail and the metal's shader live, then save the
   ticked parts (HDRI, camera, blur, detail, sun, shader). The blur, the sun and
   the detail are the same in every scene, in both modes. The swatch scene's own
-  settings are its HDRI, an extra blur and camera angles; distance and frame
-  are solved. A dial overlay shows what the material dial cuts from it.
+  settings are its HDRI, an extra blur, camera angles and how much of the
+  sphere the frame takes in; distance is solved. A dial overlay shows what the
+  material dial cuts from it.
 -->
 <!doctype html>
 <html lang="en">
@@ -22,7 +23,6 @@
 }
 </script>
 <script src="js/helpers.js"></script>
-<script src="js/option-dial.js"></script>
 <script type="module" src="js/three-viewer.js"></script>
 <style>
   :root { color-scheme: light dark; }
@@ -194,6 +194,11 @@
         <input type="range" id="rollSlider" min="-180" max="180" step="1">
         <input type="number" id="rollInput" step="1"><span>&deg;</span>
       </div>
+      <div class="angle-row" id="frameRow" hidden>
+        <span>Frame</span>
+        <input type="range" id="frameSlider" min="0.5" max="1" step="0.01">
+        <input type="number" id="frameInput" min="0.5" max="1" step="0.01">
+      </div>
       <div class="readout" id="zoomRow">
         <span class="orbit-field">Zoom: <input type="number" id="zoomInput" step="any"> %</span>
       </div>
@@ -255,7 +260,7 @@ const state = {
   mode: null, // "product" | "swatch"
   seriesSlug: null,
   product: null,
-  swatchCamera: null, // swatch camera angles: { rotation, tilt, roll }
+  swatchCamera: null, // swatch camera: { rotation, tilt, roll, frame }
   swatchBlur: null, // swatch HDRI blur, px of the HDRI image
   metal: null,
   handle: null,
@@ -267,6 +272,7 @@ const els = {};
 [
   "hdriSelect", "modelSelect", "metalButtons", "viewerContainer", "statusMessage",
   "rotationInput", "tiltInput", "zoomInput", "rollInput", "rotationSlider", "tiltSlider", "rollSlider", "zoomRow", "blurRow", "blurSlider", "blurInput",
+  "frameRow", "frameSlider", "frameInput",
   "resetCameraBtn", "saveCameraLabel",
   "colorInput", "metalnessInput", "roughnessInput", "metalnessReadout", "roughnessReadout",
   "shaderMetalLabel", "saveHdri", "saveCamera", "saveShader", "saveBtn", "copyJsonBtn", "saveResults",
@@ -390,6 +396,11 @@ function wireEvents() {
   els.tiltInput.addEventListener("change", onOrbitInputChange);
   els.zoomInput.addEventListener("change", onOrbitInputChange);
   els.rollInput.addEventListener("change", onOrbitInputChange);
+  els.frameInput.addEventListener("change", onOrbitInputChange);
+  els.frameSlider.addEventListener("input", () => {
+    els.frameInput.value = els.frameSlider.value;
+    onOrbitInputChange();
+  });
   // A blur needs a new environment: rebuild once the value settles, not per step.
   els.hdriBlurSlider.addEventListener("input", () => { els.hdriBlurInput.value = els.hdriBlurSlider.value; });
   els.hdriBlurSlider.addEventListener("change", onHdriBlurChange);
@@ -433,11 +444,14 @@ function wireEvents() {
   els.copyJsonBtn.addEventListener("click", onCopyJsonClick);
 }
 
-// The saved swatch angles (default: straight in front, eye level), as an editable copy.
+// The saved swatch camera (default: straight in front, eye level, at the
+// viewer's default frame), as an editable copy.
+const SWATCH_FRAME_DEFAULT = 0.85;
 function savedSwatchCamera() {
   const saved = state.seriesIndex["swatch-camera"];
   const ok = saved && ["rotation", "tilt", "roll"].every((k) => typeof saved[k] === "number");
-  return ok ? { rotation: saved.rotation, tilt: saved.tilt, roll: saved.roll } : { rotation: 0, tilt: 90, roll: 0 };
+  const frame = saved && typeof saved.frame === "number" ? saved.frame : SWATCH_FRAME_DEFAULT;
+  return ok ? { rotation: saved.rotation, tilt: saved.tilt, roll: saved.roll, frame } : { rotation: 0, tilt: 90, roll: 0, frame };
 }
 
 function savedSwatchBlur() {
@@ -483,6 +497,7 @@ function fillSwatchCameraInputs() {
   els.rotationInput.value = camera.rotation;
   els.tiltInput.value = camera.tilt;
   els.rollInput.value = camera.roll;
+  els.frameInput.value = camera.frame;
   syncSliders();
 }
 
@@ -491,6 +506,7 @@ function syncSliders() {
   if (document.activeElement !== els.rotationSlider) els.rotationSlider.value = els.rotationInput.value;
   if (document.activeElement !== els.tiltSlider) els.tiltSlider.value = els.tiltInput.value;
   if (document.activeElement !== els.rollSlider) els.rollSlider.value = els.rollInput.value;
+  if (document.activeElement !== els.frameSlider) els.frameSlider.value = els.frameInput.value;
 }
 
 // The "sun" object the viewer reads (setSun in init), edited in place and
@@ -606,6 +622,7 @@ async function rebuildViewer() {
   // The swatch's zoom is solved.
   els.zoomRow.hidden = swatch;
   els.blurRow.hidden = !swatch;
+  els.frameRow.hidden = !swatch;
   els.dialOverlayRow.hidden = !swatch;
   if (swatch) {
     fillSwatchCameraInputs();
@@ -613,9 +630,9 @@ async function rebuildViewer() {
     els.blurSlider.value = state.swatchBlur;
     els.statusMessage.textContent =
       "Swatch scene: one sphere under the HDRI. The metal buttons change the sphere's metal, as each swatch render does; " +
-      "the frame is the whole sphere, its outline touching the edges, exactly what is saved as the swatch. " +
+      "the frame is the sphere to just inside its rim, exactly what is saved as the swatch. " +
       "Set the HDRI, its extra blur (a gaussian in pixels of the HDRI image, on top of Blur) and the camera's rotation, tilt and roll round the sphere; the rest is solved. " +
-      "The dial overlay leaves clear what the material dial shows of the metal: the middle (the closed button) and its section, the dashed ring where the section starts fading out.";
+      "The dial overlay leaves clear what the dials show of the metal: the circle inside the frame.";
   }
 
   const hdriKey = els.hdriSelect.value;
@@ -664,29 +681,18 @@ async function rebuildViewer() {
   renderDialOverlay();
 }
 
-// The material dial over the swatch frame, which is its disc: the selected
-// metal's middle and section clear (js/option-dial.js: the sections round
-// from the top in "metals" order, the middle EmjiveOptionDial.fillInner of
-// the radius), the rest veiled, and a dashed ring where the edge fade starts.
-// As .product-dial--fill .product-dial__sections's mask in css/style.css.
-const DIAL_FADE_FROM = 0.8;
+// What the dials show of the swatch frame: the circle inside it clear
+// (.product-dial__swatch in css/style.css), the corners veiled.
 function renderDialOverlay() {
   const old = els.viewerContainer.querySelector(".dial-overlay");
   if (old) old.remove();
   if (state.mode !== "swatch" || !els.dialOverlayInput.checked) return;
-  const metals = state.seriesIndex.metals || [];
-  const half = Math.PI / Math.max(2, metals.length);
-  const mid = Math.max(0, metals.indexOf(state.metal)) * 2 * half;
-  const inner = window.EmjiveOptionDial.fillInner;
-  const at = (r, a) => (r * Math.sin(a)).toFixed(4) + " " + (-r * Math.cos(a)).toFixed(4);
-  const shape = "M" + at(1, mid - half) + " A1 1 0 0 1 " + at(1, mid + half) +
-    " L" + at(inner, mid + half) + " A" + inner + " " + inner + " 0 1 1 " + at(inner, mid - half) + " Z";
+  const shape = "M1 0 A1 1 0 1 0 -1 0 A1 1 0 1 0 1 0 Z";
   const line = 'fill="none" stroke="#000" stroke-opacity="0.5" stroke-width="1" vector-effect="non-scaling-stroke"';
   els.viewerContainer.insertAdjacentHTML("beforeend",
     '<svg class="dial-overlay" viewBox="-1 -1 2 2" aria-hidden="true">' +
     '<path d="M-1 -1 H1 V1 H-1 Z ' + shape + '" fill-rule="evenodd" fill="rgba(248, 248, 248, 0.8)"/>' +
     '<path d="' + shape + '" ' + line + "/>" +
-    '<circle r="' + DIAL_FADE_FROM + '" ' + line + ' stroke-dasharray="4 4"/>' +
     "</svg>");
 }
 
@@ -704,6 +710,8 @@ function setCameraControlsEnabled(enabled) {
   els.rotationSlider.disabled = !enabled;
   els.tiltSlider.disabled = !enabled;
   els.rollSlider.disabled = !enabled;
+  els.frameInput.disabled = !enabled;
+  els.frameSlider.disabled = !enabled;
   els.resetCameraBtn.disabled = !enabled;
   els.saveCamera.disabled = !enabled;
   if (!enabled) els.saveCamera.checked = false;
@@ -766,15 +774,16 @@ function readoutLoop() {
 }
 
 // On a field commit or slider move: jump the camera to the fields' values
-// (handle.setCameraOrbit). The swatch takes three, through swatchOrbit().
+// (handle.setCameraOrbit). The swatch takes three and the frame, through swatchOrbit().
 function onOrbitInputChange() {
   if (!state.handle) return;
   const rotation = parseFloat(els.rotationInput.value);
   const tilt = parseFloat(els.tiltInput.value);
   const roll = parseFloat(els.rollInput.value);
   if (state.mode === "swatch") {
-    if (![rotation, tilt, roll].every(Number.isFinite)) return;
-    state.swatchCamera = { rotation, tilt, roll };
+    const frame = parseFloat(els.frameInput.value);
+    if (![rotation, tilt, roll, frame].every(Number.isFinite) || frame <= 0 || frame > 1) return;
+    state.swatchCamera = { rotation, tilt, roll, frame };
     syncSliders();
     state.handle.setCameraOrbit(window.EmjiveModelViewer.swatchOrbit(state.swatchCamera));
     return;

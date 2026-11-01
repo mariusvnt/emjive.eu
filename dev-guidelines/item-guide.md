@@ -15,6 +15,7 @@ Everything about the catalog's items: how the data is organised, where their fil
   - **Metals** are global, because the 3D materials are global.
   - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
 - **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness and band width stay as designed, so a smaller size never thins a delicate part below what prints, as a scale would. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its weight and price, and the print model sent to the printer all follow the same shift.
+- **Two sizes, kept apart.** The reference size is what the models, their measurements and the prices are pinned to; the default size (`EmjiveHelpers.DEFAULT_SIZE_MM`) is the one a ring is first shown and offered at. Changing the default only takes a re-render; changing the reference would mean re-measuring and re-pricing every product.
 - **Prices follow the size.** A product has one price per metal at a reference size, and every price on the site follows the printed piece's volume at the chosen size (computed in `js/selection.js`). `0` means "TBD".
 - **Weight and cost are derived, never typed.** They come from the measured volume of the piece as it is printed, times each metal's constants (`metal-costs`). Nothing per-metal is stored that could go stale. The printed piece, not the 3D model on the page, is what is made, and the two can differ.
 
@@ -82,18 +83,18 @@ From a Blender export to a shippable item, in the order that works. None of thes
 2. **`npm run optimize-models`** (run by `split-models`): strips what the viewer never reads, welds and Draco-compresses. It re-reads what it wrote and fails unless the result decodes to the same shape, because it overwrites the only copy.
 3. **`npm run measure-models`**: each model's and print model's volume and minimum bounding box, and what the size does to them (the volume gained per mm of size, the smallest size, the box across the sizes), written as the product's `geometry`, pinned to the files' hashes. It refuses a model whose finger axis doesn't run through its origin (along its `finger-axis`, along Y for a print model), and warns when a print model's bore measures far from the reference size.
 4. **`npm run auto-render`**: the renders, through the site's own viewer code in Chrome with a real GPU, written next to the model and patched into `products.json`:
-   - the **fallback image** is the viewer's first frame, pixel for pixel, so the swap from poster to live model doesn't jump;
+   - the **fallback image** is the viewer's first frame, pixel for pixel, so the swap from poster to live model doesn't jump. A ring's is drawn at the default size, as the item page first shows it, and so are its icon and plan views; the wheel and hand posters are not, since the wheel draws its models unsized;
    - the **icon** is the same capture, cropped tight;
    - the **wheel poster** is the model as the wheel draws it;
    - the **hand poster** is the ring as the wheel draws it on the hero's hand: straight down, fading out with depth where a finger would hide it, in the x-ray look and no metal. It stands in until the 3D models take the hand over;
-   - the **plan views** are front and side outline drawings (the item page doesn't show them at present, measuring its dimensions off the live model): the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design, at the reference size;
+   - the **plan views** are front and side outline drawings (the item page doesn't show them at present, measuring its dimensions off the live model): the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
    Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--plan-views-only`, `--image-variants`).
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
-Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings, the wheel's drawing, or the plan views' look (the category colour, their axes), re-render what used it.
+Renders never regenerate on their own. After a change to a model's shape, a camera, a metal's shader, the `hand-shader`, an HDRI, the studio settings, the wheel's drawing, the default size, or the plan views' look (the category colour, their axes), re-render what used it.
 
 ## 5. Tools
 

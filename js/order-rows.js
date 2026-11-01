@@ -1,7 +1,7 @@
 // Item rows shared by launch-order.html's list and the floating bar's drawer.
 // A tap on a row opens the Modify sheet for its item. Rows follow the
 // selection one change at a time: a Modify crossfades the changed parts, an
-// Unselect collapses the row (or holds it as an Undo line), an Undo brings
+// Remove collapses the row (or holds it as an Undo line), an Undo brings
 // it back.
 //
 // window.EmjiveOrderRows.create(options) -> { render(items, { animate }),
@@ -132,7 +132,8 @@
       thumb.addEventListener("load", function () { resampleBand(li); });
 
       var meta = document.createElement("span");
-      meta.className = "order-item__meta";
+      meta.className = "order-item__meta edge-scroll";
+      H.edgeFades(meta);
       var name = document.createElement("span");
       name.className = "order-item__name";
       name.textContent = item.name;
@@ -390,7 +391,7 @@
       var oldKeys = bindings.map(function (binding) { return sel.itemKey(binding.item); });
       var keys = items.map(sel.itemKey);
 
-      // An Unselect that asked for an Undo: its row stays as the line, even the last one.
+      // A Remove that asked for an Undo: its row stays as the line, even the last one.
       if (pendingHold) {
         var asked = pendingHold;
         pendingHold = null;

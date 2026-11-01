@@ -46,7 +46,8 @@ function updateSwatchSceneInText(text, updates) {
     var cameraPattern = /"swatch-camera":\s*\{[^{}]*\}/;
     if (!cameraPattern.test(result)) return null;
     var camera = updates["swatch-camera"];
-    var block = '"swatch-camera": { "rotation": ' + camera.rotation + ', "tilt": ' + camera.tilt + ', "roll": ' + camera.roll + " }";
+    var block = '"swatch-camera": { "rotation": ' + camera.rotation + ', "tilt": ' + camera.tilt + ', "roll": ' + camera.roll +
+      (camera.frame !== undefined ? ', "frame": ' + camera.frame : "") + " }";
     result = result.replace(cameraPattern, function () { return block; });
   }
   return result;
@@ -118,17 +119,21 @@ async function handleSaveSeriesHdri(req, res) {
   return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
 }
 
-// Only the angles: distance, fov and frame are solved (swatchOrbit in js/three-viewer.js).
+// The angles and the frame: distance and fov are solved (swatchOrbit in js/three-viewer.js).
 async function handleSaveSwatchCamera(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
   if (![body.rotation, body.tilt, body.roll].every(isFiniteNumber)) {
     return sendJson(res, 400, { error: "rotation/tilt/roll must be finite numbers" });
+  }
+  if (body.frame !== undefined && !(isFiniteNumber(body.frame) && body.frame > 0 && body.frame <= 1)) {
+    return sendJson(res, 400, { error: "frame must be a number in (0, 1]" });
   }
   var camera = {
     rotation: Math.round(body.rotation * 100) / 100,
     tilt: Math.round(body.tilt * 100) / 100,
     roll: Math.round(body.roll * 100) / 100
   };
+  if (body.frame !== undefined) camera.frame = Math.round(body.frame * 100) / 100;
   var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
   var patched = updateSwatchSceneInText(text, { "swatch-camera": camera });
   if (!patched) {

@@ -6,8 +6,8 @@
 // dials (js/option-dial.js): shape (with more than one design), material,
 // size with "Find my size".
 //
-// Its buttons are a strip the page's bar turns into (options.bar): Unselect |
-// Save. Unselect removes the item and the list keeps its row as an Undo line
+// Its buttons are a strip the page's bar turns into (options.bar): Remove |
+// Save. Remove takes the item out and the list keeps its row as an Undo line
 // for UNDO_MS (js/order-rows.js offerUndo). Save needs a size within the
 // product's "size-range".
 //
@@ -18,7 +18,7 @@
 //   onPreview(index, values)    the draft changed: show { name, metal, size,
 //                               price, image } on the row without storing (null: revert)
 //   offerUndo(index, handlers)  hold the row as an Undo line (js/order-rows.js);
-//                               without it an Unselect is final
+//                               without it a Remove is final
 //   onOpen(item), onClose()     the sheet is up / has closed
 //   returnFocus, fallbackFocus  elements or functions; fallbackFocus also
 //                               catches focus left on an expired Undo
@@ -35,7 +35,7 @@
   // The sheet's 0.3s slide-out plus a margin: dispose the viewer only once out
   // of sight, or the model blanks mid-slide.
   var SLIDE_OUT_MS = 350;
-  // The Undo offer's length, from the Unselect, regardless of focus or pointer.
+  // The Undo offer's length, from the Remove, regardless of focus or pointer.
   var UNDO_MS = 4000;
 
   var H = window.EmjiveHelpers;
@@ -96,9 +96,9 @@
 
   /* ---- the bar strip ----
      What the page's bar turns into while the sheet is open (.modify-strip):
-     Unselect (left quarter) and Save (the rest), with an invert band under
+     Remove (left quarter) and Save (the rest), with an invert band under
      Save's label. Save grows the band across the bar and fades it before the
-     bar gets its content back (leaveAfterSave); Unselect just hides the strip.
+     bar gets its content back (leaveAfterSave); Remove just hides the strip.
      Mounted into the bar as soon as it exists (attach), shown and hidden by
      the bar, inert while hidden. */
   function stripButton(className, labelClass, label) {
@@ -117,11 +117,11 @@
   var strip = el("div", "modify-strip is-hidden");
   strip.setAttribute("aria-hidden", "true");
   strip.inert = true;
-  var unselectBtn = stripButton("modify-strip__unselect", "modify-strip__label", "Unselect");
+  var removeBtn = stripButton("modify-strip__remove", "modify-strip__label", "Remove");
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
   // After the buttons, so it paints over the label it inverts.
   var saveBand = stripBand("modify-strip__band");
-  strip.appendChild(unselectBtn);
+  strip.appendChild(removeBtn);
   strip.appendChild(saveBtn);
   strip.appendChild(saveBand);
 
@@ -173,14 +173,14 @@
     return state.product.designName || state.base.name || "";
   }
 
-  // "modify" (Unselect | Save) or "saved" (band growing and fading, buttons
+  // "modify" (Remove | Save) or "saved" (band growing and fading, buttons
   // inert). `instant`, or a hidden strip, skips the motion so the next open
   // starts on its own layout.
   function setStripMode(mode, instant) {
     instant = instant || strip.classList.contains("is-hidden");
     if (instant) strip.classList.add("is-instant");
     strip.classList.toggle("is-saved", mode === "saved");
-    unselectBtn.inert = mode !== "modify";
+    removeBtn.inert = mode !== "modify";
     saveBtn.inert = mode !== "modify";
     if (instant) {
       void strip.offsetWidth;
@@ -256,7 +256,6 @@
     state.shapeDial = designs && Array.isArray(designs.list) && designs.list.length > 1
       ? window.EmjiveOptionDial.mount(dialHost(), {
         name: "Shape",
-        mode: "icons",
         options: shapeOptions(),
         selected: state.designKey,
         onSelect: selectDesign,
@@ -265,7 +264,6 @@
       : null;
     window.EmjiveOptionDial.mount(dialHost(), {
       name: "Material",
-      mode: "fill",
       options: (window.EmjiveSeries.metals || []).map(function (metal) {
         return {
           key: metal,
@@ -517,7 +515,7 @@
     window.dispatchEvent(new CustomEvent("emjive:modify-close"));
   }
 
-  /* ---- Save, Unselect, Undo ---- */
+  /* ---- Save, Remove, Undo ---- */
 
   function orderable() {
     return window.EmjiveSelection.isOrderableSize(state.base, String(state.sizeMm));
@@ -541,7 +539,7 @@
   // requested before the removal, which the list answers by keeping the row.
   // The stored item and this session's options are kept for the Undo, which
   // outlives the sheet. Focus moves to the line's Undo button.
-  function unselect() {
+  function removeItem() {
     if (!state.isOpen) return;
     var index = state.index;
     var removed = window.EmjiveSelection.getSelection()[index];
@@ -615,7 +613,7 @@
   }
 
   saveBtn.addEventListener("click", save);
-  unselectBtn.addEventListener("click", unselect);
+  removeBtn.addEventListener("click", removeItem);
 
   backdrop.addEventListener("click", function () { close(); });
 
@@ -676,7 +674,7 @@
   }
 
   // keepStrip    the strip stays up (a Save's band still to play)
-  // keepPreview  the row keeps the draft (a Save, or an Unselect's leaving row)
+  // keepPreview  the row keeps the draft (a Save, or a Remove's leaving row)
   // focus        where focus goes instead of returnFocus
   function close(opts) {
     if (!state.isOpen) return;

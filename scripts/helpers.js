@@ -114,7 +114,8 @@ function priceSpan(product) {
 
 function isSwatchCamera(camera) {
   return !!camera && typeof camera === "object" &&
-    ["rotation", "tilt", "roll"].every((k) => typeof camera[k] === "number" && isFinite(camera[k]));
+    ["rotation", "tilt", "roll"].every((k) => typeof camera[k] === "number" && isFinite(camera[k])) &&
+    (camera.frame === undefined || (typeof camera.frame === "number" && camera.frame > 0 && camera.frame <= 1));
 }
 
 // Catalog drift that fails silently on the site, as messages: a series
@@ -152,7 +153,7 @@ function catalogDrift(seriesIndex, productsBySlug) {
   }
   const camera = seriesIndex["swatch-camera"];
   if (camera !== undefined && !isSwatchCamera(camera)) {
-    warnings.push('top-level "swatch-camera" is ' + JSON.stringify(camera) + ", not { rotation, tilt, roll } of numbers - the swatch will render with the default camera");
+    warnings.push('top-level "swatch-camera" is ' + JSON.stringify(camera) + ", not { rotation, tilt, roll } of numbers with an optional frame in (0, 1] - the swatch will render with the default camera");
   }
   return warnings;
 }

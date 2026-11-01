@@ -106,6 +106,8 @@ export function createStackScene(options) {
   var heldCpuBytes = 0;
   var focusId = null;
   var focusEl = null;
+  // The running metal fade's stop (setMetal).
+  var stopFade = null;
   // Shared by every model's material.
   var handLook = handUniforms();
 
@@ -189,7 +191,7 @@ export function createStackScene(options) {
     entry.model = root;
     entry.center = sphere.center.clone();
     entry.radius = sphere.radius || 1;
-    entry.material = toolkit.metalMaterial(entry.product["default-metal"]);
+    entry.material = toolkit.metalMaterial(entry.metal);
     // On the hand, the finger hides the far side of its box (its depth there
     // is the box's y): where that box sits.
     entry.cutMin = box.min.y;
@@ -246,6 +248,36 @@ export function createStackScene(options) {
     entry.holder.add(entry.sprite);
   }
 
+  // A model's metal set on its material at once, in place: the same
+  // program, so no shader recompiles.
+  function tint(entry) {
+    var fresh = toolkit.metalMaterial(entry.metal);
+    entry.material.color.copy(fresh.color);
+    entry.material.metalness = fresh.metalness;
+    entry.material.roughness = fresh.roughness;
+    fresh.dispose();
+  }
+
+  // A sprite's picture in its metal, unless the metal changed again meanwhile.
+  function retexture(entry) {
+    var metal = entry.metal;
+    var picture = H.posterFor(entry.product, metal);
+    if (!picture) return;
+    loadTexture(picture).then(function (texture) {
+      if (disposed || !entry.sprite || entry.metal !== metal) {
+        texture.dispose();
+        return;
+      }
+      var old = entry.material.map;
+      entry.material.map = texture;
+      entry.material.needsUpdate = true;
+      if (old) old.dispose();
+      kick();
+    }, function (err) {
+      console.error("emjive: a stack picture failed to load", picture, err);
+    });
+  }
+
   function buildEntry(item) {
     var group = new T.Group();
     var holder = new T.Group();
@@ -255,6 +287,7 @@ export function createStackScene(options) {
     var entry = {
       id: String(item.id),
       product: item.product,
+      metal: item.metal || item.product["default-metal"],
       group: group,
       holder: holder,
       viewQ: viewQ,
@@ -268,13 +301,17 @@ export function createStackScene(options) {
       spin: null
     };
     var model = item.product.assets && item.product.assets.model;
-    var picture = H.posterFor(item.product, item.product["default-metal"]);
+    var picture = H.posterFor(item.product, entry.metal);
+    function spriteFrom(texture) {
+      setSprite(entry, texture);
+      if (H.posterFor(item.product, entry.metal) !== picture) retexture(entry);
+    }
     var load = model
       ? loadModel(model).then(function (root) { setModel(entry, root); }, function (err) {
         console.error("emjive: a stack model failed to load", model, err);
-        return picture ? loadTexture(picture).then(function (t) { setSprite(entry, t); }) : null;
+        return picture ? loadTexture(picture).then(spriteFrom) : null;
       })
-      : (picture ? loadTexture(picture).then(function (t) { setSprite(entry, t); }) : Promise.resolve());
+      : (picture ? loadTexture(picture).then(spriteFrom) : Promise.resolve());
     entries.push(entry);
     byId[entry.id] = entry;
     return load.catch(function (err) {
@@ -480,6 +517,7 @@ export function createStackScene(options) {
     if (disposed) return;
     disposed = true;
     cancelAnimationFrame(raf);
+    if (stopFade) stopFade();
     canvas.removeEventListener("webglcontextlost", onContextLost, false);
     document.removeEventListener("visibilitychange", repaint);
     window.removeEventListener("pageshow", repaint);
@@ -549,6 +587,24 @@ export function createStackScene(options) {
     },
 
     setPoses: applyPoses,
+
+    // Every product in this metal (the gallery's material picker), the
+    // models easing into it (toolkit.fadeMetal) unless instant.
+    setMetal: function (metal, instant) {
+      var fading = [];
+      entries.forEach(function (entry) {
+        if (entry.metal === metal) return;
+        entry.metal = metal;
+        if (entry.model && instant) tint(entry);
+        else if (entry.model) fading.push(entry.material);
+        else if (entry.sprite) retexture(entry);
+      });
+      if (fading.length) {
+        if (stopFade) stopFade();
+        stopFade = toolkit.fadeMetal(fading, metal, kick);
+      }
+      kick();
+    },
 
     // The hero's wipe: the screen y (px) above which nothing is drawn, or null
     // for no cut. Only rings on the hand are visible while it runs.

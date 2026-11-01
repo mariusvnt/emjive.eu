@@ -3,8 +3,9 @@
 //   stack  the wheel (js/gallery-stack.js, mounted here)
 //   grid   the list, built here: one row per product, its pictures a deck dealt by swiping
 // data-hero="play" plays the hero reveal first, "skip" lands at rest.
-// Also owns product loading, the view toggle and its veil, the filter's
-// effect on both views, and reporting changes to js/scroll-memory.js.
+// Also owns product loading, the view toggle and its veil, the material
+// picker, the filter's effect on both views, and reporting changes to
+// js/scroll-memory.js.
 //
 // window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
 
@@ -18,6 +19,7 @@
 
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
+  var materialEl = document.getElementById("galleryMaterial");
 
   // Read by js/scroll-memory.js in the <head>.
   var VIEW_KEY = "emjive_gallery_view";
@@ -54,7 +56,9 @@
     cats: [],
     onShowAll: null,
     emptyMsg: null,
-    stage: null
+    stage: null,
+    // The list's top has come up past the hero (watchListTop()).
+    listReached: false
   };
 
   /* ---- arrival cover and the wheel ----
@@ -161,7 +165,7 @@
     setTimeout(swap, VEIL_MS + 50);
   }
 
-  /* ---- the view toggle ---- */
+  /* ---- the view toggle and the material picker ---- */
 
   function syncControls() {
     // Its icon and word are CSS's (same attribute); this is its name.
@@ -169,7 +173,25 @@
     viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to list");
     // Wheel view: shown once the entrance has played out (mapStage, the roll back left out).
     var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
-    viewToggle.classList.toggle("is-ready", view() === "grid" || (stage !== null && stage >= 0.9));
+    var landed = stage !== null && stage >= 0.9;
+    viewToggle.classList.toggle("is-ready", view() === "grid" || landed);
+    // The material picker: after the hero, the list's once it has scrolled by.
+    if (materialEl) {
+      materialEl.classList.toggle("is-ready", view() === "grid" ? heroMode() === "skip" || state.listReached : landed);
+    }
+  }
+
+  // Whether the list's top has reached the top of the screen.
+  function watchListTop() {
+    if (typeof IntersectionObserver !== "function") {
+      state.listReached = true;
+      return;
+    }
+    new IntersectionObserver(function (entries) {
+      var box = entries[entries.length - 1].boundingClientRect;
+      state.listReached = box.top <= 0;
+      syncControls();
+    }, { rootMargin: "0px 0px -100% 0px" }).observe(section);
   }
 
   // Either view lands at rest: the list at the top, the wheel at the hero's end.
@@ -203,7 +225,67 @@
       syncControls();
     });
   }
+  watchListTop();
   syncControls();
+
+  /* One metal for every item (EmjiveSeries.chooseMetal), in both views'
+     pictures, the list's prices and the item's page after: the metals'
+     swatches in a row, the active one dotted, its name under them. Until
+     the visitor picks, every item shows its own default metal, and the
+     picker the one they share. */
+  function buildMaterialPicker(products) {
+    var metals = window.EmjiveSeries.metals || [];
+    if (!materialEl || metals.length < 2) return;
+    var first = products.length ? products[0]["default-metal"] : null;
+    var shared = products.every(function (p) { return p["default-metal"] === first; }) ? first : null;
+    var current = window.EmjiveSeries.chosenMetal() || shared;
+
+    var row = el("div", "gallery-material__swatches");
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", "Material");
+    var buttons = metals.map(function (metal) {
+      var button = el("button", "gallery-material__swatch");
+      button.type = "button";
+      button.setAttribute("aria-label", metal);
+      var swatch = el("span", "product-dial__swatch");
+      swatch.setAttribute("data-metal", metal);
+      button.appendChild(swatch);
+      button.addEventListener("click", function () { choose(metal); });
+      row.appendChild(button);
+      return button;
+    });
+    var nameEl = el("span", "gallery-material__name");
+    nameEl.setAttribute("aria-hidden", "true");
+    materialEl.appendChild(row);
+    materialEl.appendChild(nameEl);
+
+    function paint() {
+      buttons.forEach(function (button, i) {
+        button.setAttribute("aria-pressed", metals[i] === current ? "true" : "false");
+      });
+      nameEl.textContent = current || "";
+    }
+
+    // The first pick also prices the list, even in the metal already shown.
+    function choose(metal) {
+      if (metal === window.EmjiveSeries.chosenMetal()) return;
+      window.EmjiveSeries.chooseMetal(metal);
+      current = metal;
+      paint();
+      applyMetal(metal);
+    }
+
+    paint();
+  }
+
+  function applyMetal(metal) {
+    state.tiles.forEach(function (tile) {
+      var src = cardPicture(tile.product, metal);
+      if (tile.firstImg && src) H.crossfadeSrc(tile.firstImg, src);
+      tile.price.textContent = priceText(tile.product);
+    });
+    if (state.stack) state.stack.setMetal(metal);
+  }
 
   /* ---- the list ----
      A header row, then one row per product: index, a deck of pictures (the
@@ -300,7 +382,8 @@
     window.location.href = window.EmjiveSeries.productHref(product, state.slug);
   }
 
-  // Row facts. Price is the lowest over all metals (it scales with size, js/selection.js priceAt).
+  // Row facts. Price is the lowest over all metals, or the chosen one's
+  // once picked (it scales with size, js/selection.js priceAt).
   var FACTS = [
     { key: "name", label: "Id" },
     { key: "category", label: "Category" },
@@ -324,7 +407,6 @@
   }
 
   function factValue(product, key) {
-    var sel = window.EmjiveSelection;
     var name = product.name || "";
     if (key === "name") {
       var dd = el("dd");
@@ -339,7 +421,18 @@
       var range = H.sizeRange(product);
       return el("dd", "", range.min + " – " + range.max);
     }
-    return el("dd", "", sel.formatPriceFrom(sel.priceFrom(product)));
+    return el("dd", "", priceText(product));
+  }
+
+  function priceText(product) {
+    var sel = window.EmjiveSelection;
+    return sel.formatPriceFrom(sel.priceFrom(product, window.EmjiveSeries.chosenMetal() || ""));
+  }
+
+  // The deck's first card: the model's fallback-img, or its icon without a model.
+  function cardPicture(product, metal) {
+    var assets = product.assets || {};
+    return (assets.model && H.assetFor(product, "fallback-img", metal)) || H.assetFor(product, "icons", metal);
   }
 
   function buildFacts(product) {
@@ -363,9 +456,8 @@
     var frame = el("div", "grid-tile__frame");
     var deck = el("div", "grid-tile__deck");
     var assets = product.assets || {};
-    var metal = product["default-metal"];
     var name = product.name || "";
-    var first = (assets.model && H.assetFor(product, "fallback-img", metal)) || H.assetFor(product, "icons", metal);
+    var first = cardPicture(product, window.EmjiveSeries.metalFor(product));
     var firstImg = null;
     if (first) {
       firstImg = card(first, name, "grid-tile__card--model");
@@ -393,7 +485,7 @@
     if (firstImg && window.EmjiveLoader) {
       window.EmjiveLoader.cover(frame, H.imageReady(firstImg));
     }
-    return { product: product, el: tile, firstImg: firstImg };
+    return { product: product, el: tile, firstImg: firstImg, price: tile.querySelector(".grid-tile__fact--price dd") };
   }
 
   function renderGrid(products) {
@@ -509,6 +601,8 @@
         grid.appendChild(none);
       }
       renderGrid(products);
+      // Before the wheel, which keeps clear of the picker.
+      buildMaterialPicker(products);
       if (window.EmjiveGalleryStack) {
         state.stack = window.EmjiveGalleryStack.mount(stage, {
           products: products,

@@ -225,7 +225,10 @@
   function render(product) {
     document.title = "em·ji·ve: " + (product.name || "product").toLowerCase();
     updateSearchMetadata(product);
-    state.selectedMetal = product["default-metal"] || state.metals[0] || "steel";
+    // The metal picked in the gallery, priced as a pick, else the item's own.
+    var chosen = window.EmjiveSeries.chosenMetal();
+    state.selectedMetal = chosen || product["default-metal"] || state.metals[0] || "steel";
+    state.metalPicked = !!chosen;
     var sizes = H.sizeRange(product);
     SIZE_MIN_MM = sizes.min;
     SIZE_MAX_MM = sizes.max;
@@ -1064,12 +1067,6 @@
     });
   }
 
-  // Re-tint after the text changes have painted: rebuilding materials can hold
-  // a phone's next frame.
-  var tintAfterPaint = H.afterPaint(function () {
-    if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
-  });
-
   function onMetalSelect(product, metal) {
     var firstPick = !state.metalPicked;
     state.metalPicked = true;
@@ -1085,17 +1082,16 @@
     // The label thumbnail and icon fallback are static images: swap them to the design's icon.
     var view = state.view;
     renderLabelThumb();
-    if (state.iconFallbackImg) {
-      state.iconFallbackImg.src = H.assetFor(view, "icons", metal);
-    }
+    if (state.iconFallbackImg) H.crossfadeSrc(state.iconFallbackImg, H.assetFor(view, "icons", metal));
     // The poster too, if the viewer isn't in yet.
-    if (state.posterImg) state.posterImg.src = H.posterFor(view, metal);
+    if (state.posterImg) H.crossfadeSrc(state.posterImg, H.posterFor(view, metal));
     // The shape previews are the designs in this metal.
     if (state.shapeDial) state.shapeDial.setOptions(shapeOptions(product));
     renderCosts();
     renderPrinting();
     renderComposition();
-    tintAfterPaint();
+    // The model eases into the metal.
+    if (state.modelHandle) state.modelHandle.applyMetal(metal, true);
   }
 
   /* ---- costs ---- */

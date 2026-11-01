@@ -112,22 +112,6 @@
     else setTimeout(fn, fallbackMs);
   }
 
-  // A function running fn once after the next paint, however often it's called
-  // before then: rAF precedes the paint, the timeout follows it.
-  function afterPaint(fn) {
-    var queued = false;
-    return function () {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(function () {
-        setTimeout(function () {
-          queued = false;
-          fn();
-        }, 0);
-      });
-    };
-  }
-
   // fn once el's own `prop` transition ends, or after ms (no transitionend in
   // a background tab). Returns a cancel.
   function afterTransition(el, prop, ms, fn) {
@@ -470,6 +454,63 @@
     });
   }
 
+  // img to show src, crossfading (--fade-standard) once src has decoded: a
+  // copy of the old picture, the picture alone, laid over it fades out. A
+  // model's pictures keep its silhouette in every metal, so only the metal
+  // blends. At once when nothing shows yet (unloaded, hidden) or under
+  // reduced motion.
+  var CROSSFADE_MS = 300;
+  var crossfadeTargets = new WeakMap();
+  function crossfadeSrc(img, src) {
+    crossfadeTargets.set(img, src);
+    if (!src || img.getAttribute("src") === src) return;
+    function shown() {
+      return img.isConnected && img.complete && img.naturalWidth > 0 && img.getClientRects().length > 0 &&
+        window.getComputedStyle(img).visibility !== "hidden";
+    }
+    if (reducedMotion.matches || !shown()) {
+      img.src = src;
+      return;
+    }
+    var next = new Image();
+    next.src = src;
+    (next.decode ? next.decode() : Promise.resolve()).catch(function () {}).then(function () {
+      if (crossfadeTargets.get(img) !== src) return;
+      if (!shown() || !img.offsetParent) {
+        img.src = src;
+        return;
+      }
+      var ghost = img.cloneNode(false);
+      ghost.removeAttribute("id");
+      ghost.alt = "";
+      ghost.setAttribute("aria-hidden", "true");
+      var style = ghost.style;
+      style.position = "absolute";
+      style.left = img.offsetLeft + "px";
+      style.top = img.offsetTop + "px";
+      style.width = img.offsetWidth + "px";
+      style.height = img.offsetHeight + "px";
+      style.margin = "0";
+      style.background = "none";
+      style.boxShadow = "none";
+      style.webkitBackdropFilter = "none";
+      style.backdropFilter = "none";
+      style.pointerEvents = "none";
+      var from = window.getComputedStyle(img).opacity;
+      img.parentNode.insertBefore(ghost, img.nextSibling);
+      img.src = src;
+      function drop() {
+        if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+      }
+      if (typeof ghost.animate !== "function") {
+        drop();
+        return;
+      }
+      ghost.animate([{ opacity: from }, { opacity: 0 }], { duration: CROSSFADE_MS, easing: "ease", fill: "forwards" })
+        .finished.then(drop, drop);
+    });
+  }
+
   /* ---- invert bands ---- */
 
   // Safari's backdrop-filter re-samples late when content under an invert band
@@ -503,7 +544,6 @@
     cubicBezierEase: cubicBezierEase,
     wait: wait,
     whenIdle: whenIdle,
-    afterPaint: afterPaint,
     afterTransition: afterTransition,
     transitionDone: transitionDone,
     imageReady: imageReady,
@@ -530,6 +570,7 @@
     thumbSrc: thumbSrc,
     setThumb: setThumb,
     preload: preload,
+    crossfadeSrc: crossfadeSrc,
     resampleBand: resampleBand
   };
 })();

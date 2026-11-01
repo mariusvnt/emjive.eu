@@ -183,6 +183,38 @@ export { toolkit };
     });
   }
 
+  // A metal change on the site: each material's colour, metalness and
+  // roughness eased to the new metal's over METAL_FADE_MS rather than
+  // switched. The colours being linear factors, that is close to a
+  // crossfade of the two renders, and it holds on a turning model with no
+  // shader recompiling. onFrame repaints; returns a stop(). At once under
+  // reduced motion.
+  var METAL_FADE_MS = 300;
+  function fadeMetal(materials, metalKey, onFrame) {
+    var target = metalMaterial(metalKey);
+    var to = { color: target.color.clone(), metalness: target.metalness, roughness: target.roughness };
+    target.dispose();
+    var from = materials.map(function (m) {
+      return { color: m.color.clone(), metalness: m.metalness, roughness: m.roughness };
+    });
+    var start = null;
+    var raf = 0;
+    function step(now) {
+      if (start === null) start = now;
+      var t = H.reducedMotion.matches ? 1 : H.clamp01((now - start) / METAL_FADE_MS);
+      var e = H.easeInOutCubic(t);
+      materials.forEach(function (m, i) {
+        m.color.copy(from[i].color).lerp(to.color, e);
+        m.metalness = H.lerp(from[i].metalness, to.metalness, e);
+        m.roughness = H.lerp(from[i].roughness, to.roughness, e);
+      });
+      onFrame();
+      raf = t < 1 ? requestAnimationFrame(step) : 0;
+    }
+    raf = requestAnimationFrame(step);
+    return function stop() { cancelAnimationFrame(raf); };
+  }
+
   // The sizes, mm, the page may show a model at: its "size-range", and the
   // reference (no size given).
   function sizeBounds(product) {
@@ -1363,8 +1395,12 @@ export { toolkit };
     var currentMetal = metalKey;
     var modelRoot = null;
     var modelLoaded = false;
+    // A running fadeMetal()'s stop, until fresh materials replace its own.
+    var stopMetalFade = null;
 
     function applyMaterial() {
+      if (stopMetalFade) stopMetalFade();
+      stopMetalFade = null;
       if (!modelRoot) return;
       modelRoot.traverse(function (node) {
         if (!node.isMesh) return;
@@ -1655,9 +1691,21 @@ export { toolkit };
       // even after dispose (three's loaders can't be aborted), for callers that
       // ration concurrent loads.
       whenSettled: Promise.all([modelPromise.then(ignore, ignore), environmentPromise.then(ignore, ignore)]),
-      applyMetal: function (newMetalKey) {
+      // fade: ease into it (fadeMetal) rather than switch, as the site does;
+      // the tools want the metal at once, or re-read after an edit.
+      applyMetal: function (newMetalKey, fade) {
+        var changed = newMetalKey !== currentMetal;
         currentMetal = newMetalKey;
-        if (modelLoaded) applyMaterial();
+        if (modelLoaded && fade && changed) {
+          var materials = [];
+          modelRoot.traverse(function (node) {
+            if (node.isMesh) materials.push(node.material);
+          });
+          if (stopMetalFade) stopMetalFade();
+          stopMetalFade = fadeMetal(materials, newMetalKey, invalidate);
+        } else if (modelLoaded) {
+          applyMaterial();
+        }
         // The render-on-demand loop only redraws on camera motion.
         invalidate();
       },
@@ -1777,6 +1825,7 @@ export { toolkit };
         if (isDisposed) return;
         isDisposed = true;
         if (loopRaf) cancelAnimationFrame(loopRaf);
+        if (stopMetalFade) stopMetalFade();
         // A loader still waiting has nothing left to wait for.
         if (loadGate) loadGate.done();
         spin.dispose();
@@ -2364,6 +2413,7 @@ export { toolkit };
     loadEnvironment: loadEnvironment,
     addSun: addSun,
     metalMaterial: metalMaterial,
+    fadeMetal: fadeMetal,
     handShader: handShaderSettings,
     configureRenderer: configureRenderer,
     // The default orbit's vertical fov and zoom (1 = bounding sphere fits exactly): what frames a fallback-img.

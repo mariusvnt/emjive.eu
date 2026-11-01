@@ -49,7 +49,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterPaint, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
@@ -73,7 +73,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
     - sets `EmjiveMenus` { opened, closed }
     - sets `EmjiveMessage` { show }
-    - sets `EmjiveSeries` { index, metals, hdris, slug, series, ready, categories, categoryInfo, hdriPath, all, get, featuredSlug, isFeatured, loadProducts, loadManifest, mainHref, manifestHref, productHref, productSlug, resolveDesign, requestedSlug }
+    - sets `EmjiveSeries` { index, metals, hdris, slug, series, ready, categories, categoryInfo, hdriPath, all, get, featuredSlug, isFeatured, loadProducts, loadManifest, mainHref, manifestHref, productHref, productSlug, resolveDesign, chosenMetal, chooseMetal, metalFor, requestedSlug }
   - [size-finder.js](../js/size-finder.js) — "Find my size": a full-screen overlay measuring a ring size, opened from the product page (size row, Select sheet) and the Modify sheet.
     - sets `EmjiveSizeFinder` { open, isOpen, sizeFromDiameter }
   - [stack-scene.js](../js/stack-scene.js) — The wheel's 3D scene: every product's model in one full-screen canvas (one WebGL context, one environment map).
@@ -190,6 +190,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | --- | --- |
 | `emjive_calibration` | `js/size-finder.js` |
 | `emjive_gallery_view` | `js/gallery.js`, `js/scroll-memory.js` |
+| `emjive_metal` | `js/series.js` |
 | `emjive_model_interacted` | `js/three-viewer.js` |
 | `emjive_selection` | `js/selection.js` |
 | `emjive:gallery-filtered` | `js/gallery.js`, `js/main.js` |

@@ -143,7 +143,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 - its `metal-costs`, `metal-composition` and `metal-technology` in `data/series.json`;
 - a price in every product;
-- a swatch rule for the material dial in `css/style.css`.
+- a swatch rule in `css/style.css`, which the material dial and the gallery's picker share.
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.
 

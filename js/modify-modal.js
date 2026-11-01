@@ -329,26 +329,29 @@
     if (state.options.onPreview) state.options.onPreview(state.index, draftValues());
   }
 
-  // Re-tint after the row's new label has painted: rebuilding materials can
-  // hold a phone's next frame. Picks meanwhile just use the current metal.
-  var tintAfterPaint = H.afterPaint(function () {
-    if (state.modelHandle) state.modelHandle.applyMetal(state.selectedMetal);
-  });
-
-  // The stand-in images follow the design and metal.
-  function syncStandIns() {
-    if (state.posterImg) state.posterImg.src = posterSrc(state.selectedMetal);
-    if (state.iconImg) state.iconImg.src = iconSrc(state.selectedMetal);
+  // The stand-in images follow the design and metal, a metal crossfading in.
+  function syncStandIns(fade) {
+    var poster = posterSrc(state.selectedMetal);
+    var icon = iconSrc(state.selectedMetal);
+    if (state.posterImg) {
+      if (fade) H.crossfadeSrc(state.posterImg, poster);
+      else state.posterImg.src = poster;
+    }
+    if (state.iconImg) {
+      if (fade) H.crossfadeSrc(state.iconImg, icon);
+      else state.iconImg.src = icon;
+    }
   }
 
   function selectMetal(metal) {
     if (metal === state.selectedMetal) return;
     state.selectedMetal = metal;
     previewDraft();
-    syncStandIns();
+    syncStandIns(true);
     // The shape previews are the designs in this metal.
     if (state.shapeDial) state.shapeDial.setOptions(shapeOptions());
-    tintAfterPaint();
+    // The model eases into the metal.
+    if (state.modelHandle) state.modelHandle.applyMetal(metal, true);
   }
 
   // Another design: the model swaps in place, camera kept (setProduct).

@@ -761,7 +761,7 @@ html[data-gallery-view="grid"][data-hero="skip"] .series-hero {
   display: none;
 }
 html[data-gallery-view="grid"][data-hero="skip"] .products {
-  padding-top: calc(var(--header-height) + var(--gallery-controls-height) + 1rem);
+  padding-top: calc(var(--header-height) + var(--gallery-material-height) + 1.5rem);
 }
 html[data-gallery-view="stack"] .product-grid,
 html[data-gallery-view="grid"] .gallery-stage {
@@ -780,6 +780,9 @@ html[data-gallery-view="grid"] .gallery-stage {
    wheel view only once the entrance is done (.is-ready). */
 :root {
   --gallery-controls-height: 2.5rem;
+  /* The material picker (below): its swatches on the toggle's line, its name under them. */
+  --gallery-material-name-size: calc(0.75rem * var(--text-scale));
+  --gallery-material-height: calc(var(--gallery-controls-height) + 1.2 * var(--gallery-material-name-size));
 }
 .gallery-control {
   position: fixed;
@@ -826,6 +829,83 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 @media (hover: hover) {
   .gallery-control:hover { opacity: 0.6; }
+}
+
+/* ---- the material picker (js/gallery.js) ----
+   The metals' swatches in a row at the top left, on the view toggle's
+   line, the active one dotted as a dial's option is (--dot), its name
+   under them on the left (--gallery-material-height in all; the wheel
+   keeps below it, js/gallery-stack.js). Shown as the toggle is, once past
+   the hero (.is-ready). */
+.gallery-material {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0 var(--edge-px);
+  /* Quick taps across the swatches aren't a double-tap zoom on a phone. */
+  touch-action: manipulation;
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+}
+.gallery-material:not(.is-ready),
+body:has(.site-header__menu.is-open) .gallery-material {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+.gallery-material__swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--gallery-controls-height);
+}
+.gallery-material__swatch {
+  position: relative;
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
+}
+/* The selection dot, as .product-dial__ring is open: always laid out, shown on the active swatch. */
+.gallery-material__swatch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  width: var(--dot);
+  height: var(--dot);
+  border: 1px solid var(--black);
+  border-radius: 50%;
+  background-color: var(--bg);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.gallery-material__swatch[aria-pressed="true"]::after {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .gallery-material__swatch[aria-pressed="false"]:hover { opacity: 0.6; }
+}
+.gallery-material__name {
+  height: calc(1.2 * var(--gallery-material-name-size));
+  font-family: var(--font-main);
+  font-size: var(--gallery-material-name-size);
+  line-height: 1.2;
+  color: var(--black);
+  white-space: nowrap;
 }
 
 /* ---- the veil a view switch fades through (js/gallery.js) ----

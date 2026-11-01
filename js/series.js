@@ -487,6 +487,26 @@
   // page's own error handling shows the message.
   ready.catch(function () { pageReady(); });
 
+  /* ---- the visitor's metal ----
+     One metal for every item, picked in the gallery (js/gallery.js) and
+     kept across visits: the gallery shows every item in it, and an item's
+     page opens on it. Null until one is picked, or once it is no longer
+     offered. */
+  var METAL_KEY = "emjive_metal";
+
+  function chosenMetal() {
+    var metal = window.EmjiveHelpers.readStorage("localStorage", METAL_KEY);
+    return metal && index && (index.metals || []).indexOf(metal) !== -1 ? metal : null;
+  }
+
+  function chooseMetal(metal) {
+    window.EmjiveHelpers.writeStorage("localStorage", METAL_KEY, metal);
+  }
+
+  function metalFor(product) {
+    return chosenMetal() || product["default-metal"];
+  }
+
   window.EmjiveSeries = {
     ready: ready,
 
@@ -522,6 +542,10 @@
     productHref: productHref,
     productSlug: productSlug,
     resolveDesign: resolveDesign,
+
+    chosenMetal: chosenMetal,
+    chooseMetal: chooseMetal,
+    metalFor: metalFor,
 
     // The raw ?series=, without the featured fallback (series.html shows not-found instead).
     requestedSlug: function () { return queryParam("series"); }

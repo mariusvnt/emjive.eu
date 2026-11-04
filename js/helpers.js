@@ -36,6 +36,14 @@
     return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   }
 
+  // px rounded to whole device pixels (at least `min` of them, if given): a
+  // hairline the browser can't draw one pixel wider here than there, a
+  // translate that doesn't blur a horizontal hairline across two rows.
+  function devicePx(px, min) {
+    var ratio = window.devicePixelRatio || 1;
+    return Math.max(min || 0, Math.round(px * ratio)) / ratio;
+  }
+
   /* ---- numbers ---- */
 
   function clamp(x, lo, hi) {
@@ -533,6 +541,7 @@
     el: el,
     edgeFades: edgeFades,
     remPx: remPx,
+    devicePx: devicePx,
     clamp: clamp,
     clamp01: clamp01,
     lerp: lerp,

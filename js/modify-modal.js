@@ -242,11 +242,8 @@
     });
   }
 
-  // "" hides it.
-  function showDialName(text) {
-    if (text) dialName.textContent = text;
-    dialName.classList.toggle("is-shown", !!text);
-  }
+  // The open dial's option name, held a moment after a pick.
+  var showDialName = window.EmjiveOptionDial.nameShower(dialName);
 
   function mountDials() {
     if (state.sizeDial && state.sizeDial.finder) config.removeChild(state.sizeDial.finder);

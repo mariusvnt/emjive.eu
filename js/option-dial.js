@@ -17,8 +17,12 @@
 //
 // window.EmjiveOptionDial.mount(host, { name, options, selected, onSelect, onShow })
 //   options: [{ key, label, preview() }], preview() a new node per call
-//   onShow(label): the active option's name while open, "" once closed
+//   onShow(label, linger): the active option's name while open; once closed,
+//     the name again with linger true if the visitor picked one while it was
+//     open (so a tap that picks still shows what it picked), else ""
 //   -> { select(key), setOptions(options) }  (select() does not call onSelect)
+// window.EmjiveOptionDial.nameShower(node) -> an onShow for the dials that
+//   share one name line: shown while given, held LINGER_MS on a linger.
 // A fine pointer that hovers: hovering opens, and once it has rested
 // HOVER_SAFE_MS the section under it picks its option; a click in the
 // middle closes, leaving closes. Touch: a tap opens (a tap in a section
@@ -49,6 +53,8 @@
   var DRAG_SLOP_PX = 8;
   // Leaving the dial closes it after this long; coming back keeps it.
   var LEAVE_MS = 200;
+  // How long a picked option's name stays once its dial has closed.
+  var LINGER_MS = 2000;
   var hoverMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
 
   function mount(host, opts) {
@@ -58,6 +64,7 @@
     var options = [];
     var selected = opts.selected;
     var isOpen = false;
+    var pickedOpen = false;
     var leaveTimer = 0;
     var outer = 0;
     // The dot's angle, in degrees, carried on by the shorter way round.
@@ -188,6 +195,7 @@
     function pick(key) {
       if (key === selected || indexOf(key) === -1) return;
       selected = key;
+      if (isOpen) pickedOpen = true;
       paint();
       onSelect(key);
     }
@@ -203,6 +211,7 @@
       clearTimeout(leaveTimer);
       if (isOpen) return;
       isOpen = true;
+      pickedOpen = false;
       host.classList.add("is-open");
       button.setAttribute("aria-expanded", "true");
       document.addEventListener("pointerdown", onOutside, true);
@@ -218,7 +227,9 @@
       host.classList.remove("is-open");
       button.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", onOutside, true);
-      onShow("");
+      var option = options[indexOf(selected)];
+      if (pickedOpen && option) onShow(option.label, true);
+      else onShow("");
     }
 
     function onOutside(e) {
@@ -639,8 +650,28 @@
     return { set: set, finder: finder };
   }
 
+  /* ---- the name line ---- */
+
+  function nameShower(node) {
+    var timer = 0;
+    function hide() {
+      node.classList.remove("is-shown");
+    }
+    return function (text, linger) {
+      clearTimeout(timer);
+      if (!text) {
+        hide();
+        return;
+      }
+      node.textContent = text;
+      node.classList.add("is-shown");
+      if (linger) timer = setTimeout(hide, LINGER_MS);
+    };
+  }
+
   window.EmjiveOptionDial = {
     mount: mount,
-    mountSize: mountSize
+    mountSize: mountSize,
+    nameShower: nameShower
   };
 })();

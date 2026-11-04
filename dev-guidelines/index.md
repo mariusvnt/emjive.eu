@@ -49,14 +49,14 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
   - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by tapping a row in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
     - sets `EmjiveModifyModal` { open, isOpen, attach }
   - [option-dial.js](../js/option-dial.js) — Option dials (js/product.js, js/modify-modal.js): a circular button showing the active option, the dial's name under it, opening a disc over three blurs, divided into one section per option, each always in the same place, the active one dotted (the button's circle shrinking to the dot, turning round the middle to it).
-    - sets `EmjiveOptionDial` { mount, mountSize }
+    - sets `EmjiveOptionDial` { mount, mountSize, nameShower }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
     - sets `EmjiveOrderRows` { create, notice }
   - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (the model and its configuration: design options, metal, size, plan views; then the information).

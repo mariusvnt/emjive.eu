@@ -152,7 +152,7 @@
       state = { toDesign: next.toDesign, stage: next.stage, browse: key };
       stageEl.style.setProperty("--to-design", next.toDesign.toFixed(4));
       stageEl.style.setProperty("--browse-0", next.browse[0].toFixed(4));
-      stageEl.style.setProperty("--design-browse", next.browse[1].toFixed(1) + "px");
+      stageEl.style.setProperty("--design-browse", next.browse[1].toFixed(3) + "px");
       if (stageEl.getAttribute("data-stage") !== next.stage) stageEl.setAttribute("data-stage", next.stage);
       var inFlow = next.stage === "flow";
       stageEl.classList.toggle("is-feed-gone", !inFlow && next.toDesign >= FEED_GONE_AT);
@@ -176,9 +176,11 @@
       var screenRamp = screenPx() * ENTRY_SCREENS;
       var browse0 = m.feed > 0 ? exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed)) : 1;
       var toDesign = m.stepIn > 0 ? ease((s - m.feed) / m.stepIn) : (s >= m.feed ? 1 : 0);
-      // Counted from the design stretch's first pixel.
+      // Counted from the design stretch's first pixel. On the device's
+      // pixels: the show's translate (--design-browse) keeps the plan
+      // views' hairlines sharp.
       var s1 = s - m.offset;
-      var browse1 = m.hold > 0 ? designRoom * entry(clamp01(s1 / m.hold), Math.min(1, screenRamp / m.hold)) : 0;
+      var browse1 = m.hold > 0 ? H.devicePx(designRoom * entry(clamp01(s1 / m.hold), Math.min(1, screenRamp / m.hold))) : 0;
       publish({ toDesign: toDesign, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, browse1] });
     }
 

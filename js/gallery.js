@@ -231,7 +231,7 @@
 
   /* One metal for every item (EmjiveSeries.chooseMetal), in both views'
      pictures, the grid's prices and the item's page after: the metals'
-     swatches in a row, the active one dotted, its name under them. Until
+     swatches in a row, the active one dotted, its name beside them. Until
      the visitor picks, every item shows its own default metal, and the
      picker the one they share. */
   function buildMaterialPicker(products) {

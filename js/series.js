@@ -489,18 +489,19 @@
 
   /* ---- the visitor's metal ----
      One metal for every item, picked in the gallery (js/gallery.js) and
-     kept across visits: the gallery shows every item in it, and an item's
-     page opens on it. Null until one is picked, or once it is no longer
+     kept for the visit (sessionStorage): the gallery shows every item in
+     it, and an item's page opens on it. A new visit opens on the items'
+     own default metals. Null until one is picked, or once it is no longer
      offered. */
   var METAL_KEY = "emjive_metal";
 
   function chosenMetal() {
-    var metal = window.EmjiveHelpers.readStorage("localStorage", METAL_KEY);
+    var metal = window.EmjiveHelpers.readStorage("sessionStorage", METAL_KEY);
     return metal && index && (index.metals || []).indexOf(metal) !== -1 ? metal : null;
   }
 
   function chooseMetal(metal) {
-    window.EmjiveHelpers.writeStorage("localStorage", METAL_KEY, metal);
+    window.EmjiveHelpers.writeStorage("sessionStorage", METAL_KEY, metal);
   }
 
   function metalFor(product) {

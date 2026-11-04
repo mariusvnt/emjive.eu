@@ -761,7 +761,7 @@ html[data-gallery-view="grid"][data-hero="skip"] .series-hero {
   display: none;
 }
 html[data-gallery-view="grid"][data-hero="skip"] .products {
-  padding-top: calc(var(--header-height) + var(--gallery-material-height) + 1.5rem);
+  padding-top: calc(var(--header-height) + var(--gallery-controls-height) + 1.5rem);
 }
 html[data-gallery-view="stack"] .product-grid,
 html[data-gallery-view="grid"] .gallery-stage {
@@ -779,10 +779,8 @@ html[data-gallery-view="grid"] .gallery-stage {
    Above the header's veil, so it steps aside while the menu is open. In the
    wheel view only once the entrance is done (.is-ready). */
 :root {
+  /* The line the toggle and the material picker (below) share. */
   --gallery-controls-height: 2.5rem;
-  /* The material picker (below): its swatches on the toggle's line, its name under them. */
-  --gallery-material-name-size: calc(0.75rem * var(--text-scale));
-  --gallery-material-height: calc(var(--gallery-controls-height) + 1.2 * var(--gallery-material-name-size));
 }
 .gallery-control {
   position: fixed;
@@ -833,18 +831,20 @@ body:has(.site-header__menu.is-open) .gallery-control {
 
 /* ---- the material picker (js/gallery.js) ----
    The metals' swatches in a row at the top left, on the view toggle's
-   line, the active one dotted as a dial's option is (--dot), its name
-   under them on the left (--gallery-material-height in all; the wheel
-   keeps below it, js/gallery-stack.js). Shown as the toggle is, once past
-   the hero (.is-ready). */
+   line and twice as tall as its text's capitals, the active one dotted as a
+   dial's option is, its name inline to their right (the wheel keeps below
+   the line, js/gallery-stack.js). Each swatch's button is wider and taller
+   than it, for the finger. Shown as the toggle is, once past the hero
+   (.is-ready). */
 .gallery-material {
+  --swatch-room: 0.75rem;
   position: fixed;
   top: var(--header-height);
   left: 0;
   z-index: 81;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  height: var(--gallery-controls-height);
   padding: 0 var(--edge-px);
   /* Quick taps across the swatches aren't a double-tap zoom on a phone. */
   touch-action: manipulation;
@@ -860,33 +860,43 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .gallery-material__swatches {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  height: var(--gallery-controls-height);
+  height: 100%;
+  /* The first swatch, not its button, on the edge. */
+  margin-left: calc(var(--swatch-room) / -2);
 }
+/* In the toggle's font, so em and cap are its text's. */
 .gallery-material__swatch {
   position: relative;
-  display: block;
-  width: 1.75rem;
-  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  height: 100%;
   margin: 0;
-  padding: 0;
+  padding: 0 calc(var(--swatch-room) / 2);
   border: none;
-  border-radius: 50%;
   background: none;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-secondary-font-size);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity var(--fade-quick) ease;
 }
-/* The selection dot, as .product-dial__ring is open: always laid out, shown on the active swatch. */
+.gallery-material__swatch .product-dial__swatch {
+  width: 1.4em;
+  height: 1.4em;
+  width: 2cap;
+  height: 2cap;
+}
+/* The selection dot: always laid out, shown on the active swatch. */
 .gallery-material__swatch::after {
   content: "";
   position: absolute;
   left: 50%;
   top: 50%;
-  box-sizing: border-box;
-  width: var(--dot);
-  height: var(--dot);
-  border: 1px solid var(--black);
+  width: 0.42em;
+  height: 0.42em;
+  width: 0.6cap;
+  height: 0.6cap;
   border-radius: 50%;
   background-color: var(--bg);
   transform: translate(-50%, -50%);
@@ -900,10 +910,10 @@ body:has(.site-header__menu.is-open) .gallery-material {
   .gallery-material__swatch[aria-pressed="false"]:hover { opacity: 0.6; }
 }
 .gallery-material__name {
-  height: calc(1.2 * var(--gallery-material-name-size));
+  margin-left: calc(var(--swatch-room) / 2);
   font-family: var(--font-main);
-  font-size: var(--gallery-material-name-size);
-  line-height: 1.2;
+  font-size: calc(0.75rem * var(--text-scale));
+  line-height: 1;
   color: var(--black);
   white-space: nowrap;
 }
@@ -2502,8 +2512,9 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   height: 1.1375rem;
 }
 
-/* While a dial is open (.is-shown, js/product.js), its active option's name,
-   centred over the model, fading in and out. */
+/* While a dial is open, and a moment after a pick closes it (.is-shown,
+   js/option-dial.js nameShower), its active option's name, centred over the
+   model, fading in and out. */
 .product-dial-name {
   position: absolute;
   /* Over the column (2), so over an open disc too. */
@@ -2674,7 +2685,8 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 /* The circle round the button, over it; open, it shrinks to the selection
    dot (--dot), filled with the page so nothing shows through it: the
    shape's and the material's out on the active section (in
-   .product-dial__turn), the size's on its line. --dial-open (registered
+   .product-dial__turn), the material's with no outline, the shape's and the
+   size's (on its line) outlined. --dial-open (registered
    with the blurs) eases the change both ways; what it moves to
    (--dial-dot-r, --size-at) is read live. */
 .product-dial__ring {
@@ -2697,6 +2709,10 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 }
 @media (hover: hover) {
   .product-dial__button:hover ~ * .product-dial__ring { border-color: var(--black); }
+}
+/* After the hover rule, which it outranks while open. */
+.product-dial--icons.is-open:has(.product-dial__swatch) .product-dial__ring {
+  border-color: transparent;
 }
 /* A point at the button's centre, over it, turned to the active section. */
 .product-dial__turn {
@@ -2990,9 +3006,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
    the axis's letter, then its length at the chosen size, 0.5rem apart:
    beside a horizontal line, past its end; above or below a vertical one, the
    letter centred on the line. All in --black; phones draw it finer and
-   smaller. Fades with design. */
+   smaller. Fades with design. --plan-line is --plan-line-want in whole
+   device pixels (js/product.js syncPlanLine). */
 .product-outlines {
-  --plan-line: 0.5px;
+  --plan-line-want: 0.5px;
+  --plan-line: var(--plan-line-want);
   --plan-dash: 3px;
   position: absolute;
   z-index: 2;
@@ -3006,20 +3024,21 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 @media (min-width: 641px) {
   .product-outlines {
-    --plan-line: 1px;
+    --plan-line-want: 1px;
     --plan-dash: 4px;
   }
 }
 .product-outlines[hidden] {
   display: none;
 }
+/* Centred on its point by its offsets, not a translate, which would draw
+   its lines at a fraction of a pixel. */
 .product-outline {
   position: absolute;
-  left: calc(var(--outline-x, 0) * var(--model-box));
-  top: calc(var(--outline-y, 0) * var(--model-box));
+  left: calc((var(--outline-x, 0) - var(--outline-w, 0) / 2) * var(--model-box));
+  top: calc((var(--outline-y, 0) - var(--outline-w, 0) / var(--plan-ratio, 1) / 2) * var(--model-box));
   width: calc(var(--outline-w, 0) * var(--model-box));
   aspect-ratio: var(--plan-ratio);
-  transform: translate(-50%, -50%);
   opacity: 0;
   transition: opacity var(--fade-quick) ease;
 }
@@ -3027,24 +3046,14 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   opacity: 1;
   transition-duration: var(--fade-standard);
 }
-/* A line moving to a new place (js/product.js, swapMark): a copy of it
-   fades out, then it fades in from nothing. */
-.product-outline__mark,
-.product-outline__reach {
-  transition: opacity var(--fade-quick) ease var(--fade-quick);
-}
-.product-outline__mark.is-leaving,
-.product-outline__reach.is-leaving {
+/* Out while the size changes (js/product.js hideMarksWhileSizing), back in
+   at .is-shown's pace. */
+.product-outlines.is-sizing .product-outline {
   opacity: 0;
-  transition-delay: 0s;
+  transition-duration: var(--fade-quick);
 }
-.product-outline__mark.is-arriving,
-.product-outline__reach.is-arriving {
-  opacity: 0;
-  transition: none;
-}
-/* A mark is a solid line (a box, not a border: a border's width is snapped to
-   whole device pixels, a box's isn't). Hidden until the picture has been read
+/* A mark is a solid line, a box --plan-line thick, whose edges the browser
+   puts on device pixels. Hidden until the picture has been read
    (.is-cut). The letter sits past the end on the drawing (.is-label-to: the
    right or bottom end, else the left or top one). */
 .product-outline__mark {

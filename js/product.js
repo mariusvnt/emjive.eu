@@ -45,8 +45,8 @@
     // The loader hold while a design's model is loading.
     swapHold: null,
     metals: [],
-    // data/series.json "metal-costs" (computeCosts).
-    metalCosts: {},
+    // data/series.json "production-costs" (computeCosts).
+    productionCosts: {},
     // data/series.json "metal-technology" and "printing-technologies".
     metalTechnology: {},
     technologies: {},
@@ -179,7 +179,7 @@
     window.EmjiveSeries.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
-        state.metalCosts = ctx.index["metal-costs"] || {};
+        state.productionCosts = ctx.index["production-costs"] || {};
         state.metalTechnology = ctx.index["metal-technology"] || {};
         state.technologies = ctx.index["printing-technologies"] || {};
         state.compositions = ctx.index["metal-composition"] || {};
@@ -446,13 +446,14 @@
     }
   }
 
-  // "from" the cheapest metal until one is picked, "from" that metal's lowest
-  // until a size is given, then the price at that size.
+  // The chosen design's price: "from" the cheapest metal until one is picked,
+  // "from" that metal's lowest until a size is given, then the price at that size.
   function renderLabelPrice(product) {
     var sel = window.EmjiveSelection;
+    var view = state.view || product;
     document.getElementById("productLabelPrice").textContent = state.sizeText
-      ? sel.formatPrice(sel.priceAt(product, state.selectedMetal, state.sizeText))
-      : sel.formatPriceFrom(sel.priceFrom(product, state.metalPicked ? state.selectedMetal : ""));
+      ? sel.formatPrice(sel.priceAt(view, state.selectedMetal, state.sizeText))
+      : sel.formatPriceFrom(sel.priceFrom(view, state.metalPicked ? state.selectedMetal : ""));
   }
 
   /* ---- 2. the feed (inspiration) ---- */
@@ -1005,7 +1006,7 @@
     return img;
   }
 
-  // Another design: label, thumbnail, costs, plan views and model follow. The viewer swaps
+  // Another design: label, price, thumbnail, costs, plan views and model follow. The viewer swaps
   // models in place, camera kept (setProduct), under the frame's loader; a
   // viewer not built yet is built as this design.
   function onDesignSelect(product, key) {
@@ -1014,6 +1015,7 @@
     state.view = window.EmjiveSeries.resolveDesign(product, key).view;
     if (state.shapeDial) state.shapeDial.select(key);
     renderLabelDesign(product);
+    renderLabelPrice(product);
     renderLabelThumb();
     if (state.iconFallbackImg) {
       state.iconFallbackImg.src = H.assetFor(state.view, "icons", state.selectedMetal);
@@ -1092,42 +1094,42 @@
 
   /* ---- costs ---- */
 
-  // Weight and costs for one metal from the piece's volume and the metal's
-  // "metal-costs": raw materials = weight x (1 + loss margin) x price per gram
-  // (processes lose metal); manufacturing = production cost - raw. Weight in
-  // grams. null if an input is missing.
-  function computeCosts(volumeCm3, costs) {
-    if (!(volumeCm3 > 0) || !costs) return null;
-    var weight = volumeCm3 * costs["density-g-cm3"];
-    var production = volumeCm3 * costs["production-per-cm3"];
-    var raw = weight * (1 + costs["loss-margin"]) * costs["price-per-g"];
-    return { weight: weight, raw: raw, manufacturing: production - raw, production: production };
+  // The price of the `printed` geometry in `metal` at size `mm`, broken down:
+  // manufacturing = the printer's price (EmjiveHelpers.productionCost, flat at
+  // its minimum charge); VAT = its share of the price (EmjiveHelpers.salePrice);
+  // design = what is left, the margin plus the rounding up, so the rows add up
+  // to the price. null if an input is missing or the formula doesn't hold.
+  function computeCosts(printed, mm, metal) {
+    var index = window.EmjiveSeries.index;
+    var manufacturing = H.productionCost(state.productionCosts[metal], H.volumeAt(printed, mm), H.areaAt(printed, mm));
+    var price = H.salePrice(index, printed, metal, mm);
+    if (manufacturing === null || !(price > 0)) return null;
+    var vat = price * index.pricing.vat / (1 + index.pricing.vat);
+    return { design: price - vat - manufacturing, manufacturing: manufacturing, vat: vat, total: price };
   }
 
   function formatEuros(amount) {
     return "€ " + amount.toFixed(2);
   }
 
-  // The cost chart at the chosen size (weight only feeds it), from the volume
-  // at that size. Uses the design's print geometry (geometry.print, from its
-  // STL) when measured: that's what is made and priced.
+  // The price breakdown at the chosen size. Uses the
+  // design's print geometry (geometry.print, from its STL) when measured:
+  // that's what is made and priced.
+  var COST_PARTS = [["design", "productCostDesign"], ["manufacturing", "productCostManufacturing"], ["vat", "productCostVat"]];
   function renderCosts() {
     var geometry = (state.view && state.view.geometry) || {};
-    var printed = geometry.print || geometry;
-    var volume = H.volumeAt(printed, state.sizeMm);
-    var costs = computeCosts(volume, state.metalCosts[state.selectedMetal]);
-    var figures = { raw: "productCostRaw", manufacturing: "productCostManufacturing", production: "productCostProduction" };
-    Object.keys(figures).forEach(function (key) {
-      var dd = document.getElementById(figures[key]);
-      var row = dd.parentNode;
-      dd.textContent = costs ? formatEuros(costs[key]) : "TBD";
-      // The bars are shares of the production cost: raw from 0, manufacturing to 1.
-      var share = costs && costs.production > 0 ? costs.raw / costs.production : 0;
-      var from = key === "manufacturing" ? share : 0;
-      var to = !costs ? 0 : key === "raw" ? share : 1;
-      row.style.setProperty("--from", from.toFixed(4));
-      row.style.setProperty("--to", to.toFixed(4));
+    var costs = computeCosts(geometry.print || geometry, state.sizeMm, state.selectedMetal);
+    // The bars are shares of the price, each part starting where the one before ends.
+    var at = 0;
+    COST_PARTS.forEach(function (part) {
+      var dd = document.getElementById(part[1]);
+      var share = costs ? costs[part[0]] / costs.total : 0;
+      dd.textContent = costs ? formatEuros(costs[part[0]]) : "TBD";
+      dd.parentNode.style.setProperty("--from", at.toFixed(4));
+      dd.parentNode.style.setProperty("--to", (at + share).toFixed(4));
+      at += share;
     });
+    document.getElementById("productCostTotal").textContent = costs ? formatEuros(costs.total) : "TBD";
   }
 
   // How the chosen metal is printed: its row, hidden without one.
@@ -1595,8 +1597,8 @@
       return;
     }
     costs.classList.add("is-built");
-    // After the cascade (ends by 1.65 s in CSS), figure changes move all bars at once.
-    state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 1800);
+    // After the cascade (ends by 2.15 s in CSS), figure changes move all bars at once.
+    state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 2300);
   }
 
   // The inspiration stretch scrolls the feed up until its end (the trail, already
@@ -1762,7 +1764,7 @@
     return modelRestShare;
   }
 
-  // The model is drawn and priced at SIZE_BASE_MM (EmjiveSelection.priceAt);
+  // The model is drawn and its costs shown at SIZE_BASE_MM until a size is given;
   // the bounds are the product's size-range, set on render. setModelSize sizes
   // the model, costs, plan views and tape to a typed size (none: the base),
   // clamped to the range; only a size within it goes on the label and prices it.
@@ -1943,7 +1945,7 @@
         metal: state.selectedMetal,
         // Canonical form ("62.5" -> "62.50").
         size: size,
-        price: window.EmjiveSelection.priceAt(product, state.selectedMetal, size),
+        price: window.EmjiveSelection.priceAt(view, state.selectedMetal, size),
         image: H.assetFor(view, "icons", state.selectedMetal)
       };
       if (product.designs) item.design = state.designKey;

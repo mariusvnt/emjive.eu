@@ -2,9 +2,11 @@
 // Measures every product's .glb (and .stl print model) into its "geometry"
 // line in products.json, touching nothing else:
 //
-//   "geometry": { "volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm",
+//   "geometry": { "volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm",
+//                 "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm",
 //                 "min-box": { center, axes }, "axis-box": { "sizes-mm", center, size },
-//                 "print": { "volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm",
+//                 "print": { "volume-cm3", "volume-cm3-per-size-mm", "area-cm2",
+//                            "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm",
 //                            "min-size-mm", "stl-sha1" }, "model-sha1" }
 //
 //   volume-cm3     enclosed volume at the reference size; models are in mm.
@@ -13,6 +15,11 @@
 //   volume-cm3-per-size-mm   the volume gained per mm of size over the size
 //                  span: sized as a ring is (scripts/ring-size.js), the volume
 //                  is linear in the size
+//   area-cm2       surface area at the reference size, with the linear and
+//                  quadratic terms in the size from it (EmjiveHelpers.areaAt):
+//                  the radial shift bends the area slightly. Volume and area
+//                  price the piece (EmjiveHelpers.productionCost), so they keep
+//                  enough digits for cents
 //   dimensions-mm  minimum-volume bounding box extents, longest first (pose-independent)
 //   min-size-mm    the smallest size before the bore reaches the finger axis
 //   min-box        that box's centre and unit axes in scene space (axes[k] runs
@@ -158,6 +165,18 @@ function shellsVolume(corners, positions, shellOf, shellCount) {
   return mm3;
 }
 
+// The surface area (mm2) of the triangles, the corners placed at `positions`.
+function surfaceArea(corners, positions) {
+  let mm2 = 0;
+  for (let t = 0; t < corners.length / 3; t++) {
+    const a = corners[t * 3] * 3, b = corners[t * 3 + 1] * 3, c = corners[t * 3 + 2] * 3;
+    const ux = positions[b] - positions[a], uy = positions[b + 1] - positions[a + 1], uz = positions[b + 2] - positions[a + 2];
+    const vx = positions[c] - positions[a], vy = positions[c + 1] - positions[a + 1], vz = positions[c + 2] - positions[a + 2];
+    mm2 += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+  }
+  return mm2;
+}
+
 // ---- sizes ----
 
 // The axis-aligned box of flat xyz `positions`: { center, size }.
@@ -174,8 +193,10 @@ function axisAlignedBox(positions) {
 }
 
 // The welded model sized as a ring around `axis` (scripts/ring-size.js): its
-// smallest size, its volume's slope over the size span (mm3 per mm of size)
-// and its axis-aligned box at each of MEASURED_SIZES_MM. null after an error message
+// smallest size, its volume's slope over the size span (mm3 per mm of size),
+// its area at the reference size with the linear and quadratic terms through
+// the span's ends (mm2 per mm and per mm2 of size from the reference), and its
+// axis-aligned box at each of MEASURED_SIZES_MM. null after an error message
 // when another axis runs farther from the geometry.
 function measureSizes(label, welded, volume, axis) {
   const { corners, positions } = welded;
@@ -188,9 +209,17 @@ function measureSizes(label, welded, volume, axis) {
   }
   const at = (mm) => (mm === REFERENCE_SIZE_MM ? positions : ringSize.polarShift(positions, ringSize.shiftFor(REFERENCE_SIZE_MM, mm), axis));
   const volumeAt = (mm) => shellsVolume(corners, at(mm), volume.shellOf, volume.shells);
+  const area = surfaceArea(corners, positions);
+  const lo = SIZE_SPAN_MM.min - REFERENCE_SIZE_MM, hi = SIZE_SPAN_MM.max - REFERENCE_SIZE_MM;
+  const riseLo = (surfaceArea(corners, at(SIZE_SPAN_MM.min)) - area) / lo;
+  const riseHi = (surfaceArea(corners, at(SIZE_SPAN_MM.max)) - area) / hi;
+  const areaCurve = (riseHi - riseLo) / (hi - lo);
   return {
     minSize: ringSize.minSize(found.clearance, REFERENCE_SIZE_MM),
     slope: (volumeAt(SIZE_SPAN_MM.max) - volumeAt(SIZE_SPAN_MM.min)) / (SIZE_SPAN_MM.max - SIZE_SPAN_MM.min),
+    area,
+    areaSlope: riseHi - areaCurve * hi,
+    areaCurve,
     boxes: MEASURED_SIZES_MM.map((mm) => axisAlignedBox(at(mm)))
   };
 }
@@ -388,11 +417,11 @@ async function minimumBox(positions) {
 // Shared with the JSON tool, so neither drops a field the other writes.
 const geometryLine = blocks.geometryLine;
 
-// Replaces the product block's "geometry" line, placed after "per-metal-specs",
-// in the file's line endings. null without per-metal-specs.
+// Replaces the product block's "geometry" line, placed after "default-metal",
+// in the file's line endings. null without default-metal.
 function withGeometry(blockText, g, eol) {
   const cleaned = blockText.replace(/\r?\n {6}"geometry": \{[^\r\n]*\},(?=\r?\n)/, "");
-  const anchor = /("per-metal-specs": \{[\s\S]*?\r?\n {6}\},)(?=\r?\n)/;
+  const anchor = /( {6}"default-metal": "[^"\r\n]*",)(?=\r?\n)/;
   if (!anchor.test(cleaned)) return null;
   return cleaned.replace(anchor, (m) => m + eol + geometryLine(g));
 }
@@ -421,6 +450,7 @@ function fingerAxis(product) {
 }
 
 const cm3 = (mm3, digits) => Number((mm3 / 1000).toFixed(digits));
+const cm2 = (mm2, digits) => Number((mm2 / 100).toFixed(digits));
 // Rounded up: a lower limit.
 const minSizeMm = (mm) => Math.ceil(mm * 10) / 10;
 
@@ -442,8 +472,11 @@ async function measureFile(io, label, modelRel, stlRel, axis) {
   const sizes = measureSizes(label, measured.welded, volume, axis);
   if (!sizes) return null;
   const geometry = {
-    "volume-cm3": cm3(volume.mm3, 3),
-    "volume-cm3-per-size-mm": cm3(sizes.slope, 5),
+    "volume-cm3": cm3(volume.mm3, 5),
+    "volume-cm3-per-size-mm": cm3(sizes.slope, 7),
+    "area-cm2": cm2(sizes.area, 4),
+    "area-cm2-per-size-mm": cm2(sizes.areaSlope, 6),
+    "area-cm2-per-size-mm2": cm2(sizes.areaCurve, 8),
     "dimensions-mm": box.dimensions.map((d) => Number(d.toFixed(1))),
     "min-size-mm": minSizeMm(sizes.minSize),
     "min-box": {
@@ -481,13 +514,17 @@ async function measureFile(io, label, modelRel, stlRel, axis) {
     const printSizes = measureSizes(label + " (print model)", printed.welded, printed.volume, ringSize.STL_AXIS);
     if (!printSizes) return null;
     geometry.print = {
-      "volume-cm3": cm3(printed.volume.mm3, 3),
-      "volume-cm3-per-size-mm": cm3(printSizes.slope, 5),
+      "volume-cm3": cm3(printed.volume.mm3, 5),
+      "volume-cm3-per-size-mm": cm3(printSizes.slope, 7),
+      "area-cm2": cm2(printSizes.area, 4),
+      "area-cm2-per-size-mm": cm2(printSizes.areaSlope, 6),
+      "area-cm2-per-size-mm2": cm2(printSizes.areaCurve, 8),
       "dimensions-mm": printed.box.dimensions.map((d) => Number(d.toFixed(1))),
       "min-size-mm": minSizeMm(printSizes.minSize),
       "stl-sha1": createHash("sha1").update(stl.buffer).digest("hex")
     };
     row["print cm3"] = geometry.print["volume-cm3"];
+    row["print cm2"] = geometry.print["area-cm2"];
     row["print box mm"] = geometry.print["dimensions-mm"].join(" x ");
     row["print open edges"] = printed.volume.openEdges;
     row["print bore"] = Number(ringSize.estimateSize(printed.welded.positions, ringSize.STL_AXIS).toFixed(1));
@@ -523,7 +560,7 @@ async function main() {
       const span = blocks.findProductBlockSpan(text, product.id);
       let patchedBlock = span && withGeometry(text.slice(span.start, span.end), measured.geometry, eol);
       if (!patchedBlock) {
-        console.error("  " + label + ": could not locate its block (or per-metal-specs) in " + series.products);
+        console.error("  " + label + ": could not locate its block (or default-metal) in " + series.products);
         failed = true;
         continue;
       }

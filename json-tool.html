@@ -167,14 +167,6 @@
     <label>Description <textarea id="productDescriptionInput" rows="2"></textarea></label>
     <label>Default metal <select id="productDefaultMetalSelect"></select></label>
 
-    <div>
-      Per-metal specs
-      <table>
-        <thead><tr><th>Metal</th><th>Price</th></tr></thead>
-        <tbody id="perMetalSpecsBody"></tbody>
-      </table>
-    </div>
-
     <div class="row">
       <label><input type="checkbox" id="heroVisibleInput"> Hero-hand visible</label>
       <label>x <input type="number" id="heroXInput" step="0.1"></label>
@@ -253,7 +245,6 @@ const els = {};
   "newSeriesSlugInput", "newSeriesNameInput", "newSeriesYearInput", "newSeriesHdriSelect", "newSeriesCategoriesChecks", "seriesAddCreateBtn", "seriesAddStatus", "seriesAddReminders",
   "productSeriesSelect", "productSelectLabel", "productSelect",
   "productNameInput", "productCategorySelect", "productDescriptionInput", "productDefaultMetalSelect",
-  "perMetalSpecsBody",
   "heroVisibleInput", "heroXInput", "heroYInput", "heroScaleInput", "heroRotationInput",
   "camRotationInput", "camTiltInput", "camZoomInput", "camRollInput",
   "folderPreview",
@@ -839,16 +830,6 @@ function fillProductForm() {
   els.productDescriptionInput.value = product ? product.description : "";
   els.productDefaultMetalSelect.value = product ? product["default-metal"] : (si.metals || [])[0] || "";
 
-  const specs = (product && product["per-metal-specs"]) || {};
-  els.perMetalSpecsBody.innerHTML = (si.metals || []).map((m) => {
-    const s = specs[m] || { price: 0 };
-    return (
-      '<tr data-metal="' + escapeHtml(m) + '">' +
-      "<td>" + escapeHtml(m) + "</td>" +
-      '<td><input type="number" class="spec-price" value="' + (s.price || 0) + '"></td>' +
-      "</tr>"
-    );
-  }).join("");
 
   const hhv = (product && product["hero-hand-visibility"]) || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
   els.heroVisibleInput.checked = !!hhv.visible;
@@ -930,13 +911,6 @@ async function onProductSave() {
   const category = els.productCategorySelect.value;
   if (!name || !category) { setStatus(els.productStatus, false, "name and category are required"); return; }
 
-  const perMetalSpecs = {};
-  els.perMetalSpecsBody.querySelectorAll("tr").forEach((row) => {
-    perMetalSpecs[row.dataset.metal] = {
-      price: parseFloat(row.querySelector(".spec-price").value) || 0
-    };
-  });
-
   const heroHandVisibility = {
     visible: els.heroVisibleInput.checked,
     x: parseFloat(els.heroXInput.value) || 0,
@@ -957,7 +931,7 @@ async function onProductSave() {
   const payload = {
     seriesSlug: state.products.seriesSlug,
     name, category, description, defaultMetal,
-    perMetalSpecs, heroHandVisibility, cameraDefault
+    heroHandVisibility, cameraDefault
   };
 
   try {
@@ -976,7 +950,7 @@ async function onProductSave() {
     let result;
     if (state.products.mode === "edit") {
       payload.productId = state.products.productId;
-      payload.fields = { name, category, description, defaultMetal, perMetalSpecs, heroHandVisibility, cameraDefault };
+      payload.fields = { name, category, description, defaultMetal, heroHandVisibility, cameraDefault };
       result = await requestJson("/api/product/edit", payload);
     } else {
       result = await requestJson("/api/product/add", payload);

@@ -14,10 +14,10 @@ Everything about the catalog's items: how the data is organised, where their fil
   - **Categories** own sizing: whether their items are sized at all (a unit), and the size guide. The site never shows the unit: a size is a plain number, since few people know a European ring size is the inner circumference in mm, and "62 mm" reads as a width. A series picks the categories it sells.
   - **Metals** are global, because the 3D materials are global.
   - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
-- **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness and band width stay as designed, so a smaller size never thins a delicate part below what prints, as a scale would. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its weight and price, and the print model sent to the printer all follow the same shift.
-- **Two sizes, kept apart.** The reference size is what the models, their measurements and the prices are pinned to; the default size (`EmjiveHelpers.DEFAULT_SIZE_MM`) is the one a ring is first shown and offered at. Changing the default only takes a re-render; changing the reference would mean re-measuring and re-pricing every product.
-- **Prices follow the size.** A product has one price per metal at a reference size, and every price on the site follows the printed piece's volume at the chosen size (computed in `js/selection.js`). `0` means "TBD".
-- **Weight and cost are derived, never typed.** They come from the measured volume of the piece as it is printed, times each metal's constants (`metal-costs`). Nothing per-metal is stored that could go stale. The printed piece, not the 3D model on the page, is what is made, and the two can differ.
+- **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness and band width stay as designed, so a smaller size never thins a delicate part below what prints, as a scale would. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its price, and the print model sent to the printer all follow the same shift.
+- **Two sizes, kept apart.** The reference size is what the models and their measurements are pinned to; the default size (`EmjiveHelpers.DEFAULT_SIZE_MM`) is the one a ring is first shown and offered at. Changing the default only takes a re-render; changing the reference would mean re-measuring every product.
+- **Prices are derived, never typed.** Every price is what the printer charges to make the piece, in the chosen metal, size and design, plus the brand's margin and VAT, rounded up to the euro (`EmjiveHelpers.salePrice`). Nothing per product is stored that could go stale. The printer's charge is a fit of its quotes on the printed piece's volume and surface area, kept with the date it was last checked against them (`production-costs` and `pricing` in `data/series.json`), so new quotes are a data edit. A fit only holds over the volumes it was made on: `validate-data` fails a ring that grows past one. The printed piece, not the 3D model on the page, is what is made and priced, and the two can differ.
+- **The price is shown broken down**: design (the margin, with the rounding up, so the rows add up to the price), manufacturing (the printer's charge, flat while its minimum applies) and VAT.
 
 ## 2. Data files
 
@@ -35,7 +35,8 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 
 | Part | Written by |
 | --- | --- |
-| Series, products, prices, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
+| Series, products, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
+| The printer's charges (`production-costs`), the margin and VAT (`pricing`) | by hand |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
 | Default camera angle, a series' HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
@@ -81,7 +82,7 @@ From a Blender export to a shippable item, in the order that works. None of thes
 
 1. **`npm run split-models`**: the models are authored together and exported as one glTF (a root node per model or design) and one binary STL of their print models. This cuts them into the files `products.json` names. The STL has no names, so its objects are paired with entries by triangle count: a print model is its model subdivided once or twice, so it has exactly 4× or 16× the triangles of the exported model. Only what a count can't settle, designs that share a mesh, is measured and matched by shape, and an ambiguous match is refused. A print model that isn't a plain subdivision of its model falls back to being measured, against the geometry last measured.
 2. **`npm run optimize-models`** (run by `split-models`): strips what the viewer never reads, welds and Draco-compresses. It re-reads what it wrote and fails unless the result decodes to the same shape, because it overwrites the only copy.
-3. **`npm run measure-models`**: each model's and print model's volume and minimum bounding box, and what the size does to them (the volume gained per mm of size, the smallest size, the box across the sizes), written as the product's `geometry`, pinned to the files' hashes. It refuses a model whose finger axis doesn't run through its origin (along its `finger-axis`, along Y for a print model), and warns when a print model's bore measures far from the reference size.
+3. **`npm run measure-models`**: each model's and print model's volume, surface area and minimum bounding box, and what the size does to them (the volume and area gained per mm of size, the smallest size, the box across the sizes), written as the product's `geometry`, pinned to the files' hashes. It refuses a model whose finger axis doesn't run through its origin (along its `finger-axis`, along Y for a print model), and warns when a print model's bore measures far from the reference size.
 4. **`npm run auto-render`**: the renders, through the site's own viewer code in Chrome with a real GPU, written next to the model and patched into `products.json`:
    - the **fallback image** is the viewer's first frame, pixel for pixel, so the swap from poster to live model doesn't jump. A ring's is drawn at the default size, as the item page first shows it, and so are its icon and plan views; the wheel and hand posters are not, since the wheel draws its models unsized;
    - the **icon** is the same capture, cropped tight;
@@ -141,8 +142,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 `json-tool` adds it to the `metals` list, with a neutral grey shader to tune in `scene-tool`, and reminds you of the rest, which is by hand:
 
-- its `metal-costs`, `metal-composition` and `metal-technology` in `data/series.json`;
-- a price in every product;
+- its `production-costs` (the printer's charge for it), `metal-composition` and `metal-technology` in `data/series.json`;
 - a swatch rule in `css/style.css`, which the material dial and the gallery's picker share.
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.
@@ -161,4 +161,4 @@ With `json-tool`, whose blocking checks keep the catalog whole. By hand means fi
 
 ## 7. Current content
 
-Placeholder content is expected, not a bug. Only Furcula has real prices, a description and photos. Every other product shows "TBD" prices and a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders.
+Placeholder content is expected, not a bug. Only Furcula has a description and photos. Every other product has a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders.

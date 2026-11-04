@@ -49,7 +49,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
@@ -67,7 +67,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (or "No selected item") and "Order (N) ›".
   - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on it.
   - [selection.js](../js/selection.js) — The selection (cart), in localStorage: window.EmjiveSelection.
-    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, priceRange, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
+    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
   - [series-page.js](../js/series-page.js) — series.html: fills the requested series' title, year and subtitle from its manifest.
   - [series.js](../js/series.js) — Series resolution (window.EmjiveSeries), plus the page-wide helpers every page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage hero bundle loader.
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
@@ -96,7 +96,7 @@ The repo's structure, generated from the code. Each description is the first sen
       - sets `EmjiveSeriesHero` { init, onProducts, isStyled, refresh, wipeTop, rings, orbit, setZoom, setEntranceRoom, setMode }
 - **[data/](../data/)** — The catalog, fetched client-side: the series index and one folder per series.
   - [series.json](../data/series.json)
-    - `featured`, `metals`, `metal-costs`, `metal-technology`, `metal-composition`, `metal-shaders`, `hand-shader`, `printing-technologies`, `categories`, `hdris`, `sun`, `hdri-blur`, `reflection-detail`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
+    - `featured`, `metals`, `production-costs`, `pricing`, `metal-technology`, `metal-composition`, `metal-shaders`, `hand-shader`, `printing-technologies`, `categories`, `hdris`, `sun`, `hdri-blur`, `reflection-detail`, `swatch-hdri`, `swatch-blur`, `swatch-camera`, `series`. Series: bones; featured: bones.
   - **[data/series/](../data/series/)** — One folder per series: its products and its design manifest.
     - **[data/series/bones/](../data/series/bones/)**
       - [manifest.json](../data/series/bones/manifest.json)
@@ -121,7 +121,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the series.json preload, noindex pages, link preview images, per-item pages, clean URLs and the sitemap.
   - [docs-index.js](../scripts/docs-index.js) — Generates dev-guidelines/index.md: the repo's tree down to each file's public surface, described by the code's own header comments.
   - [helpers.js](../scripts/helpers.js) — Shared helpers for the Node tooling (scripts/ and vite.config.js): the repo's paths and constants, file and argument plumbing, catalog lookups and drift checks, the glTF reader, and the dev tools' loopback server.
-    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `SIZE_SPAN_MM`, `MEASURED_SIZES_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
+    - exports `ROOT`, `SERIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `SIZE_SPAN_MM`, `MEASURED_SIZES_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findSeriesEntry`, `folderSlug`, `productFolder`, `volumeAt`, `areaAt`, `productionCost`, `salePrice`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
   - [json-tool-blocks.js](../scripts/json-tool-blocks.js) — Pure text helpers for the tools that edit the data files (no fs/http): inserting, patching and removing entries in hand-aligned JSON without re-serializing, and rendering whole product/series blocks in canonical formatting.
     - exports `esc`, `num`, `geometryLine`, `insertBeforeArrayClose`, `insertBeforeObjectClose`, `appendToInlineStringArray`, `updateTopLevelScalarInText`, `updateObjectEntryInText`, `removeObjectEntryInText`, `removeFromInlineStringArray`, `updateSeriesFieldInText`, `anchoredSpan`, `replaceInSpan`, `findBlockSpanByAnchor`, `findProductBlockSpan`, `replaceProductBlockInText`, `removeArrayEntryInText`, `removeProductBlockInText`, `removeSeriesBlockInText`, `renderProductBlock`, `renderSeriesBlock`
   - [json-tool-server.js](../scripts/json-tool-server.js) — Dev server for json-tool.html (npm run json-tool): edits data/series.json's globals, series and products, and files dropped hand-owned assets (model, x-ray, photos) into the right folders.
@@ -178,7 +178,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `series/bones/hero.js` |
 | `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
-| `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/three-viewer.js` |
+| `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/selection.js`, `js/series-page.js`, `js/three-viewer.js` |
 | `EmjiveSeriesHero` | `series/bones/hero.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/series.js` |
 | `EmjiveSizeFinder` | `js/size-finder.js` | `js/modify-modal.js`, `js/product.js` |
 

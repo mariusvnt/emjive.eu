@@ -314,7 +314,7 @@
       name: itemName(),
       metal: state.selectedMetal,
       size: size,
-      price: sel.priceAt(state.base, state.selectedMetal, size),
+      price: sel.priceAt(state.product, state.selectedMetal, size),
       image: iconSrc(state.selectedMetal)
     };
     if (state.base.designs) values.design = state.designKey;

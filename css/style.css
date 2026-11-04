@@ -3203,12 +3203,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--black);
 }
 
-/* The cost chart: labels, bars, amounts in three aligned columns. Raw
-   materials and manufacturing get a row each; the total only an amount, in
-   black. The bars share one scale (--from, --to per row from js/product.js
-   renderCosts): raw from the left, manufacturing from where it ends; each is
-   its bar cell's ::before. Once it's in view (.is-built) bars grow one
-   after another, amounts fading in after their bars. */
+/* The price breakdown: labels, bars, amounts in three aligned columns.
+   Design, manufacturing and VAT get a row each; the total only an amount, in
+   black. The bars share one scale, the price (--from, --to per row
+   from js/product.js renderCosts): each part from where the one before ends;
+   each is its bar cell's ::before. Once it's in view (.is-built) bars grow
+   one after another, amounts fading in after their bars. */
 .product-costs {
   --bar-h: 0.3rem;
   --grow: 0.5s;
@@ -3258,7 +3258,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   transition: left var(--fade-quick) ease, width var(--fade-quick) ease;
 }
 /* The total: its amount alone, in black. */
-.product-costs__row--production .product-costs__amount {
+.product-costs__row--total .product-costs__amount {
   padding-top: 0.4rem;
   color: var(--black);
 }
@@ -3269,18 +3269,22 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .product-costs.is-built .product-costs__amount {
   opacity: 1;
 }
-.product-costs.is-built .product-costs__row--raw .product-costs__bar::before,
-.product-costs.is-built .product-costs__row--raw .product-costs__amount {
+.product-costs.is-built .product-costs__row--design .product-costs__bar::before,
+.product-costs.is-built .product-costs__row--design .product-costs__amount {
   transition-delay: 0.15s;
 }
 .product-costs.is-built .product-costs__row--manufacturing .product-costs__bar::before,
 .product-costs.is-built .product-costs__row--manufacturing .product-costs__amount {
   transition-delay: 0.65s;
 }
-.product-costs.is-built .product-costs__row--production .product-costs__amount {
+.product-costs.is-built .product-costs__row--vat .product-costs__bar::before,
+.product-costs.is-built .product-costs__row--vat .product-costs__amount {
   transition-delay: 1.15s;
 }
-/* Played out (.is-settled): a metal change moves both bars together, one
+.product-costs.is-built .product-costs__row--total .product-costs__amount {
+  transition-delay: 1.65s;
+}
+/* Played out (.is-settled): a metal change moves every bar together, one
    duration, no delay, so they never come apart. */
 .product-costs.is-built.is-settled .product-costs__row .product-costs__bar::before {
   transition: left var(--resize) ease, width var(--resize) ease;

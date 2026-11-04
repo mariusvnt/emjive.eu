@@ -28,7 +28,7 @@ Every rule that must hold in this repo, process and code alike, and the one plac
 - **Never put a `url()` behind a `var()` on anything the product page's scroll restyles.** Set the property directly. Also, never measure the screen's height with `window.innerHeight` on the product page: use `EmjiveProductStages.screenPx()`.
 - **Gate hover styles with `@media (hover: hover)`.**
 - **Reduced motion uses `0.01ms`, never `0s`.** A zero-length transition fires no `transitionend`, and script waits on it.
-- **A value written in several files changes in all of them at once.** `validate-data` checks the phone query, the crop fractions, the slug rule and the reference size prices are given at across their copies. A new metal has to be added in every place [item-guide.md](item-guide.md) lists, because not all of them are checked.
+- **A value written in several files changes in all of them at once.** `validate-data` checks the phone query, the crop fractions, the slug rule and the reference size models are measured at across their copies. A new metal has to be added in every place [item-guide.md](item-guide.md) lists, because not all of them are checked.
 
 ## Comments
 

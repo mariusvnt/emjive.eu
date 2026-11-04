@@ -261,8 +261,8 @@ function previewCard(background, layer) {
 const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 // The item as schema.org Product data, for search results: its offers are the
-// price span over metals and sizes (priceSpan), left out while it's TBD.
-function productStructuredData(product, url, image) {
+// price span over metals, designs and sizes (priceSpan), left out while it's TBD.
+function productStructuredData(product, index, url, image) {
   const data = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -273,7 +273,7 @@ function productStructuredData(product, url, image) {
     category: product.category,
     brand: { "@type": "Brand", name: "em·ji·ve" }
   };
-  const span = priceSpan(product);
+  const span = priceSpan(product, index);
   if (span) data.offers = { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: span.low, highPrice: span.high, url };
   // "<" escaped, so no text in the data can close the <script>.
   return '<script type="application/ld+json">' + JSON.stringify(data).replace(/</g, "\\u003c") + "</script>";
@@ -352,7 +352,7 @@ function emitItemPages() {
         }
         // At the body's end: check-dist wants js/helpers.js as the first classic <script>.
         const previewImage = poster ? SITE_ORIGIN + "/assets/previews/" + slug + ".jpg" : SITE_ORIGIN + "/preview.jpg";
-        html = swap(html, /<\/body>/, productStructuredData(product, url, previewImage) + "\n</body>", "</body>");
+        html = swap(html, /<\/body>/, productStructuredData(product, index, url, previewImage) + "\n</body>", "</body>");
         writeFileSync(join(distDir, slug + ".html"), html);
       }
     }

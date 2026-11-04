@@ -8,13 +8,13 @@ Each piece has its own page:
 
 - **Photographs** and a description.
 - **The piece in 3D**, to turn freely, in the chosen metal (with its composition and how it is printed) and, for some pieces, one of several designs.
-- **Its specifications**: the size (set on a dial under the piece, with a guide to find one's own), a front and a side view (a tap turns the piece to one and lays its outline over it, its length, width and depth marked), and what it costs to make.
+- **Its specifications**: the size (set on a dial under the piece, with a guide to find one's own), a front and a side view (a tap turns the piece to one and lays its outline over it, its length, width and depth marked), and how its price breaks down.
 
 Visitors build a **selection** as they go, which follows them from page to page. They can review it on an order page, change or remove an item, and accept the terms.
 
 ## Where it stands
 
-The site is a working prototype whose look keeps evolving. Most pieces are still waiting for their photographs, descriptions and prices. The order page ends with a "Proceed to checkout" button, but there is no payment step behind it yet. The archives, creation process and terms pages are placeholders.
+The site is a working prototype whose look keeps evolving. Most pieces are still waiting for their photographs and descriptions. The order page ends with a "Proceed to checkout" button, but there is no payment step behind it yet. The archives, creation process and terms pages are placeholders.
 
 ## Working on it
 

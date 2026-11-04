@@ -301,8 +301,8 @@
     return assetFor(product, "fallback-img", metal) || assetFor(product, "icons", metal);
   }
 
-  // The size, in mm, a product's model is drawn at and its per-metal prices are
-  // given for. Mirrored in scripts/helpers.js (validate-data checks).
+  // The size, in mm, a product's model is drawn at and its geometry measured
+  // from. Mirrored in scripts/helpers.js (validate-data checks).
   var REFERENCE_SIZE_MM = 62;
   // The size, in mm, a ring is first shown and offered at, and its sized
   // renders are drawn at (scripts/auto-render.js).
@@ -337,6 +337,47 @@
   // the size under the radial shift. Mirrored in scripts/helpers.js.
   function volumeAt(geometry, mm) {
     return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
+  }
+
+  // The same for the surface area, cm2: the shift stretches each face along
+  // the bore's circumference only, so the area bends slightly with the size
+  // and a quadratic holds it. null when unmeasured. Mirrored in scripts/helpers.js.
+  function areaAt(geometry, mm) {
+    if (!geometry || !(geometry["area-cm2"] > 0)) return null;
+    var d = mm - REFERENCE_SIZE_MM;
+    return geometry["area-cm2"] + (geometry["area-cm2-per-size-mm"] || 0) * d + (geometry["area-cm2-per-size-mm2"] || 0) * d * d;
+  }
+
+  // The printer's price for one piece, euros to the cent, from one metal's
+  // data/series.json "production-costs" entry: the volume and area terms,
+  // raised to the minimum, then the flat fee charged after it. null when an
+  // input is missing or the volume is past the range the formula was fitted
+  // on. Mirrored in scripts/helpers.js.
+  function productionCost(rates, volumeCm3, areaCm2) {
+    if (!rates || !(volumeCm3 > 0) || !(areaCm2 >= 0)) return null;
+    if (rates["max-volume-cm3"] !== undefined && volumeCm3 > rates["max-volume-cm3"]) return null;
+    var cost = Math.max(rates.minimum, rates.base + rates["per-cm2"] * areaCm2 + rates["per-cm3"] * volumeCm3) + rates["after-minimum"];
+    return Math.round((cost + Number.EPSILON) * 100) / 100;
+  }
+
+  // The selling price, rounded up to whole euros, of a piece of `geometry`
+  // (its print geometry when measured) in `metal` at size `mm`: the production
+  // cost plus the margin, plus VAT on that ("pricing" in data/series.json
+  // `index`). 0 ("TBD") when the cost is unknown. The epsilon keeps float noise
+  // on a whole amount from rounding it up a euro. Mirrored in scripts/helpers.js.
+  function salePrice(index, geometry, metal, mm) {
+    var printed = geometry && (geometry.print || geometry);
+    var pricing = index && index.pricing;
+    if (!printed || !pricing) return 0;
+    var cost = productionCost((index["production-costs"] || {})[metal], volumeAt(printed, mm), areaAt(printed, mm));
+    return cost === null ? 0 : Math.ceil(cost * (1 + pricing.margin) * (1 + pricing.vat) - 1e-9);
+  }
+
+  // Every design's geometry of a product: its own (the default design's), then
+  // each other design's. Mirrored in scripts/helpers.js.
+  function designGeometries(product) {
+    var list = (product && product.designs && product.designs.list) || [];
+    return [product && product.geometry].concat(list.map(function (d) { return d.geometry; })).filter(Boolean);
   }
 
   // A geometry's axis-aligned box at a size, { center, size }: interpolated
@@ -573,6 +614,10 @@
     sizeText: sizeText,
     sizeShift: sizeShift,
     volumeAt: volumeAt,
+    areaAt: areaAt,
+    productionCost: productionCost,
+    salePrice: salePrice,
+    designGeometries: designGeometries,
     PLAN_VIEWS: PLAN_VIEWS,
     ringAxes: ringAxes,
     planFrame: planFrame,

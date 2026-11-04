@@ -3,11 +3,15 @@
 
   "metals": ["steel", "silver", "bronze"],
 
-  "metal-costs": {
-    "steel":  { "density-g-cm3": 8,     "price-per-g": 0.0486674736, "loss-margin": 0.25, "production-per-cm3": 28.84 },
-    "silver": { "density-g-cm3": 10.36, "price-per-g": 1.923,     "loss-margin": 0.1,  "production-per-cm3": 90.06 },
-    "bronze": { "density-g-cm3": 8.8,   "price-per-g": 0.016356,  "loss-margin": 0.1,  "production-per-cm3": 25.9 }
+  "production-costs": {
+    "last-verified": "2026-11-04",
+    "source": "Sculpteo, reverse-engineered: quantity 1, EUR excluding VAT, shipping and discounts",
+    "steel":  { "material": "steel_316l_polished",        "minimum": 53.33, "base": 29.008, "per-cm2": 0,      "per-cm3": 14.370, "after-minimum": 62.00, "max-volume-cm3": 4.6 },
+    "silver": { "material": "silver_925_mirror_polished", "minimum": 38.50, "base": 13.354, "per-cm2": 2.1001, "per-cm3": 64.115, "after-minimum": 0 },
+    "bronze": { "material": "bronze_polished",            "minimum": 21.25, "base": 4.864,  "per-cm2": 0.9556, "per-cm3": 15.301, "after-minimum": 0 }
   },
+
+  "pricing": { "margin": 0.10, "vat": 0.20 },
 
   "metal-technology": { "steel": "binder-jetting", "silver": "lost-wax", "bronze": "lost-wax" },
 

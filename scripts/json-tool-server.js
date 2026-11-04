@@ -269,7 +269,7 @@ async function handleGlobalMetal(req, res) {
     let patched = blocks.removeFromInlineStringArray(text, '"metals": [', metal);
     if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
     // validate-data rejects entries for metals not in the list.
-    patched = blocks.removeObjectEntryInText(patched, '"metal-costs": {', metal) || patched;
+    patched = blocks.removeObjectEntryInText(patched, '"production-costs": {', metal) || patched;
     patched = blocks.removeObjectEntryInText(patched, '"metal-composition": {', metal) || patched;
     patched = blocks.removeObjectEntryInText(patched, '"metal-shaders": {', metal) || patched;
     fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
@@ -294,8 +294,8 @@ async function handleGlobalMetal(req, res) {
     return sendJson(res, 200, {
       ok: true,
       reminder:
-        'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s per-metal-specs/icons/' +
-        "fallback-img/wheel-poster, and its metal-costs, metal-composition and metal-shaders entries. Still worth doing " +
+        'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s icons/' +
+        "fallback-img/wheel-poster, and its production-costs, metal-composition and metal-shaders entries. Still worth doing " +
         "by hand if you want a full cleanup (harmless if left, just dead code): remove the " +
         '.product-dial__swatch[data-metal="' + metal + '"] rule from css/style.css.'
     });
@@ -315,11 +315,9 @@ async function handleGlobalMetal(req, res) {
     reminder:
       'Added "' + metal + '" to data/series.json\'s metals list, with a neutral grey under "metal-shaders" to tune in ' +
       'scene-tool. Still needed by hand: a .product-dial__swatch[data-metal="' + metal + '"] rule in css/style.css ' +
-      "— this tool does not touch it — plus a \"" + metal + '" entry under data/series.json\'s "metal-costs" ' +
-      "(density, price per gram, production cost per cm3; `npm run validate-data` fails without it), a \"" + metal +
-      '" entry under "metal-composition" and one under "metal-technology". ' +
-      "Existing products won't have a \"" + metal +
-      '" entry under per-metal-specs until you re-save them here, either.'
+      "— this tool does not touch it — plus a \"" + metal + '" entry under data/series.json\'s "production-costs" ' +
+      "(the printer's price formula; `npm run validate-data` fails without it), a \"" + metal +
+      '" entry under "metal-composition" and one under "metal-technology".'
   });
 }
 
@@ -550,7 +548,6 @@ async function handleProductAdd(req, res) {
     category,
     description: body.description || "",
     "default-metal": body.defaultMetal || metals[0] || "",
-    "per-metal-specs": body.perMetalSpecs || {},
     "size-range": body.sizeRange || { min: 40, max: 80 },
     "hero-hand-visibility": body.heroHandVisibility || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 },
     "3d-viewer-camera-default": body.cameraDefault || { rotation: 0, tilt: 75, zoom: 105 },
@@ -609,7 +606,6 @@ async function handleProductEdit(req, res) {
   const merged = Object.assign({}, current, { name: nextName, category: nextCategory });
   if (fields.description !== undefined) merged.description = fields.description;
   if (fields.defaultMetal !== undefined) merged["default-metal"] = fields.defaultMetal;
-  if (fields.perMetalSpecs !== undefined) merged["per-metal-specs"] = fields.perMetalSpecs;
   if (fields.heroHandVisibility !== undefined) merged["hero-hand-visibility"] = fields.heroHandVisibility;
   if (fields.cameraDefault !== undefined) merged["3d-viewer-camera-default"] = fields.cameraDefault;
   merged.assets = Object.assign({}, current.assets);

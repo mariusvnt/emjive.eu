@@ -12,7 +12,7 @@
 
   // Stored as { v, items }. Bump when stored item fields change meaning (ids,
   // pricing): carts of another version are dropped rather than misread.
-  var STORAGE_VERSION = 3;
+  var STORAGE_VERSION = 4;
 
   // localStorage can hold stale, hand-edited or corrupt entries: keep only
   // usable items and coerce the fields the UI computes with.
@@ -155,42 +155,41 @@
   }
 
   /* ---- prices by size ----
-     per-metal-specs prices are at EmjiveHelpers.REFERENCE_SIZE_MM and follow
-     the printed piece's volume (geometry.print, else the model's):
-     priceAt(size) = price x volume at size / volume at reference, whole
-     euros, size clamped to "size-range". A price of 0 means "TBD". Mirrored
-     in scripts/helpers.js for the per-item pages' structured data. */
+     Every price is derived: the printed piece's production cost at the size,
+     plus margin and VAT (EmjiveHelpers.salePrice), whole euros, the size
+     clamped to "size-range". 0 means "TBD". Needs the series index
+     (EmjiveSeries.ready). Mirrored in scripts/helpers.js for the per-item
+     pages' structured data. */
   var sizeRange = window.EmjiveHelpers.sizeRange;
-  var volumeAt = window.EmjiveHelpers.volumeAt;
 
-  // `size` may be a number or a typed string.
+  // `product` priced as its own geometry: pass the design view
+  // (EmjiveSeries.resolveDesign) for a chosen design. `size` may be a number
+  // or a typed string.
   function priceAt(product, metal, size) {
-    var specs = product && product["per-metal-specs"] && product["per-metal-specs"][metal];
-    var base = specs && specs.price;
-    if (!(base > 0)) return 0;
     var mm = parseFloat(size);
-    if (!isFinite(mm) || mm <= 0) return 0;
+    if (!product || !isFinite(mm) || mm <= 0) return 0;
     var range = sizeRange(product);
     mm = Math.min(Math.max(mm, range.min), range.max);
-    var geometry = product.geometry || {};
-    var printed = geometry.print || geometry;
-    return Math.round(base * volumeAt(printed, mm) / volumeAt(printed, window.EmjiveHelpers.REFERENCE_SIZE_MM));
+    return window.EmjiveHelpers.salePrice(window.EmjiveSeries.index, product.geometry, metal, mm);
   }
 
-  function priceRange(product, metal) {
-    var range = sizeRange(product);
-    return { min: priceAt(product, metal, range.min), max: priceAt(product, metal, range.max) };
-  }
-
-  // Lowest to highest price over one metal, or over every priced metal. 0s if none is priced.
+  // Lowest to highest price over one metal, or over every metal, and over the
+  // size range. A design view spans its own design; a product spans all of its
+  // designs. 0s if nothing is priced.
   function priceSpan(product, metal) {
-    var specs = (product && product["per-metal-specs"]) || {};
     var span = { min: 0, max: 0 };
-    (metal ? [metal] : Object.keys(specs)).forEach(function (m) {
-      var range = priceRange(product, m);
-      if (!(range.min > 0)) return;
-      if (!span.min || range.min < span.min) span.min = range.min;
-      if (range.max > span.max) span.max = range.max;
+    if (!product) return span;
+    var range = sizeRange(product);
+    var geometries = product.designKey !== undefined ? [product.geometry] : window.EmjiveHelpers.designGeometries(product);
+    var index = window.EmjiveSeries.index;
+    (metal ? [metal] : (index && index.metals) || []).forEach(function (m) {
+      geometries.forEach(function (geometry) {
+        var low = window.EmjiveHelpers.salePrice(index, geometry, m, range.min);
+        var high = window.EmjiveHelpers.salePrice(index, geometry, m, range.max);
+        if (!(low > 0)) return;
+        if (!span.min || low < span.min) span.min = low;
+        if (high > span.max) span.max = high;
+      });
     });
     return span;
   }
@@ -333,7 +332,6 @@
     formatPriceFrom: formatPriceFrom,
     formatPriceRange: formatPriceRange,
     priceAt: priceAt,
-    priceRange: priceRange,
     sanitizeSizeInput: sanitizeSizeInput,
     normalizeSize: normalizeSize,
     isValidSize: isValidSize,

@@ -185,24 +185,29 @@
                 </div>
 
                 <div class="product-info__group">
-                  <!-- Production cost chart (js/product.js renderCosts; animates in on .is-built, once in view). -->
+                  <!-- Price breakdown chart (js/product.js renderCosts; animates in on .is-built, once in view). -->
                   <section class="product-info__item product-costs" id="productCosts" aria-labelledby="productCostsLabel">
-                    <h2 class="product-info__label" id="productCostsLabel">Production cost</h2>
+                    <h2 class="product-info__label" id="productCostsLabel">Price breakdown</h2>
                     <div class="product-info__value">
                       <dl class="product-costs__list">
-                        <div class="product-costs__row product-costs__row--raw">
-                          <dt>Raw materials</dt>
+                        <div class="product-costs__row product-costs__row--design">
+                          <dt>Design</dt>
                           <dd class="product-costs__bar" aria-hidden="true"></dd>
-                          <dd class="product-costs__amount" id="productCostRaw">—</dd>
+                          <dd class="product-costs__amount" id="productCostDesign">—</dd>
                         </div>
                         <div class="product-costs__row product-costs__row--manufacturing">
                           <dt>Manufacturing</dt>
                           <dd class="product-costs__bar" aria-hidden="true"></dd>
                           <dd class="product-costs__amount" id="productCostManufacturing">—</dd>
                         </div>
-                        <div class="product-costs__row product-costs__row--production">
+                        <div class="product-costs__row product-costs__row--vat">
+                          <dt>VAT</dt>
+                          <dd class="product-costs__bar" aria-hidden="true"></dd>
+                          <dd class="product-costs__amount" id="productCostVat">—</dd>
+                        </div>
+                        <div class="product-costs__row product-costs__row--total">
                           <dt class="visually-hidden">Total</dt>
-                          <dd class="product-costs__amount" id="productCostProduction">—</dd>
+                          <dd class="product-costs__amount" id="productCostTotal">—</dd>
                         </div>
                       </dl>
                     </div>

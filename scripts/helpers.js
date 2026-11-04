@@ -21,8 +21,8 @@ const SITE_ORIGIN = "https://emjive.eu";
 // css/style.css and series/<slug>/hero.css (validate-data checks).
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
-// The size, in mm, per-metal prices are given for; must match js/helpers.js
-// (validate-data checks).
+// The size, in mm, models are drawn at and their geometry measured from; must
+// match js/helpers.js (validate-data checks).
 const REFERENCE_SIZE_MM = 62;
 
 // The sizes a model is measured over: every "size-range" lies within
@@ -94,20 +94,52 @@ function volumeAt(geometry, mm) {
   return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
 }
 
-// A product's lowest and highest price over its priced metals and its
-// "size-range", in whole euros, as js/selection.js priceAt() computes them;
-// null when no metal is priced (TBD).
-function priceSpan(product) {
+// The same for the surface area, cm2, as js/helpers.js areaAt() computes it.
+function areaAt(geometry, mm) {
+  if (!geometry || !(geometry["area-cm2"] > 0)) return null;
+  const d = mm - REFERENCE_SIZE_MM;
+  return geometry["area-cm2"] + (geometry["area-cm2-per-size-mm"] || 0) * d + (geometry["area-cm2-per-size-mm2"] || 0) * d * d;
+}
+
+// One piece's production cost in euros, from a "production-costs" entry, as
+// js/helpers.js productionCost() computes it.
+function productionCost(rates, volumeCm3, areaCm2) {
+  if (!rates || !(volumeCm3 > 0) || !(areaCm2 >= 0)) return null;
+  if (rates["max-volume-cm3"] !== undefined && volumeCm3 > rates["max-volume-cm3"]) return null;
+  const cost = Math.max(rates.minimum, rates.base + rates["per-cm2"] * areaCm2 + rates["per-cm3"] * volumeCm3) + rates["after-minimum"];
+  return Math.round((cost + Number.EPSILON) * 100) / 100;
+}
+
+// The selling price rounded up to whole euros, 0 when unknown, as js/helpers.js
+// salePrice() computes it from the series index.
+function salePrice(index, geometry, metal, mm) {
+  const printed = geometry && (geometry.print || geometry);
+  const pricing = index && index.pricing;
+  if (!printed || !pricing) return 0;
+  const cost = productionCost((index["production-costs"] || {})[metal], volumeAt(printed, mm), areaAt(printed, mm));
+  return cost === null ? 0 : Math.ceil(cost * (1 + pricing.margin) * (1 + pricing.vat) - 1e-9);
+}
+
+// Every design's geometry of a product, as js/helpers.js designGeometries() lists them.
+function designGeometries(product) {
+  const list = (product.designs && product.designs.list) || [];
+  return [product.geometry, ...list.map((d) => d.geometry)].filter(Boolean);
+}
+
+// A product's lowest and highest price over every metal, design and size of
+// its "size-range", in whole euros, as js/selection.js priceSpan() computes
+// them; null when nothing is priced (TBD).
+function priceSpan(product, index) {
   const range = product["size-range"];
-  const geometry = product.geometry || {};
-  const printed = geometry.print || geometry;
-  const at = (base, mm) => Math.round(base * volumeAt(printed, mm) / volumeAt(printed, REFERENCE_SIZE_MM));
   let low = Infinity;
   let high = 0;
-  for (const specs of Object.values(product["per-metal-specs"] || {})) {
-    if (!(specs.price > 0)) continue;
-    low = Math.min(low, at(specs.price, range.min));
-    high = Math.max(high, at(specs.price, range.max));
+  for (const metal of index.metals || []) {
+    for (const geometry of designGeometries(product)) {
+      const from = salePrice(index, geometry, metal, range.min);
+      if (!(from > 0)) continue;
+      low = Math.min(low, from);
+      high = Math.max(high, salePrice(index, geometry, metal, range.max));
+    }
   }
   return high > 0 ? { low, high } : null;
 }
@@ -297,6 +329,10 @@ module.exports = {
   findSeriesEntry,
   folderSlug,
   productFolder,
+  volumeAt,
+  areaAt,
+  productionCost,
+  salePrice,
   priceSpan,
   isSwatchCamera,
   catalogDrift,

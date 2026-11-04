@@ -23,7 +23,7 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 
 **Clean, flat addresses.** `/gallery`, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no series, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Old `product.html?id=` links still land on `product.html`, which moves them to the clean address.
 
-**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span once it has prices), and a link-preview picture drawn at build time. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
+**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
 
 **One shared header.** Every page opens with the same header and nav. The category filter row is rendered from the active series' data, never written in the markup, because each series declares its own categories.
 
@@ -55,7 +55,7 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 
 **Add shows the item before it goes in the selection**: the bar's Add opens a review of the shape, material and size, and Confirm adds it.
 
-**The information follows the configuration, always shown**: label | value rows in clusters (the material, the cost, shipping and returns) on two columns they all share. The design stretch is as long as scrolling the last of it clear of the bottom bars takes.
+**The information follows the configuration, always shown**: label | value rows in clusters (the material, the price breakdown, shipping and returns) on two columns they all share. The design stretch is as long as scrolling the last of it clear of the bottom bars takes.
 
 **The Modify sheet is on every page**, opened from the floating selection bar's drawer or from the order list, and it shows the item's live 3D model over the product page's dials. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk.
 

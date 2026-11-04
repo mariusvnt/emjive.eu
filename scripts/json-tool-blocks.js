@@ -31,8 +31,12 @@ function geometryLine(g, indent) {
   const axisBox = g["axis-box"];
   const print = g.print;
   const triples = (v) => "[" + (v || []).map(triple).join(", ") + "]";
-  // The size fields, after the volume and after the dimensions.
-  const slope = (s) => (s["volume-cm3-per-size-mm"] !== undefined ? ', "volume-cm3-per-size-mm": ' + num(s["volume-cm3-per-size-mm"]) : "");
+  // The size and area fields, after the volume and after the dimensions.
+  const slope = (s) => (s["volume-cm3-per-size-mm"] !== undefined ? ', "volume-cm3-per-size-mm": ' + num(s["volume-cm3-per-size-mm"]) : "") +
+    (s["area-cm2"] !== undefined
+      ? ', "area-cm2": ' + num(s["area-cm2"]) + ', "area-cm2-per-size-mm": ' + num(s["area-cm2-per-size-mm"]) +
+        ', "area-cm2-per-size-mm2": ' + num(s["area-cm2-per-size-mm2"])
+      : "");
   const minSize = (s) => (s["min-size-mm"] !== undefined ? ', "min-size-mm": ' + num(s["min-size-mm"]) : "");
   return (indent === undefined ? "      " : indent) + '"geometry": { "volume-cm3": ' + num(g["volume-cm3"]) + slope(g) +
     ', "dimensions-mm": ' + triple(g["dimensions-mm"]) + minSize(g) +
@@ -340,14 +344,6 @@ function renderDesignsBlock(designs, metals) {
 }
 
 function renderProductBlock(p, metals) {
-  const specs = p["per-metal-specs"] || {};
-  const perMetal = metals
-    .map((m) => {
-      const s = specs[m] || { price: 0 };
-      return '        "' + m + '": { "price": ' + num(s.price) + " }";
-    })
-    .join(",\n");
-
   // Written by scripts/measure-models.js; carried through, absent until it runs.
   const geometry = p.geometry ? geometryLine(p.geometry) : null;
 
@@ -367,9 +363,6 @@ function renderProductBlock(p, metals) {
     '      "category": "' + esc(p.category) + '",',
     '      "description": "' + esc(p.description) + '",',
     '      "default-metal": "' + esc(p["default-metal"]) + '",',
-    '      "per-metal-specs": {',
-    perMetal,
-    "      },",
     ...(p["size-range"] ? ['      "size-range": { "min": ' + num(p["size-range"].min) + ', "max": ' + num(p["size-range"].max) + " },"] : []),
     // Optional, hand-added: the model axis the finger runs along when it isn't z.
     ...(p["finger-axis"] ? ['      "finger-axis": "' + esc(p["finger-axis"]) + '",'] : []),

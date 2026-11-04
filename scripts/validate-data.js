@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
 
-const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, exitOnProblems } = require("./helpers");
+const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, volumeAt, exitOnProblems } = require("./helpers");
 
 const problems = [];
 
@@ -90,22 +90,40 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "metal-costs", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "sun", "hdri-blur", "reflection-detail", "series"],
+  required: ["featured", "metals", "production-costs", "pricing", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "sun", "hdri-blur", "reflection-detail", "series"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
-    "metal-costs": {
+    // EmjiveHelpers.productionCost: the printer's price per metal, with the
+    // date it was last checked against the printer's quotes.
+    "production-costs": {
       type: "object",
+      required: ["last-verified", "source"],
+      properties: {
+        "last-verified": { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        source: str
+      },
       additionalProperties: {
         type: "object",
-        required: ["density-g-cm3", "price-per-g", "loss-margin", "production-per-cm3"],
+        required: ["material", "minimum", "base", "per-cm2", "per-cm3", "after-minimum"],
+        additionalProperties: false,
         properties: {
-          "density-g-cm3": { type: "number", exclusiveMinimum: 0 },
-          "price-per-g": { type: "number", exclusiveMinimum: 0 },
-          "loss-margin": { type: "number", minimum: 0 },
-          "production-per-cm3": { type: "number", exclusiveMinimum: 0 }
+          material: str,
+          minimum: { type: "number", minimum: 0 },
+          base: num,
+          "per-cm2": { type: "number", minimum: 0 },
+          "per-cm3": { type: "number", minimum: 0 },
+          "after-minimum": { type: "number", minimum: 0 },
+          "max-volume-cm3": { type: "number", exclusiveMinimum: 0 }
         }
       }
+    },
+    // EmjiveHelpers.salePrice: the margin on the production cost, then VAT on that, as fractions.
+    pricing: {
+      type: "object",
+      required: ["margin", "vat"],
+      additionalProperties: false,
+      properties: { margin: { type: "number", minimum: 0 }, vat: { type: "number", minimum: 0, maximum: 1 } }
     },
     "metal-technology": strMap,
     "metal-composition": strMap,
@@ -234,11 +252,15 @@ const planViewsSchema = { type: "object", required: ["front", "side"], propertie
 const triples = { type: "array", minItems: 1, items: { type: "array", items: num, minItems: 3, maxItems: 3 } };
 const geometrySchema = {
   type: "object",
-  required: ["volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm", "min-box", "axis-box", "model-sha1"],
+  required: ["volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "min-box", "axis-box", "model-sha1"],
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
     // The volume gained per mm of size (EmjiveHelpers.volumeAt).
     "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
+    // The area at the reference size and its terms in the size (EmjiveHelpers.areaAt).
+    "area-cm2": { type: "number", exclusiveMinimum: 0 },
+    "area-cm2-per-size-mm": num,
+    "area-cm2-per-size-mm2": num,
     "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
     // The smallest size the model can be sized down to (scripts/ring-size.js).
     "min-size-mm": num,
@@ -269,10 +291,13 @@ const geometrySchema = {
     // Measured on the STL: the weight and price shown.
     print: {
       type: "object",
-      required: ["volume-cm3", "volume-cm3-per-size-mm", "dimensions-mm", "min-size-mm", "stl-sha1"],
+      required: ["volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "stl-sha1"],
       properties: {
         "volume-cm3": { type: "number", exclusiveMinimum: 0 },
         "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
+        "area-cm2": { type: "number", exclusiveMinimum: 0 },
+        "area-cm2-per-size-mm": num,
+        "area-cm2-per-size-mm2": num,
         "dimensions-mm": { type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 3, maxItems: 3 },
         "min-size-mm": num,
         "stl-sha1": { type: "string", pattern: "^[0-9a-f]{40}$" }
@@ -331,22 +356,13 @@ const designsSchema = {
 
 const productSchema = {
   type: "object",
-  required: ["id", "name", "category", "description", "default-metal", "per-metal-specs", "size-range", "geometry", "assets"],
+  required: ["id", "name", "category", "description", "default-metal", "size-range", "geometry", "assets"],
   properties: {
     id: str,
     name: { type: "string", minLength: 1 },
     category: str,
     description: str,
     "default-metal": str,
-    // Price at the reference size (REFERENCE_SIZE_MM), following the volume with size.
-    "per-metal-specs": {
-      type: "object",
-      additionalProperties: {
-        type: "object",
-        required: ["price"],
-        properties: { price: { type: "number", minimum: 0 } }
-      }
-    },
     "size-range": {
       type: "object",
       required: ["min", "max"],
@@ -462,6 +478,23 @@ function checkGeometry(label, modelRel, geometry, stlRel, range) {
       fail(label, "size-range starts at " + range.min + " but " + where + " can't be sized below " + measured["min-size-mm"]);
     }
   }
+  checkCosts(label, geometry.print || geometry, range);
+}
+
+// js/product.js computeCosts at the largest size of `range` (the volume grows
+// with the size): every metal's formula holds there (its max-volume-cm3), so
+// every size is priced.
+function checkCosts(label, printed, range) {
+  if (!index || !index["production-costs"]) return;
+  for (const metal of index.metals || []) {
+    const rates = index["production-costs"][metal];
+    if (!rates) continue;
+    const volume = volumeAt(printed, range.max);
+    if (rates["max-volume-cm3"] !== undefined && volume > rates["max-volume-cm3"]) {
+      fail(label, "at size " + range.max + " the printed volume (" + volume.toFixed(3) + " cm3) is past " + metal + "'s production-costs max-volume-cm3 (" +
+        rates["max-volume-cm3"] + "): the cost formula isn't known to hold there");
+    }
+  }
 }
 
 // Designs beyond their shape: the default exists and has no files of its own,
@@ -539,16 +572,13 @@ if (index && validate("data/series.json", indexSchema, index)) {
 
   if (!slugs.includes(index.featured)) fail("data/series.json", 'featured "' + index.featured + '" is not a series slug');
   if (new Set(slugs).size !== slugs.length) fail("data/series.json", "duplicate series slug");
-  // js/product.js computeCosts: one entry per metal; manufacturing must not be negative.
-  const costs = index["metal-costs"];
+  // js/product.js computeCosts: one entry per metal (checkCosts checks the products against them).
+  const priced = Object.keys(index["production-costs"]).filter((k) => k !== "last-verified" && k !== "source");
   for (const metal of metals) {
-    if (!costs[metal]) fail("data/series.json", 'metal-costs has no "' + metal + '"');
+    if (!priced.includes(metal)) fail("data/series.json", 'production-costs has no "' + metal + '"');
   }
-  for (const [metal, c] of Object.entries(costs)) {
-    if (!metals.has(metal)) fail("data/series.json", 'metal-costs has unknown metal "' + metal + '"');
-    else if (c["production-per-cm3"] < c["price-per-g"] * c["density-g-cm3"] * (1 + c["loss-margin"])) {
-      fail("data/series.json", 'metal-costs "' + metal + '": production-per-cm3 is below its raw-material cost per cm3, so manufacturing would be negative');
-    }
+  for (const metal of priced) {
+    if (!metals.has(metal)) fail("data/series.json", 'production-costs has unknown metal "' + metal + '"');
   }
   for (const [cat, info] of Object.entries(index.categories)) {
     const guide = info["size-guide"];
@@ -645,13 +675,9 @@ if (index && validate("data/series.json", indexSchema, index)) {
         }
 
         for (const metal of metals) {
-          if (!product["per-metal-specs"][metal]) fail(label, 'per-metal-specs has no "' + metal + '"');
           if (product.assets.model || Object.keys(product.assets.icons).length) {
             if (!product.assets.icons[metal]) fail(label, 'assets.icons has no "' + metal + '"');
           }
-        }
-        for (const field of ["per-metal-specs"]) {
-          for (const key of Object.keys(product[field])) if (!metals.has(key)) fail(label, field + ' has unknown metal "' + key + '"');
         }
         for (const field of ["icons", "fallback-img", "wheel-poster"]) {
           for (const [metal, rel] of Object.entries(product.assets[field])) {
@@ -699,7 +725,7 @@ if (index && existsExactCase("js/series.js")) {
   }
 }
 
-// The reference size prices are given at, in js/helpers.js and scripts/helpers.js.
+// The reference size models are measured at, in js/helpers.js and scripts/helpers.js.
 if (existsExactCase("js/helpers.js")) {
   const match = /\bREFERENCE_SIZE_MM = (\d+(?:\.\d+)?);/.exec(fs.readFileSync(path.join(ROOT, "js/helpers.js"), "utf8"));
   if (!match) fail("js/helpers.js", "no REFERENCE_SIZE_MM = <number>; found (validate-data compares it with scripts/helpers.js)");

@@ -14,10 +14,8 @@
 //              sits.
 //   measure2   the same lines dragged back in until they reappear; both passes
 //              are weighed (lineMm()).
-//   result     the inner circumference (the size, in mm) as a range over the
-//              rounds measured, or a single size once enough rounds agree
-//              (measureResult()), drawn as a circle whose thickness tracks the range
-//   chart      (no, or another method) the category's size guide
+//   result     the inner circumference (the size, in mm), drawn as a circle
+//   chart      (no, or the regular size guide) the category's size guide
 // Only the slider dot, the lines and the buttons take touches while a card or
 // ring lies on the screen. The card window and the lines are inversions
 // (.size-finder__card, .size-finder__line).
@@ -25,7 +23,7 @@
 // window.EmjiveSizeFinder = { open(options), isOpen(), sizeFromDiameter(mm) }
 //   options.guide        the category's "size-guide"
 //   options.onFill(size) on close, with the last validated size; not after
-//                        "No" or "Use a different method", which discard it
+//                        "No" or "Regular size guide", which discard it
 //   options.returnFocus  element or function
 // Opens over a sheet's focus trap, hence the trap's `nested` option.
 
@@ -52,20 +50,8 @@
   // (LINE_MIN_MM): past it the triangle wouldn't surround the ring.
   // Share of the outgoing pass in a line's distance; the incoming pass is the rest.
   var FIRST_PASS_WEIGHT = 0.66;
-  // The range is RANGE_SD standard deviations of the rounds' mean; one round's
-  // scatter is assumed SCATTER_MM (±0.4 mm for one round), weighted as
-  // SCATTER_WEIGHT rounds against the observed spread.
-  var SCATTER_MM = 0.2;
-  var SCATTER_WEIGHT = 2;
-  var RANGE_SD = 2;
-  // Once AGREE_ROUNDS rounds lie within AGREE_MM of their average, the result is
-  // that single size, drawn SETTLED_PX thick.
-  var AGREE_ROUNDS = 3;
-  var AGREE_MM = 0.25;
-  var SETTLED_PX = 0.75;
-  // The circle's band is the range drawn BAND_SCALE times as thick over the
-  // agreeing round count, so it visibly narrows as rounds agree.
-  var BAND_SCALE = 50;
+  // The result circle's thickness.
+  var OUTLINE_PX = 0.75;
   // Dragged elements follow only this share of the pointer, for precision.
   var DRAG_GAIN = 0.5;
   var LINE_MIN_MM = 0;
@@ -122,10 +108,6 @@
     lines: [[LINE_START_MM, LINE_START_MM, LINE_START_MM], [0, 0, 0]],
     touched: [[false, false, false], [false, false, false]],
     lastSize: null,
-    // The result shown: { size, count, settled, lo, hi } (see measureResult()).
-    lastResult: null,
-    // This ring's rounds: { diameter } in mm, both passes weighed.
-    rounds: [],
     // Previous steps, with the state to restore, for the back arrow.
     history: [],
     options: null,
@@ -133,59 +115,6 @@
     fitFrame: 0
   };
   var nodes = {};
-
-  function currentRound() {
-    return { diameter: diameterFromLines() };
-  }
-
-  // The final size (rounds' mean) and its range: RANGE_SD x one round's scatter
-  // / √n, bounds to a tenth. One round's scatter is SCATTER_MM; from two rounds
-  // their spread is pooled with it as SCATTER_WEIGHT rounds' worth, so agreeing
-  // pairs don't claim zero range. An agreeing group (agreeingGroup()) settles
-  // it to the group's average, outliers left out.
-  function measureResult() {
-    var sizes = state.rounds.map(function (round) { return Math.PI * round.diameter; });
-    var n = sizes.length;
-    var group = agreeingGroup(sizes);
-    if (group) {
-      var settled = Math.round(group.average * 10) / 10;
-      return { size: settled, count: n, settled: true, lo: settled, hi: settled };
-    }
-    var mean = sizes.reduce(function (sum, size) { return sum + size; }, 0) / n;
-    var squares = sizes.reduce(function (sum, size) { return sum + (size - mean) * (size - mean); }, 0);
-    var variance = (SCATTER_WEIGHT * SCATTER_MM * SCATTER_MM + squares) / (SCATTER_WEIGHT + n - 1);
-    var half = (RANGE_SD * Math.sqrt(variance)) / Math.sqrt(n);
-    return {
-      size: Math.round(mean * 10) / 10,
-      count: n,
-      settled: false,
-      // Rounds that agree (at least one, with itself).
-      agreeing: agreeingGroup(sizes, 1).count,
-      lo: Math.round((mean - half) * 10) / 10,
-      hi: Math.round((mean + half) * 10) / 10
-    };
-  }
-
-  // The largest run of sorted sizes (at least minCount, default AGREE_ROUNDS)
-  // all within AGREE_MM of their average; the tightest among equals; or null.
-  function agreeingGroup(sizes, minCount) {
-    var min = minCount || AGREE_ROUNDS;
-    var sorted = sizes.slice().sort(function (a, b) { return a - b; });
-    var best = null;
-    for (var i = 0; i < sorted.length; i++) {
-      for (var j = i + min - 1; j < sorted.length; j++) {
-        var run = sorted.slice(i, j + 1);
-        var average = run.reduce(function (sum, size) { return sum + size; }, 0) / run.length;
-        // Sorted: only the ends can be furthest from the average.
-        if (average - run[0] > AGREE_MM || run[run.length - 1] - average > AGREE_MM) continue;
-        var spread = run[run.length - 1] - run[0];
-        if (!best || run.length > best.count || (run.length === best.count && spread < best.spread)) {
-          best = { count: run.length, spread: spread, average: average };
-        }
-      }
-    }
-    return best;
-  }
 
   // A calibration's screen: device pixel ratio (desktop zoom changes it) and screen size, either orientation.
   function screenId() {
@@ -496,19 +425,11 @@
       cx += lineMm(i) * Math.sin(a);
       cy -= lineMm(i) * Math.cos(a);
     });
-    var result = state.lastResult;
-    var perMm = state.scale;
-    var stroke = (BAND_SCALE / result.agreeing) * ((result.hi - result.lo) / (2 * Math.PI)) * perMm;
-    var box = ((result.lo + result.hi) / (2 * Math.PI)) * perMm + stroke;
-    // Settled: a plain SETTLED_PX outline.
-    if (result.settled) {
-      stroke = SETTLED_PX;
-      box = (result.size / Math.PI) * perMm + SETTLED_PX;
-    }
+    var box = (state.lastSize / Math.PI) * state.scale + OUTLINE_PX;
     nodes.outline.style.width = box + "px";
     nodes.outline.style.height = box + "px";
     // An inset shadow, not a border: borders snap to whole device pixels.
-    nodes.outline.style.boxShadow = "inset 0 0 0 " + stroke + "px #fff";
+    nodes.outline.style.boxShadow = "inset 0 0 0 " + OUTLINE_PX + "px #fff";
     nodes.outline.style.transform =
       "translate(-50%, -50%) translate(" + (2 / 3) * cx * state.scale + "px, " + (2 / 3) * cy * state.scale + "px)";
   }
@@ -570,15 +491,10 @@
 
     // The result's buttons stand under the circle, not in the top part.
     nodes.result = el("div", "size-finder__choices size-finder__choices--stack size-finder__result");
-    // Refine until settled; then "another ring" replaces it.
-    var refine = button("Measure again to refine");
-    var another = button("Measure another ring");
-    var other = button("Use a different method");
-    nodes.result.appendChild(refine);
-    nodes.result.appendChild(another);
-    nodes.result.appendChild(other);
-    nodes.refine = refine;
-    nodes.another = another;
+    var again = button("Measure again");
+    var guide = button("Regular size guide");
+    nodes.result.appendChild(again);
+    nodes.result.appendChild(guide);
 
     nodes.chart = el("div", "size-finder__chart size-guide");
     top.appendChild(nodes.chart);
@@ -620,7 +536,7 @@
     nodes.card.setAttribute("aria-hidden", "true");
     root.appendChild(nodes.card);
 
-    nodes.primary = { ask: yes, calibrate: nodes.slider.el, measure: nodes.lines[0].hit, measure2: nodes.lines[0].hit, result: refine };
+    nodes.primary = { ask: yes, calibrate: nodes.slider.el, measure: nodes.lines[0].hit, measure2: nodes.lines[0].hit, result: again };
 
     // Straight to measuring when this screen is already calibrated.
     yes.addEventListener("click", function () {
@@ -637,18 +553,11 @@
     no.addEventListener("click", function () {
       advance("chart", function () { state.lastSize = null; });
     });
-    // Another round on the same ring, averaged in.
-    refine.addEventListener("click", function () {
+    // The last size stays until a new one is validated.
+    again.addEventListener("click", function () {
       advance("measure", resetLines);
     });
-    // A new ring: rounds restart; the last size stays until a new one is validated.
-    another.addEventListener("click", function () {
-      advance("measure", function () {
-        state.rounds = [];
-        resetLines();
-      });
-    });
-    other.addEventListener("click", function () {
+    guide.addEventListener("click", function () {
       advance("chart", function () { state.lastSize = null; });
     });
     validate.addEventListener("click", function () {
@@ -663,10 +572,7 @@
         return;
       }
       advance("result", function () {
-        state.rounds = state.rounds.concat([currentRound()]);
-        var result = measureResult();
-        state.lastSize = result.size;
-        state.lastResult = result;
+        state.lastSize = sizeFromDiameter(diameterFromLines());
       });
     });
 
@@ -675,10 +581,9 @@
 
   /* ---- steps ---- */
 
-  // Moves to a step, saving the current one for the back arrow. Rounds are
-  // replaced, never mutated, so the saved copy holds.
+  // Moves to a step, saving the current one for the back arrow.
   function advance(step, change) {
-    state.history.push({ step: state.step, lastSize: state.lastSize, lastResult: state.lastResult, rounds: state.rounds });
+    state.history.push({ step: state.step, lastSize: state.lastSize });
     if (change) change();
     go(step);
   }
@@ -687,8 +592,6 @@
     var entry = state.history.pop();
     if (!entry) return;
     state.lastSize = entry.lastSize;
-    state.lastResult = entry.lastResult;
-    state.rounds = entry.rounds;
     go(entry.step);
   }
 
@@ -720,11 +623,7 @@
     if (step !== "calibrate") cancelFit();
 
     var text = TEXT[step] || "";
-    if (step === "result") {
-      text = state.lastResult.settled
-        ? "Measured size: " + H.sizeText(state.lastSize) + "."
-        : "Measured range: " + H.sizeText(state.lastResult.lo) + " to " + H.sizeText(state.lastResult.hi) + ".";
-    }
+    if (step === "result") text = "Measured size: " + H.sizeText(state.lastSize) + ".";
     var paragraphs = [].concat(text).filter(Boolean);
     nodes.label.innerHTML = "";
     paragraphs.forEach(function (paragraph) {
@@ -751,14 +650,8 @@
       if (arriving) shrinkCardToFit();
     }
 
-    // A settled size can't be refined: offer another ring.
-    var settled = step === "result" && state.lastResult.settled;
-    nodes.refine.hidden = settled;
-    nodes.another.hidden = !settled;
-
     // Focus follows the step, except right at opening.
     var primary = nodes.primary[step] || nodes.chart.querySelector(".size-guide__scroll") || nodes.back;
-    if (primary === nodes.refine && settled) primary = nodes.another;
     if (primary && !primary.hidden && state.isOpen && !nodes.root.classList.contains("is-opening")) {
       primary.focus({ preventScroll: true });
     }
@@ -780,8 +673,6 @@
     build();
     state.options = options || {};
     state.lastSize = null;
-    state.lastResult = null;
-    state.rounds = [];
     state.history = [];
     state.scale = DEFAULT_SCALE;
     resetLines();

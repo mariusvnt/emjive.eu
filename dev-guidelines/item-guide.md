@@ -16,7 +16,7 @@ Everything about the catalog's items: how the data is organised, where their fil
   - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
 - **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness and band width stay as designed, so a smaller size never thins a delicate part below what prints, as a scale would. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its price, and the print model sent to the printer all follow the same shift.
 - **Two sizes, kept apart.** The reference size is what the models and their measurements are pinned to; the default size (`EmjiveHelpers.DEFAULT_SIZE_MM`) is the one a ring is first shown and offered at. Changing the default only takes a re-render; changing the reference would mean re-measuring every product.
-- **Prices are derived, never typed.** Every price is what the printer charges to make the piece, in the chosen metal, size and design, plus the brand's margin and VAT, rounded up to the euro (`EmjiveHelpers.salePrice`). Nothing per product is stored that could go stale. The printer's charge is a fit of its quotes on the printed piece's volume and surface area, kept with the date it was last checked against them (`production-costs` and `pricing` in `data/series.json`), so new quotes are a data edit. A fit only holds over the volumes it was made on: `validate-data` fails a ring that grows past one. The printed piece, not the 3D model on the page, is what is made and priced, and the two can differ.
+- **Prices are derived, never typed.** Every price is what the printer charges to make the piece, in the chosen metal, size and design, plus the brand's margin and VAT, rounded up to the euro (`EmjiveHelpers.salePrice`). Nothing per product is stored that could go stale. The printer's charge is a fit of its quotes on the printed piece's volume and surface area, kept with the date it was last checked against them (`production-costs` and `pricing` in `data/series.json`), so new quotes are a data edit. A fit only holds over the volumes it was made on: `validate-data` fails a ring that grows past one. A piece is priced on its print model when it names one, since the printed piece, not the 3D model on the page, is what is made and the two can differ; without one, on the model itself.
 - **The price is shown broken down**: design (the margin, with the rounding up, so the rows add up to the price), manufacturing (the printer's charge, flat while its minimum applies) and VAT.
 
 ## 2. Data files
@@ -52,7 +52,7 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 **One folder per product, `<name>_<category>`**, holding everything that product is made of. The tools build that path, so a hand-renamed folder gets a new one beside it. Files follow the name:
 
 - `<name>_gltf.glb`, the model: what the site draws;
-- `<name>_stl.stl`, the print model: what is printed, weighed and priced;
+- `<name>_stl.stl`, the optional print model: what is printed, weighed and priced;
 - `<name>_<kind>_<metal>.webp`, the renders: `icon`, `fallback-img`, `wheel-poster`;
 - `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
 - `<name>_plan-<front|side>.webp`, its outline views, one set for all metals (not shown by the site at present);
@@ -161,4 +161,4 @@ With `json-tool`, whose blocking checks keep the catalog whole. By hand means fi
 
 ## 7. Current content
 
-Placeholder content is expected, not a bug. Only Furcula has a description and photos. Every other product has a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders.
+Placeholder content is expected, not a bug. Only Furcula has a description and photos. Every other product has a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders. No product names a print model at present, so every price, weight and dimension comes from the model on the page, and `size-stl` has nothing to size.

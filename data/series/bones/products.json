@@ -392,21 +392,21 @@
         "photos": []
       },
       "designs": {
-        "default": "double",
+        "default": "bi",
         "options": [
-          { "key": "shape", "label": "Shape", "choices": ["double", "trio"] }
+          { "key": "shape", "label": "Shape", "choices": ["bi", "tri"] }
         ],
         "list": [
-          { "key": "double", "name": "joint", "picks": { "shape": "double" } },
+          { "key": "bi", "name": "joint", "picks": { "shape": "bi" } },
           {
-            "key": "trio",
+            "key": "tri",
             "name": "joint-trio",
-            "picks": { "shape": "trio" },
+            "picks": { "shape": "tri" },
             "geometry": { "volume-cm3": 0.8854, "volume-cm3-per-size-mm": 0.0122042, "area-cm2": 9.7347, "area-cm2-per-size-mm": 0.130455, "area-cm2-per-size-mm2": 0.00002616, "dimensions-mm": [26.2, 25.9, 6.1], "min-size-mm": -0.3, "min-box": { "center": [0, 0.968, 0.334], "axes": [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 0.981, 0.334], [0, 0.968, 0.334], [0, 0.957, 0.334]], "size": [[19.59, 18.94, 6.1], [26.15, 25.92, 6.1], [31.65, 31.62, 6.1]] }, "model-sha1": "efceee28b76f10b7d2b224b449662c792c7cc252" },
-            "model": "assets/series/bones/products/joint_ring/joint-trio_gltf.glb",
-            "icons": { "steel": "assets/series/bones/products/joint_ring/joint-trio_icon_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint-trio_icon_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint-trio_icon_bronze.webp" },
-            "fallback-img": { "steel": "assets/series/bones/products/joint_ring/joint-trio_fallback-img_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint-trio_fallback-img_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint-trio_fallback-img_bronze.webp" },
-            "plan-views": { "front": "assets/series/bones/products/joint_ring/joint-trio_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint-trio_plan-side.webp" }
+            "model": "assets/series/bones/products/joint_ring/joint-tri_gltf.glb",
+            "icons": { "steel": "assets/series/bones/products/joint_ring/joint-tri_icon_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint-tri_icon_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint-tri_icon_bronze.webp" },
+            "fallback-img": { "steel": "assets/series/bones/products/joint_ring/joint-tri_fallback-img_steel.webp", "silver": "assets/series/bones/products/joint_ring/joint-tri_fallback-img_silver.webp", "bronze": "assets/series/bones/products/joint_ring/joint-tri_fallback-img_bronze.webp" },
+            "plan-views": { "front": "assets/series/bones/products/joint_ring/joint-tri_plan-front.webp", "side": "assets/series/bones/products/joint_ring/joint-tri_plan-side.webp" }
           }
         ]
       }

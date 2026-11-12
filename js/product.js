@@ -103,18 +103,11 @@
     return hold && typeof hold.done === "function" ? hold : null;
   }
 
-  // The address: /<slug> (served by public/.htaccess and the per-item pages,
-  // emitItemPages() in vite.config.js), or the legacy product.html?id=01[&series=x],
-  // rewritten once found (canonicalizeUrl).
-  function getRequest() {
+  // The item's slug, from its address /<slug> (the per-item pages,
+  // emitItemPages() in vite.config.js).
+  function getSlug() {
     var last = window.location.pathname.split("/").pop() || "";
-    var slug;
-    try { slug = decodeURIComponent(last).toLowerCase(); } catch (e) { slug = last.toLowerCase(); }
-    if (slug === "product.html" || slug === "product") slug = "";
-    return {
-      slug: slug,
-      id: new URLSearchParams(window.location.search).get("id")
-    };
+    try { return decodeURIComponent(last).toLowerCase(); } catch (e) { return last.toLowerCase(); }
   }
 
   // Lifts the arrival loader.
@@ -146,11 +139,10 @@
   }
 
   // A slug is unique across all series (validate-data), so it identifies the
-  // series too; a legacy ?id= is only unique within one. Either way the active
-  // series is tried first, then the others in index order.
-  function findProduct(slug, request) {
+  // series too. The active series is tried first, then the others in index order.
+  function findProduct(slug, itemSlug) {
     var matches = function (p) {
-      return request.slug ? window.EmjiveSeries.productSlug(p) === request.slug : p.id === request.id;
+      return !!itemSlug && window.EmjiveSeries.productSlug(p) === itemSlug;
     };
     return window.EmjiveSeries.loadProducts(slug).then(function (products) {
       var product = products.find(matches);
@@ -183,48 +175,20 @@
         state.metalTechnology = ctx.index["metal-technology"] || {};
         state.technologies = ctx.index["printing-technologies"] || {};
         state.compositions = ctx.index["metal-composition"] || {};
-        return findProduct(ctx.slug, getRequest());
+        return findProduct(ctx.slug, getSlug());
       })
       .then(function (found) {
         if (!found) return showNotFound();
         state.product = found.product;
         state.seriesSlug = found.slug;
-        canonicalizeUrl(found.product);
         render(found.product);
       })
       .catch(showLoadError);
   }
 
-  // Legacy addresses become /<slug> without a reload or history entry, the hash
-  // kept. Only the shared template is rewritten.
-  function canonicalizeUrl(product) {
-    var here = window.location.pathname;
-    if (here !== "/product.html" && here !== "/product") return;
-    if (!window.history || typeof window.history.replaceState !== "function") return;
-    var want = window.EmjiveSeries.productHref(product, state.seriesSlug);
-    window.history.replaceState(window.history.state, "", want + window.location.hash);
-  }
-
-  // For the shared product.html (legacy links, dev server), whose static head
-  // can't carry per-item metadata; the built per-item pages already do.
-  function updateSearchMetadata(product) {
-    var canonical = document.querySelector('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.rel = "canonical";
-      document.head.appendChild(canonical);
-    }
-    if (!canonical.getAttribute("href")) {
-      canonical.href = new URL(window.EmjiveSeries.productHref(product, state.seriesSlug), window.location.origin).href;
-    }
-
-    var description = document.querySelector('meta[name="description"]');
-    if (description && product.description) description.setAttribute("content", product.description);
-  }
-
   function render(product) {
+    // The built page already has it; the dev server serves the bare template.
     document.title = "em·ji·ve: " + (product.name || "product").toLowerCase();
-    updateSearchMetadata(product);
     // The metal picked in the gallery, priced as a pick, else the item's own.
     var chosen = window.EmjiveSeries.chosenMetal();
     state.selectedMetal = chosen || product["default-metal"] || state.metals[0] || "steel";

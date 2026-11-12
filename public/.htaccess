@@ -25,20 +25,21 @@ ServerSignature Off
   #   /<slug>             an item's page, dist/<slug>.html (emitItemPages in vite.config.js)
   # Mirrored by cleanUrls() in vite.config.js for the dev and preview servers.
   # THE_REQUEST matches only what the client asked for, so the redirects below
-  # never loop with the internal rewrites.
+  # never loop with the internal rewrites. Their targets are absolute: a bare
+  # path gets the host's ":443" in its Location, so it doesn't name the
+  # canonical URL exactly.
 
   RewriteCond %{THE_REQUEST} \s/index\.html[?\s]
-  RewriteRule ^index\.html$ /gallery [L,R=301]
+  RewriteRule ^index\.html$ https://%{HTTP_HOST}/gallery [L,R=301]
 
-  # /<page>.html -> /<page>. Not product.html (js/product.js redirects
-  # ?id= links to /<slug> itself) nor 404.html (the ErrorDocument).
+  # /<page>.html -> /<page>. Not 404.html (the ErrorDocument).
   RewriteCond %{THE_REQUEST} \s/[^/?\s]+\.html[?\s]
-  RewriteRule ^(?!(?:product|404)\.html$)([^/]+)\.html$ /$1 [L,R=301]
+  RewriteRule ^(?!404\.html$)([^/]+)\.html$ https://%{HTTP_HOST}/$1 [L,R=301]
 
   # No trailing slash: pages reference css/, js/, assets/ relatively. Real
   # directories are left to mod_dir.
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^(.+)/$ /$1 [L,R=301]
+  RewriteRule ^(.+)/$ https://%{HTTP_HOST}/$1 [L,R=301]
 
   # Internal: /gallery is index.html, /<name> is <name>.html when it exists;
   # anything else is a real 404.

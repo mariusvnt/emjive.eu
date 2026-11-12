@@ -26,6 +26,8 @@ const fileSet = new Set(files);
 for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "favicon.ico", "apple-touch-icon.png", "preview.jpg"]) {
   if (!fileSet.has(required)) fail("missing from dist/: " + required);
 }
+// The item pages' template only (emitItemPages in vite.config.js).
+if (fileSet.has("product.html")) fail("dist/product.html ships: it should be deleted once the item pages are written");
 
 /* ---- forbidden --------------------------------------------------------- */
 
@@ -161,7 +163,7 @@ for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html"
 
 if (fileSet.has(".htaccess")) {
   const rules = fs.readFileSync(path.join(DIST, ".htaccess"), "utf8");
-  for (const needle of ["RewriteRule ^gallery$ index.html [L]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ /gallery [L,R=301]"]) {
+  for (const needle of ["RewriteRule ^gallery$ index.html [L]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/gallery [L,R=301]"]) {
     if (!rules.includes(needle)) fail(".htaccess: the clean-URL rules are missing (" + needle + ")");
   }
 }

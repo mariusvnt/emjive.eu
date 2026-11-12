@@ -25,7 +25,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - landmarks: #main
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
-- [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product, and the landing for legacy ?id= links.
+- [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).

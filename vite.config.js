@@ -3,7 +3,7 @@
 // the sitemap, one page, link preview and structured data per item, clean URLs
 // in dev and preview, and the dropped decoder copies.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { defineConfig, transformWithEsbuild } from "vite";
 import sharp from "sharp";
@@ -285,9 +285,10 @@ const escapeText = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "
 // item's own title, description, canonical and social tags, its name and
 // description in the markup, and its structured data, so link previews and
 // non-JS crawlers see the item. js/product.js still finds the product from
-// the address. product.html stays as the template and the landing for
-// legacy ?id= links. After the bundle is written (closeBundle); every
-// rewritten tag must exist in the template, or the build throws.
+// the address. The built product.html is only the template and is deleted
+// afterwards, so /product.html and /product are 404s. After the bundle is
+// written (closeBundle); every rewritten tag must exist in the template, or
+// the build throws.
 function emitItemPages() {
   let isBuild = false;
   return {
@@ -355,13 +356,15 @@ function emitItemPages() {
         html = swap(html, /<\/body>/, productStructuredData(product, index, url, previewImage) + "\n</body>", "</body>");
         writeFileSync(join(distDir, slug + ".html"), html);
       }
+      unlinkSync(templatePath);
     }
   };
 }
 
 // What public/.htaccess does, for dev and preview: /gallery, /<page>, and
-// /<slug> (its own page in preview, the shared product.html in dev). Only
-// extension-less single-segment paths. Keep in step with .htaccess.
+// /<slug> (its own page in preview, the shared product.html in dev, where
+// /product itself is left to 404 as in production). Only extension-less
+// single-segment paths. Keep in step with .htaccess.
 function cleanUrls() {
   const rewrite = (root, isPreview) => (req, res, next) => {
     const url = req.url || "";
@@ -370,7 +373,7 @@ function cleanUrls() {
     const rest = q === -1 ? "" : url.slice(q);
     let name = "";
     try { name = decodeURIComponent(path).replace(/^\/+/, "").toLowerCase(); } catch (e) { return next(); }
-    if (!name || name.includes("/") || name.includes(".")) return next();
+    if (!name || name === "product" || name.includes("/") || name.includes(".")) return next();
 
     if (name === "gallery") req.url = "/index.html" + rest;
     else if (existsSync(join(root, name + ".html"))) req.url = "/" + name + ".html" + rest;

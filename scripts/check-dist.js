@@ -23,7 +23,7 @@ const fileSet = new Set(files);
 
 /* ---- required ---------------------------------------------------------- */
 
-for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "favicon.ico", "apple-touch-icon.png", "preview.jpg"]) {
+for (const required of [".htaccess", "robots.txt", "404.html", "sitemap.xml", "favicon.ico", "apple-touch-icon.png", "preview.jpg", "logo.png"]) {
   if (!fileSet.has(required)) fail("missing from dist/: " + required);
 }
 // The item pages' template only (emitItemPages in vite.config.js).
@@ -159,6 +159,21 @@ for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html"
   const url = page === "index.html" ? SITE_ORIGIN + "/gallery" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(page + ": og:url is not " + url);
   if (page === "index.html" && !head.includes('<link rel="canonical" href="' + url + '" />')) fail(page + ": canonical is not " + url);
+}
+
+// The gallery's static grid and site data (emitGalleryContent in vite.config.js).
+if (fileSet.has("index.html")) {
+  const html = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
+  const grid = (/<div class="product-grid" id="productGrid">([\s\S]*?)<\/section>/.exec(html) || ["", ""])[1];
+  for (const { series, slug } of items) {
+    if (series.slug === catalog.featured && !grid.includes('<a class="grid-item__name" href="/' + slug + '">')) {
+      fail("index.html: the static grid has no link to /" + slug);
+    }
+  }
+  const types = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => {
+    try { return (JSON.parse(m[1])["@graph"] || []).map((node) => node["@type"]); } catch (e) { return []; }
+  });
+  for (const type of ["Organization", "WebSite"]) if (!types.includes(type)) fail("index.html: no " + type + " structured data");
 }
 
 if (fileSet.has(".htaccess")) {

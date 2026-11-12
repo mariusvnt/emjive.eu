@@ -433,6 +433,7 @@
     return list;
   }
 
+  // Mirrored for the static grid by galleryItemMarkup() in vite.config.js.
   function buildItem(product) {
     var item = el("article", "grid-item");
     var frame = el("div", "grid-item__frame");
@@ -468,13 +469,11 @@
     return { product: product, el: item, firstImg: firstImg, price: item.querySelector(".grid-item__fact--price dd") };
   }
 
+  // Swapped in at once over the build's static grid (emitGalleryContent in
+  // vite.config.js), so the page never shrinks under a restored scroll offset.
   function renderGrid(products) {
-    grid.innerHTML = "";
-    state.items = products.map(function (product) {
-      var item = buildItem(product);
-      grid.appendChild(item.el);
-      return item;
-    });
+    state.items = products.map(buildItem);
+    grid.replaceChildren.apply(grid, state.items.map(function (item) { return item.el; }));
   }
 
   // A grid landing without the hero: its first visible items are the first paint.

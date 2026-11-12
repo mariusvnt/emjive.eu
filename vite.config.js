@@ -259,6 +259,21 @@ function previewCard(background, layer) {
 }
 
 const escapeAttr = (text) => String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+const escapeText = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// The business, for search engines (site name, logo, contact, profiles).
+const BRAND = {
+  name: "em·ji·ve",
+  alternateName: "emjive",
+  email: "contact@emjive.eu",
+  sameAs: ["https://www.instagram.com/em.ji.ve/"]
+};
+// dist/logo.png, the Organization's logo: square, as Google's logo guidelines ask.
+const LOGO_SIZE = 512;
+const LOGO_MARK_SIZE = 384;
+
+// "<" escaped, so no text in the data can close the <script>.
+const structuredData = (data) => '<script type="application/ld+json">' + JSON.stringify(data).replace(/</g, "\\u003c") + "</script>";
 
 // The item as schema.org Product data, for search results: its offers are the
 // price span over metals, designs and sizes (priceSpan), left out while it's TBD.
@@ -271,15 +286,102 @@ function productStructuredData(product, index, url, image) {
     url,
     image,
     category: product.category,
-    brand: { "@type": "Brand", name: "em·ji·ve" }
+    brand: { "@type": "Brand", name: BRAND.name }
   };
   const span = priceSpan(product, index);
   if (span) data.offers = { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: span.low, highPrice: span.high, url };
-  // "<" escaped, so no text in the data can close the <script>.
-  return '<script type="application/ld+json">' + JSON.stringify(data).replace(/</g, "\\u003c") + "</script>";
+  return structuredData(data);
 }
 
-const escapeText = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+// The site and its business as schema.org data, on the home page. Its url is
+// the domain root, where Google looks for the site name.
+function siteStructuredData() {
+  const home = SITE_ORIGIN + "/";
+  return structuredData({
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": home + "#organization",
+        name: BRAND.name,
+        alternateName: BRAND.alternateName,
+        url: home,
+        logo: SITE_ORIGIN + "/logo.png",
+        email: BRAND.email,
+        sameAs: BRAND.sameAs
+      },
+      {
+        "@type": "WebSite",
+        "@id": home + "#website",
+        name: BRAND.name,
+        alternateName: BRAND.alternateName,
+        url: home,
+        publisher: { "@id": home + "#organization" }
+      }
+    ]
+  });
+}
+
+// A grid item as js/gallery.js buildItem() first draws it (no metal picked,
+// the model's picture only), with the name as a link: keep the two in step.
+function galleryItemMarkup(product, index, slug) {
+  const name = product.name || "";
+  const metal = product["default-metal"];
+  const assets = product.assets || {};
+  const pick = (kind) => (assets[kind] && assets[kind][metal]) || "";
+  const picture = (assets.model && pick("fallback-img")) || pick("icons");
+  const span = priceSpan(product, index);
+  const price = !span ? "TBD" : span.low === span.high ? span.high + " €" : span.low + " – " + span.high + " €";
+  const range = product["size-range"];
+  const fact = (key, label, shown, value) =>
+    '<div class="grid-item__fact grid-item__fact--' + key + '"><dt' + (shown ? "" : ' class="visually-hidden"') + ">" + label + "</dt><dd>" + value + "</dd></div>";
+  return '<article class="grid-item">' +
+    (picture
+      ? '<div class="grid-item__frame"><div class="grid-item__deck"><img class="grid-item__card grid-item__card--model" src="/' + escapeAttr(picture) + '" alt="' +
+        escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" width="512" height="512" loading="lazy" decoding="async" /></div></div>'
+      : "") +
+    '<dl class="grid-item__facts">' +
+    fact("name", "Id", false, '<a class="grid-item__name" href="/' + slug + '">' + escapeText(name) + "</a>") +
+    fact("category", "Category", false, escapeText((product.category || "").toLowerCase())) +
+    (range ? fact("size", "size", true, range.min + " – " + range.max) : "") +
+    fact("price", "Price", false, price) +
+    "</dl></article>";
+}
+
+// The gallery's static content, so crawlers that don't run its scripts still
+// see the items: the featured series' grid written into #productGrid (js/gallery.js
+// replaces it with the live one), the site's structured data, and its logo.
+// Build only; after the bundle is written (closeBundle).
+function emitGalleryContent() {
+  let isBuild = false;
+  return {
+    name: "emit-gallery-content",
+    apply: "build",
+    configResolved(config) { isBuild = config.command === "build"; },
+    async closeBundle() {
+      if (!isBuild) return;
+      const distDir = resolve(__dirname, "dist");
+      const pagePath = join(distDir, "index.html");
+      let html = readFileSync(pagePath, "utf8");
+      const { index, list } = readProducts();
+      const items = list.filter((item) => item.featured).map((item) => galleryItemMarkup(item.product, index, item.slug));
+
+      const grid = /(<div class="product-grid" id="productGrid">)[\s\S]*?(<\/div>)/;
+      if (!grid.test(html)) throw new Error("emit-gallery-content: index.html has no #productGrid");
+      html = html.replace(grid, (all, open, close) => open + "\n" + items.join("\n") + "\n" + close);
+      if (!html.includes("</body>")) throw new Error("emit-gallery-content: index.html has no </body>");
+      html = html.replace("</body>", () => siteStructuredData() + "\n</body>");
+      writeFileSync(pagePath, html);
+
+      const mark = await sharp(resolve(__dirname, "assets/logo_compact.svg"), { density: 400 }).resize({ width: LOGO_MARK_SIZE, height: LOGO_MARK_SIZE, fit: "inside" }).png().toBuffer();
+      const logo = await sharp({ create: { width: LOGO_SIZE, height: LOGO_SIZE, channels: 3, background: pageBackground() } })
+        .composite([{ input: mark, gravity: "centre" }])
+        .png()
+        .toBuffer();
+      writeFileSync(join(distDir, "logo.png"), logo);
+    }
+  };
+}
 
 // One real page per item, dist/<slug>.html: the built product.html with the
 // item's own title, description, canonical and social tags, its name and
@@ -414,7 +516,8 @@ export default defineConfig({
     emitSitemap(),
     cleanUrls(),
     copyFilesVitesBuildCantTrace(),
-    emitItemPages()
+    emitItemPages(),
+    emitGalleryContent()
   ],
   build: {
     // Just above the lazy three.js chunk, so the warning

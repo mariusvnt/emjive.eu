@@ -20,7 +20,7 @@ ServerSignature Off
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
   # ---- Clean URLs ----
-  #   /gallery            index.html (/ serves it too, via DirectoryIndex)
+  #   /                   index.html, the gallery (DirectoryIndex)
   #   /<page>             <page>.html
   #   /<slug>             an item's page, dist/<slug>.html (emitItemPages in vite.config.js)
   # Mirrored by cleanUrls() in vite.config.js for the dev and preview servers.
@@ -29,8 +29,10 @@ ServerSignature Off
   # path gets the host's ":443" in its Location, so it doesn't name the
   # canonical URL exactly.
 
+  # The gallery's other addresses -> /, the query (?series=, ?cat=) kept.
   RewriteCond %{THE_REQUEST} \s/index\.html[?\s]
-  RewriteRule ^index\.html$ https://%{HTTP_HOST}/gallery [L,R=301]
+  RewriteRule ^index\.html$ https://%{HTTP_HOST}/ [L,R=301]
+  RewriteRule ^(?:gallery|index)$ https://%{HTTP_HOST}/ [L,R=301]
 
   # /<page>.html -> /<page>. Not 404.html (the ErrorDocument).
   RewriteCond %{THE_REQUEST} \s/[^/?\s]+\.html[?\s]
@@ -41,9 +43,7 @@ ServerSignature Off
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^(.+)/$ https://%{HTTP_HOST}/$1 [L,R=301]
 
-  # Internal: /gallery is index.html, /<name> is <name>.html when it exists;
-  # anything else is a real 404.
-  RewriteRule ^gallery$ index.html [L]
+  # Internal: /<name> is <name>.html when it exists; anything else is a real 404.
   RewriteCond %{REQUEST_FILENAME}.html -f
   RewriteRule ^([^/]+)$ $1.html [L]
 </IfModule>

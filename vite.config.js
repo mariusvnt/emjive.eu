@@ -224,7 +224,7 @@ function emitSitemap() {
   return {
     name: "emit-sitemap",
     generateBundle() {
-      const urls = [SITE_ORIGIN + "/gallery"];
+      const urls = [SITE_ORIGIN + "/"];
       for (const item of readProducts().list) urls.push(SITE_ORIGIN + "/" + item.slug);
       const xml =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
@@ -463,10 +463,11 @@ function emitItemPages() {
   };
 }
 
-// What public/.htaccess does, for dev and preview: /gallery, /<page>, and
-// /<slug> (its own page in preview, the shared product.html in dev, where
-// /product itself is left to 404 as in production). Only extension-less
-// single-segment paths. Keep in step with .htaccess.
+// What public/.htaccess does, for dev and preview: /gallery and /index
+// redirected to /, /<page>, and /<slug> (its own page in preview, the shared
+// product.html in dev, where /product itself is left to 404 as in
+// production). Only extension-less single-segment paths. Keep in step with
+// .htaccess.
 function cleanUrls() {
   const rewrite = (root, isPreview) => (req, res, next) => {
     const url = req.url || "";
@@ -477,8 +478,12 @@ function cleanUrls() {
     try { name = decodeURIComponent(path).replace(/^\/+/, "").toLowerCase(); } catch (e) { return next(); }
     if (!name || name === "product" || name.includes("/") || name.includes(".")) return next();
 
-    if (name === "gallery") req.url = "/index.html" + rest;
-    else if (existsSync(join(root, name + ".html"))) req.url = "/" + name + ".html" + rest;
+    if (name === "gallery" || name === "index") {
+      res.writeHead(301, { Location: "/" + rest });
+      res.end();
+      return;
+    }
+    if (existsSync(join(root, name + ".html"))) req.url = "/" + name + ".html" + rest;
     else if (!isPreview && readProducts().list.some((item) => item.slug === name)) req.url = "/product.html" + rest;
     next();
   };

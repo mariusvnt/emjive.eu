@@ -102,7 +102,7 @@
     return memoized(manifestCache, slug, function () { return fetchJson(entry.manifest); });
   }
 
-  // Addresses: /gallery, /series?series=<slug>, and /<item slug> flat at the
+  // Addresses: / (the gallery), /series?series=<slug>, and /<item slug> flat at the
   // root (pages reference css/, js/, assets/ relatively). public/.htaccess and
   // vite.config.js map them to the .html files. The featured series gets no
   // ?series=, keeping common URLs clean.
@@ -116,7 +116,7 @@
   }
 
   function mainHref(slug) {
-    return "/gallery" + seriesParam(slug);
+    return "/" + seriesParam(slug);
   }
 
   function manifestHref(slug) {

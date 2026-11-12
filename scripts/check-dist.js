@@ -64,9 +64,10 @@ function resolvesLocally(ref, fromPage) {
     : path.posix.normalize(path.posix.join(path.posix.dirname(fromPage), clean));
   if (target === "" || target === ".") return fileSet.has("index.html");
   if (fileSet.has(target)) return true;
-  // A clean address (/archives, /gallery, /furcula), served by public/.htaccess as <name>.html.
+  // A clean address (/archives, /furcula), served by public/.htaccess as
+  // <name>.html. /gallery and /index only redirect to /, so a link names / instead.
   if (clean.startsWith("/") && !target.includes("/") && !target.includes(".")) {
-    return target === "gallery" ? fileSet.has("index.html") : fileSet.has(target + ".html");
+    return target !== "gallery" && target !== "index" && fileSet.has(target + ".html");
   }
   return false;
 }
@@ -156,7 +157,7 @@ for (const { product, series, slug } of items) {
 for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
   if (!fileSet.has(page)) continue;
   const head = fs.readFileSync(path.join(DIST, page), "utf8").split("</head>")[0];
-  const url = page === "index.html" ? SITE_ORIGIN + "/gallery" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
+  const url = page === "index.html" ? SITE_ORIGIN + "/" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(page + ": og:url is not " + url);
   if (page === "index.html" && !head.includes('<link rel="canonical" href="' + url + '" />')) fail(page + ": canonical is not " + url);
 }
@@ -178,7 +179,7 @@ if (fileSet.has("index.html")) {
 
 if (fileSet.has(".htaccess")) {
   const rules = fs.readFileSync(path.join(DIST, ".htaccess"), "utf8");
-  for (const needle of ["RewriteRule ^gallery$ index.html [L]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/gallery [L,R=301]"]) {
+  for (const needle of ["RewriteRule ^(?:gallery|index)$ https://%{HTTP_HOST}/ [L,R=301]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/ [L,R=301]"]) {
     if (!rules.includes(needle)) fail(".htaccess: the clean-URL rules are missing (" + needle + ")");
   }
 }
@@ -189,7 +190,7 @@ if (fileSet.has("sitemap.xml")) {
   const sitemap = fs.readFileSync(path.join(DIST, "sitemap.xml"), "utf8");
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   if (urls.length < 2) fail("sitemap.xml lists fewer than two URLs");
-  const wanted = [SITE_ORIGIN + "/gallery", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
+  const wanted = [SITE_ORIGIN + "/", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
   for (const url of wanted) if (!urls.includes(url)) fail("sitemap.xml does not list " + url);
   for (const url of urls) {
     if (!wanted.includes(url)) fail("sitemap.xml lists an address the site does not use: " + url);

@@ -125,7 +125,7 @@
 
   function buildFilterHref(cat) {
     // Keeps ?series=.
-    var url = new URL("/gallery", window.location.href);
+    var url = new URL("/", window.location.href);
     var series = window.EmjiveSeries.slug;
     if (series && !window.EmjiveSeries.isFeatured(series)) {
       url.searchParams.set("series", series);

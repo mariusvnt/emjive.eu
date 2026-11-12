@@ -121,7 +121,7 @@
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
-      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/gallery") + "#products"
+      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/") + "#products"
     }, "status");
     pageReady();
   }

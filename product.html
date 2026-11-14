@@ -258,7 +258,8 @@
 </div>
 
 <!-- Review sheet, opened by the Select bar's "Add": the item as configured,
-     confirmed by the bar's "Confirm" (js/product.js). role/aria-* sit here,
+     editable in place (shape and material pick from a list, the size is
+     typed), confirmed by the bar's "Confirm" (js/product.js). role/aria-* sit here,
      not on the panel, because js/focus-trap.js traps the whole modal;
      tabindex="-1" lets it take focus. -->
 <div class="size-modal size-modal--drawer size-modal--select-bar" id="sizeModal" aria-hidden="true"
@@ -269,13 +270,14 @@
       <div class="size-modal__content">
         <dl class="size-modal__review">
           <div class="size-modal__review-row" id="sizeModalShapeRow" hidden>
-            <dt>Shape</dt><dd id="sizeModalShape"></dd>
+            <dt id="sizeModalShapeLabel">Shape</dt><dd class="review-pick" id="sizeModalShape"></dd>
           </div>
           <div class="size-modal__review-row">
-            <dt>Material</dt><dd id="sizeModalMaterial"></dd>
+            <dt id="sizeModalMaterialLabel">Material</dt><dd class="review-pick" id="sizeModalMaterial"></dd>
           </div>
           <div class="size-modal__review-row">
-            <dt>Size</dt><dd id="sizeModalSize"></dd>
+            <dt><label for="sizeModalSize">Size</label></dt>
+            <dd><input class="size-modal__size-input" id="sizeModalSize" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" /></dd>
           </div>
         </dl>
       </div>

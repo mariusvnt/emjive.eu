@@ -44,6 +44,10 @@
   --label-gap: 1.5rem;
   /* The selection dot: a dial's chosen option, the size dial's tick. */
   --dot: 0.5rem;
+  /* The full-width invert bands (title bar, order rows, Modify strip): 1.1x
+     their 1.2rem base up to the breakpoint (640px), growing evenly to 1.25x
+     at 1280px and held there. */
+  --band-h: clamp(1.32rem, 1.14rem + 0.45vw, 1.5rem);
 
   /* Every font-size reads through this, since rem also sizes spacing that must
      not scale with text. 1 on phones; larger past the breakpoint (below). */
@@ -1381,7 +1385,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   top: 50%;
   left: 50%;
   width: 100vw;
-  height: 1.2rem;
+  height: var(--band-h);
   transform: translate(-50%, -50%);
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
@@ -1445,7 +1449,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   top: 50%;
   left: 0;
   width: 0;
-  height: 1.2rem;
+  height: var(--band-h);
   transform: translate(0, -50%);
   opacity: 1;
   pointer-events: none;
@@ -2049,7 +2053,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   left: 0;
   right: 0;
   top: 0;
-  height: 0.8rem;
+  /* 0.77rem up to the breakpoint, growing evenly to 1rem at 1280px, as
+     --band-h; the hero's frontier band (series/bones/hero.css) matches. */
+  height: clamp(0.77rem, 0.54rem + 0.575vw, 1rem);
   transform: translateY(-50%);
   /* Under the title bar (z-index 3 in the pin), over the rest. */
   z-index: 2;
@@ -2065,12 +2071,9 @@ body:has(.order-checkout-bar:not([hidden])) {
   opacity: 1;
   transition: opacity var(--fade-fast) ease;
 }
-@media (max-width: 640px) {
-  .product-stage__scan { height: 0.7rem; }
-}
 
 /* ---- 1. label ----
-   ::before: a 1.2rem full-width band over the row's content inverting what
+   ::before: a full-width band (--band-h) over the row's content inverting what
    is under it (backdrop-filter: invert(1), like .reveal__frontier).
    ::after: behind the content, --black-bg-inverted, so the band reads as
    solid --black-bg wherever it doesn't cross content.
@@ -2092,7 +2095,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   top: 50%;
   left: 50%;
   width: 100vw;
-  height: 1.2rem;
+  height: var(--band-h);
   transform: translate(-50%, -50%);
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
@@ -2112,7 +2115,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   top: 50%;
   left: 50%;
   width: 100vw;
-  height: 1.2rem;
+  height: var(--band-h);
   transform: translate(-50%, -50%);
   pointer-events: none;
   background: var(--black-bg-inverted);
@@ -2137,8 +2140,8 @@ body:has(.order-checkout-bar:not([hidden])) {
   left: 0;
   right: 0;
   top: calc(var(--stage-top) * -1);
-  /* Down to the top of the band (1.2rem, centred on the bar). */
-  bottom: calc(50% + 0.6rem);
+  /* Down to the top of the band (centred on the bar). */
+  bottom: calc(50% + var(--band-h) / 2);
   background: var(--bg);
 }
 /* Three backdrop blurs under masks easing out over their own heights (a
@@ -2149,7 +2152,7 @@ body:has(.order-checkout-bar:not([hidden])) {
   left: 0;
   right: 0;
   /* One pixel up, under the band, so no unblurred fringe shows at a sub-pixel edge. */
-  top: calc(50% + 0.6rem - 1px);
+  top: calc(50% + var(--band-h) / 2 - 1px);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.854) 25%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.146) 75%, transparent 100%);
 }
@@ -3510,17 +3513,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 
 /* ---- the review sheet's rows (js/product.js) ----
    label | value, in the product page's two columns (--label-col,
-   --label-gap). */
+   --label-gap). One grid for all rows, passed down by subgrid: label, gap,
+   value, chevron, the rest. The value column is the widest option's
+   (--review-value-w, fitValueColumn in js/product.js), so the pickers'
+   chevrons line up and hold still. */
 .size-modal__review {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: var(--label-col) var(--label-gap) minmax(0, var(--review-value-w, max-content)) auto minmax(0, 1fr);
+  row-gap: 0.75rem;
   margin: 0 0 2rem;
 }
 .size-modal__review-row {
   display: grid;
-  grid-template-columns: var(--label-col) minmax(0, 1fr);
-  column-gap: var(--label-gap);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
 }
 .size-modal__review-row[hidden] {
   display: none;
@@ -3533,7 +3539,127 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   line-height: 1.5;
 }
 .size-modal__review-row dt { color: var(--black); }
-.size-modal__review-row dd { color: var(--category-col); }
+.size-modal__review-row dd {
+  grid-column: 3 / -1;
+  color: var(--category-col);
+}
+
+/* The shape and material pickers (reviewPicker, js/product.js): the value and
+   a chevron that turns up while the options are open under it. The options
+   open on a 0fr/1fr grid row, as the header menu, pushing the rows below
+   down, so the sheet grows upward. */
+.review-pick {
+  display: grid;
+  grid-template-columns: subgrid;
+}
+/* Value and chevron in the shared columns; the options span them all. */
+.review-pick__toggle {
+  grid-column: 1 / 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.review-pick__chevron {
+  /* Lowered onto the lowercase values' optical centre, below the line box's. */
+  position: relative;
+  top: 0.1em;
+  margin-left: 0.7em;
+  width: 0.32em;
+  height: 0.32em;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform var(--fade-quick) ease;
+}
+/* A single option: plain text. */
+.review-pick__toggle:disabled { cursor: default; }
+.review-pick.is-open .review-pick__chevron {
+  transform: translateY(25%) rotate(-135deg);
+}
+/* Visibility drops the closed options out of the Tab order. */
+.review-pick__menu {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows var(--fade-quick) ease, visibility 0s linear var(--fade-quick);
+}
+.review-pick.is-open .review-pick__menu {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows var(--fade-quick) ease, visibility 0s;
+}
+.review-pick__clip { overflow: hidden; min-height: 0; }
+.review-pick__list {
+  margin: 0;
+  padding: 0.25rem 0 0;
+  list-style: none;
+}
+/* Its own text's width: fitValueColumn measures it. */
+.review-pick__option {
+  display: block;
+  width: fit-content;
+  margin: 0;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
+  font: inherit;
+  line-height: inherit;
+  color: var(--category-col);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
+}
+@media (hover: hover) {
+  .review-pick__toggle:not(:disabled):hover,
+  .review-pick__option:hover { opacity: 0.6; }
+}
+
+/* The size, typed in place: reads as the other values until focused, then
+   underlined (its focus indication, instead of the ring). iOS zooms on a
+   focused field under 16px, so it is laid out at 16px and scaled down to the
+   values' size (maximum-scale=1 would also block pinch-zoom on Android); the
+   negative margins give back the room the scale frees. 6ch fits "62.50". */
+.size-modal__size-input {
+  --size-input-scale: calc(0.75 * var(--text-scale));
+  display: block;
+  width: 6ch;
+  margin: 0 calc(6ch * (var(--size-input-scale) - 1)) calc(24px * (var(--size-input-scale) - 1)) 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  box-shadow: inset 0 -1px 0 transparent;
+  font-family: var(--font-main);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--category-col);
+  transform: scale(var(--size-input-scale));
+  transform-origin: left top;
+  transition: box-shadow var(--fade-quick) ease;
+}
+/* Underlined while focused, and while it holds a size out of range. */
+.size-modal__size-input:focus,
+.size-modal__size-input:focus-visible,
+.size-modal__size-input[aria-invalid="true"] {
+  outline: none;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+.size-modal__size-input::placeholder { color: var(--category-col); opacity: 0.5; }
 
 /* ---- "Find my size" ----
    Opens js/size-finder.js; a secondary button in its own row under the
@@ -4521,14 +4647,14 @@ body.has-series-hero .selection-bar {
   padding-left: var(--inset);
   color: var(--white);
 }
-/* As .order-item::before: a 1.2rem invert band, centred, over Save's area,
+/* As .order-item::before: an invert band, centred, over Save's area,
    painted over the labels; takes no taps. */
 .modify-strip__band {
   position: absolute;
   top: 50%;
   right: 0;
   width: calc(100% - var(--left-w));
-  height: 1.2rem;
+  height: var(--band-h);
   transform: translate(0, -50%);
   opacity: 1;
   pointer-events: none;

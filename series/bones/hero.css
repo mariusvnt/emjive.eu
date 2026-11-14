@@ -45,7 +45,8 @@
   /* Extra entrance length, as a share of it, for the wheel to roll back before
      the camera moves (hero.js setEntranceRoom). */
   --reveal-entrance-room: 0;
-  --reveal-frontier-height: 0.8rem; /* full screen width; narrow-screen override below */
+  /* Full screen width; as the product page's scan band (css/style.css). */
+  --reveal-frontier-height: clamp(0.77rem, 0.54rem + 0.575vw, 1rem);
 
   /* Fallback ring placement: x/y are its centre and size its width, as % of the
      hand image. hero.js sets these per ring from each product's
@@ -100,12 +101,6 @@ html[data-hero="skip"] .reveal__ring {
   height: calc(var(--reveal-entrance-vh) * (1 + var(--reveal-entrance-room)));
   visibility: hidden;
   pointer-events: none;
-}
-
-@media (max-width: 640px) {
-  .reveal {
-    --reveal-frontier-height: 0.7rem;
-  }
 }
 
 .reveal__pin {

@@ -86,8 +86,9 @@
     planFrame: null,
     // The view whose outline lies over the model ("" for none: showOutline).
     outlineView: "",
-    // The shape dial (js/option-dial.js); null without one.
+    // The shape and material dials (js/option-dial.js); no shape dial with a single design.
     shapeDial: null,
+    materialDial: null,
     // The model's lift where design holds it, px (refreshStage).
     lift: 0,
     // Marks the cost chart as played out.
@@ -1009,7 +1010,7 @@
 
   // The material dial: a metal's swatch as its preview.
   function renderMetalOptions(product) {
-    window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
+    state.materialDial = window.EmjiveOptionDial.mount(document.getElementById("productMaterialDial"), {
       name: "Material",
       options: state.metals.map(function (metal) {
         return {
@@ -1768,8 +1769,8 @@
   /* ---- 4. the size dial, the review sheet and the selection ---- */
 
   // The Select bar's button: "Add" opens the sheet, the item as configured
-  // (shape, material, size) to review; "Confirm" adds it while the
-  // sheet is open (aria-disabled unless the size is orderable). The label
+  // (shape, material, size) to review and change in place; "Confirm" adds it
+  // while the sheet is open (aria-disabled unless the size is orderable). The label
   // fades through its change. Also wires the size dial, which writes the
   // size into a hidden field ("62.0"); the model follows (setModelSize).
   function wireSelectButton(product) {
@@ -1849,9 +1850,15 @@
       }, 80);
     }
 
-    // A size within the product's range: what Confirm needs.
+    // The review's size, typed in place.
+    var reviewSize = document.getElementById("sizeModalSize");
+
+    // A size within the product's range: what Confirm needs, typed as well
+    // while the sheet is open.
     function orderable() {
-      return window.EmjiveSelection.isOrderableSize(product, sizeField.value);
+      var sel = window.EmjiveSelection;
+      if (!sel.isOrderableSize(product, sizeField.value)) return false;
+      return !modal.classList.contains("is-open") || sel.isOrderableSize(product, reviewSize.value);
     }
 
     function syncBar() {
@@ -1862,18 +1869,77 @@
       selectBtn.setAttribute("aria-disabled", String(isOpen && !orderable()));
     }
 
+    // The shape and material rows pick through the page's own handlers, so
+    // the dials, label and model follow.
+    var shapePicker = reviewPicker(document.getElementById("sizeModalShape"), "sizeModalShapeLabel", function (key) {
+      onDesignSelect(product, key);
+      fillReview();
+    });
+    var materialPicker = reviewPicker(document.getElementById("sizeModalMaterial"), "sizeModalMaterialLabel", function (metal) {
+      if (state.materialDial) state.materialDial.select(metal);
+      onMetalSelect(product, metal);
+      fillReview();
+    });
+    var pickers = [shapePicker, materialPicker];
+    // One list open at a time.
+    pickers.forEach(function (picker) {
+      picker.onOpen = function () {
+        pickers.forEach(function (other) { if (other !== picker) other.close(); });
+      };
+    });
+    // A tap elsewhere in the sheet closes an open list.
+    modal.addEventListener("click", function (e) {
+      pickers.forEach(function (picker) {
+        if (!picker.root.contains(e.target)) picker.close();
+      });
+    });
+
+    // The typed size goes in once orderable, as if dialled; until then
+    // Confirm waits (and the field shows aria-invalid).
+    reviewSize.addEventListener("input", function () {
+      var sel = window.EmjiveSelection;
+      var cleaned = sel.sanitizeSizeInput(reviewSize.value);
+      if (cleaned !== reviewSize.value) reviewSize.value = cleaned;
+      sel.syncSizeField(reviewSize, product);
+      if (sel.isOrderableSize(product, cleaned)) {
+        sizeField.value = cleaned;
+        sizeField.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      syncBar();
+    });
+    reviewSize.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (orderable()) confirmAdd();
+    });
+
     // The review's values; the shape only with a shape dial.
     function fillReview() {
-      var sel = window.EmjiveSelection;
-      var size = orderable() ? sel.normalizeSize(sizeField.value) : "";
       document.getElementById("sizeModalShapeRow").hidden = !state.shapeDial;
-      document.getElementById("sizeModalShape").textContent = state.designKey;
-      document.getElementById("sizeModalMaterial").textContent = state.selectedMetal;
-      document.getElementById("sizeModalSize").textContent = size ? state.sizeText : "—";
+      if (state.shapeDial) {
+        shapePicker.set(product.designs.list.map(function (design) { return design.key; }), state.designKey);
+      }
+      materialPicker.set(state.metals, state.selectedMetal);
+      reviewSize.value = state.sizeText;
+      window.EmjiveSelection.syncSizeField(reviewSize, product);
+    }
+
+    // The value column fits the widest option of every picker (the listed
+    // ones and the value shown), set once per opening so the chevrons hold
+    // still while options change. Measured with the column at max-content.
+    function fitValueColumn() {
+      var review = modal.querySelector(".size-modal__review");
+      review.style.removeProperty("--review-value-w");
+      var widest = 0;
+      modal.querySelectorAll(".review-pick__option, .review-pick__value").forEach(function (node) {
+        widest = Math.max(widest, node.getBoundingClientRect().width);
+      });
+      review.style.setProperty("--review-value-w", Math.ceil(widest) + "px");
     }
 
     function openModal() {
       fillReview();
+      fitValueColumn();
       modal.classList.add("is-open");
       modal.setAttribute("aria-hidden", "false");
       syncBar();
@@ -1882,11 +1948,17 @@
       window.EmjiveFocusTrap.activate(modal, {
         include: selectBar,
         returnFocus: selectBtn,
-        onEscape: closeModal
+        // An open list closes first, focus back on its value.
+        onEscape: function () {
+          var open = pickers.filter(function (picker) { return picker.isOpen(); })[0];
+          if (open) open.close(true);
+          else closeModal();
+        }
       });
     }
 
     function closeModal() {
+      pickers.forEach(function (picker) { picker.close(); });
       modal.classList.remove("is-open");
       modal.setAttribute("aria-hidden", "true");
       // Before the trap releases, so focus lands on a live button.
@@ -1928,6 +2000,68 @@
     window.addEventListener("emjive:modify-open", function () {
       if (modal.classList.contains("is-open")) closeModal();
     });
+  }
+
+  // A review row's picker, built into the <dd> host: the value with a
+  // chevron, toggling a list of the other options under it; a single option
+  // is plain text. onPick(key) runs for the option picked; set() repaints.
+  function reviewPicker(host, labelId, onPick) {
+    var toggle = el("button", "review-pick__toggle");
+    toggle.type = "button";
+    toggle.id = host.id + "Toggle";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-labelledby", labelId + " " + toggle.id);
+    var value = el("span", "review-pick__value");
+    var chevron = el("span", "review-pick__chevron");
+    chevron.setAttribute("aria-hidden", "true");
+    toggle.append(value, chevron);
+    var list = el("ul", "review-pick__list");
+    list.id = host.id + "List";
+    list.setAttribute("aria-labelledby", labelId);
+    toggle.setAttribute("aria-controls", list.id);
+    var clip = el("div", "review-pick__clip");
+    clip.appendChild(list);
+    var menu = el("div", "review-pick__menu");
+    menu.appendChild(clip);
+    host.replaceChildren(toggle, menu);
+
+    var api = {
+      root: host,
+      onOpen: null,
+      isOpen: function () { return host.classList.contains("is-open"); },
+      // focusToggle: focus back on the value, for a close from inside the list.
+      close: function (focusToggle) {
+        if (!api.isOpen()) return;
+        host.classList.remove("is-open");
+        toggle.setAttribute("aria-expanded", "false");
+        if (focusToggle) toggle.focus();
+      },
+      set: function (keys, selected) {
+        value.textContent = selected;
+        var single = keys.length < 2;
+        toggle.disabled = single;
+        chevron.hidden = single;
+        var others = keys.filter(function (key) { return key !== selected; });
+        list.replaceChildren.apply(list, others.map(function (key) {
+          var option = el("button", "review-pick__option", key);
+          option.type = "button";
+          option.addEventListener("click", function () {
+            api.close(true);
+            onPick(key);
+          });
+          var item = el("li");
+          item.appendChild(option);
+          return item;
+        }));
+      }
+    };
+    toggle.addEventListener("click", function () {
+      if (api.isOpen()) return api.close();
+      if (api.onOpen) api.onOpen();
+      host.classList.add("is-open");
+      toggle.setAttribute("aria-expanded", "true");
+    });
+    return api;
   }
 
   init();

@@ -1,5 +1,7 @@
 // The selection (cart), in localStorage: window.EmjiveSelection. Also the
-// shared price-by-size and size-input rules.
+// shared price-by-size and size-input rules. An item is one piece in one
+// configuration with a count; the same configuration is never stored twice
+// (addItem and updateItem merge it).
 
 (function (global) {
   "use strict";
@@ -38,6 +40,7 @@
     if (item.series != null) item.series = String(item.series);
     // The chosen design's key; absent for single-design products.
     if (item.design != null) item.design = String(item.design);
+    item.count = countOf(raw);
     return item;
   }
 
@@ -71,8 +74,11 @@
   });
 
   // "emjive:selection-changed", dispatched synchronously from the changing call;
-  // detail { action: "add" | "remove" | "insert" | "update" | "clear" | "sync", index }.
-  // "insert" is only ever an Undo.
+  // detail { action: "add" | "remove" | "insert" | "update" | "merge" | "clear" | "sync", index }.
+  // "insert" is only ever an Undo. An "add" that merged into an existing item
+  // leaves the length as it was, `index` being that item. "merge" is the
+  // second step of an updateItem that made two items alike: the other one,
+  // at `index`, is gone, its count added to the updated one.
   function notify(action, index) {
     global.dispatchEvent(new CustomEvent("emjive:selection-changed", {
       detail: { action: action, index: index }
@@ -83,12 +89,44 @@
     return readAll();
   }
 
-  // item: { series, productId, design, name, category, metal, size, price, image },
+  // How many pieces an item stands for: a whole number, at least 1.
+  function countOf(item) {
+    var count = Math.floor(Number(item && item.count));
+    return isFinite(count) && count >= 1 ? count : 1;
+  }
+
+  // The item's price times its count; 0 (unpriced) stays 0.
+  function linePrice(item) {
+    return (item.price || 0) * countOf(item);
+  }
+
+  function pieceCount(items) {
+    return items.reduce(function (sum, item) { return sum + countOf(item); }, 0);
+  }
+
+  // The index of another item with `item`'s configuration, or -1.
+  function twinOf(items, item, skip) {
+    var key = itemKey(item);
+    for (var i = 0; i < items.length; i++) {
+      if (i !== skip && itemKey(items[i]) === key) return i;
+    }
+    return -1;
+  }
+
+  // item: { series, productId, design, name, category, metal, size, price, image, count },
   // a self-contained snapshot (name and image are the chosen design's). series
-  // qualifies productId, which is only unique within a series.
+  // qualifies productId, which is only unique within a series. The same
+  // configuration again adds one to that item's count, in place.
   function addItem(item) {
     var items = readAll();
-    items.push(item);
+    var twin = twinOf(items, item, -1);
+    if (twin !== -1) {
+      items[twin] = Object.assign({}, items[twin], { count: countOf(items[twin]) + 1 });
+      writeAll(items);
+      notify("add", twin);
+      return items;
+    }
+    items.push(Object.assign({}, item, { count: countOf(item) }));
     writeAll(items);
     notify("add", items.length - 1);
     return items;
@@ -111,14 +149,31 @@
     return items;
   }
 
-  // Patches an item in place (the Modify sheet), keeping its position.
+  // Patches an item in place (the Modify sheet, a row's count), keeping its
+  // position. If that makes it another item's twin, the twin is folded into
+  // it in a second change ("merge"), so each list sees one change at a time.
+  // Returns the patched item's index afterwards.
   function updateItem(index, patch) {
     var items = readAll();
-    if (!items[index]) return items;
+    if (!items[index]) return index;
     items[index] = Object.assign({}, items[index], patch);
+    items[index].count = countOf(items[index]);
     writeAll(items);
     notify("update", index);
-    return items;
+    var twin = twinOf(items, items[index], index);
+    if (twin === -1) return index;
+    items[index] = Object.assign({}, items[index], { count: countOf(items[index]) + countOf(items[twin]) });
+    items.splice(twin, 1);
+    writeAll(items);
+    notify("merge", twin);
+    return twin < index ? index - 1 : index;
+  }
+
+  // Whether patching the item at `index` would fold another item into it.
+  function wouldMerge(index, patch) {
+    var items = readAll();
+    if (!items[index]) return false;
+    return twinOf(items, Object.assign({}, items[index], patch), index) !== -1;
   }
 
   function clear() {
@@ -131,6 +186,7 @@
      touched, identified with these two. */
 
   // Stable across renders; `|| ""` covers items without a series or design.
+  // The count isn't part of it: a count change is an update in place.
   function itemKey(item) {
     return (item.series || "") + "|" + item.productId + "|" + (item.design || "") + "|" + item.metal + "|" + item.size;
   }
@@ -325,7 +381,11 @@
     removeItem: removeItem,
     insertItem: insertItem,
     updateItem: updateItem,
+    wouldMerge: wouldMerge,
     clear: clear,
+    countOf: countOf,
+    linePrice: linePrice,
+    pieceCount: pieceCount,
     formatPrice: formatPrice,
     priceFrom: priceFrom,
     priceSpan: priceSpan,

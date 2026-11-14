@@ -55,7 +55,8 @@
 
   /* Opacity transition tiers (easing is always plain `ease`):
        --fade-fast      label and icon swaps inside a bar
-       --fade-quick     hover/disabled dims, the Modify strip's save-band fade
+       --fade-quick     hover/disabled dims, the query row's button crossfades,
+                        the Modify strip's labels leaving after a Save
        --fade-standard  a sheet, poster, row or strip moving as one piece */
   --fade-fast: 0.075s;
   --fade-quick: 0.2s;
@@ -1405,11 +1406,12 @@ body:has(.site-header__menu.is-open) .gallery-material {
   transition: none;
 }
 /* ---- the Undo line (js/order-rows.js offerUndo) ----
-   After a Remove the row stays at full height as "Undo" for a few
-   seconds: a band pinned to the screen's left edge grows across its left
-   quarter (like the Modify strip's Remove), then "Undo" fades in, dark on
-   the light band. Built when held, so .is-undo has a state to start from:
-     .is-undo           the row's content and band fade; this band grows, then the label
+   After a removal (a count saved at 0) the row stays at full height as
+   "Undo" for a moment (UNDO_MS): a band pinned to the screen's left edge
+   grows across its left quarter as "Undo" fades in, dark on the light band.
+   Built when held, so .is-undo has a state to start from:
+     .is-undo           the row's content and band fade; this band grows, the label
+                        fading in as it does
      .is-undo-leaving   the offer ran out: the label goes, the band shrinks back
                         (then the row closes, .is-removing)
      .is-undo-revived   Undo tapped: the band grows full width and fades as the
@@ -1468,9 +1470,11 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .order-item.is-undo .order-item__undo-band {
   width: var(--left-w);
 }
+/* Quick, the offer being short: in while the band grows, fully in as it
+   reaches the far edge. */
 .order-item.is-undo .order-item__undo-label {
   opacity: 1;
-  transition: opacity var(--fade-quick) ease var(--fade-standard);
+  transition: opacity var(--fade-quick) ease calc(var(--fade-standard) - var(--fade-quick));
 }
 .order-item.is-undo-leaving .order-item__undo-band {
   width: 0;
@@ -1479,8 +1483,8 @@ body:has(.site-header__menu.is-open) .gallery-material {
   opacity: 0;
   transition: opacity var(--fade-fast) ease;
 }
-/* The growth's duration is the fade's delay (as in .modify-strip.is-saved),
-   so the fade waits for the band to reach the far edge; the row's band and content wait too. */
+/* The growth's duration is the fade's delay, so the fade waits for the band
+   to reach the far edge; the row's band and content wait too. */
 .order-item.is-undo-revived .order-item__undo-band {
   width: 100%;
   opacity: 0;
@@ -1518,17 +1522,34 @@ body:has(.site-header__menu.is-open) .gallery-material {
   -webkit-tap-highlight-color: transparent;
 }
 .order-item__thumb {
-  flex: 0 0 auto;
   width: 3.75rem;
   height: 3.75rem;
+}
+/* A picture standing for a count (EmjiveHelpers.thumbStack): its copies laid
+   over it, each a --stack-step up and to the right, the --stack-n pictures
+   centred together on the box, which they overhang. */
+.thumb-stack {
+  --stack-step: 0.3rem;
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+}
+.thumb-stack__layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   background: transparent;
+  --stack-off: calc((var(--stack-i) - (var(--stack-n, 1) - 1) / 2) * var(--stack-step));
+  transform: translate(var(--stack-off), calc(var(--stack-off) * -1));
 }
 /* fadeSwap() (js/order-rows.js): changed parts fade out in 0.12s
    (.is-swapping), swap, and fade back in over 0.18s. */
 .order-item__thumb,
 .order-item__name,
 .order-item__attrs,
+.order-item__count,
 .order-item__price {
   transition: opacity 0.18s ease;
 }
@@ -1536,12 +1557,23 @@ body:has(.site-header__menu.is-open) .gallery-material {
   opacity: 0;
   transition-duration: 0.12s;
 }
-/* Name and attrs back to back read as one label. min-width: 0 lets it shrink,
-   to one line that scrolls sideways (.edge-scroll), not an ellipsis. */
-.order-item__meta {
-  --edge-fade: 15%;
+/* The text: the label, and the count laid over its right end. min-width: 0
+   lets it shrink, the label to one line that scrolls sideways (.edge-scroll),
+   not an ellipsis. */
+.order-item__text {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+/* Name and attrs back to back read as one label. With a count, room for it
+   at the end (--count-chars, js/order-rows.js fillCount), so the label
+   scrolled to its end stops short of it, and a clipped label fades under it. */
+.order-item__meta {
+  --edge-fade: 15%;
+  display: block;
+}
+.order-item__text.has-count .order-item__meta {
+  padding-right: calc(var(--count-chars) * 0.7em + 0.5em);
 }
 .order-item__name { font-family: var(--font-main); color: var(--white); }
 .order-item__attrs {
@@ -1555,11 +1587,233 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .size-fraction {
   font-size: 0.75em;
 }
+/* "x2", for a count above one: always at the text's right end, on the
+   label's line, however long the label. */
+.order-item__count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-family: var(--font-main);
+  color: var(--white);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.order-item__count[hidden] { display: none; }
 .order-item__price {
   flex: 0 0 auto;
   font-family: var(--font-main);
   color: var(--white);
   white-space: nowrap;
+}
+
+/* ---- query mode (js/order-rows.js) ----
+   A tapped row's controls, over the row (under the row's band, which inverts
+   them), in columns following the row's: the − count + stepper where the
+   label starts, the close cross at one place for every row (about a price's
+   middle), Modify centred between + and the cross.
+     .is-query          the row's content fades, the controls fade in
+     .is-count-changed  the count differs from the stored one: Modify and the
+                        cross give way to Save, in Modify's place
+     .is-count-zero     the count is 0: Save gives way to Remove, and − goes
+     .is-hosting        the Modify sheet's strip covers the row: the controls
+                        and the content step aside, the strip's band in for
+                        the row's
+     .is-unhosting      the strip leaving: after a Save its labels fade out,
+                        then the content fades in (.is-unhost-saved); after
+                        the back arrow they crossfade with the controls
+   The layer is laid out before .is-query lands (it starts at opacity 0). */
+.order-item__query {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  /* Quick taps on the stepper never zoom the page (iOS double-tap). */
+  touch-action: manipulation;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fade-fast) ease;
+}
+.order-item.is-query .order-item__query {
+  opacity: 1;
+  pointer-events: auto;
+  /* In a beat after the content leaves. */
+  transition-delay: var(--fade-fast);
+}
+.order-item.is-query {
+  cursor: default;
+}
+.order-item.is-query .order-item__inner {
+  opacity: 0;
+  pointer-events: none;
+}
+/* The row's columns (.order-item__content: the picture, 1rem gaps, the text,
+   the price) inside the row's padding; the picture's column stays empty. */
+.order-item__query-box {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 1fr) auto;
+  column-gap: 1rem;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--edge-px);
+}
+.order-item__q {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0 0.5rem;
+  border: none;
+  background: none;
+  color: var(--white);
+  white-space: nowrap;
+  font-family: var(--font-main);
+  font-weight: var(--button-font-weight);
+  font-size: var(--button-font-size);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* Modify, Save and Remove (and the cross, and −) crossfade rather than
+     blink as the count changes. */
+  transition: opacity var(--fade-quick) ease;
+}
+.order-item__q:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (hover: hover) {
+  .order-item__q:not(:disabled):hover { opacity: 0.6; }
+}
+.order-item__q-text {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* Modify, Save and Remove in one cell, crossfading, centred between the +
+   glyph and the cross's drawing (--actions-x, js/order-rows.js placeActions). */
+.order-item__q-actions {
+  position: absolute;
+  top: 50%;
+  left: var(--actions-x, 50%);
+  display: grid;
+  justify-items: center;
+  transform: translate(-50%, -50%);
+}
+.order-item__q-modify,
+.order-item__q-save,
+.order-item__q-remove {
+  grid-area: 1 / 1;
+}
+/* At the name's size (the row's text size, so em is the name's here).
+   Where the row's label starts: the − drawing's edge there (less its
+   button's side room). It keeps its place at 0, − gone. --stepper-gap
+   sets the spaces between −, the count and +; --step-size is the drawings'. */
+.order-item__stepper {
+  --stepper-gap: 0.24rem;
+  /* 0.8 of the name's digit height (DINish's digits are 0.72em). */
+  --step-size: calc(0.72em * 0.8);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--stepper-gap);
+  margin-left: calc((var(--step-size) - 2.25rem) / 2);
+}
+/* − and +: drawings in the cross's thin stroke, centred on the strip. */
+.order-item__q-step {
+  min-width: 2.25rem;
+  padding: 0;
+  font-size: inherit;
+}
+.order-item__q-step svg {
+  display: block;
+  width: var(--step-size);
+  height: var(--step-size);
+}
+/* The count in the name's type. Its line trimmed to the digits (cap height
+   to baseline), so it centres on the strip like the drawings. */
+.order-item__q-count {
+  min-width: 2ch;
+  text-align: center;
+  font-family: var(--font-main);
+  font-weight: normal;
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+/* A column as wide as a typical price ("€ 000", 5 digit widths in the
+   price's type) at the row's right edge, where prices end: the cross centred
+   on it, at the same place on every row whatever its own price's length. */
+.order-item__q-price {
+  grid-column: 3;
+  position: relative;
+  align-self: stretch;
+  width: 5ch;
+  font-family: var(--font-main);
+}
+.order-item__q-close {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-height: 0;
+  /* The drawing 0.68rem across in the 2.25rem tap area. */
+  padding: 0.785rem;
+  /* Centred on the column, then 4px right of it. */
+  transform: translate(calc(-50% + 0.25rem), -50%);
+}
+.order-item__q-close svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Save at 0 takes four classes, to outrank .is-count-changed's Save below. */
+.order-item__q-save,
+.order-item__q-remove,
+.order-item.is-count-changed .order-item__q-modify,
+.order-item.is-count-changed .order-item__q-close,
+.order-item.is-count-changed.is-count-zero .order-item__q-save,
+.order-item.is-count-zero .order-item__q-minus {
+  opacity: 0;
+  pointer-events: none;
+}
+.order-item.is-count-changed .order-item__q-save,
+.order-item.is-count-zero .order-item__q-remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+.order-item.is-hosting .order-item__query,
+.order-item.is-hosting .order-item__inner {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
+}
+/* The strip's band stands in for the row's (.modify-strip__band): off at
+   once a beat in, as the strip's comes on, and still off while the strip's
+   labels crossfade with the row's content or controls (.is-unhosting). The
+   script swaps them back with no transition (.is-instant). */
+.order-item.is-hosting::before {
+  opacity: 0;
+  transition: opacity 0s linear var(--fade-fast);
+}
+.order-item.is-unhosting::before {
+  opacity: 0;
+  transition: none;
+}
+.order-item.is-unhosting .order-item__query,
+.order-item.is-unhosting .order-item__inner {
+  transition: opacity var(--fade-standard) ease;
+}
+/* After a Save, in sequence: the strip's labels out quickly, then the
+   content in. */
+.order-item.is-unhosting.is-unhost-saved .order-item__inner {
+  transition: opacity var(--fade-standard) ease var(--fade-quick);
+}
+.order-item.is-unhost-saved .modify-strip.is-leaving .modify-strip__back,
+.order-item.is-unhost-saved .modify-strip.is-leaving .modify-strip__save {
+  transition: opacity var(--fade-quick) ease;
 }
 
 /* ---- shipping and returns: label | text rows (--label-col, --label-gap),
@@ -1733,50 +1987,12 @@ body:has(.order-checkout-bar:not([hidden])) {
 .order-checkout-bar__button:disabled { opacity: 0.35; cursor: not-allowed; }
 .order-checkout-bar__button:disabled:hover { opacity: 0.35; }
 
-/* ---- strip mode ----
-   While the Modify sheet is open its strip (.modify-strip) covers this bar;
-   js/selection-page.js toggles .is-strip-active and the strip's .is-hidden.
-   Sequenced by transition-delay in --fade-fast beats: the row goes, then the
-   strip's surface, then its buttons; the glass waits for all three. Hiding
-   needs no override: the strip's own hide (buttons, then surface) is what the
-   row's base delay waits out. */
-.order-checkout-bar__row {
-  transition: opacity var(--fade-fast) ease calc(var(--fade-fast) * 2);
-}
-.order-checkout-bar.is-strip-active .order-checkout-bar__row {
-  opacity: 0;
-  pointer-events: none;
-  transition-delay: 0s;
-}
-/* Nothing selected (the strip still fading): no total, so the row stays out. */
-.order-checkout-bar.is-empty .order-checkout-bar__row {
-  opacity: 0;
-  pointer-events: none;
-}
-.order-checkout-bar .modify-strip:not(.is-hidden)::before,
-.order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__band {
-  transition-delay: var(--fade-fast);
-}
-.order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__remove,
-.order-checkout-bar .modify-strip:not(.is-hidden) .modify-strip__save {
-  transition-delay: calc(var(--fade-fast) * 2);
-}
-/* The opaque strip covers the bar, so its blurs hide once the strip is fully
-   in, and return as soon as it starts leaving. */
-.order-checkout-bar .glass__blur {
-  transition: visibility 0s;
-}
-.order-checkout-bar.is-strip-active .glass__blur {
-  visibility: hidden;
-  transition-delay: calc(var(--fade-fast) * 3);
-}
-
 /* ---- the drawer over the checkout bar ----
-   A copy of the tapped row between the bar and the Modify sheet
-   (js/selection-page.js). Its own fixed element so the row's band isn't
-   inside the glass's backdrop-filter. Opens on the 0.3s max-height transition
-   in step with the sheet; same z-index as the bar, so the sheet slides from
-   behind both. */
+   A copy of the row being modified between the bar and the Modify sheet,
+   carrying the sheet's strip (js/selection-page.js). Its own fixed element so
+   the row's band isn't inside the glass's backdrop-filter. Opens on the 0.3s
+   max-height transition in step with the sheet; same z-index as the bar, so
+   the sheet slides from behind both. */
 .order-checkout-drawer {
   position: fixed;
   left: 0;
@@ -4286,18 +4502,27 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal--modify .product-dial--size.is-open .product-size-dial__track {
   pointer-events: auto;
 }
-/* The item's name, leading to its page (js/modify-modal.js): a secondary
-   button at the content's right margin, just under the sheet surface's top
-   edge. The frame takes no taps, so the button opts in. */
+/* The item's name, leading to its page (js/modify-modal.js), a secondary
+   button at the content's left margin, and across from it the draft's price
+   at the right margin: one line just under the sheet surface's top edge, the
+   two centred on each other. The frame takes no taps, so the button opts in. */
+.size-modal__head {
+  position: absolute;
+  z-index: 2;
+  top: calc(50% + 0.5rem);
+  left: max(var(--edge-px), (100% - var(--size-modal-max)) / 2 + var(--edge-px));
+  right: max(var(--edge-px), (100% - var(--size-modal-max)) / 2 + var(--edge-px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  pointer-events: none;
+}
 .size-modal__page-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  position: absolute;
-  z-index: 2;
-  top: calc(50% + 0.5rem);
-  /* Less the trailing letter-spacing, so the letters end on the margin. */
-  right: calc(max(var(--edge-px), (100% - var(--size-modal-max)) / 2 + var(--edge-px)) - var(--button-secondary-letter-spacing));
+  min-width: 0;
   padding: calc(0.3rem * var(--button-secondary-scale)) 0;
   border: none;
   background: none;
@@ -4313,10 +4538,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   pointer-events: auto;
   transition: opacity var(--fade-quick) ease;
 }
-/* The arrow before the label, cap height. */
+/* The arrow after the label, pointing up and out, a little under cap height. */
 .size-modal__page-toggle svg {
-  width: 1.2em;
-  height: 1.2em;
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+/* The rows' price type and size (.order-item__price). */
+.size-modal__price {
+  flex: none;
+  margin: 0;
+  font-family: var(--font-main);
+  line-height: 1.4;
+  color: var(--black);
+  white-space: nowrap;
 }
 @media (hover: hover) {
   .size-modal__page-toggle:hover { opacity: 0.6; }
@@ -4432,29 +4667,24 @@ body.has-series-hero .selection-bar {
   /* flex-end, so an overflowing stack spills past the left edge (clipped and
      faded), not into Order. */
   justify-content: flex-end;
-  /* With Order's --fade-fast, so they fade in step. */
-  transition: opacity var(--fade-fast) ease;
   /* Own compositor layer (see .selection-bar__order). */
   transform: translateZ(0);
-  will-change: opacity;
 }
 /* The author display rule beats the UA [hidden]. */
 .selection-bar__icons[hidden] { display: none; }
-/* Hidden under the Modify strip; its own class so its reveal can happen with
-   Order's (revealCurrentSummaryMode()). */
-.selection-bar__icons.is-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
 .selection-bar__icon {
+  --stack-step: 0.2rem;
+  /* A stack's overhang either side, added to its margins so the spaces
+     between icons stay a single icon's. */
+  --stack-overhang: calc((var(--stack-n, 1) - 1) * var(--stack-step) / 2);
   width: 2.25rem;
   height: 2.25rem;
   /* No shrinking: icons stay full size and overflow is clipped and faded. */
   flex-shrink: 0;
-  margin-right: 0.5rem;
-  object-fit: contain;
-  background: transparent;
+  margin-left: var(--stack-overhang);
+  margin-right: calc(0.5rem + var(--stack-overhang));
   transition: width var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1),
+              margin-left var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1),
               margin-right var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1),
               opacity var(--fade-standard) ease,
               transform var(--fade-standard) cubic-bezier(0.22, 1, 0.36, 1);
@@ -4464,6 +4694,7 @@ body.has-series-hero .selection-bar {
    gap through the flex layout; the icon leaves the DOM when it ends. */
 .selection-bar__icon--exit {
   width: 0;
+  margin-left: 0;
   margin-right: 0;
   opacity: 0;
   transform: scale(0.85);
@@ -4538,6 +4769,9 @@ body.has-series-hero .selection-bar {
   min-height: 0;
   max-height: 66vh;
   overflow: hidden auto;
+  /* Its own scroll ends don't hand over to the page (js/selection-bar.js
+     covers the rest). */
+  overscroll-behavior: contain;
   transition: max-height 0.3s ease;
 }
 /* While the Modify sheet is up the drawer shows only the tapped row and the
@@ -4555,19 +4789,22 @@ body.has-series-hero .selection-bar {
 /* The drawer's rows are .order-item.order-item--drawer, on the drawer's --black-bg. */
 
 /* ==== Modify strip ====
-   What the page's bottom bar turns into while the Modify sheet is open: built
-   by js/modify-modal.js, shown and hidden by the bar. On --black-bg:
-     Remove    the left quarter, plain --white label
-     Save      the rest, its label centred on the whole bar; dimmed while the
-               size isn't orderable
-   An invert band (.modify-strip__band) covers Save's area, so only Save's
-   label reads dark. Save grows the band across the strip, then fades it
-   (.is-saved). Remove just hides the strip; Undo lives on the row
-   (.order-item__undo). Show and hide are staggered: the surface (::before,
-   with the band) leads in and trails out, the buttons the reverse. */
+   Laid over the order row the Modify sheet opened from, while it is open:
+   built by js/modify-modal.js, shown and hidden by the row
+   (js/order-rows.js stripHost). Its invert band is the row's own
+   (.order-item::before) in size and place and stands in for it: both
+   invert, so only one is ever on.
+     back      the left quarter, the size finder's arrow
+     Save      the rest, its label centred on the whole strip; dimmed while
+               the size isn't orderable
+   Arriving, the row's controls fade, then the bands swap at once and the
+   labels fade in. Leaving (.is-leaving), on this band, the labels fade out
+   before the row's content fades in (after a Save), or crossfade with its
+   controls (after the back arrow) (the row's .is-unhosting); then the bands
+   swap back at once (.is-hidden). */
 /* Geometry follows the content span: --span centred with --inset either
-   side, --q a quarter of it, --left-w Remove's width; the bands reach the
-   screen's edges from it. Percentages are of screen-wide elements. */
+   side, --q a quarter of it, --left-w the arrow's width. Percentages are of
+   screen-wide elements. */
 .modify-strip,
 .order-item__undo {
   --span: min(100%, var(--max));
@@ -4575,38 +4812,24 @@ body.has-series-hero .selection-bar {
   --q: calc(var(--span) / 4);
   --left-w: calc(var(--inset) + var(--q));
 }
+/* Full-bleed over the row, centred on it like the Undo line, above the
+   row's band. Placed without a transform: as its own compositing layer inside
+   the drawer's transformed, scrolled list, iOS Safari can hit-test its taps
+   off target. */
 .modify-strip {
   position: absolute;
-  left: 0;
-  right: 0;
+  z-index: 3;
+  top: 0;
   bottom: 0;
-  z-index: 1;
-  height: var(--selection-bar-height);
-  transform: translateZ(0);
+  left: calc(50% - 50vw);
+  width: 100vw;
 }
-.modify-strip.is-hidden {
+.modify-strip.is-hidden,
+.modify-strip.is-leaving {
   pointer-events: none;
 }
-/* The surface as a pseudo-element, not the container's opacity (which would
-   multiply into the buttons), so it can fade on its own schedule. */
-.modify-strip::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: var(--black-bg);
-  opacity: 1;
-  /* Its own layer (WebKit repaint). */
-  transition: opacity var(--fade-fast) ease;
-  will-change: opacity;
-}
-.modify-strip.is-hidden::before {
-  opacity: 0;
-  /* Trails the buttons out. */
-  transition-delay: var(--fade-fast);
-}
 .modify-strip__save,
-.modify-strip__remove,
+.modify-strip__back,
 .order-item__undo-button {
   position: absolute;
   top: 0;
@@ -4627,11 +4850,8 @@ body.has-series-hero .selection-bar {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.modify-strip__label {
-  transition: opacity var(--fade-fast) ease;
-}
 /* Tap area: the right three quarters (and the blank beyond); padding-right
-   centres the label on the whole bar. */
+   centres the label on the whole strip. */
 .modify-strip__save {
   left: var(--left-w);
   right: 0;
@@ -4640,62 +4860,59 @@ body.has-series-hero .selection-bar {
 }
 .modify-strip__save:disabled { cursor: default; }
 .modify-strip__save:disabled .modify-strip__label { opacity: 0.35; }
-/* No band under Remove: a plain label on the strip. */
-.modify-strip__remove {
+/* The size finder's back arrow (.size-finder__back), its 1.25rem drawing
+   starting at the content column's edge; 0.1rem low, so it sits on Save's
+   line rather than above it. */
+.modify-strip__back {
   left: 0;
   width: var(--left-w);
-  padding-left: var(--inset);
+  justify-content: flex-start;
+  padding-left: calc(var(--inset) + var(--edge-px));
   color: var(--white);
 }
-/* As .order-item::before: an invert band, centred, over Save's area,
-   painted over the labels; takes no taps. */
+.modify-strip__back svg {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  transform: translateY(0.1rem);
+}
+/* As .order-item::before: an invert band across the strip, painted over the
+   labels; takes no taps. On a beat in, as the row's goes off
+   (.order-item.is-hosting::before); off at once. */
 .modify-strip__band {
   position: absolute;
   top: 50%;
-  right: 0;
-  width: calc(100% - var(--left-w));
+  left: 0;
+  width: 100%;
   height: var(--band-h);
-  transform: translate(0, -50%);
-  opacity: 1;
+  transform: translateY(-50%);
   pointer-events: none;
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
-  /* Opacity too, for the outer hide. */
-  transition: width var(--fade-standard) ease, opacity var(--fade-fast) ease;
+  opacity: 1;
+  transition: opacity 0s linear var(--fade-fast);
 }
-/* Save: the band grows across the strip, then fades (the growth's duration is the fade's delay). */
-.modify-strip.is-saved .modify-strip__band {
-  width: 100%;
+.modify-strip.is-leaving .modify-strip__band {
+  transition: none;
+}
+.modify-strip.is-hidden .modify-strip__band {
   opacity: 0;
-  transition: width var(--fade-standard) ease, opacity var(--fade-quick) ease var(--fade-standard);
+  transition: none;
 }
-.modify-strip.is-saved .modify-strip__remove,
-.modify-strip.is-saved .modify-strip__save {
-  pointer-events: none;
-}
-.modify-strip.is-saved .modify-strip__remove .modify-strip__label,
-.modify-strip.is-saved .modify-strip__save .modify-strip__label {
-  opacity: 0;
-}
-/* The buttons' half of the staggered show and hide: full shorthands, after
-   the .is-saved rules, so they win whatever internal transition is running. */
-.modify-strip__remove,
+/* The labels: in after the band, out in the crossfade. */
+.modify-strip__back,
 .modify-strip__save {
   opacity: 1;
   transition: opacity var(--fade-fast) ease var(--fade-fast);
 }
-.modify-strip.is-hidden .modify-strip__remove,
+.modify-strip.is-leaving .modify-strip__back,
+.modify-strip.is-leaving .modify-strip__save {
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
+}
+.modify-strip.is-hidden .modify-strip__back,
 .modify-strip.is-hidden .modify-strip__save {
   opacity: 0;
-  transition: opacity var(--fade-fast) ease;
-}
-.modify-strip.is-hidden .modify-strip__band {
-  opacity: 0;
-  transition-delay: 0s, var(--fade-fast);
-}
-/* A mode switch while out of sight (setStripMode): nothing plays. */
-.modify-strip.is-instant,
-.modify-strip.is-instant * {
   transition: none;
 }
 
@@ -4747,15 +4964,19 @@ input:focus-visible,
   outline-offset: -2px;
 }
 
-/* The Modify strip's buttons and the Undo button span their bars: ring
+/* The Modify strip's buttons and the Undo button span their rows: ring
    inside, light, and keeping their own absolute position. Three classes
    outrank the lists above. */
 .modify-strip .modify-strip__save:focus-visible,
-.modify-strip .modify-strip__remove:focus-visible,
+.modify-strip .modify-strip__back:focus-visible,
 .order-item .order-item__undo-button:focus-visible {
   position: absolute;
   outline: var(--focus-ring-inverted);
   outline-offset: -4px;
+}
+/* The query row's cross keeps its absolute, centred place when focused. */
+.order-item .order-item__q-close:focus-visible {
+  position: absolute;
 }
 /* The fixed view toggle keeps its place and z-index when focused. */
 .products .gallery-control:focus-visible {

@@ -49,12 +49,12 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
-  - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by tapping a row in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
-    - sets `EmjiveModifyModal` { open, isOpen, attach }
+  - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by a row's Modify in query mode (js/order-rows.js), in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
+    - sets `EmjiveModifyModal` { open, isOpen }
   - [option-dial.js](../js/option-dial.js) — Option dials (js/product.js, js/modify-modal.js): a circular button showing the active option, the dial's name under it, opening a disc over three blurs, divided into one section per option, each always in the same place, the active one dotted (the button's circle shrinking to the dot, turning round the middle to it).
     - sets `EmjiveOptionDial` { mount, mountSize, nameShower }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
@@ -64,10 +64,10 @@ The repo's structure, generated from the code. Each description is the first sen
   - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, photo feed, model, dials (shape, material, size), plan views, the information and the selection flow across the two stages js/product-stages.js drives, handling what CSS can't (the band's reveal of the model, its lift, the feed's and the design column's room).
   - [scroll-memory.js](../js/scroll-memory.js) — Homepage scroll memory (index.html only): Back returns to the exact offset on the first painted frame.
     - sets `EmjiveScrollMemory` { isRestoring, holdUntil, landing, remember, rememberWheel, wheel, contentReady }
-  - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (or "No selected item") and "Order (N) ›".
-  - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on it.
+  - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (stacked for a count above one, or "No selected item") and "Order (N) ›", N counting pieces.
+  - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js: a tap puts a row in query mode, whose Modify opens the Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on it.
   - [selection.js](../js/selection.js) — The selection (cart), in localStorage: window.EmjiveSelection.
-    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, clear, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
+    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, wouldMerge, clear, countOf, linePrice, pieceCount, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
   - [series-page.js](../js/series-page.js) — series.html: fills the requested series' title, year and subtitle from its manifest.
   - [series.js](../js/series.js) — Series resolution (window.EmjiveSeries), plus the page-wide helpers every page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage hero bundle loader.
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
@@ -160,7 +160,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 
 | Global | Set by | Read by |
 | --- | --- | --- |
-| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
+| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
 | `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
 | `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js`, `scripts/auto-render.js` |
@@ -172,7 +172,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveMenus` | `js/series.js` | `js/main.js`, `js/selection-bar.js` |
 | `EmjiveMessage` | `js/series.js` | `js/gallery.js`, `js/product.js`, `js/series-page.js` |
 | `EmjiveModelViewer` | `js/three-viewer.js` | `scene-tool.html`, `js/modify-modal.js`, `js/product.js`, `js/viewer-entry.js`, `scripts/auto-render.js` |
-| `EmjiveModifyModal` | `js/modify-modal.js` | `js/selection-bar.js`, `js/selection-page.js` |
+| `EmjiveModifyModal` | `js/modify-modal.js` | `js/order-rows.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveOptionDial` | `js/option-dial.js` | `js/modify-modal.js`, `js/product.js` |
 | `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |

@@ -459,13 +459,13 @@
     var close = el("button", "size-finder__close");
     close.type = "button";
     close.setAttribute("aria-label", "Close");
-    close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3 L21 21 M21 3 L3 21" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+    close.innerHTML = H.ICON_CLOSE;
     close.addEventListener("click", closeFinder);
 
     var back = el("button", "size-finder__back");
     back.type = "button";
     back.setAttribute("aria-label", "Back");
-    back.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12 H3 M10 5 L3 12 L10 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+    back.innerHTML = H.ICON_BACK;
     back.addEventListener("click", goBack);
     nodes.back = back;
 

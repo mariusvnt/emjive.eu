@@ -57,7 +57,11 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 
 **The information follows the configuration, always shown**: label | value rows in clusters (the material, the price breakdown, shipping and returns) on two columns they all share. The design stretch is as long as scrolling the last of it clear of the bottom bars takes.
 
-**The Modify sheet is on every page**, opened from the floating selection bar's drawer or from the order list, and it shows the item's live 3D model over the product page's dials. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk.
+**An item is one configuration with a count.** Adding a piece already in the selection, or modifying one into another's configuration, merges them, so the selection never lists the same piece twice.
+
+**A selection row is edited in place first.** A tap turns the row into its own controls (the count, Modify, a close), so changing how many, or removing one by counting down to zero, never opens a sheet. Its Undo is the row itself, held for a moment.
+
+**The Modify sheet is on every page**, opened from a row's Modify in the floating selection bar's drawer or in the order list, and it shows the item's live 3D model over the product page's dials. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk. Its back and Save sit on the row it rests on, whose band they take over, rather than on the page's bar, which stays as it was: the row turns into the sheet's controls and back with only the labels changing.
 
 ## 3. Scripts
 

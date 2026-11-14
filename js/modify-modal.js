@@ -1,27 +1,27 @@
-// The Modify sheet, on every page: opened by tapping a row in the order list
-// (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
-// A bottom sheet (.size-modal--drawer) above the page's bar holding the live
-// model (its poster until the sheet has slid in, scheduleViewer) with a
-// button named after the item leading to its page, and the product page's
-// dials (js/option-dial.js): shape (with more than one design), material,
-// size with "Find my size".
+// The Modify sheet, on every page: opened by a row's Modify in query mode
+// (js/order-rows.js), in the order list (js/selection-page.js) or the
+// floating bar's drawer (js/selection-bar.js). A bottom sheet
+// (.size-modal--drawer) resting on that row, holding the live model (its
+// poster until the sheet has slid in, scheduleViewer), the item's name
+// leading to its page (top left) and the draft's price for the item's count
+// (top right), and the product page's dials (js/option-dial.js): shape (with
+// more than one design), material, size with "Find my size".
 //
-// Its buttons are a strip the page's bar turns into (options.bar): Remove |
-// Save. Remove takes the item out and the list keeps its row as an Undo line
-// for UNDO_MS (js/order-rows.js offerUndo). Save needs a size within the
-// product's "size-range".
+// Its buttons are a strip laid over the row (options.bar): back arrow | Save.
+// The arrow (like Escape and the backdrop) closes without saving, the row
+// back in query mode; after a Save it comes back as it was. Save needs a size within the product's
+// "size-range"; a Save making the item another's twin merges the two
+// (EmjiveSelection.updateItem) once the strip has left.
 //
-// window.EmjiveModifyModal = { open(item, index, options), isOpen(), attach(bar) }
+// window.EmjiveModifyModal = { open(item, index, options), isOpen() }
 // options:
-//   bar                         { el, show(strip), hide(strip) }: the strip goes
-//                               into el; the bar sequences the swap
+//   bar                         { el, show(strip), hide(strip, saved) }: the
+//                               strip goes into el (an element, or a function
+//                               returning one, read after onOpen)
 //   onPreview(index, values)    the draft changed: show { name, metal, size,
 //                               price, image } on the row without storing (null: revert)
-//   offerUndo(index, handlers)  hold the row as an Undo line (js/order-rows.js);
-//                               without it a Remove is final
-//   onOpen(item), onClose()     the sheet is up / has closed
-//   returnFocus, fallbackFocus  elements or functions; fallbackFocus also
-//                               catches focus left on an expired Undo
+//   onOpen(item), onClose()     the sheet is about to rise / has closed
+//   returnFocus, fallbackFocus  elements or functions
 // Changes go through js/selection.js, whose "emjive:selection-changed" the
 // lists follow. Dispatches "emjive:modify-open" before building (js/product.js
 // closes its review sheet, js/gallery-stack.js frees its focused viewer's
@@ -35,8 +35,6 @@
   // The sheet's 0.3s slide-out plus a margin: dispose the viewer only once out
   // of sight, or the model blanks mid-slide.
   var SLIDE_OUT_MS = 350;
-  // The Undo offer's length, from the Remove, regardless of focus or pointer.
-  var UNDO_MS = 4000;
 
   var H = window.EmjiveHelpers;
   var el = H.el;
@@ -67,10 +65,16 @@
   modelFrame.appendChild(slot);
   var pageToggle = el("button", "size-modal__page-toggle");
   pageToggle.type = "button";
-  pageToggle.insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12 H21 M14 5 L21 12 L14 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
   var pageLabel = el("span", "size-modal__page-label");
   pageToggle.appendChild(pageLabel);
-  modelFrame.appendChild(pageToggle);
+  pageToggle.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 L19 5 M9 5 H19 V15" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
+  // Across from the name: the draft's price for the item's count (syncPrice).
+  // One line, so the two centre on each other.
+  var priceEl = el("p", "size-modal__price");
+  var head = el("div", "size-modal__head");
+  head.appendChild(pageToggle);
+  head.appendChild(priceEl);
+  modelFrame.appendChild(head);
 
   var panel = el("div", "size-modal__panel");
   var content = el("div", "size-modal__content");
@@ -94,13 +98,12 @@
   modal.appendChild(sheet);
   document.body.appendChild(modal);
 
-  /* ---- the bar strip ----
-     What the page's bar turns into while the sheet is open (.modify-strip):
-     Remove (left quarter) and Save (the rest), with an invert band under
-     Save's label. Save grows the band across the bar and fades it before the
-     bar gets its content back (leaveAfterSave); Remove just hides the strip.
-     Mounted into the bar as soon as it exists (attach), shown and hidden by
-     the bar, inert while hidden. */
+  /* ---- the strip ----
+     Laid over the row the sheet opened from while it is open (.modify-strip):
+     the back arrow (left quarter) and Save (the rest), on an invert band
+     standing in for the row's own, so the row turns into the strip and back
+     with only the labels crossfading (js/order-rows.js stripHost). Mounted into the row per open, shown and hidden by it
+     (hide(strip, saved)), inert while hidden. */
   function stripButton(className, labelClass, label) {
     var btn = el("button", className);
     btn.type = "button";
@@ -117,13 +120,18 @@
   var strip = el("div", "modify-strip is-hidden");
   strip.setAttribute("aria-hidden", "true");
   strip.inert = true;
-  var removeBtn = stripButton("modify-strip__remove", "modify-strip__label", "Remove");
+  var backBtn = el("button", "modify-strip__back");
+  backBtn.type = "button";
+  backBtn.setAttribute("aria-label", "Back");
+  var backIcon = el("span", "modify-strip__label");
+  backIcon.insertAdjacentHTML("afterbegin", H.ICON_BACK);
+  backBtn.appendChild(backIcon);
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
-  // After the buttons, so it paints over the label it inverts.
-  var saveBand = stripBand("modify-strip__band");
-  strip.appendChild(removeBtn);
+  // After the buttons, so it paints over the labels it inverts.
+  var band = stripBand("modify-strip__band");
+  strip.appendChild(backBtn);
   strip.appendChild(saveBtn);
-  strip.appendChild(saveBand);
+  strip.appendChild(band);
 
   var state = {
     isOpen: false,
@@ -154,10 +162,8 @@
     // Cancels a viewer build waiting on the slide-in.
     cancelViewerBuild: null,
     cleanupTimer: null,
-    // While the list offers Undo: { item, index, options, handle, timer }.
-    undo: null,
-    // Cancels the Save band's exit while it plays.
-    cancelLeave: null
+    // A merging Save's write while the strip leaves its row: runs it at once.
+    flushMerge: null
   };
 
   function iconSrc(metal) {
@@ -173,47 +179,32 @@
     return state.product.designName || state.base.name || "";
   }
 
-  // "modify" (Remove | Save) or "saved" (band growing and fading, buttons
-  // inert). `instant`, or a hidden strip, skips the motion so the next open
-  // starts on its own layout.
-  function setStripMode(mode, instant) {
-    instant = instant || strip.classList.contains("is-hidden");
-    if (instant) strip.classList.add("is-instant");
-    strip.classList.toggle("is-saved", mode === "saved");
-    removeBtn.inert = mode !== "modify";
-    saveBtn.inert = mode !== "modify";
-    if (instant) {
-      void strip.offsetWidth;
-      strip.classList.remove("is-instant");
-    }
-  }
-
+  // Into the row; laid out while hidden, so the reveal fades in.
   function mountStrip(bar) {
-    if (!bar || strip.parentNode === bar.el) return;
-    bar.el.appendChild(strip);
-    // Laid out while hidden, so the first reveal fades in.
+    var host = bar && resolve(bar.el);
+    if (!host) return;
+    if (strip.parentNode !== host) host.appendChild(strip);
     void strip.offsetWidth;
   }
 
-  // The .is-saved transition's total length (band width, then opacity:
-  // 0.5s, css/style.css) plus a buffer, so the fallback never cuts it short.
-  var SAVE_LEAVE_MS = 600;
+  // Past the strip's labels fading out after a Save (--fade-quick,
+  // css/style.css), for the fallback.
+  var STRIP_OUT_MS = 450;
 
-  // After a Save the grown band fades, then the bar gets its content back; at
-  // once if the strip isn't showing.
-  function leaveAfterSave(bar) {
-    function handBack() {
-      if (bar) bar.hide(strip);
+  // A merge is written once the strip has left its row, so the other row
+  // collapses after; a new open writes it at once.
+  function mergeAfterStrip(write) {
+    var done = false;
+    var cancel = null;
+    function run() {
+      if (done) return;
+      done = true;
+      state.flushMerge = null;
+      if (cancel) cancel();
+      write();
     }
-    if (!bar || strip.classList.contains("is-hidden")) {
-      handBack();
-      return;
-    }
-    setStripMode("saved");
-    state.cancelLeave = H.afterTransition(saveBand, "opacity", SAVE_LEAVE_MS, function () {
-      state.cancelLeave = null;
-      handBack();
-    });
+    cancel = H.afterTransition(backBtn, "opacity", STRIP_OUT_MS, run);
+    state.flushMerge = run;
   }
 
   /* ---- the dials: built per open, each on a fresh host (a dial's listeners
@@ -321,9 +312,17 @@
     return values;
   }
 
-  // The row follows the draft live; nothing is stored until Save.
+  // The draft's price for the item's count.
+  function syncPrice(values) {
+    var sel = window.EmjiveSelection;
+    priceEl.textContent = sel.formatPrice(values.price * sel.countOf(state.item));
+  }
+
+  // The row and the sheet's price follow the draft live; nothing is stored until Save.
   function previewDraft() {
-    if (state.options.onPreview) state.options.onPreview(state.index, draftValues());
+    var values = draftValues();
+    syncPrice(values);
+    if (state.options.onPreview) state.options.onPreview(state.index, values);
   }
 
   // The stand-in images follow the design and metal, a metal crossfading in.
@@ -515,7 +514,7 @@
     window.dispatchEvent(new CustomEvent("emjive:modify-close"));
   }
 
-  /* ---- Save, Remove, Undo ---- */
+  /* ---- Save ---- */
 
   function orderable() {
     return window.EmjiveSelection.isOrderableSize(state.base, String(state.sizeMm));
@@ -526,106 +525,38 @@
     saveBtn.disabled = !orderable();
   }
 
+  // The row already shows what was saved, so it keeps the draft as the strip
+  // leaves. A merge is written after (mergeAfterStrip).
   function save() {
     if (!state.isOpen || !orderable()) return;
-    window.EmjiveSelection.updateItem(state.index, draftValues());
-    // The strip stays up for the band to play out; the row already shows what was saved.
-    var bar = state.options.bar;
-    close({ keepStrip: true, keepPreview: true });
-    leaveAfterSave(bar);
-  }
-
-  // Removed from storage at once while the sheet slides away. The Undo line is
-  // requested before the removal, which the list answers by keeping the row.
-  // The stored item and this session's options are kept for the Undo, which
-  // outlives the sheet. Focus moves to the line's Undo button.
-  function removeItem() {
-    if (!state.isOpen) return;
-    var index = state.index;
-    var removed = window.EmjiveSelection.getSelection()[index];
-    if (!removed) {
-      close();
-      return;
-    }
-    var options = state.options;
-    var handle = options.offerUndo ? options.offerUndo(index, {
-      onUndo: undo,
-      onGone: function () { forgetUndo(handle); }
-    }) : null;
-    window.EmjiveSelection.removeItem(index);
-    var offered = !!handle && handle.held();
-    close({ keepPreview: true, focus: offered ? handle.button() : undefined });
-    if (!offered) return;
-    state.undo = {
-      item: removed,
-      index: index,
-      options: options,
-      handle: handle,
-      timer: setTimeout(expireUndo, UNDO_MS)
-    };
-  }
-
-  // Back at its index, clamped if the list shrank; the list revives its held line.
-  function undo() {
-    var pending = state.undo;
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    state.undo = null;
     var sel = window.EmjiveSelection;
-    sel.insertItem(Math.min(pending.index, sel.getSelection().length), pending.item);
-    window.EmjiveFocusTrap.focus(function () {
-      return resolve(pending.options.returnFocus) || resolve(pending.options.fallbackFocus);
-    });
+    var index = state.index;
+    var values = draftValues();
+    var merging = sel.wouldMerge(index, values);
+    if (!merging) sel.updateItem(index, values);
+    close({ saved: true, keepPreview: true });
+    if (merging) mergeAfterStrip(function () { sel.updateItem(index, values); });
   }
 
-  // The list dropped the held line itself (a rebuild): the removal stands.
-  function forgetUndo(handle) {
-    if (!state.undo || state.undo.handle !== handle) return;
-    clearTimeout(state.undo.timer);
-    state.undo = null;
-  }
-
-  // The offer ran out (or, immediate, the page is leaving): the line closes and
-  // focus, if on Undo, goes to the fallback.
-  function expireUndo(immediate) {
-    var pending = state.undo;
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    state.undo = null;
-    var hadFocus = pending.handle.button() === document.activeElement;
-    if (immediate === true) {
-      pending.handle.drop();
-      return;
-    }
-    pending.handle.leave(function () {
-      if (!hadFocus) return;
-      window.EmjiveFocusTrap.focus(function () { return resolve(pending.options.fallbackFocus); });
-    });
-  }
-
-  // Another Modify opened during the offer: the removal stands.
-  function dropUndo() {
-    var pending = state.undo;
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    state.undo = null;
-    pending.handle.drop();
-  }
-
-  saveBtn.addEventListener("click", save);
-  removeBtn.addEventListener("click", removeItem);
+  // A tap acts by where it lands across the strip, whatever element the
+  // browser reports under the finger: the back arrow's whole zone (its
+  // button's box, the left quarter) backs out, the rest is Save. A key press
+  // on a focused button (detail 0) is that button's. A disabled Save takes no
+  // click at all.
+  strip.addEventListener("click", function (e) {
+    var onBack = e.detail === 0
+      ? backBtn.contains(e.target)
+      : e.clientX < backBtn.getBoundingClientRect().right;
+    if (onBack) close();
+    else if (e.detail !== 0 || saveBtn.contains(e.target)) save();
+  });
 
   backdrop.addEventListener("click", function () { close(); });
 
   /* ---- open / close ---- */
   function show(item, index, product, slug, options) {
-    dropUndo();
-    // The Save band still leaving: snap the strip straight back.
-    var cutLeaveShort = !!state.cancelLeave;
-    if (cutLeaveShort) {
-      state.cancelLeave();
-      state.cancelLeave = null;
-    }
+    // A merge still waiting on the strip's exit: written now.
+    if (state.flushMerge) state.flushMerge();
     // Before building: js/gallery-stack.js frees the WebGL context this needs.
     window.dispatchEvent(new CustomEvent("emjive:modify-open"));
     // Reopened during the previous slide-out: dispose that viewer now.
@@ -652,10 +583,11 @@
     pageLabel.textContent = itemName();
     mountDials();
     buildSlide();
-    // Mounted (normally already, via attach) before the mode is set, so it is laid out first.
+    // The host readies the strip's row (js/selection-page.js renders it here).
+    if (options.onOpen) options.onOpen(item);
     mountStrip(options.bar);
-    setStripMode("modify", cutLeaveShort);
     syncSave();
+    syncPrice(draftValues());
 
     modal.classList.add("is-open");
     modal.setAttribute("aria-hidden", "false");
@@ -669,13 +601,11 @@
       onEscape: function () { close(); }
     });
     if (options.bar) options.bar.show(strip);
-    if (options.onOpen) options.onOpen(item);
     scheduleViewer();
   }
 
-  // keepStrip    the strip stays up (a Save's band still to play)
-  // keepPreview  the row keeps the draft (a Save, or a Remove's leaving row)
-  // focus        where focus goes instead of returnFocus
+  // saved        a Save closed it (the row is told so)
+  // keepPreview  the row keeps the draft (a Save)
   function close(opts) {
     if (!state.isOpen) return;
     opts = opts || {};
@@ -684,8 +614,9 @@
     if (!opts.keepPreview && options.onPreview) options.onPreview(state.index, null);
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
-    if (!opts.keepStrip && options.bar) options.bar.hide(strip);
-    window.EmjiveFocusTrap.release(opts.focus);
+    // Before the release: the row takes focus back only once uncovered.
+    if (options.bar) options.bar.hide(strip, !!opts.saved);
+    window.EmjiveFocusTrap.release();
     // A pending viewer build is cancelled; a built one goes after the slide-out.
     if (state.cancelViewerBuild) {
       state.cancelViewerBuild();
@@ -740,17 +671,14 @@
   else window.addEventListener("load", prefetchProducts);
 
   // Leaving with the sheet up: close it and free the viewer now (a bfcache page
-  // stays alive with its WebGL context). A pending Undo ends too.
+  // stays alive with its WebGL context).
   window.addEventListener("pagehide", function () {
     if (state.isOpen) close();
     if (state.cleanupTimer) cleanup();
-    expireUndo(true);
   });
 
   window.EmjiveModifyModal = {
     open: open,
-    isOpen: function () { return state.isOpen; },
-    // Each page's bar calls this as soon as it exists, so the strip is in place before the first open.
-    attach: mountStrip
+    isOpen: function () { return state.isOpen; }
   };
 })();

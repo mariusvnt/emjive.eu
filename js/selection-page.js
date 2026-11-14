@@ -1,8 +1,9 @@
 // launch-order.html: the checkout review of window.EmjiveSelection — item rows
-// (js/order-rows.js; a tap opens the Modify sheet), the terms toggle, and a
-// "Proceed to checkout" bar gated on it. While the Modify
-// sheet is open the bar becomes its Remove | Save strip, with a drawer
-// showing the tapped row under the sheet. Shows .selection-empty when empty.
+// (js/order-rows.js: a tap puts a row in query mode, whose Modify opens the
+// Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on
+// it. While the sheet is open, a drawer over the bar shows a copy of the row,
+// which takes the sheet's strip, and the sheet rests on it. Shows
+// .selection-empty when empty.
 
 (function () {
   "use strict";
@@ -28,51 +29,16 @@
     checkoutButton.disabled = !termsAccepted;
   }
 
-  /* ---- checkout bar as the Modify sheet's strip ----
-     The swap is CSS (.is-strip-active); this flips classes and makes the hidden
-     half inert. stripFading keeps the bar up while the strip fades out after
-     the last item's Remove. */
-  var stripShown = false;
-  var stripFading = false;
-  var stripFadeTimer = 0;
-  var STRIP_FADE_MS = 300;
-
-  var stripHost = {
-    el: checkoutBar,
-    show: function (strip) {
-      stripShown = true;
-      checkoutBar.hidden = false;
-      checkoutBar.classList.add("is-strip-active");
-      checkoutRow.inert = true;
-      strip.classList.remove("is-hidden");
-      strip.setAttribute("aria-hidden", "false");
-      strip.inert = false;
-    },
-    hide: function (strip) {
-      stripShown = false;
-      checkoutBar.classList.remove("is-strip-active");
-      checkoutRow.inert = false;
-      strip.classList.add("is-hidden");
-      strip.setAttribute("aria-hidden", "true");
-      strip.inert = true;
-      stripFading = true;
-      clearTimeout(stripFadeTimer);
-      stripFadeTimer = setTimeout(function () {
-        stripFading = false;
-        updateCheckoutSummary();
-      }, STRIP_FADE_MS);
-      updateCheckoutSummary();
-    }
-  };
-  // Attached up front, not mid-Modify. Modify is optional here: the page works
-  // without the sheet script.
-  if (window.EmjiveModifyModal) window.EmjiveModifyModal.attach(stripHost);
+  function modifyOpen() {
+    return !!(window.EmjiveModifyModal && window.EmjiveModifyModal.isOpen());
+  }
 
   /* ---- the drawer over the checkout bar ----
-     Like the floating bar's drawer on other pages: a copy of the tapped row
-     between the bar and the sheet, which rests on it through
-     --selection-bar-live-height. Opens and closes with the sheet. Visual only:
-     inert and aria-hidden (the real row is in the list). */
+     Like the floating bar's drawer on other pages: a copy of the row whose
+     Modify was pressed, between the bar and the sheet, which rests on it
+     through --selection-bar-live-height. The copy takes the sheet's strip
+     (its only live controls); inert and aria-hidden while shut. Opens with
+     the sheet and closes once the strip has left (after a Save's band). */
   var rowDrawer = document.createElement("div");
   rowDrawer.className = "order-checkout-drawer";
   rowDrawer.setAttribute("aria-hidden", "true");
@@ -86,7 +52,7 @@
     listEl: rowDrawerList,
     rowClass: "order-item--drawer",
     showPrice: true,
-    onModify: function () {}
+    queryable: false
   });
   // The item shown in the drawer while open.
   var drawerIndex = null;
@@ -105,6 +71,8 @@
     if (!item) return;
     drawerIndex = index;
     drawerRows.render([item], { animate: false });
+    rowDrawer.inert = false;
+    rowDrawer.removeAttribute("aria-hidden");
     // Laid out while shut (max-height, not display), so it measures true.
     var height = rowDrawerList.offsetHeight;
     rowDrawer.style.maxHeight = height + "px";
@@ -113,6 +81,8 @@
 
   function closeRowDrawer() {
     drawerIndex = null;
+    rowDrawer.inert = true;
+    rowDrawer.setAttribute("aria-hidden", "true");
     rowDrawer.style.maxHeight = "0px";
     setLiveHeight(null);
   }
@@ -120,13 +90,13 @@
   // Recomputed from scratch after every change; any unpriced (price 0) item
   // makes it "TBD".
   function updateCheckoutSummary() {
-    var items = window.EmjiveSelection.getSelection();
-    checkoutBar.hidden = !items.length && !stripShown && !stripFading;
-    checkoutBar.classList.toggle("is-empty", !items.length);
+    var sel = window.EmjiveSelection;
+    var items = sel.getSelection();
+    checkoutBar.hidden = !items.length;
     var total = 0;
     var unpriced = false;
     items.forEach(function (item) {
-      total += item.price || 0;
+      total += sel.linePrice(item);
       if (!(item.price > 0)) unpriced = true;
     });
     checkoutTotalEl.textContent = unpriced ? "TBD" : window.EmjiveSelection.formatPrice(total);
@@ -200,35 +170,41 @@
   // null before the first render, then "list" or "empty".
   var listState = null;
 
-  // Focus returns to the row, looked up late as rows come and go; the
-  // fallback is the empty state's "Back to gallery".
+  // The top row, the latest, or the empty state's "Back to gallery".
+  function fallbackFocus() {
+    return (listState === "list" && rows.buttonAt(window.EmjiveSelection.getSelection().length - 1)) || backLink;
+  }
+
+  // The strip goes on the drawer's copy of the row (rendered in onOpen); the
+  // list's row stays in query mode under the sheet, and leaves it after a
+  // Save. Focus returns to the list's row, looked up late as rows
+  // come and go.
   function openModify(binding) {
+    if (!window.EmjiveModifyModal) return;
+    var host = null;
     window.EmjiveModifyModal.open(binding.item, binding.index, {
-      bar: stripHost,
+      bar: {
+        el: function () { return host && host.el; },
+        show: function (strip) { if (host) host.show(strip); },
+        hide: function (strip, saved) {
+          if (host) host.hide(strip, saved);
+          if (saved) rows.endQuery();
+          closeRowDrawer();
+        }
+      },
       // Both copies of the row: the list's and the drawer's (index 0).
       onPreview: function (index, values) {
         rows.preview(index, values);
         if (drawerIndex !== null) drawerRows.preview(0, values);
       },
-      onOpen: function () { openRowDrawer(binding.index); },
-      onClose: closeRowDrawer,
-      // The row stays as its Undo; when it goes, an empty list gives way to the empty state.
-      offerUndo: function (index, handlers) {
-        return rows.offerUndo(index, {
-          onUndo: handlers.onUndo,
-          onGone: function () {
-            handlers.onGone();
-            render();
-          }
-        });
+      onOpen: function () {
+        openRowDrawer(binding.index);
+        host = drawerRows.stripHost(0);
       },
       returnFocus: function () {
         return listState === "list" ? rows.buttonAt(binding.index) : null;
       },
-      fallbackFocus: function () {
-        // The top row, the latest.
-        return (listState === "list" && rows.buttonAt(window.EmjiveSelection.getSelection().length - 1)) || backLink;
-      }
+      fallbackFocus: fallbackFocus
     });
   }
 
@@ -236,7 +212,10 @@
     listEl: itemsEl,
     showPrice: true,
     newestFirst: true,
-    onModify: openModify
+    onModify: openModify,
+    // An emptied list gives way to the empty state once its last Undo line has gone.
+    onUndoGone: function () { render(); },
+    fallbackFocus: fallbackFocus
   });
 
   /* ---- terms: a click anywhere on the row toggles, except on the link ---- */
@@ -248,9 +227,9 @@
     updateCheckoutGate();
   });
 
-  /* ---- checkout: no backend yet, so a notice. Inert while the bar is the strip. ---- */
+  /* ---- checkout: no backend yet, so a notice. Not while the Modify sheet is up. ---- */
   checkoutButton.addEventListener("click", function () {
-    if (checkoutButton.disabled || stripShown) return;
+    if (checkoutButton.disabled || modifyOpen()) return;
     window.EmjiveOrderRows.notice("Online checkout isn't open yet. Your selection stays saved on this device.");
   });
 
@@ -272,7 +251,7 @@
         rows.render(items, { animate: false });
         crossfade(emptyEl, listEl);
       } else {
-        rows.render(items, { animate: listState === "list" });
+        rows.render(items, { animate: listState === "list", change: change });
         if (listState === null) {
           emptyEl.hidden = true;
           listEl.hidden = false;

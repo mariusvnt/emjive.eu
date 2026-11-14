@@ -509,6 +509,40 @@
     else img.src = src;
   }
 
+  // The most pictures a stack shows; a count label says the rest.
+  var STACK_MAX = 3;
+
+  // A thumbnail standing for `count` pieces (the order rows, the selection
+  // bar's icons): the picture with copies laid over it, each a step up and to
+  // the right, the whole stack centred on the box (.thumb-stack in
+  // css/style.css, from --stack-n), up to STACK_MAX. set() repaints.
+  function thumbStack(className) {
+    var root = el("span", "thumb-stack" + (className ? " " + className : ""));
+    root.setAttribute("aria-hidden", "true");
+    var layers = [];
+    function set(src, count) {
+      var shown = Math.max(1, Math.min(STACK_MAX, Math.floor(count) || 1));
+      while (layers.length > shown) root.removeChild(layers.pop());
+      while (layers.length < shown) {
+        var img = el("img", "thumb-stack__layer");
+        img.alt = "";
+        img.draggable = false;
+        img.style.setProperty("--stack-i", layers.length);
+        root.appendChild(img);
+        layers.push(img);
+      }
+      layers.forEach(function (img) { setThumb(img, src); });
+      root.style.setProperty("--stack-n", shown);
+    }
+    return { el: root, set: set };
+  }
+
+  /* ---- icons ----
+     Inline SVG markup for icon buttons, drawn in currentColor: the back arrow
+     and the close cross (the size finder, the Modify strip, the order rows). */
+  var ICON_BACK = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12 H3 M10 5 L3 12 L10 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+  var ICON_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3 L21 21 M21 3 L3 21" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+
   // Decoded ahead, so a later swap to one shows at once; kept referenced so
   // they stay in memory.
   var preloaded = {};
@@ -643,6 +677,9 @@
     planFrame: planFrame,
     thumbSrc: thumbSrc,
     setThumb: setThumb,
+    thumbStack: thumbStack,
+    ICON_BACK: ICON_BACK,
+    ICON_CLOSE: ICON_CLOSE,
     preload: preload,
     crossfadeSrc: crossfadeSrc,
     resampleBand: resampleBand

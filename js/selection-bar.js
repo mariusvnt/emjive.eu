@@ -1,9 +1,10 @@
 // The floating selection bar, on every page but launch-order.html: a fixed
-// black bar showing the selection's thumbnails (or "No selected item") and
-// "Order (N) ›". Tapping it opens a drawer of order rows (js/order-rows.js);
-// tapping a row shrinks the drawer to that row and opens the Modify sheet on
-// it, the bar turning into the sheet's strip. Page-agnostic: on the homepage
-// it slides in with the hero's scroll (window.EmjiveHero, bottom of file).
+// black bar showing the selection's thumbnails (stacked for a count above
+// one, or "No selected item") and "Order (N) ›", N counting pieces. Tapping
+// it opens a drawer of order rows (js/order-rows.js); a row's Modify (in its
+// query mode) shrinks the drawer to that row, which takes the Modify sheet's
+// strip, and the sheet rests on it. Page-agnostic: on the homepage it slides
+// in with the hero's scroll (window.EmjiveHero, bottom of file).
 
 (function () {
   "use strict";
@@ -76,7 +77,13 @@
     newestFirst: true,
     dropAtOnce: true,
     onModify: openModify,
-    onResize: syncDrawerHeight
+    onResize: syncDrawerHeight,
+    // An emptied drawer closes once its last Undo line has gone.
+    onUndoGone: function () {
+      if (!window.EmjiveSelection.getSelection().length && !rows.isHolding()) setDrawerOpen(false);
+      syncDrawerHeight();
+    },
+    fallbackFocus: toggleBtn
   });
 
   /* ---- drawer height ----
@@ -91,7 +98,7 @@
   var LIST_CAP = 0.66;
   // While the Modify sheet is up: the one row's height (null otherwise); the sheet rests on it.
   var reducedHeight = null;
-  // A just-added row peeking out of the closed drawer (peekNewest()): its height, and whether it's up.
+  // A just-added row peeking out of the closed drawer (peekRow()): its height, and whether it's up.
   var peekHeight = null;
   var peekShown = false;
 
@@ -115,9 +122,9 @@
   }
 
   /* ---- peek ----
-     An Add raises the newest row out of the closed drawer for a moment and
-     lowers it, showing that the bar hides a drawer. Anything opening, emptying
-     or restarting the drawer cancels it. */
+     An Add raises its row (the new one, or the one it merged into) out of the
+     closed drawer for a moment and lowers it, showing that the bar hides a
+     drawer. Anything opening, emptying or restarting the drawer cancels it. */
   var PEEK_HOLD_MS = 1000;
   var DRAWER_MS = 300;
   var peekTimer = null;
@@ -136,9 +143,10 @@
     syncDrawerHeight();
   }
 
-  function peekNewest() {
+  // The row at `index`: the new one, or the one an Add merged into.
+  function peekRow(index) {
     if (drawer.classList.contains("is-open") || reducedHeight !== null) return;
-    var row = rowsEl.firstElementChild;
+    var row = rows.rowAt(index);
     if (!row) return;
     cancelPeek();
     // A lone row shows from the list's top, padding included.
@@ -216,6 +224,42 @@
     animateDrawerScroll(to, fromHeight, toHeight);
   }
 
+  /* ---- scrolling stays in the bar ----
+     The bar is fixed over the page: a wheel or swipe on it scrolls the
+     drawer's list while that can move that way, a row's label sideways, and
+     never the page behind (overscroll-behavior alone doesn't hold once the
+     list can't scroll, or over the summary row). Pinches pass. */
+  function listCanScroll(dy) {
+    if (!drawer.classList.contains("is-open") || reducedHeight !== null || !dy) return false;
+    if (dy < 0) return drawerInner.scrollTop > 0;
+    return drawerInner.scrollTop + drawerInner.clientHeight < drawerInner.scrollHeight - 1;
+  }
+
+  // dx, dy: the content's way (positive: towards its end).
+  function scrollStaysHere(target, dx, dy) {
+    if (Math.abs(dx) > Math.abs(dy)) return !!(target.closest && target.closest(".edge-scroll"));
+    return drawerInner.contains(target) && listCanScroll(dy);
+  }
+
+  bar.addEventListener("wheel", function (e) {
+    if (e.ctrlKey) return;
+    if (!scrollStaysHere(e.target, e.deltaX, e.deltaY)) e.preventDefault();
+  }, { passive: false });
+
+  var touchAt = null;
+  bar.addEventListener("touchstart", function (e) {
+    touchAt = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  }, { passive: true });
+  bar.addEventListener("touchmove", function (e) {
+    if (!touchAt || e.touches.length !== 1) return;
+    var x = e.touches[0].clientX;
+    var y = e.touches[0].clientY;
+    var dx = touchAt.x - x;
+    var dy = touchAt.y - y;
+    touchAt = { x: x, y: y };
+    if (!scrollStaysHere(e.target, dx, dy) && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
   // For window.EmjiveMenus click-away: root covers the whole bar and the Modify
   // sheet, so tapping the sheet's backdrop keeps the drawer open.
   var barMenuPanel = {
@@ -231,6 +275,7 @@
   function setDrawerOpen(isOpen) {
     var wasOpen = drawer.classList.contains("is-open");
     cancelPeek();
+    if (!isOpen) rows.endQuery();
     // Rebuilt on opening, which also sweeps a last row left from emptying while
     // open; not while an Undo line is held.
     if (isOpen && !wasOpen && !rows.isHolding()) {
@@ -246,7 +291,7 @@
   }
 
   function toggleDrawer() {
-    // Not while the Modify sheet is up (the strip covers the toggle anyway).
+    // Not while the Modify sheet is up: it rests on the drawer's row.
     if (window.EmjiveModifyModal && window.EmjiveModifyModal.isOpen()) return;
     setDrawerOpen(!drawer.classList.contains("is-open"));
   }
@@ -254,34 +299,13 @@
   // A sibling of toggleBtn, wired separately.
   emptyLabelEl.addEventListener("click", toggleDrawer);
 
-  /* ---- the summary row's one slot, by precedence ----
-       strip  the Modify sheet's strip (js/modify-modal.js builds it; stripHost shows it)
+  /* ---- the summary row's one slot ----
        order  "Order (N) ›"
        empty  "No selected item" */
-  var stripEl = null;
-  var stripShown = false;
-
-  var stripHost = {
-    el: bar,
-    show: function (strip) {
-      stripEl = strip;
-      stripShown = true;
-      updateSummaryState();
-    },
-    hide: function () {
-      stripShown = false;
-      updateSummaryState();
-    }
-  };
-  // Attached up front, not mid-Modify.
-  if (window.EmjiveModifyModal) window.EmjiveModifyModal.attach(stripHost);
-
   function summaryElFor(mode) {
-    if (mode === "strip") return stripEl;
     return mode === "order" ? orderLink : emptyLabelEl;
   }
   function computeSummaryMode() {
-    if (stripShown) return "strip";
     return window.EmjiveSelection.getSelection().length > 0 ? "order" : "empty";
   }
 
@@ -292,8 +316,7 @@
   var summaryHideListenerEl = null;
 
   function onSummaryHideEnd(e) {
-    // The strip fades its surface and buttons on separate delays: only the
-    // watched element's own opacity transition counts, not a bubbling child's.
+    // Only the watched element's own opacity transition counts, not a bubbling child's.
     if (e.propertyName !== "opacity" || e.target !== summaryHideListenerEl) return;
     revealCurrentSummaryMode();
   }
@@ -308,20 +331,10 @@
     el.classList.remove("is-hidden");
     el.setAttribute("aria-hidden", "false");
     el.inert = false;
-    // Icons reveal with Order or the empty label, never with the strip.
-    if (visibleSummaryMode === "order" || visibleSummaryMode === "empty") {
-      iconsEl.classList.remove("is-hidden");
-    }
   }
 
   function updateSummaryState() {
     var mode = computeSummaryMode();
-    // Before the early returns, so redundant calls keep these right. The strip
-    // covers the whole summary row: nothing under it is reachable.
-    bar.classList.toggle("is-strip-active", mode === "strip");
-    // Hidden at once; revealed in revealCurrentSummaryMode() with the label.
-    if (mode === "strip") iconsEl.classList.add("is-hidden");
-    summary.inert = mode === "strip";
     if (mode === visibleSummaryMode) return;
 
     // A handoff under way: retarget it rather than start another; if the wanted
@@ -354,26 +367,25 @@
     summaryRevealTimer = setTimeout(revealCurrentSummaryMode, 350);
   }
 
-  // A drawer row's tap: the drawer shrinks to that row and the Modify sheet
-  // rests on it; it grows back after. Focus returns to the row, or to the
+  // A row's Modify: the drawer shrinks to that row, which takes the sheet's
+  // strip, and the sheet rests on it; the drawer grows back once the strip
+  // has left (after a Save's band). Focus returns to the row, or to the
   // toggle if the drawer closed meanwhile.
   function openModify(binding) {
+    if (!window.EmjiveModifyModal) return;
+    var host = rows.stripHost(binding.index);
+    if (!host) return;
     window.EmjiveModifyModal.open(binding.item, binding.index, {
-      bar: stripHost,
+      bar: {
+        el: host.el,
+        show: host.show,
+        hide: function (strip, saved) {
+          host.hide(strip, saved);
+          setDrawerReduced(false);
+        }
+      },
       onPreview: function (index, values) { rows.preview(index, values); },
       onOpen: function () { setDrawerReduced(true, binding.li); },
-      onClose: function () { setDrawerReduced(false); },
-      // The row stays as its Undo; when it goes, an emptied drawer closes.
-      offerUndo: function (index, handlers) {
-        return rows.offerUndo(index, {
-          onUndo: handlers.onUndo,
-          onGone: function () {
-            handlers.onGone();
-            if (!window.EmjiveSelection.getSelection().length && !rows.isHolding()) setDrawerOpen(false);
-            syncDrawerHeight();
-          }
-        });
-      },
       returnFocus: function () {
         return drawer.classList.contains("is-open") ? rows.buttonAt(binding.index) : null;
       },
@@ -383,21 +395,22 @@
 
   /* ---- icon strip ----
      Newest first in the DOM, so newer icons join at the left and the oldest
-     stays by Order. Each change is a single one (EmjiveSelection.singleChange)
-     and animates only its icon. iconEls is in array order (oldest first); an
-     exiting icon has already left it. */
+     stays by Order. An item with a count above one shows a stack
+     (EmjiveHelpers.thumbStack). Each change is a single one
+     (EmjiveSelection.singleChange) and animates only its icon; the others
+     restack if their count changed (a merge). icons is in array order (oldest
+     first), each a thumbStack; an exiting icon has already left it. */
 
   // null: not rendered yet, so the first render's icons appear without sliding in.
   var lastKeys = null;
-  var iconEls = [];
+  var lastCounts = [];
+  var icons = [];
 
   function buildIcon(item) {
-    var img = document.createElement("img");
-    img.className = "selection-bar__icon";
+    var icon = window.EmjiveHelpers.thumbStack("selection-bar__icon");
     // The thumbnail, on every page with a selection.
-    window.EmjiveHelpers.setThumb(img, item.image);
-    img.alt = "";
-    return img;
+    icon.set(item.image, window.EmjiveSelection.countOf(item));
+    return icon;
   }
 
   // A new icon slides in from the screen's left edge to its slot (distance
@@ -413,7 +426,7 @@
       iconEl.style.transition = "transform 1.1s cubic-bezier(0.16, 1, 0.3, 1)";
       iconEl.style.transform = "translateX(0)";
       iconEl.addEventListener("transitionend", function onEnd(e) {
-        if (e.propertyName !== "transform") return;
+        if (e.propertyName !== "transform" || e.target !== iconEl) return;
         iconEl.removeEventListener("transitionend", onEnd);
         iconEl.style.transition = "";
         iconEl.style.transform = "";
@@ -432,7 +445,7 @@
       if (!iconsEl.children.length) iconsEl.hidden = true;
     }
     iconEl.addEventListener("transitionend", function onEnd(e) {
-      if (e.propertyName !== "width") return;
+      if (e.propertyName !== "width" || e.target !== iconEl) return;
       iconEl.removeEventListener("transitionend", onEnd);
       finish();
     });
@@ -468,47 +481,61 @@
       });
     }
     iconsEl.innerHTML = "";
-    iconEls = [];
+    icons = [];
     var newIconEls = [];
     for (var i = items.length - 1; i >= 0; i--) {
       var icon = buildIcon(items[i]);
-      iconsEl.appendChild(icon);
-      iconEls.unshift(icon);
-      if (isNew[i]) newIconEls.push(icon);
+      iconsEl.appendChild(icon.el);
+      icons.unshift(icon);
+      if (isNew[i]) newIconEls.push(icon.el);
     }
     iconsEl.hidden = !items.length;
     newIconEls.forEach(playEnterAnimation);
   }
 
-  // detail tells an Undo's insert from an Add.
+  // detail tells an Undo's insert from an Add, and names a merge's removed item.
   function renderIcons(items, detail) {
     var sel = window.EmjiveSelection;
     var keys = items.map(sel.itemKey);
+    var counts = items.map(sel.countOf);
     var oldKeys = lastKeys;
+    var oldCounts = lastCounts;
     lastKeys = keys;
-    var change = oldKeys && sel.singleChange(oldKeys, keys);
+    lastCounts = counts;
+    var change = null;
+    if (oldKeys) {
+      change = detail && detail.action === "merge" && keys.length === oldKeys.length - 1 && icons[detail.index]
+        ? { type: "remove", index: detail.index }
+        : sel.singleChange(oldKeys, keys);
+    }
     if (!change) {
       rebuildIcons(items, keys, oldKeys);
       return;
     }
 
+    // oldKeys and oldCounts lined up with items, for the restack below.
+    oldKeys = oldKeys.slice();
+    oldCounts = oldCounts.slice();
     if (change.type === "insert") {
       var icon = buildIcon(items[change.index]);
       // Before its older neighbour (newest first), or at the end.
-      iconsEl.insertBefore(icon, change.index > 0 ? iconEls[change.index - 1] : null);
-      iconEls.splice(change.index, 0, icon);
+      iconsEl.insertBefore(icon.el, change.index > 0 ? icons[change.index - 1].el : null);
+      icons.splice(change.index, 0, icon);
+      oldKeys.splice(change.index, 0, keys[change.index]);
+      oldCounts.splice(change.index, 0, counts[change.index]);
       // Unhidden first: the animation measures where it landed.
       iconsEl.hidden = false;
-      if (detail && detail.action === "insert") playRestoreAnimation(icon);
-      else playEnterAnimation(icon);
+      if (detail && detail.action === "insert") playRestoreAnimation(icon.el);
+      else playEnterAnimation(icon.el);
     } else if (change.type === "remove") {
-      playExitAnimation(iconEls.splice(change.index, 1)[0]);
-    } else {
-      items.forEach(function (item, i) {
-        if (keys[i] === oldKeys[i]) return;
-        window.EmjiveHelpers.setThumb(iconEls[i], item.image);
-      });
+      playExitAnimation(icons.splice(change.index, 1)[0].el);
+      oldKeys.splice(change.index, 1);
+      oldCounts.splice(change.index, 1);
     }
+    items.forEach(function (item, i) {
+      if (keys[i] === oldKeys[i] && counts[i] === oldCounts[i]) return;
+      icons[i].set(item.image, counts[i]);
+    });
   }
 
   /* ---- render ---- */
@@ -516,34 +543,35 @@
   function render(e) {
     var items = window.EmjiveSelection.getSelection();
     var hasItems = items.length > 0;
+    var pieces = window.EmjiveSelection.pieceCount(items);
 
     renderIcons(items, e && e.detail);
 
-    if (announcedCount !== null && items.length !== announcedCount) {
+    if (announcedCount !== null && pieces !== announcedCount) {
       statusEl.textContent = hasItems
-        ? items.length + (items.length === 1 ? " item" : " items") + " in your order"
+        ? pieces + (pieces === 1 ? " item" : " items") + " in your order"
         : "Your order is empty";
     }
-    announcedCount = items.length;
+    announcedCount = pieces;
 
     // Both labels stay laid out and crossfade (.is-hidden).
     updateSummaryState();
     // Not updated when emptying, so Order fades out still reading its last count.
     if (hasItems) {
-      orderCountEl.textContent = "Order (" + items.length + ")";
+      orderCountEl.textContent = "Order (" + pieces + ")";
     }
 
     // Rows animate only while the drawer is open. Emptying closes the drawer
     // with its last row, unless that row is held as an Undo.
     if (hasItems || rows.isHolding()) {
-      rows.render(items, { animate: drawer.classList.contains("is-open") });
+      rows.render(items, { animate: drawer.classList.contains("is-open"), change: e && e.detail });
     } else {
       setDrawerOpen(false);
     }
     // Re-measured, so an open drawer follows its rows.
     syncDrawerHeight();
-    // A real Add: peek the new row.
-    if (e && e.detail && e.detail.action === "add") peekNewest();
+    // A real Add (or one merged into its twin): peek that row.
+    if (e && e.detail && e.detail.action === "add") peekRow(e.detail.index);
   }
 
   window.addEventListener("emjive:selection-changed", render);

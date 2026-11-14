@@ -25,6 +25,11 @@ const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 // match js/helpers.js (validate-data checks).
 const REFERENCE_SIZE_MM = 62;
 
+// The share of the change in a ring's outside width its length along the
+// finger follows when sized (scripts/ring-size.js); must match js/helpers.js
+// (validate-data checks) and the toolbox's sizer.
+const AXIAL_STRETCH_SHARE = 0.5;
+
 // The sizes a model is measured over: every "size-range" lies within
 // (validate-data checks).
 const SIZE_SPAN_MM = { min: 40, max: 80 };
@@ -91,7 +96,8 @@ function productFolder(seriesSlug, name, category) {
 // A measured "geometry" (or its "print") volume at a size, cm3, as
 // js/helpers.js volumeAt() computes it.
 function volumeAt(geometry, mm) {
-  return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
+  const d = mm - REFERENCE_SIZE_MM;
+  return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * d + (geometry["volume-cm3-per-size-mm2"] || 0) * d * d;
 }
 
 // The same for the surface area, cm2, as js/helpers.js areaAt() computes it.
@@ -318,6 +324,7 @@ module.exports = {
   SITE_ORIGIN,
   PHONE_QUERY,
   REFERENCE_SIZE_MM,
+  AXIAL_STRETCH_SHARE,
   SIZE_SPAN_MM,
   MEASURED_SIZES_MM,
   readJson,

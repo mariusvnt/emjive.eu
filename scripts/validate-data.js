@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const Ajv = require("ajv");
 
-const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, volumeAt, exitOnProblems } = require("./helpers");
+const { ROOT, PHONE_QUERY, REFERENCE_SIZE_MM, AXIAL_STRETCH_SHARE, SIZE_SPAN_MM, MEASURED_SIZES_MM, volumeAt, exitOnProblems } = require("./helpers");
 
 const problems = [];
 
@@ -252,11 +252,12 @@ const planViewsSchema = { type: "object", required: ["front", "side"], propertie
 const triples = { type: "array", minItems: 1, items: { type: "array", items: num, minItems: 3, maxItems: 3 } };
 const geometrySchema = {
   type: "object",
-  required: ["volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "min-box", "axis-box", "model-sha1"],
+  required: ["volume-cm3", "volume-cm3-per-size-mm", "volume-cm3-per-size-mm2", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "min-box", "axis-box", "model-sha1"],
   properties: {
     "volume-cm3": { type: "number", exclusiveMinimum: 0 },
-    // The volume gained per mm of size (EmjiveHelpers.volumeAt).
+    // The volume's terms in the size (EmjiveHelpers.volumeAt).
     "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
+    "volume-cm3-per-size-mm2": num,
     // The area at the reference size and its terms in the size (EmjiveHelpers.areaAt).
     "area-cm2": { type: "number", exclusiveMinimum: 0 },
     "area-cm2-per-size-mm": num,
@@ -291,10 +292,11 @@ const geometrySchema = {
     // Measured on the STL: the weight and price shown.
     print: {
       type: "object",
-      required: ["volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "stl-sha1"],
+      required: ["volume-cm3", "volume-cm3-per-size-mm", "volume-cm3-per-size-mm2", "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm", "stl-sha1"],
       properties: {
         "volume-cm3": { type: "number", exclusiveMinimum: 0 },
         "volume-cm3-per-size-mm": { type: "number", exclusiveMinimum: 0 },
+        "volume-cm3-per-size-mm2": num,
         "area-cm2": { type: "number", exclusiveMinimum: 0 },
         "area-cm2-per-size-mm": num,
         "area-cm2-per-size-mm2": num,
@@ -725,11 +727,15 @@ if (index && existsExactCase("js/series.js")) {
   }
 }
 
-// The reference size models are measured at, in js/helpers.js and scripts/helpers.js.
+// The reference size models are measured at and the stretch along the finger
+// they are sized with, in js/helpers.js and scripts/helpers.js.
 if (existsExactCase("js/helpers.js")) {
-  const match = /\bREFERENCE_SIZE_MM = (\d+(?:\.\d+)?);/.exec(fs.readFileSync(path.join(ROOT, "js/helpers.js"), "utf8"));
-  if (!match) fail("js/helpers.js", "no REFERENCE_SIZE_MM = <number>; found (validate-data compares it with scripts/helpers.js)");
-  else if (Number(match[1]) !== REFERENCE_SIZE_MM) fail("js/helpers.js", "REFERENCE_SIZE_MM is " + match[1] + " but scripts/helpers.js has " + REFERENCE_SIZE_MM);
+  const browserHelpers = fs.readFileSync(path.join(ROOT, "js/helpers.js"), "utf8");
+  for (const [name, value] of [["REFERENCE_SIZE_MM", REFERENCE_SIZE_MM], ["AXIAL_STRETCH_SHARE", AXIAL_STRETCH_SHARE]]) {
+    const match = new RegExp("\\b" + name + " = (\\d+(?:\\.\\d+)?);").exec(browserHelpers);
+    if (!match) fail("js/helpers.js", "no " + name + " = <number>; found (validate-data compares it with scripts/helpers.js)");
+    else if (Number(match[1]) !== value) fail("js/helpers.js", name + " is " + match[1] + " but scripts/helpers.js has " + value);
+  }
 }
 
 if (existsExactCase("js/loader.js") && !fs.readFileSync(path.join(ROOT, "js/loader.js"), "utf8").includes(PHONE_QUERY)) {

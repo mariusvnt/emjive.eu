@@ -4,26 +4,29 @@
 // writes a print model at an ordered size.
 //
 // A ring changes size by moving every vertex radially around the finger axis:
-// each keeps its angle and its position along the axis, and its distance from
-// the axis changes by the same amount for every vertex, the difference of the
-// sizes' inner radii. The bore lands on the size while radial thickness and
-// band width stay as designed. Sizes are EU: the inner circumference in mm.
-// The axis runs through the model's origin. js/three-viewer.js runs the same
-// shift on the site's models (sizeShiftShader), js/helpers.js the same
-// radius (sizeShift).
+// each keeps its angle, and its distance from the axis changes by the same
+// amount for every vertex, the difference of the sizes' inner radii. The bore
+// lands on the size while radial thickness stays as designed. Its length along
+// the finger then follows AXIAL_STRETCH_SHARE of the change in its outside
+// width (a stretch along the axis about the origin), so a small ring doesn't
+// reach as far down the finger as a large one. Sizes are EU: the inner
+// circumference in mm. The axis runs through the model's origin.
+// js/three-viewer.js sizes the site's models the same way (sizeShiftShader),
+// with js/helpers.js sizeShift and axialStretch.
 //
-//   npm run size-stl -- <product or design name> <size> [--from=<size>] [--axis=X|Y|Z] [--out=<path>]
+//   npm run size-stl -- <product or design name> <size> [--from=<size>] [--axis=X|Y|Z] [--stretch-share=<0-1>] [--out=<path>]
 //
 // --from: the STL's own size (default REFERENCE_SIZE_MM). --axis: its finger
-// axis (default Y, the print models' and the toolbox's). The sized model is
-// written next to the source as <stem>_<size>.stl unless --out names a path.
+// axis (default Y, the print models' and the toolbox's). --stretch-share:
+// default AXIAL_STRETCH_SHARE, 0 for the radial shift alone. The sized model
+// is written next to the source as <stem>_<size>.stl unless --out names a path.
 
 "use strict";
 
 const path = require("node:path");
 const { writeFileSync } = require("node:fs");
 const stlFile = require("./stl");
-const { ROOT, SERIES_JSON_PATH, REFERENCE_SIZE_MM, readJson, argValue } = require("./helpers");
+const { ROOT, SERIES_JSON_PATH, REFERENCE_SIZE_MM, AXIAL_STRETCH_SHARE, readJson, argValue } = require("./helpers");
 
 const AXES = { X: 0, Y: 1, Z: 2 };
 // The print models' finger axis (checked by scripts/measure-models.js).
@@ -62,6 +65,37 @@ function polarShift(points, delta, axis) {
     out[i + a] *= k;
     out[i + b] *= k;
   }
+  return out;
+}
+
+// A ring's outside width across `axis`: the mean of its box's two extents there.
+function outsideWidth(points, axis) {
+  const [a, b] = across(axis);
+  const lo = [Infinity, Infinity];
+  const hi = [-Infinity, -Infinity];
+  for (let i = 0; i < points.length; i += 3) {
+    lo[0] = Math.min(lo[0], points[i + a]);
+    hi[0] = Math.max(hi[0], points[i + a]);
+    lo[1] = Math.min(lo[1], points[i + b]);
+    hi[1] = Math.max(hi[1], points[i + b]);
+  }
+  return ((hi[0] - lo[0]) + (hi[1] - lo[1])) / 2;
+}
+
+// The stretch along the finger of a ring `width` mm across shifted `delta` mm:
+// its length follows `share` of the change in its outside width, 2 * delta.
+function axialStretch(delta, width, share = AXIAL_STRETCH_SHARE) {
+  return 1 + share * 2 * delta / width;
+}
+
+// Flat xyz `points` sized by `delta` mm, as a new array: shifted
+// (polarShift), then stretched along the axis about the origin (axialStretch
+// for their own outside width).
+function resize(points, delta, axis, share = AXIAL_STRETCH_SHARE) {
+  const stretch = axialStretch(delta, outsideWidth(points, axis), share);
+  if (!(stretch > 0)) throw new Error("shift of " + delta.toFixed(3) + " mm would flatten the ring along its axis");
+  const out = polarShift(points, delta, axis);
+  for (let i = axis; i < out.length; i += 3) out[i] *= stretch;
   return out;
 }
 
@@ -158,8 +192,9 @@ function main() {
   const size = Number(sizeText);
   const reference = Number(argValue(args, "from") || REFERENCE_SIZE_MM);
   const axisName = (argValue(args, "axis") || "Y").toUpperCase();
-  if (!name || !(size > 0) || !(reference > 0) || !(axisName in AXES)) {
-    console.error("usage: npm run size-stl -- <product or design name> <size> [--from=<size>] [--axis=X|Y|Z] [--out=<path>]");
+  const share = argValue(args, "stretch-share") !== undefined ? Number(argValue(args, "stretch-share")) : AXIAL_STRETCH_SHARE;
+  if (!name || !(size > 0) || !(reference > 0) || !(axisName in AXES) || !(share >= 0)) {
+    console.error("usage: npm run size-stl -- <product or design name> <size> [--from=<size>] [--axis=X|Y|Z] [--stretch-share=<0-1>] [--out=<path>]");
     process.exitCode = 1;
     return;
   }
@@ -174,13 +209,16 @@ function main() {
   const delta = shiftFor(reference, size);
   const stem = path.basename(source, path.extname(source));
   const output = argValue(args, "out") ? path.resolve(argValue(args, "out")) : path.join(path.dirname(source), stem + "_" + size + ".stl");
-  writeFileSync(output, stlBytes(polarShift(stlFile.trianglesOf(stl, 0, stl.count), delta, AXES[axisName]), stem + " EU " + size));
+  const tris = stlFile.trianglesOf(stl, 0, stl.count);
+  const stretch = axialStretch(delta, outsideWidth(tris, AXES[axisName]), share);
+  writeFileSync(output, stlBytes(resize(tris, delta, AXES[axisName], share), stem + " EU " + size));
   console.log(path.basename(source) + ": EU " + reference + " -> " + size + " (inner diameter " +
-    (2 * sizeToRadius(size)).toFixed(3) + " mm, radial shift " + (delta >= 0 ? "+" : "") + delta.toFixed(3) + " mm): " +
+    (2 * sizeToRadius(size)).toFixed(3) + " mm, radial shift " + (delta >= 0 ? "+" : "") + delta.toFixed(3) +
+    " mm, length x" + stretch.toFixed(3) + "): " +
     (output.startsWith(ROOT + path.sep) ? path.relative(ROOT, output) : output));
 }
 
-module.exports = { AXES, STL_AXIS, sizeToRadius, radiusToSize, shiftFor, polarShift, estimateSize, axisClearance, detectAxis, minSize };
+module.exports = { AXES, STL_AXIS, sizeToRadius, radiusToSize, shiftFor, polarShift, outsideWidth, axialStretch, resize, estimateSize, axisClearance, detectAxis, minSize };
 
 if (require.main === module) {
   try {

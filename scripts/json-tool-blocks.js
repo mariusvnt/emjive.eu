@@ -33,6 +33,7 @@ function geometryLine(g, indent) {
   const triples = (v) => "[" + (v || []).map(triple).join(", ") + "]";
   // The size and area fields, after the volume and after the dimensions.
   const slope = (s) => (s["volume-cm3-per-size-mm"] !== undefined ? ', "volume-cm3-per-size-mm": ' + num(s["volume-cm3-per-size-mm"]) : "") +
+    (s["volume-cm3-per-size-mm2"] !== undefined ? ', "volume-cm3-per-size-mm2": ' + num(s["volume-cm3-per-size-mm2"]) : "") +
     (s["area-cm2"] !== undefined
       ? ', "area-cm2": ' + num(s["area-cm2"]) + ', "area-cm2-per-size-mm": ' + num(s["area-cm2-per-size-mm"]) +
         ', "area-cm2-per-size-mm2": ' + num(s["area-cm2-per-size-mm2"])

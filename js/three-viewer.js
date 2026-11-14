@@ -228,7 +228,9 @@ export { toolkit };
   // distance from the axis grows by uSizeShift mm (EmjiveHelpers.sizeShift).
   // The axis runs through the model's origin, along uFingerAxis in the
   // model's frame, which is every mesh's own once bakeNodeTransforms has run.
-  // Normals take the inverse of the stretch around the axis, (r + shift) / r.
+  // Its height along the axis is then stretched by uAxialStretch
+  // (EmjiveHelpers.axialStretch). Normals take the inverse of both stretches:
+  // (r + shift) / r around the axis, uAxialStretch along it.
   var SIZE_SHIFT_NORMAL = [
     "{",
     "  vec3 ssRadial = position - uFingerAxis * dot( position, uFingerAxis );",
@@ -237,6 +239,7 @@ export { toolkit };
     "    vec3 ssAround = normalize( cross( uFingerAxis, ssRadial ) );",
     "    objectNormal -= ( 1.0 - ssR / ( ssR + uSizeShift ) ) * dot( objectNormal, ssAround ) * ssAround;",
     "  }",
+    "  objectNormal += ( 1.0 / uAxialStretch - 1.0 ) * dot( objectNormal, uFingerAxis ) * uFingerAxis;",
     "}"
   ].join("\n");
   var SIZE_SHIFT_POSITION = [
@@ -244,23 +247,32 @@ export { toolkit };
     "  vec3 ssAlong = uFingerAxis * dot( transformed, uFingerAxis );",
     "  vec3 ssRadial = transformed - ssAlong;",
     "  float ssR = length( ssRadial );",
-    "  if ( ssR > 1e-6 ) transformed = ssAlong + ssRadial * ( ( ssR + uSizeShift ) / ssR );",
+    "  if ( ssR > 1e-6 ) ssRadial *= ( ssR + uSizeShift ) / ssR;",
+    "  transformed = ssAlong * uAxialStretch + ssRadial;",
     "}"
   ].join("\n");
 
   function sizeShiftUniforms(product) {
     return {
       uSizeShift: { value: 0 },
+      uAxialStretch: { value: 1 },
       uFingerAxis: { value: new THREE.Vector3().fromArray(H.ringAxes(product)[2]) }
     };
+  }
+
+  // `uniforms` sized for `product` at `mm`.
+  function setSizeUniforms(uniforms, product, mm) {
+    uniforms.uSizeShift.value = H.sizeShift(mm);
+    uniforms.uAxialStretch.value = H.axialStretch(product, mm);
   }
 
   // In a material's onBeforeCompile: its vertices sized by `uniforms`.
   function sizeShiftShader(shader, uniforms) {
     shader.uniforms.uSizeShift = uniforms.uSizeShift;
+    shader.uniforms.uAxialStretch = uniforms.uAxialStretch;
     shader.uniforms.uFingerAxis = uniforms.uFingerAxis;
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uSizeShift;\nuniform vec3 uFingerAxis;")
+      .replace("#include <common>", "#include <common>\nuniform float uSizeShift;\nuniform float uAxialStretch;\nuniform vec3 uFingerAxis;")
       .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\n" + SIZE_SHIFT_NORMAL)
       .replace("#include <begin_vertex>", "#include <begin_vertex>\n" + SIZE_SHIFT_POSITION);
   }
@@ -1445,7 +1457,7 @@ export { toolkit };
     // Before every draw of a sizing viewer.
     function updateSizing() {
       if (!sizeGroup) return;
-      sizeUniforms.uSizeShift.value = H.sizeShift(sizeMm);
+      setSizeUniforms(sizeUniforms, product, sizeMm);
       sizeGroup.scale.setScalar(restScale);
       sizeGroup.position.copy(controls.target).multiplyScalar(1 - restScale);
       sizeGroup.updateMatrixWorld(true);
@@ -2311,7 +2323,7 @@ export { toolkit };
     var target = new THREE.WebGLRenderTarget(px, px, { depthTexture: new THREE.DepthTexture(px, px) });
     var edges = new THREE.WebGLRenderTarget(px, px);
     var uniforms = sizeShiftUniforms(product);
-    uniforms.uSizeShift.value = H.sizeShift(mm);
+    setSizeUniforms(uniforms, product, mm);
     var normalMaterial = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
     normalMaterial.onBeforeCompile = function (shader) { sizeShiftShader(shader, uniforms); };
     normalMaterial.customProgramCacheKey = function () { return "emjive-sized"; };

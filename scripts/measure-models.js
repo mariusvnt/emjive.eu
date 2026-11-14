@@ -2,23 +2,24 @@
 // Measures every product's .glb (and .stl print model) into its "geometry"
 // line in products.json, touching nothing else:
 //
-//   "geometry": { "volume-cm3", "volume-cm3-per-size-mm", "area-cm2", "area-cm2-per-size-mm",
-//                 "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm",
+//   "geometry": { "volume-cm3", "volume-cm3-per-size-mm", "volume-cm3-per-size-mm2", "area-cm2",
+//                 "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm", "min-size-mm",
 //                 "min-box": { center, axes }, "axis-box": { "sizes-mm", center, size },
-//                 "print": { "volume-cm3", "volume-cm3-per-size-mm", "area-cm2",
-//                            "area-cm2-per-size-mm", "area-cm2-per-size-mm2", "dimensions-mm",
-//                            "min-size-mm", "stl-sha1" }, "model-sha1" }
+//                 "print": { "volume-cm3", "volume-cm3-per-size-mm", "volume-cm3-per-size-mm2",
+//                            "area-cm2", "area-cm2-per-size-mm", "area-cm2-per-size-mm2",
+//                            "dimensions-mm", "min-size-mm", "stl-sha1" }, "model-sha1" }
 //
 //   volume-cm3     enclosed volume at the reference size; models are in mm.
 //                  Summed per shell as |signed volume|, since some exports
-//                  have inverted winding.
-//   volume-cm3-per-size-mm   the volume gained per mm of size over the size
-//                  span: sized as a ring is (scripts/ring-size.js), the volume
-//                  is linear in the size
+//                  have inverted winding. With the linear and quadratic terms
+//                  in the size from it (EmjiveHelpers.volumeAt): sized as a
+//                  ring is (scripts/ring-size.js), the radial shift and the
+//                  stretch along the axis are each linear in the size, so the
+//                  volume is quadratic and the terms exact
 //   area-cm2       surface area at the reference size, with the linear and
-//                  quadratic terms in the size from it (EmjiveHelpers.areaAt):
-//                  the radial shift bends the area slightly. Volume and area
-//                  price the piece (EmjiveHelpers.productionCost), so they keep
+//                  quadratic terms in the size from it (EmjiveHelpers.areaAt),
+//                  fitted through the size span's ends. Volume and area price
+//                  the piece (EmjiveHelpers.productionCost), so they keep
 //                  enough digits for cents
 //   dimensions-mm  minimum-volume bounding box extents, longest first (pose-independent)
 //   min-size-mm    the smallest size before the bore reaches the finger axis
@@ -193,9 +194,9 @@ function axisAlignedBox(positions) {
 }
 
 // The welded model sized as a ring around `axis` (scripts/ring-size.js): its
-// smallest size, its volume's slope over the size span (mm3 per mm of size),
-// its area at the reference size with the linear and quadratic terms through
-// the span's ends (mm2 per mm and per mm2 of size from the reference), and its
+// smallest size, the linear and quadratic terms in the size of its volume
+// (mm3 per mm and per mm2 of size from the reference) and of its area (mm2),
+// through the span's ends, its area at the reference size, and its
 // axis-aligned box at each of MEASURED_SIZES_MM. null after an error message
 // when another axis runs farther from the geometry.
 function measureSizes(label, welded, volume, axis) {
@@ -207,19 +208,27 @@ function measureSizes(label, welded, volume, axis) {
       " mm): the origin must sit on the bore, with the finger along " + "XYZ"[axis]);
     return null;
   }
-  const at = (mm) => (mm === REFERENCE_SIZE_MM ? positions : ringSize.polarShift(positions, ringSize.shiftFor(REFERENCE_SIZE_MM, mm), axis));
-  const volumeAt = (mm) => shellsVolume(corners, at(mm), volume.shellOf, volume.shells);
-  const area = surfaceArea(corners, positions);
+  const at = (mm) => (mm === REFERENCE_SIZE_MM ? positions : ringSize.resize(positions, ringSize.shiftFor(REFERENCE_SIZE_MM, mm), axis));
+  const sized = { min: at(SIZE_SPAN_MM.min), max: at(SIZE_SPAN_MM.max) };
   const lo = SIZE_SPAN_MM.min - REFERENCE_SIZE_MM, hi = SIZE_SPAN_MM.max - REFERENCE_SIZE_MM;
-  const riseLo = (surfaceArea(corners, at(SIZE_SPAN_MM.min)) - area) / lo;
-  const riseHi = (surfaceArea(corners, at(SIZE_SPAN_MM.max)) - area) / hi;
-  const areaCurve = (riseHi - riseLo) / (hi - lo);
+  // { slope, curve } of the quadratic through (lo, atLo), (0, atRef), (hi, atHi).
+  const terms = (atLo, atRef, atHi) => {
+    const riseLo = (atLo - atRef) / lo;
+    const riseHi = (atHi - atRef) / hi;
+    const curve = (riseHi - riseLo) / (hi - lo);
+    return { slope: riseHi - curve * hi, curve };
+  };
+  const volumeAt = (points) => shellsVolume(corners, points, volume.shellOf, volume.shells);
+  const volumeTerms = terms(volumeAt(sized.min), volumeAt(positions), volumeAt(sized.max));
+  const area = surfaceArea(corners, positions);
+  const areaTerms = terms(surfaceArea(corners, sized.min), area, surfaceArea(corners, sized.max));
   return {
     minSize: ringSize.minSize(found.clearance, REFERENCE_SIZE_MM),
-    slope: (volumeAt(SIZE_SPAN_MM.max) - volumeAt(SIZE_SPAN_MM.min)) / (SIZE_SPAN_MM.max - SIZE_SPAN_MM.min),
+    slope: volumeTerms.slope,
+    curve: volumeTerms.curve,
     area,
-    areaSlope: riseHi - areaCurve * hi,
-    areaCurve,
+    areaSlope: areaTerms.slope,
+    areaCurve: areaTerms.curve,
     boxes: MEASURED_SIZES_MM.map((mm) => axisAlignedBox(at(mm)))
   };
 }
@@ -474,6 +483,7 @@ async function measureFile(io, label, modelRel, stlRel, axis) {
   const geometry = {
     "volume-cm3": cm3(volume.mm3, 5),
     "volume-cm3-per-size-mm": cm3(sizes.slope, 7),
+    "volume-cm3-per-size-mm2": cm3(sizes.curve, 9),
     "area-cm2": cm2(sizes.area, 4),
     "area-cm2-per-size-mm": cm2(sizes.areaSlope, 6),
     "area-cm2-per-size-mm2": cm2(sizes.areaCurve, 8),
@@ -516,6 +526,7 @@ async function measureFile(io, label, modelRel, stlRel, axis) {
     geometry.print = {
       "volume-cm3": cm3(printed.volume.mm3, 5),
       "volume-cm3-per-size-mm": cm3(printSizes.slope, 7),
+      "volume-cm3-per-size-mm2": cm3(printSizes.curve, 9),
       "area-cm2": cm2(printSizes.area, 4),
       "area-cm2-per-size-mm": cm2(printSizes.areaSlope, 6),
       "area-cm2-per-size-mm2": cm2(printSizes.areaCurve, 8),

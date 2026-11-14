@@ -304,6 +304,10 @@
   // The size, in mm, a product's model is drawn at and its geometry measured
   // from. Mirrored in scripts/helpers.js (validate-data checks).
   var REFERENCE_SIZE_MM = 62;
+  // The share of the change in a ring's outside width its length along the
+  // finger follows when sized (axialStretch). Mirrored in scripts/helpers.js
+  // (validate-data checks).
+  var AXIAL_STRETCH_SHARE = 0.5;
   // The size, in mm, a ring is first shown and offered at, and its sized
   // renders are drawn at (scripts/auto-render.js).
   var DEFAULT_SIZE_MM = 60;
@@ -333,15 +337,16 @@
     return (mm - REFERENCE_SIZE_MM) / (2 * Math.PI);
   }
 
-  // A measured "geometry" (or its "print") volume at a size, cm3: linear in
-  // the size under the radial shift. Mirrored in scripts/helpers.js.
+  // A measured "geometry" (or its "print") volume at a size, cm3: the radial
+  // shift and the stretch along the finger are each linear in the size, so the
+  // volume is quadratic. Mirrored in scripts/helpers.js.
   function volumeAt(geometry, mm) {
-    return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * (mm - REFERENCE_SIZE_MM);
+    var d = mm - REFERENCE_SIZE_MM;
+    return geometry["volume-cm3"] + (geometry["volume-cm3-per-size-mm"] || 0) * d + (geometry["volume-cm3-per-size-mm2"] || 0) * d * d;
   }
 
-  // The same for the surface area, cm2: the shift stretches each face along
-  // the bore's circumference only, so the area bends slightly with the size
-  // and a quadratic holds it. null when unmeasured. Mirrored in scripts/helpers.js.
+  // The same for the surface area, cm2, a quadratic fitted over the size span
+  // (scripts/measure-models.js). null when unmeasured. Mirrored in scripts/helpers.js.
   function areaAt(geometry, mm) {
     if (!geometry || !(geometry["area-cm2"] > 0)) return null;
     var d = mm - REFERENCE_SIZE_MM;
@@ -394,6 +399,20 @@
       return [0, 1, 2].map(function (k) { return lerp(Number(box[key][i][k]), Number(box[key][j][k]), t); });
     };
     return { center: at("center"), size: at("size") };
+  }
+
+  // How much a ring stretches along the finger, about its origin, at a size,
+  // as scripts/ring-size.js sizes it: its length follows AXIAL_STRETCH_SHARE
+  // of the change in its outside width (the mean of its box's extents across
+  // the finger at the reference), which grows by twice the radial shift. 1
+  // without a measured box.
+  function axialStretch(product, mm) {
+    var ref = axisBoxAt(product && product.geometry, REFERENCE_SIZE_MM);
+    if (!ref) return 1;
+    var finger = product["finger-axis"] === "x" ? 0 : 2;
+    var width = ref.size.reduce(function (sum, d, i) { return i === finger ? sum : sum + d; }, 0) / 2;
+    var s = 1 + AXIAL_STRETCH_SHARE * 2 * sizeShift(mm) / width;
+    return s > 0 && isFinite(s) ? s : 1;
   }
 
   /* ---- plan views ---- */
@@ -613,6 +632,7 @@
     sizeRange: sizeRange,
     sizeText: sizeText,
     sizeShift: sizeShift,
+    axialStretch: axialStretch,
     volumeAt: volumeAt,
     areaAt: areaAt,
     productionCost: productionCost,

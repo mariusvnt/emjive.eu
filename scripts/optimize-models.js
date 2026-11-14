@@ -3,7 +3,11 @@
 //   1. strips textures and TEXCOORD/COLOR/TANGENT attributes: js/three-viewer.js
 //      replaces every material with a "metal-shaders" one, so they are never
 //      used (remove this step if the viewer ever honours a model's own maps);
-//   2. weld(), 3. prune() + dedup(), 4. draco() (14-bit positions).
+//   2. gives every primitive one material and joins each mesh's primitives
+//      into one: Draco quantizes each primitive on its own grid, so a seam
+//      between two materials would come apart and the model stop measuring
+//      as watertight;
+//   3. weld(), 4. prune() + dedup(), 5. draco() (14-bit positions).
 // simplify() changes the silhouette the renders are made from, so it is opt-in.
 //
 //   npm run optimize-models -- --dry-run      report only
@@ -41,6 +45,7 @@ function measure(document) {
   const root = document.getRoot();
   let vertices = 0;
   let triangles = 0;
+  let primitives = 0;
   const attributes = new Set();
   // Bounds from POSITION min/max: the integrity check, as quantization and
   // welding must not move the extents.
@@ -50,6 +55,7 @@ function measure(document) {
     for (const prim of mesh.listPrimitives()) {
       const position = prim.getAttribute("POSITION");
       const indices = prim.getIndices();
+      primitives++;
       vertices += position ? position.getCount() : 0;
       triangles += (indices ? indices.getCount() : position ? position.getCount() : 0) / 3;
       for (const semantic of prim.listSemantics()) attributes.add(semantic);
@@ -65,6 +71,7 @@ function measure(document) {
   }
   return {
     vertices,
+    primitives,
     triangles: Math.round(triangles),
     attributes: [...attributes].sort(),
     textures: root.listTextures().length,
@@ -108,7 +115,7 @@ async function main() {
   }
 
   // ESM-only packages, hence dynamic imports.
-  const { dedup, draco, prune, weld, simplify } = await import("@gltf-transform/functions");
+  const { dedup, draco, prune, weld, simplify, joinPrimitives } = await import("@gltf-transform/functions");
   const meshoptimizer = simplifyRatio !== null ? await import("meshoptimizer") : null;
 
   const io = await gltfIO({ encoder: true });
@@ -134,6 +141,27 @@ async function main() {
           }
         }
       }
+    }
+
+    // ---- 2. one material, one primitive per mesh ----
+    const material = document.getRoot().listMaterials()[0] || document.createMaterial("metal");
+    for (const mesh of document.getRoot().listMeshes()) {
+      const prims = mesh.listPrimitives();
+      for (const prim of prims) prim.setMaterial(material);
+      if (prims.length < 2) continue;
+      let joined;
+      try {
+        joined = joinPrimitives(prims);
+      } catch (err) {
+        console.warn("    WARNING: " + rel + ": mesh \"" + mesh.getName() + "\" keeps " + prims.length +
+          " primitives (" + err.message + ")");
+        continue;
+      }
+      for (const prim of prims) {
+        mesh.removePrimitive(prim);
+        prim.dispose();
+      }
+      mesh.addPrimitive(joined);
     }
 
     const transforms = [
@@ -195,6 +223,7 @@ async function main() {
       "   (" + (sizeBefore ? (100 - (sizeAfter / sizeBefore) * 100).toFixed(1) : "0") + "% smaller)\n" +
       "    vertices  " + before.vertices.toLocaleString() + "  ->  " + after.vertices.toLocaleString() + "\n" +
       "    triangles " + before.triangles.toLocaleString() + "  ->  " + after.triangles.toLocaleString() + "\n" +
+      "    parts     " + before.primitives + "  ->  " + after.primitives + "\n" +
       "    bounds    " + (drift === 0 ? "unchanged" : "moved " + (drift * 100).toFixed(4) + "% of model size") +
       (verified ? "   [" + verified + "]" : "") + "\n" +
       "    dropped   " + (dropped.length ? dropped.join(", ") : "-") +

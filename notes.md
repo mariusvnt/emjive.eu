@@ -2,24 +2,15 @@
 
 **Statut** :
 
-- SARL option famille <3 (impôt sur le revenu au lieu de l'impôt sur les sociétés, pour 5 ans)
-- a priori, notre activité relève du "Commerce de détail non alimentaire" (https://www.inpi.fr/annuaire-activites-et-professions/commerce-de-detail-non-alimentaire)
-
-**Questions Antoine** :
-
-- Quels statuts ? Est-ce que vous aviez hésiter entre SAS et SARL ?
-
-- Est-ce que vous vous êtes mis en double holdings dès le début ? Est-ce que c'est pas relou de devoir faire la compta des holdings en plus de Guisarde ?
-
-- Votre rémunération c'est des dividendes ?
-
-- Combien ça coûte un comptable ? Est-ce qu'il faut en contacter un avant de créer l'entreprise ? Est-ce qu'il faut contacter un avocat ? Mieux un vrai expert comptable ou à travers une plateforme en ligne ?
-
-- Quid des assurances chez Guisarde ?
-
-- Par où vous étiez passés pour créer Guisarde ?
+- SAS
+- a priori, notre activité relève du "Commerce de détail non alimentaire" (https://www.inpi.fr/annuaire-activites-et-professions/commerce-de-detail-non-alimentaire) - voir 14,35 et 42
 
 ## Actions à faire
+
+- étudier les choix à fixer pour construire les statuts
+- rédiger une première version des statuts nous mêmes
+- faire vérifier les statuts par un avocat
+- faire la même chose pour les cgv, privacy policy, etc.
 
 **Démarches** :
 
@@ -64,10 +55,10 @@
 **Réseaux sociaux** :
 
 - création du compte instagram
-  - adresse mail: contact@emjive.eu
+  - adresse mail: admin@emjive.eu
   - identifiant: em.ji.ve (car emjive déjà pris)
 
 **Autres** :
 
-- création de l'adresse mail contact@emjive.eu
+- création de l'adresse mail admin@emjive.eu
 - création du dossier de mots de passe partagé sur iCloud

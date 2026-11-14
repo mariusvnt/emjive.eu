@@ -102,7 +102,7 @@ The repo's structure, generated from the code. Each description is the first sen
       - [manifest.json](../data/series/bones/manifest.json)
         - `series`, `title`, `subtitle`, `year`, `intro`, `sections`, `credits`.
       - [products.json](../data/series/bones/products.json)
-        - `series`, `products`. 10 products: furcula, foramen, Disc, Marrow, suture, cartilage, rib-cage, joint, omoplates, jaw.
+        - `series`, `products`. 10 products: furcula, foramen, Disc, Marrow, suture, rib-cage, joint, omoplates, jaw, blades.
 - **[assets/](../assets/)** — Static binaries. Everything outside series/ is brand-wide.
   - **[assets/draco/](../assets/draco/)** — three's Draco decoder, self-hosted (the site makes no external requests).
   - **[assets/fonts/](../assets/fonts/)** — Self-hosted fonts: DINish and Geist Mono.

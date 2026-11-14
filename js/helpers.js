@@ -615,9 +615,9 @@
 
   /* ---- invert bands ---- */
 
-  // Safari's backdrop-filter re-samples late when content under an invert band
-  // changes in place; nudging the band's filter (.is-resampling) for two frames
-  // forces it.
+  // Safari's backdrop-filter re-samples late when a picture under an invert
+  // band changes in place (text is drawn over the bands, so never needs it);
+  // nudging the band's filter (.is-resampling) for two frames forces it.
   var resampleTokens = new WeakMap();
   function resampleBand(el) {
     if (!el) return;

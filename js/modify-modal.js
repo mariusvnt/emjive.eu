@@ -127,11 +127,11 @@
   backIcon.insertAdjacentHTML("afterbegin", H.ICON_BACK);
   backBtn.appendChild(backIcon);
   var saveBtn = stripButton("modify-strip__save", "modify-strip__label", "Save");
-  // After the buttons, so it paints over the labels it inverts.
+  // Before the buttons, so their labels paint over it.
   var band = stripBand("modify-strip__band");
+  strip.appendChild(band);
   strip.appendChild(backBtn);
   strip.appendChild(saveBtn);
-  strip.appendChild(band);
 
   var state = {
     isOpen: false,

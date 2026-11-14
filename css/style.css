@@ -9,9 +9,9 @@
   --white: #ffffff;
   --category-col: #727272;
   --black-bg: #1a1a1a;
-  /* Channel inverses of the tokens above, for content under an invert band
-     (backdrop-filter: invert(1) on .order-item and .product-detail__label-bar):
-     they read as the plain token only where a band crosses them. */
+  /* Channel inverses of the tokens above: what each looks like under an
+     invert band (backdrop-filter: invert(1)). Text resting on a band is drawn
+     over it in the colour it would have under it (code-guide.md §5). */
   --bg-inverted: #070707;
   --black-bg-inverted: #e5e5e5;
   --category-col-inverted: #8d8d8d;
@@ -1354,22 +1354,27 @@ body:has(.site-header__menu.is-open) .gallery-material {
    which slides the rows below up through the flex layout. On this wrapper,
    not the row, so ::before's band isn't clipped; it clips only mid-motion
    (.is-removing, .is-expanding), since at rest the button's focus ring draws
-   outside its box. It also owns the row's opacity fade, leaving the delayed
-   band last. */
+   outside its box. */
 .order-item__inner {
   max-height: 6.5rem;
-  transition:
-    max-height var(--fade-standard) ease,
-    opacity var(--fade-standard) ease;
+  transition: max-height var(--fade-standard) ease;
+}
+/* The row's content fades in two parts, never as one: an opacity on a
+   common ancestor would make it a stacking context under the band, taking
+   the words (drawn over the band) down with the picture. */
+.order-item__picture,
+.order-item__words {
+  transition: opacity var(--fade-standard) ease;
 }
 .order-item.is-removing .order-item__inner {
   max-height: 0;
+}
+.order-item.is-removing :is(.order-item__picture, .order-item__words) {
   opacity: 0;
 }
-/* An Undo's row: the text fades in a beat after the band (delays in
-   max-height, opacity order). */
-.order-item.is-expanding .order-item__inner {
-  transition-delay: 0s, var(--fade-fast);
+/* An Undo's row: the content fades in a beat after the band. */
+.order-item.is-expanding :is(.order-item__picture, .order-item__words) {
+  transition-delay: var(--fade-fast);
 }
 .order-item.is-removing .order-item__inner,
 .order-item.is-expanding .order-item__inner {
@@ -1402,13 +1407,14 @@ body:has(.site-header__menu.is-open) .gallery-material {
 /* An Undo's row snaps shut before opening (expand()): no transitions, band included. */
 .order-item.is-instant,
 .order-item.is-instant::before,
-.order-item.is-instant .order-item__inner {
+.order-item.is-instant .order-item__inner,
+.order-item.is-instant :is(.order-item__picture, .order-item__words) {
   transition: none;
 }
 /* ---- the Undo line (js/order-rows.js offerUndo) ----
    After a removal (a count saved at 0) the row stays at full height as
    "Undo" for a moment (UNDO_MS): a band pinned to the screen's left edge
-   grows across its left quarter as "Undo" fades in, dark on the light band.
+   grows across its left quarter as "Undo" fades in, dark over the light band.
    Built when held, so .is-undo has a state to start from:
      .is-undo           the row's content and band fade; this band grows, the label
                         fading in as it does
@@ -1428,10 +1434,11 @@ body:has(.site-header__menu.is-open) .gallery-material {
   transform: translateX(-50%);
   pointer-events: none;
 }
+/* After the band in the markup, so it paints over it (code-guide.md §5). */
 .order-item__undo-button {
   left: 0;
   width: var(--left-w);
-  color: var(--white);
+  color: var(--black);
   pointer-events: none;
 }
 /* The shared button rule, later in the file, sets padding 0 otherwise. */
@@ -1460,8 +1467,10 @@ body:has(.site-header__menu.is-open) .gallery-material {
   transition: width var(--fade-standard) ease;
 }
 .order-item.is-undo .order-item__inner {
-  opacity: 0;
   pointer-events: none;
+}
+.order-item.is-undo :is(.order-item__picture, .order-item__words) {
+  opacity: 0;
 }
 .order-item.is-undo::before {
   opacity: 0;
@@ -1493,8 +1502,8 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .order-item.is-undo-revived::before {
   transition: opacity var(--fade-quick) ease var(--fade-standard);
 }
-.order-item.is-undo-revived .order-item__inner {
-  transition-delay: 0s, var(--fade-standard);
+.order-item.is-undo-revived :is(.order-item__picture, .order-item__words) {
+  transition-delay: var(--fade-standard);
 }
 /* The row closing: what's left of the Undo line fades. */
 .order-item.is-removing .order-item__undo-band,
@@ -1520,6 +1529,26 @@ body:has(.site-header__menu.is-open) .gallery-material {
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+/* The picture under the row's band, which inverts it; the words (label,
+   count, price) over it, in the colours the band would give them. */
+.order-item__picture {
+  flex: 0 0 auto;
+  display: block;
+}
+.order-item__words {
+  position: relative;
+  z-index: 3;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+/* Focused, the row's button stays out of the stacking order, or the words
+   would drop under the band with it. */
+.order-item .order-item__content:focus-visible {
+  z-index: auto;
 }
 .order-item__thumb {
   width: 3.75rem;
@@ -1575,12 +1604,11 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .order-item__text.has-count .order-item__meta {
   padding-right: calc(var(--count-chars) * 0.7em + 0.5em);
 }
-.order-item__name { font-family: var(--font-main); color: var(--white); }
+.order-item__name { font-family: var(--font-main); color: var(--black); }
 .order-item__attrs {
   font-size: calc(0.75rem * var(--text-scale));
   font-family: var(--font-secondary);
-  /* Inverted by the band, so it lands on --category-col. */
-  color: var(--category-col-inverted);
+  color: var(--category-col);
 }
 /* A decimal size's two fraction digits (EmjiveSelection.appendSize): small,
    instead of a "." that would read as another trait separator. */
@@ -1594,7 +1622,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   top: 0;
   right: 0;
   font-family: var(--font-main);
-  color: var(--white);
+  color: var(--black);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -1602,13 +1630,13 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .order-item__price {
   flex: 0 0 auto;
   font-family: var(--font-main);
-  color: var(--white);
+  color: var(--black);
   white-space: nowrap;
 }
 
 /* ---- query mode (js/order-rows.js) ----
-   A tapped row's controls, over the row (under the row's band, which inverts
-   them), in columns following the row's: the − count + stepper where the
+   A tapped row's controls, over the row and its band, in the band's colours,
+   in columns following the row's: the − count + stepper where the
    label starts, the close cross at one place for every row (about a price's
    middle), Modify centred between + and the cross.
      .is-query          the row's content fades, the controls fade in
@@ -1624,7 +1652,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
    The layer is laid out before .is-query lands (it starts at opacity 0). */
 .order-item__query {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   inset: 0;
   /* Quick taps on the stepper never zoom the page (iOS double-tap). */
   touch-action: manipulation;
@@ -1642,8 +1670,10 @@ body:has(.site-header__menu.is-open) .gallery-material {
   cursor: default;
 }
 .order-item.is-query .order-item__inner {
-  opacity: 0;
   pointer-events: none;
+}
+.order-item.is-query :is(.order-item__picture, .order-item__words) {
+  opacity: 0;
 }
 /* The row's columns (.order-item__content: the picture, 1rem gaps, the text,
    the price) inside the row's padding; the picture's column stays empty. */
@@ -1665,7 +1695,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   padding: 0 0.5rem;
   border: none;
   background: none;
-  color: var(--white);
+  color: var(--black);
   white-space: nowrap;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
@@ -1739,7 +1769,7 @@ body:has(.site-header__menu.is-open) .gallery-material {
   font-weight: normal;
   line-height: 1;
   text-box: trim-both cap alphabetic;
-  color: var(--white);
+  color: var(--black);
   font-variant-numeric: tabular-nums;
 }
 /* A column as wide as a typical price ("€ 000", 5 digit widths in the
@@ -1785,10 +1815,13 @@ body:has(.site-header__menu.is-open) .gallery-material {
   pointer-events: auto;
 }
 .order-item.is-hosting .order-item__query,
-.order-item.is-hosting .order-item__inner {
+.order-item.is-hosting :is(.order-item__picture, .order-item__words) {
   opacity: 0;
-  pointer-events: none;
   transition-delay: 0s;
+}
+.order-item.is-hosting .order-item__query,
+.order-item.is-hosting .order-item__inner {
+  pointer-events: none;
 }
 /* The strip's band stands in for the row's (.modify-strip__band): off at
    once a beat in, as the strip's comes on, and still off while the strip's
@@ -1803,12 +1836,12 @@ body:has(.site-header__menu.is-open) .gallery-material {
   transition: none;
 }
 .order-item.is-unhosting .order-item__query,
-.order-item.is-unhosting .order-item__inner {
+.order-item.is-unhosting :is(.order-item__picture, .order-item__words) {
   transition: opacity var(--fade-standard) ease;
 }
 /* After a Save, in sequence: the strip's labels out quickly, then the
    content in. */
-.order-item.is-unhosting.is-unhost-saved .order-item__inner {
+.order-item.is-unhosting.is-unhost-saved :is(.order-item__picture, .order-item__words) {
   transition: opacity var(--fade-standard) ease var(--fade-quick);
 }
 .order-item.is-unhost-saved .modify-strip.is-leaving .modify-strip__back,
@@ -2289,8 +2322,9 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 
 /* ---- 1. label ----
-   ::before: a full-width band (--band-h) over the row's content inverting what
-   is under it (backdrop-filter: invert(1), like .reveal__frontier).
+   ::before: a full-width band (--band-h) over the thumbnail inverting what
+   is under it (backdrop-filter: invert(1), like .reveal__frontier). The
+   text and price are drawn over the band, in the colours it would give them.
    ::after: behind the content, --black-bg-inverted, so the band reads as
    solid --black-bg wherever it doesn't cross content.
    isolation is required: without a local stacking context ::after's
@@ -2317,8 +2351,8 @@ body:has(.order-checkout-bar:not([hidden])) {
   -webkit-backdrop-filter: invert(1);
   backdrop-filter: invert(1);
 }
-/* resampleBand() (js/order-rows.js): nudging the filter for two frames makes
-   Safari re-sample a value changed in place under the band. */
+/* resampleBand() (js/helpers.js): nudging the filter for two frames makes
+   Safari re-sample a picture changed in place under the band. */
 .product-detail__label-bar.is-resampling::before,
 .order-item.is-resampling::before {
   -webkit-backdrop-filter: invert(0.99);
@@ -2504,6 +2538,13 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
   object-fit: contain;
   background: transparent;
 }
+/* Over the band (z-index above its 2). */
+.product-detail__label-text,
+.product-detail__label-price {
+  position: relative;
+  z-index: 3;
+  color: var(--white);
+}
 /* A long name scrolls sideways (.edge-scroll), not an ellipsis. */
 .product-detail__label-text {
   flex: 1;
@@ -2522,7 +2563,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 .product-detail__label-type {
   font-family: var(--font-secondary);
   font-size: 0.65em;
-  color: var(--category-col);
+  color: var(--category-col-inverted);
   margin-left: 0.3em;
 }
 .product-detail__label-price {
@@ -4813,12 +4854,14 @@ body.has-series-hero .selection-bar {
   --left-w: calc(var(--inset) + var(--q));
 }
 /* Full-bleed over the row, centred on it like the Undo line, above the
-   row's band. Placed without a transform: as its own compositing layer inside
-   the drawer's transformed, scrolled list, iOS Safari can hit-test its taps
-   off target. */
+   row's band (later in the markup, at its z-index) and under the row's words
+   and controls, which its band would otherwise invert while they crossfade
+   with its labels. Placed without a transform: as its own compositing layer
+   inside the drawer's transformed, scrolled list, iOS Safari can hit-test its
+   taps off target. */
 .modify-strip {
   position: absolute;
-  z-index: 3;
+  z-index: 2;
   top: 0;
   bottom: 0;
   left: calc(50% - 50vw);
@@ -4856,7 +4899,7 @@ body.has-series-hero .selection-bar {
   left: var(--left-w);
   right: 0;
   padding-right: var(--left-w);
-  color: var(--white);
+  color: var(--black);
 }
 .modify-strip__save:disabled { cursor: default; }
 .modify-strip__save:disabled .modify-strip__label { opacity: 0.35; }
@@ -4868,7 +4911,7 @@ body.has-series-hero .selection-bar {
   width: var(--left-w);
   justify-content: flex-start;
   padding-left: calc(var(--inset) + var(--edge-px));
-  color: var(--white);
+  color: var(--black);
 }
 .modify-strip__back svg {
   display: block;
@@ -4876,9 +4919,9 @@ body.has-series-hero .selection-bar {
   height: 1.25rem;
   transform: translateY(0.1rem);
 }
-/* As .order-item::before: an invert band across the strip, painted over the
-   labels; takes no taps. On a beat in, as the row's goes off
-   (.order-item.is-hosting::before); off at once. */
+/* As .order-item::before: an invert band across the strip, before the
+   labels in the markup so they paint over it; takes no taps. On a beat in,
+   as the row's goes off (.order-item.is-hosting::before); off at once. */
 .modify-strip__band {
   position: absolute;
   top: 50%;

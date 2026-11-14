@@ -117,8 +117,8 @@
       return neighbour ? neighbour.li : null;
     }
 
-    // Rows in the list, in order: { item, shown, index, li, inner, button,
-    // thumb, name, attrs, count, price, query }. A collapsing row has already
+    // Rows in the list, in order: { item, shown, index, li, inner, words,
+    // button, thumb, name, attrs, count, price, query }. A collapsing row has already
     // left, so indexes match storage.
     var bindings = [];
     // The Undo line requested but not yet answered (offerUndo() precedes the
@@ -192,13 +192,18 @@
       text.appendChild(count);
       fillCount(count, item);
 
-      button.appendChild(thumb.el);
-      button.appendChild(text);
+      // The picture under the row's band, the words over it (.order-item__words).
+      var picture = el("span", "order-item__picture");
+      picture.appendChild(thumb.el);
+      var words = el("span", "order-item__words");
+      words.appendChild(text);
+      button.appendChild(picture);
+      button.appendChild(words);
 
       var price = null;
       if (showPrice) {
         price = el("span", "order-item__price", sel.formatPrice(sel.linePrice(item)));
-        button.appendChild(price);
+        words.appendChild(price);
       }
 
       // .order-item__inner clips the collapse/expand, so .order-item doesn't clip its ::before band.
@@ -220,6 +225,7 @@
 
       binding.li = li;
       binding.inner = inner;
+      binding.words = words;
       binding.button = button;
       binding.thumb = thumb;
       binding.name = name;
@@ -499,7 +505,7 @@
           var inQuery = query && query.binding === binding;
           if (inQuery && saved) endQuery(true);
           else if (inQuery) binding.query.layer.inert = false;
-          var arriving = inQuery && !saved ? binding.query.layer : binding.inner;
+          var arriving = inQuery && !saved ? binding.query.layer : binding.words;
           transitionDone(arriving, "opacity", UNHOST_MS).then(function () {
             if (binding.unhostToken !== token) return;
             // In one frame, the bands swap back with no transition.
@@ -632,8 +638,9 @@
       button.appendChild(el("span", "order-item__undo-label", "Undo"));
       var band = el("span", "order-item__undo-band");
       band.setAttribute("aria-hidden", "true");
-      wrap.appendChild(button);
+      // The band first, so the label paints over it.
       wrap.appendChild(band);
+      wrap.appendChild(button);
       button.addEventListener("click", function (e) {
         e.stopPropagation();
         if (h.state === "held" && h.handlers.onUndo) h.handlers.onUndo();

@@ -144,6 +144,11 @@ The index lists the event names and storage keys.
 - mask fades instead of ellipses;
 - blurred "glass" bars.
 
+**Text is drawn over the invert bands, never under them** (the rule is in rules.md). A band inverts by reading back what is painted under it and drawing it again inverted. Text that goes through that loses subpixel antialiasing, and it is resampled at the band's fractional position (its height follows the screen width). On a phone's dense screen that can't be seen. On a desktop at 100% or 125% it looks pixelated next to plain text. So the bands keep inverting only pictures (thumbnails, the backgrounds), and the text over them is plain text in its final colour. The `-inverted` colour tokens give that colour for text whose plain token is mid-grey. Two things follow:
+
+- the content of a band's row fades in parts, the picture and the words separately, never through a shared ancestor;
+- Safari's late re-sample (`resampleBand`) is needed only when a picture changes under a band.
+
 Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden]` rule: the author rule beats the browser's.
 
 **Accessibility is structural.**

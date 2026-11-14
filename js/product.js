@@ -341,7 +341,7 @@
 
   /* ---- 1. label ---- */
 
-  // The label's bar, an invert band re-sampled when its content changes in place (EmjiveHelpers.resampleBand).
+  // The label's bar, an invert band re-sampled when its picture changes in place (EmjiveHelpers.resampleBand).
   function labelBar() {
     return document.querySelector(".product-detail__label-bar");
   }
@@ -367,7 +367,6 @@
     }
     if (node.textContent === suffix) return;
     node.textContent = suffix;
-    H.resampleBand(labelBar());
   }
 
   // ".category.metal", plus ".size" once the size field holds one (appendSize, as in the rows).
@@ -386,8 +385,6 @@
       node.appendChild(document.createTextNode("."));
       window.EmjiveSelection.appendSize(node, state.sizeText);
     }
-    // Changed in place under the invert band.
-    H.resampleBand(labelBar());
   }
 
   // Always the icon, for its consistent framing at this small size; hidden
@@ -1040,8 +1037,6 @@
     state.selectedMetal = metal;
     renderLabelType(product);
     renderLabelPrice(product);
-    // Safari re-samples the label bar's invert band late otherwise.
-    H.resampleBand(labelBar());
     // The label thumbnail and icon fallback are static images: swap them to the design's icon.
     var view = state.view;
     renderLabelThumb();

@@ -220,11 +220,14 @@
       if (state.stack) state.stack.setActive(next === "stack");
       placeEmptyMessage();
       syncControls();
+      // Its faces crossfade (data-gallery-view): back to its colour with them.
+      if (viewToggle) viewToggle.classList.remove("is-pressed");
     });
   }
 
   if (viewToggle) {
     viewToggle.addEventListener("click", function () {
+      viewToggle.classList.add("is-pressed");
       switchView(view() === "grid" ? "stack" : "grid");
     });
   }

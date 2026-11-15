@@ -29,10 +29,16 @@
   --button-font-size: calc(0.75rem * var(--text-scale));
   --button-letter-spacing: 0.05rem;
   --button-text-transform: uppercase;
-  /* Secondary buttons ("Find my size", "Go to page", the view toggle): the same recipe scaled by --button-secondary-scale. */
+  /* Secondary buttons ("Find my size"): the same recipe scaled by --button-secondary-scale. */
   --button-secondary-scale: 0.7;
   --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
   --button-secondary-letter-spacing: calc(var(--button-letter-spacing) * var(--button-secondary-scale));
+  /* The gallery's buttons (the wheel's centre button, the view toggle): the
+     recipe at 9px text on phones, 12px past the breakpoint (below), where
+     --button-font-size is 1.2x larger. */
+  --button-gallery-scale: 0.75;
+  --button-gallery-font-size: calc(var(--button-font-size) * var(--button-gallery-scale));
+  --button-gallery-letter-spacing: calc(var(--button-letter-spacing) * var(--button-gallery-scale));
 
   --max: 1440px;
   /* The site's horizontal edge inset, header to footer. */
@@ -67,6 +73,7 @@
 @media (min-width: 641px) {
   :root {
     --text-scale: 1.2;
+    --button-gallery-scale: calc(5 / 6);
   }
 }
 
@@ -779,8 +786,9 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 
 /* ---- the view toggle ----
-   "grid" / "wheel" (js/gallery.js), the view it switches to, in the secondary
-   button format. mix-blend-mode keeps it legible over photo, x-ray and page.
+   "grid" / "wheel" (js/gallery.js), the view it switches to, in the gallery
+   button format, in the category colour: black from a click (.is-pressed)
+   until the switch swaps its face, then fading back as the faces crossfade.
    Above the header's veil, so it steps aside while the menu is open. In the
    wheel view only once the entrance is done (.is-ready). */
 :root {
@@ -790,47 +798,54 @@ html[data-gallery-view="grid"] .gallery-stage {
   position: fixed;
   top: var(--header-height);
   z-index: 81;
-  display: inline-flex;
+  display: inline-grid;
   align-items: center;
-  gap: 0.5em;
+  justify-items: end;
   height: var(--gallery-controls-height);
   margin: 0;
   padding: 0 var(--edge-px);
   border: none;
   background: none;
-  color: var(--white);
-  mix-blend-mode: difference;
+  color: var(--category-col);
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-secondary-font-size);
-  letter-spacing: var(--button-secondary-letter-spacing);
+  font-size: var(--button-gallery-font-size);
+  letter-spacing: var(--button-gallery-letter-spacing);
   text-transform: var(--button-text-transform);
   cursor: pointer;
-  transition: opacity var(--fade-standard) ease, visibility 0s;
+  transition: opacity var(--fade-standard) ease, visibility 0s, color var(--fade-standard) ease;
   -webkit-tap-highlight-color: transparent;
 }
 .gallery-control--view { right: 0; }
+/* Black at once; the fade is only on the way back. */
+.gallery-control.is-pressed {
+  color: var(--black);
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+}
+/* Both faces share one cell, right-aligned. */
+.gallery-control__face {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  transition: opacity var(--fade-standard) ease;
+}
 .gallery-control__icon {
   width: 1.25em;
   height: 1.25em;
   flex: 0 0 auto;
 }
 /* Shows the view it goes to. */
-html[data-gallery-view="stack"] .gallery-control__icon--wheel,
-html[data-gallery-view="stack"] .gallery-control__label--stack,
-html[data-gallery-view="grid"] .gallery-control__icon--grid,
-html[data-gallery-view="grid"] .gallery-control__label--grid {
-  display: none;
+html[data-gallery-view="stack"] .gallery-control__face--stack,
+html[data-gallery-view="grid"] .gallery-control__face--grid {
+  opacity: 0;
 }
 .gallery-control--view:not(.is-ready),
 body:has(.site-header__menu.is-open) .gallery-control {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
-}
-@media (hover: hover) {
-  .gallery-control:hover { opacity: 0.6; }
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard), color var(--fade-standard) ease;
 }
 
 /* ---- the veil a view switch fades through (js/gallery.js) ----
@@ -973,13 +988,13 @@ body:has(.site-header__menu.is-open) .gallery-control {
   gap: 0.5em;
   margin: 0;
   /* Matches the trailing letter-spacing before the arrow, so the visible span is centred. */
-  padding: calc(0.3rem * var(--button-secondary-scale)) 0 calc(0.3rem * var(--button-secondary-scale)) var(--button-secondary-letter-spacing);
+  padding: calc(0.3rem * var(--button-gallery-scale)) 0 calc(0.3rem * var(--button-gallery-scale)) var(--button-gallery-letter-spacing);
   border: none;
   background: none;
   font-family: var(--font-main);
   font-weight: var(--button-font-weight);
-  font-size: var(--button-secondary-font-size);
-  letter-spacing: var(--button-secondary-letter-spacing);
+  font-size: var(--button-gallery-font-size);
+  letter-spacing: var(--button-gallery-letter-spacing);
   text-transform: var(--button-text-transform);
   line-height: 1.4;
   color: var(--black);

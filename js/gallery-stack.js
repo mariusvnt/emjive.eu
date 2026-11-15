@@ -54,6 +54,8 @@
   var SIZE_MAX = 200;
   // Margin between the circle (focused product included) and its domain's edges, px.
   var MARGIN = 12;
+  // Angles sampled over a half turn when fitting the circle to its domain (fitCircle()).
+  var FIT_SAMPLES = 90;
   // Landscape, pulled back: the fingertips stay at least this far (px) under the
   // header, lowering the hand under the circle (handDrop). Portrait keeps the
   // wrist on the circle's centre.
@@ -334,6 +336,35 @@
       return slots;
     }
 
+    /* The largest circle whose products, the focused one included, stay within
+       halfW and halfH of its centre, and its product size. Only products near
+       the top grow (sizeAt()), so a tall domain's sides need room for plain
+       products alone. Every extent grows with R: a bisection. */
+    function fitCircle(halfW, halfH, step) {
+      var k = SPACING_FILL * step;
+      function sizeOf(R) {
+        return clamp(k * R, SIZE_MIN, SIZE_MAX);
+      }
+      function fits(R) {
+        var s = sizeOf(R);
+        for (var i = 0; i <= FIT_SAMPLES; i++) {
+          var a = Math.PI * i / FIT_SAMPLES;
+          var half = sizeAt(a, step, s, s * FOCUS_SCALE) / 2;
+          if (R * Math.sin(a) + half > halfW || Math.abs(R * Math.cos(a)) + half > halfH) return false;
+        }
+        return true;
+      }
+      var lo = 0;
+      var hi = Math.max(1, halfW, halfH);
+      for (var j = 0; j < 30; j++) {
+        var mid = (lo + hi) / 2;
+        if (fits(mid)) lo = mid;
+        else hi = mid;
+      }
+      var R = Math.max(1, lo);
+      return { R: R, s: sizeOf(R) };
+    }
+
     /* The circle at both ends of the pull-back:
          c1, R1   centre and radius pulled back (the domain's centre, as large as
                   fits with the focused product)
@@ -350,15 +381,10 @@
       if (!n) return;
       var d = domain();
       var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
-      var half = Math.max(1, Math.min(d.right - d.left, d.bottom - d.top) / 2 - MARGIN);
       var step = TAU / n;
-      var k = SPACING_FILL * step;
-      var R1 = half / (1 + FOCUS_SCALE * k / 2);
-      var s = k * R1;
-      if (s > SIZE_MAX || s < SIZE_MIN) {
-        s = clamp(s, SIZE_MIN, SIZE_MAX);
-        R1 = Math.max(1, half - FOCUS_SCALE * s / 2);
-      }
+      var fit = fitCircle((d.right - d.left) / 2 - MARGIN, (d.bottom - d.top) / 2 - MARGIN, step);
+      var R1 = fit.R;
+      var s = fit.s;
       var h = hero();
       var orbit = h && h.orbit ? h.orbit() : null;
       var c0 = orbit ? { x: orbit.x, y: orbit.y } : c1;
@@ -517,11 +543,14 @@
       };
     }
 
-    // A product's size at angle a on the circle, growing toward the top.
+    // A product's size at angle a on the circle, growing from s to S toward the top.
+    function sizeAt(a, step, s, S) {
+      return lerp(s, S, 1 - smoothstep(0, step, Math.abs(wrap(a))));
+    }
+
     function sizeFor(a) {
       var L = state.L;
-      var near = 1 - smoothstep(0, L.step, Math.abs(wrap(a)));
-      return lerp(L.s, L.S, near);
+      return sizeAt(a, L.step, L.s, L.S);
     }
 
     /* An item's pose at entrance p and plate turn theta, in screen px: centre

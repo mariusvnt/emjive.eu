@@ -816,7 +816,9 @@ html[data-gallery-view="grid"] .gallery-stage {
   transition: opacity var(--fade-standard) ease, visibility 0s, color var(--fade-standard) ease;
   -webkit-tap-highlight-color: transparent;
 }
-.gallery-control--view { right: 0; }
+/* At the content span's right edge: a fixed box's % is of the viewport without
+   its scrollbar, as the span is laid out (vw would count the scrollbar). */
+.gallery-control--view { right: max(0px, calc(50% - var(--max) / 2)); }
 /* Black at once; the fade is only on the way back. */
 .gallery-control.is-pressed {
   color: var(--black);

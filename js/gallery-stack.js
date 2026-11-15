@@ -56,9 +56,8 @@
   var MARGIN = 12;
   // Angles sampled over a half turn when fitting the circle to its domain (fitCircle()).
   var FIT_SAMPLES = 90;
-  // Landscape, pulled back: the fingertips stay at least this far (px) under the
-  // header, lowering the hand under the circle (handDrop). Portrait keeps the
-  // wrist on the circle's centre.
+  // Pulled back, the fingertips stay at least this far (px) under the header,
+  // lowering the hand under the circle (handDrop) where they would not.
   var HAND_TOP_GAP = 24;
 
   // ---- turning ----
@@ -424,7 +423,7 @@
       // Where the fingertips land pulled back, and how far the hand drops to clear the header.
       var z = R1 / r0;
       var handDrop = 0;
-      if (orbit && isFinite(orbit.top) && window.innerWidth > viewHeight()) {
+      if (orbit && isFinite(orbit.top)) {
         var headerBottom = header ? header.getBoundingClientRect().bottom : 0;
         var tipY = c1.y + z * (orbit.top - c0.y);
         handDrop = Math.max(0, headerBottom + HAND_TOP_GAP - tipY);

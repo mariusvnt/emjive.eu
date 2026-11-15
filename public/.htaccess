@@ -29,10 +29,16 @@ ServerSignature Off
   # path gets the host's ":443" in its Location, so it doesn't name the
   # canonical URL exactly.
 
-  # The gallery's other addresses -> /, the query (?series=, ?cat=) kept.
+  # The gallery's other addresses -> /, the query (?series=, ?cat=) kept;
+  # /gallery to /#gallery, past the hero. A target with a fragment names the
+  # query itself (NE keeps the # and the query's escapes as they are), or
+  # the query would land after the fragment.
   RewriteCond %{THE_REQUEST} \s/index\.html[?\s]
   RewriteRule ^index\.html$ https://%{HTTP_HOST}/ [L,R=301]
-  RewriteRule ^(?:gallery|index)$ https://%{HTTP_HOST}/ [L,R=301]
+  RewriteRule ^index$ https://%{HTTP_HOST}/ [L,R=301]
+  RewriteCond %{QUERY_STRING} ^$
+  RewriteRule ^gallery$ https://%{HTTP_HOST}/#gallery [NE,L,R=301]
+  RewriteRule ^gallery$ https://%{HTTP_HOST}/?%{QUERY_STRING}#gallery [NE,L,R=301]
 
   # /<page>.html -> /<page>. Not 404.html (the ErrorDocument).
   RewriteCond %{THE_REQUEST} \s/[^/?\s]+\.html[?\s]

@@ -106,8 +106,6 @@ export function createStackScene(options) {
   var heldCpuBytes = 0;
   var focusId = null;
   var focusEl = null;
-  // The running metal fade's stop (setMetal).
-  var stopFade = null;
   // Shared by every model's material.
   var handLook = handUniforms();
 
@@ -517,7 +515,6 @@ export function createStackScene(options) {
     if (disposed) return;
     disposed = true;
     cancelAnimationFrame(raf);
-    if (stopFade) stopFade();
     canvas.removeEventListener("webglcontextlost", onContextLost, false);
     document.removeEventListener("visibilitychange", repaint);
     window.removeEventListener("pageshow", repaint);
@@ -588,21 +585,14 @@ export function createStackScene(options) {
 
     setPoses: applyPoses,
 
-    // Every product in this metal (the gallery's material picker), the
-    // models easing into it (toolkit.fadeMetal) unless instant.
-    setMetal: function (metal, instant) {
-      var fading = [];
-      entries.forEach(function (entry) {
-        if (entry.metal === metal) return;
-        entry.metal = metal;
-        if (entry.model && instant) tint(entry);
-        else if (entry.model) fading.push(entry.material);
-        else if (entry.sprite) retexture(entry);
-      });
-      if (fading.length) {
-        if (stopFade) stopFade();
-        stopFade = toolkit.fadeMetal(fading, metal, kick);
-      }
+    // One product's metal (picked on its grid tile, js/gallery.js), at once:
+    // the wheel is out of sight while it changes.
+    setMetal: function (id, metal) {
+      var entry = byId[String(id)];
+      if (!entry || entry.metal === metal) return;
+      entry.metal = metal;
+      if (entry.model) tint(entry);
+      else if (entry.sprite) retexture(entry);
       kick();
     },
 

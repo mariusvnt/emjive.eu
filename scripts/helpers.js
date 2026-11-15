@@ -132,19 +132,19 @@ function designGeometries(product) {
   return [product.geometry, ...list.map((d) => d.geometry)].filter(Boolean);
 }
 
-// A product's lowest and highest price over every metal, design and size of
-// its "size-range", in whole euros, as js/selection.js priceSpan() computes
-// them; null when nothing is priced (TBD).
-function priceSpan(product, index) {
+// A product's lowest and highest price over every design and size of its
+// "size-range" in one metal, or every metal without one, in whole euros, as
+// js/selection.js priceSpan() computes them; null when nothing is priced (TBD).
+function priceSpan(product, index, metal) {
   const range = product["size-range"];
   let low = Infinity;
   let high = 0;
-  for (const metal of index.metals || []) {
+  for (const m of metal ? [metal] : index.metals || []) {
     for (const geometry of designGeometries(product)) {
-      const from = salePrice(index, geometry, metal, range.min);
+      const from = salePrice(index, geometry, m, range.min);
       if (!(from > 0)) continue;
       low = Math.min(low, from);
-      high = Math.max(high, salePrice(index, geometry, metal, range.max));
+      high = Math.max(high, salePrice(index, geometry, m, range.max));
     }
   }
   return high > 0 ? { low, high } : null;

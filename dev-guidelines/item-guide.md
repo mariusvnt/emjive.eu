@@ -143,7 +143,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 `json-tool` adds it to the `metals` list, with a neutral grey shader to tune in `scene-tool`, and reminds you of the rest, which is by hand:
 
 - its `production-costs` (the printer's charge for it), `metal-composition` and `metal-technology` in `data/series.json`;
-- a swatch rule in `css/style.css`, which the material dial and the gallery's picker share.
+- a swatch rule in `css/style.css`, which the material dial and the grid tiles' pickers share.
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.
 

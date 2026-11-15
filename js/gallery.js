@@ -2,11 +2,11 @@
 // <html> (set in the <head> by js/scroll-memory.js):
 //   stack  the wheel (js/gallery-stack.js, mounted here)
 //   grid   the grid, built here: two tiles per product, its pictures (a deck dealt by
-//          swiping) over its facts
+//          swiping) over its material picker and its facts
 // data-hero="play" plays the hero reveal first, "skip" lands at rest.
-// Also owns product loading, the view toggle and its veil, the material
-// picker, the filter's effect on both views, and reporting changes to
-// js/scroll-memory.js.
+// Also owns product loading, the view toggle and its veil, the filter's
+// effect on both views, and reporting changes to js/scroll-memory.js,
+// the gallery being reached included.
 //
 // window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
 
@@ -15,15 +15,15 @@
 
   var grid = document.getElementById("productGrid");
   var stage = document.getElementById("galleryStage");
-  var section = document.getElementById("products");
+  var section = document.getElementById("gallery");
   if (!grid || !stage || !section || !window.EmjiveSeries) return;
 
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
-  var materialEl = document.getElementById("galleryMaterial");
 
   // Read by js/scroll-memory.js in the <head>.
   var VIEW_KEY = "emjive_gallery_view";
+  var REACHED_KEY = "emjive_gallery_reached";
   // The veil's fade (--fade-standard); its fallback timer adds a margin.
   var VEIL_MS = 300;
   // Longest the arrival loader waits on the grid's first items.
@@ -57,9 +57,7 @@
     cats: [],
     onShowAll: null,
     emptyMsg: null,
-    stage: null,
-    // The grid's top has come up past the hero (watchGridTop()).
-    gridReached: false
+    stage: null
   };
 
   /* ---- arrival cover and the wheel ----
@@ -166,33 +164,43 @@
     setTimeout(swap, VEIL_MS + 50);
   }
 
-  /* ---- the view toggle and the material picker ---- */
+  /* ---- the view toggle ---- */
+
+  // The wheel's entrance has played out (mapStage, the roll back left out).
+  function wheelLanded() {
+    var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
+    return stage !== null && stage >= 0.9;
+  }
 
   function syncControls() {
+    if (view() === "stack" && wheelLanded()) markReached();
     // Its icon and word are CSS's (same attribute); this is its name.
     if (!viewToggle) return;
     viewToggle.setAttribute("aria-label", view() === "grid" ? "switch to wheel" : "switch to grid");
-    // Wheel view: shown once the entrance has played out (mapStage, the roll back left out).
-    var stage = state.stage === null ? null : window.EmjiveHero.mapStage(state.stage);
-    var landed = stage !== null && stage >= 0.9;
-    viewToggle.classList.toggle("is-ready", view() === "grid" || landed);
-    // The material picker: after the hero, the grid's once it has scrolled by.
-    if (materialEl) {
-      materialEl.classList.toggle("is-ready", view() === "grid" ? heroMode() === "skip" || state.gridReached : landed);
-    }
+    // Wheel view: shown once landed.
+    viewToggle.classList.toggle("is-ready", view() === "grid" || wheelLanded());
   }
 
-  // Whether the grid's top has reached the top of the screen.
+  /* ---- reaching the gallery ----
+     Once the visitor has been in it (the wheel landed, the grid's top at the
+     screen's, or the hero skipped), every landing from the site skips the
+     hero for the rest of the visit: js/scroll-memory.js reads the mark,
+     which a new tab doesn't have. */
+  var reached = false;
+  function markReached() {
+    if (reached) return;
+    reached = true;
+    H.writeStorage("sessionStorage", REACHED_KEY, "1");
+  }
+
   function watchGridTop() {
-    if (typeof IntersectionObserver !== "function") {
-      state.gridReached = true;
-      return;
-    }
-    new IntersectionObserver(function (entries) {
-      var box = entries[entries.length - 1].boundingClientRect;
-      state.gridReached = box.top <= 0;
-      syncControls();
-    }, { rootMargin: "0px 0px -100% 0px" }).observe(section);
+    if (typeof IntersectionObserver !== "function") return;
+    var observer = new IntersectionObserver(function (entries) {
+      if (view() !== "grid" || entries[entries.length - 1].boundingClientRect.top > 0) return;
+      markReached();
+      observer.disconnect();
+    }, { rootMargin: "0px 0px -100% 0px" });
+    observer.observe(section);
   }
 
   // Either view lands at rest: the grid at the top, the wheel at the hero's end.
@@ -201,6 +209,7 @@
     throughVeil(function () {
       html.setAttribute("data-gallery-view", next);
       html.setAttribute("data-hero", "skip");
+      markReached();
       // Blocked storage: the default comes back next visit.
       H.writeStorage("localStorage", VIEW_KEY, next);
       remember({ view: next, hero: "skip" });
@@ -226,67 +235,9 @@
       syncControls();
     });
   }
-  watchGridTop();
+  if (heroMode() === "skip") markReached();
+  else watchGridTop();
   syncControls();
-
-  /* One metal for every item (EmjiveSeries.chooseMetal), in both views'
-     pictures, the grid's prices and the item's page after: the metals'
-     swatches in a row, the active one dotted, its name beside them. Until
-     the visitor picks, every item shows its own default metal, and the
-     picker the one they share. */
-  function buildMaterialPicker(products) {
-    var metals = window.EmjiveSeries.metals || [];
-    if (!materialEl || metals.length < 2) return;
-    var first = products.length ? products[0]["default-metal"] : null;
-    var shared = products.every(function (p) { return p["default-metal"] === first; }) ? first : null;
-    var current = window.EmjiveSeries.chosenMetal() || shared;
-
-    var row = el("div", "gallery-material__swatches");
-    row.setAttribute("role", "group");
-    row.setAttribute("aria-label", "Material");
-    var buttons = metals.map(function (metal) {
-      var button = el("button", "gallery-material__swatch");
-      button.type = "button";
-      button.setAttribute("aria-label", metal);
-      var swatch = el("span", "product-dial__swatch");
-      swatch.setAttribute("data-metal", metal);
-      button.appendChild(swatch);
-      button.addEventListener("click", function () { choose(metal); });
-      row.appendChild(button);
-      return button;
-    });
-    var nameEl = el("span", "gallery-material__name");
-    nameEl.setAttribute("aria-hidden", "true");
-    materialEl.appendChild(row);
-    materialEl.appendChild(nameEl);
-
-    function paint() {
-      buttons.forEach(function (button, i) {
-        button.setAttribute("aria-pressed", metals[i] === current ? "true" : "false");
-      });
-      nameEl.textContent = current || "";
-    }
-
-    // The first pick also prices the grid, even in the metal already shown.
-    function choose(metal) {
-      if (metal === window.EmjiveSeries.chosenMetal()) return;
-      window.EmjiveSeries.chooseMetal(metal);
-      current = metal;
-      paint();
-      applyMetal(metal);
-    }
-
-    paint();
-  }
-
-  function applyMetal(metal) {
-    state.items.forEach(function (item) {
-      var src = cardPicture(item.product, metal);
-      if (item.firstImg && src) H.crossfadeSrc(item.firstImg, src);
-      item.price.textContent = priceText(item.product);
-    });
-    if (state.stack) state.stack.setMetal(metal);
-  }
 
   /* ---- the grid ----
      Each product takes two tiles: a square deck of pictures (the model's
@@ -384,8 +335,8 @@
   }
 
   // An item's facts, stacked; only the size's label is shown. Price runs
-  // over all metals, or the chosen one's once picked, smallest size to
-  // largest (it scales with size, js/selection.js priceAt).
+  // over the item's metal, smallest size to largest (it scales with size,
+  // js/selection.js priceAt).
   var FACTS = [
     { key: "name", label: "Id" },
     { key: "category", label: "Category" },
@@ -408,12 +359,12 @@
       var range = H.sizeRange(product);
       return el("dd", "", range.min + " – " + range.max);
     }
-    return el("dd", "", priceText(product));
+    return el("dd", "", priceText(product, window.EmjiveSeries.metalFor(product)));
   }
 
-  function priceText(product) {
+  function priceText(product, metal) {
     var sel = window.EmjiveSelection;
-    return sel.formatPriceRange(sel.priceSpan(product, window.EmjiveSeries.chosenMetal() || ""));
+    return sel.formatPriceRange(sel.priceSpan(product, metal));
   }
 
   // The deck's first card: the model's fallback-img, or its icon without a model.
@@ -433,6 +384,83 @@
     return list;
   }
 
+  /* An item's own material (EmjiveSeries.chooseMetal): the metals' swatches
+     in a row under its pictures, its metal's dotted and named right after
+     it. The room for the name opens after the active swatch (each swatch an
+     option with an invisible copy of its name, opened on the active one),
+     and one label moves into it, hidden while it crosses the swatches. A
+     pick changes its picture, its price, the wheel's and its page's metal,
+     and no other item's. */
+  function buildPicker(entry) {
+    var metals = window.EmjiveSeries.metals || [];
+    if (metals.length < 2) return null;
+    var product = entry.product;
+    var picker = el("div", "grid-item__material");
+    var row = el("div", "grid-item__swatches");
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", (product.name || "") + " material");
+    var options = metals.map(function (metal) {
+      var option = el("div", "grid-item__option");
+      var button = el("button", "grid-item__swatch");
+      button.type = "button";
+      button.setAttribute("aria-label", metal);
+      var swatch = el("span", "product-dial__swatch");
+      swatch.setAttribute("data-metal", metal);
+      button.appendChild(swatch);
+      button.addEventListener("click", function () { choose(metal); });
+      var room = el("span", "grid-item__metal");
+      room.setAttribute("aria-hidden", "true");
+      room.appendChild(el("span", "", metal));
+      option.appendChild(button);
+      option.appendChild(room);
+      row.appendChild(option);
+      return { el: option, button: button };
+    });
+    var label = el("span", "grid-item__label", entry.metal || "");
+    label.setAttribute("aria-hidden", "true");
+    row.appendChild(label);
+    picker.appendChild(row);
+    var swapTimer = 0;
+    // A tap anywhere on the picker, between swatches included, isn't one on the item.
+    picker.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    function paint() {
+      options.forEach(function (option, i) {
+        var on = metals[i] === entry.metal;
+        option.el.classList.toggle("is-active", on);
+        option.button.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      row.style.setProperty("--active", String(Math.max(0, metals.indexOf(entry.metal))));
+    }
+
+    // The label slides to the new swatch (CSS) and fades out and back in on
+    // the way; its text changes halfway, while it's hidden.
+    function moveLabel(metal) {
+      label.classList.remove("is-moving");
+      void label.offsetWidth;
+      label.classList.add("is-moving");
+      clearTimeout(swapTimer);
+      var ms = parseFloat(getComputedStyle(label).animationDuration) * 1000 || 0;
+      swapTimer = setTimeout(function () { label.textContent = metal; }, ms / 2);
+    }
+
+    function choose(metal) {
+      if (metal === entry.metal) return;
+      entry.metal = metal;
+      window.EmjiveSeries.chooseMetal(product, metal);
+      moveLabel(metal);
+      paint();
+      var src = cardPicture(product, metal);
+      if (entry.firstImg && src) H.crossfadeSrc(entry.firstImg, src);
+      entry.price.textContent = priceText(product, metal);
+      if (state.stack) state.stack.setMetal(product.id, metal);
+    }
+
+    label.addEventListener("animationend", function () { label.classList.remove("is-moving"); });
+    paint();
+    return picker;
+  }
+
   // Mirrored for the static grid by galleryItemMarkup() in vite.config.js.
   function buildItem(product) {
     var item = el("article", "grid-item");
@@ -440,7 +468,8 @@
     var deck = el("div", "grid-item__deck");
     var assets = product.assets || {};
     var name = product.name || "";
-    var first = cardPicture(product, window.EmjiveSeries.metalFor(product));
+    var metal = window.EmjiveSeries.metalFor(product);
+    var first = cardPicture(product, metal);
     var firstImg = null;
     if (first) {
       firstImg = card(first, name, "grid-item__card--model");
@@ -459,14 +488,18 @@
       wireDeck(frame, deck);
     }
     item.appendChild(frame);
-    item.appendChild(buildFacts(product));
+    var facts = buildFacts(product);
+    var entry = { product: product, el: item, firstImg: firstImg, metal: metal, price: facts.querySelector(".grid-item__fact--price dd") };
+    var picker = buildPicker(entry);
+    if (picker) item.appendChild(picker);
+    item.appendChild(facts);
 
     item.addEventListener("click", function () { openProduct(product); });
 
     if (firstImg && window.EmjiveLoader) {
       window.EmjiveLoader.cover(frame, H.imageReady(firstImg));
     }
-    return { product: product, el: item, firstImg: firstImg, price: item.querySelector(".grid-item__fact--price dd") };
+    return entry;
   }
 
   // Swapped in at once over the build's static grid (emitGalleryContent in
@@ -579,8 +612,6 @@
         grid.appendChild(none);
       }
       renderGrid(products);
-      // Before the wheel, which keeps clear of the picker.
-      buildMaterialPicker(products);
       if (window.EmjiveGalleryStack) {
         state.stack = window.EmjiveGalleryStack.mount(stage, {
           products: products,

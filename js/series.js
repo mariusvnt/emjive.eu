@@ -487,25 +487,31 @@
   // page's own error handling shows the message.
   ready.catch(function () { pageReady(); });
 
-  /* ---- the visitor's metal ----
-     One metal for every item, picked in the gallery (js/gallery.js) and
-     kept for the visit (sessionStorage): the gallery shows every item in
-     it, and an item's page opens on it. A new visit opens on the items'
-     own default metals. Null until one is picked, or once it is no longer
-     offered. */
-  var METAL_KEY = "emjive_metal";
+  /* ---- the visitor's metals ----
+     A metal per item, picked on its grid tile (js/gallery.js) and kept for
+     the visit (sessionStorage, by item name): the tile and the wheel show
+     the item in it, and its page opens on it. A new visit opens on the
+     items' own default metals. */
+  var METAL_KEY = "emjive_metals";
 
-  function chosenMetal() {
-    var metal = window.EmjiveHelpers.readStorage("sessionStorage", METAL_KEY);
+  function pickedMetals() {
+    return window.EmjiveHelpers.readStorageJson("sessionStorage", METAL_KEY) || {};
+  }
+
+  // Null until one is picked for the item, or once it is no longer offered.
+  function chosenMetal(product) {
+    var metal = product ? pickedMetals()[product.name] : null;
     return metal && index && (index.metals || []).indexOf(metal) !== -1 ? metal : null;
   }
 
-  function chooseMetal(metal) {
-    window.EmjiveHelpers.writeStorage("sessionStorage", METAL_KEY, metal);
+  function chooseMetal(product, metal) {
+    var picked = pickedMetals();
+    picked[product.name] = metal;
+    window.EmjiveHelpers.writeStorage("sessionStorage", METAL_KEY, JSON.stringify(picked));
   }
 
   function metalFor(product) {
-    return chosenMetal() || product["default-metal"];
+    return chosenMetal(product) || product["default-metal"];
   }
 
   window.EmjiveSeries = {

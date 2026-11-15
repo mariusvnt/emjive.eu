@@ -18,7 +18,7 @@
 //          model can't turn then)
 //
 // window.EmjiveGalleryStack = { mount(stage, { products, slug, active }) }
-//   -> { settleLayout(), setFilter(ids), setActive(on), setMetal(metal) },
+//   -> { settleLayout(), setFilter(ids), setActive(on), setMetal(id, metal) },
 //   mounted by js/gallery.js.
 
 (function () {
@@ -101,7 +101,6 @@
     var slug = options.slug;
     var header = document.querySelector(".site-header");
     var viewToggle = document.getElementById("galleryViewToggle");
-    var materialEl = document.getElementById("galleryMaterial");
 
     var state = {
       active: options.active !== false,
@@ -234,11 +233,10 @@
     }
 
     /* ---- geometry ----
-       The domain: under the header, the view toggle and the material
-       picker, above the selection bar's summary, full width. Its height uses
-       100svh (viewHeight()), not innerHeight, so the circle doesn't jump as
-       the phone's browser bars come and go; resizes that only move them
-       change nothing. */
+       The domain: under the header and the view toggle, above the selection
+       bar's summary, full width. Its height uses 100svh (viewHeight()), not
+       innerHeight, so the circle doesn't jump as the phone's browser bars
+       come and go; resizes that only move them change nothing. */
     var STALE_PROBE_SHARE = 0.5;
     var vhProbe = document.createElement("div");
     vhProbe.setAttribute("aria-hidden", "true");
@@ -262,9 +260,7 @@
 
     function domain() {
       var top = header ? header.getBoundingClientRect().bottom : 0;
-      [viewToggle, materialEl].forEach(function (node) {
-        if (node) top = Math.max(top, node.getBoundingClientRect().bottom);
-      });
+      if (viewToggle) top = Math.max(top, viewToggle.getBoundingClientRect().bottom);
       return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, viewHeight() - barHeight()) };
     }
 
@@ -1104,9 +1100,10 @@
       state.items.forEach(function (item) {
         if (item.visible) poses[item.id] = currentPose(item, p);
       });
-      // A metal picked while the scene was building, at once: the pictures show it already.
-      var chosen = window.EmjiveSeries.chosenMetal();
-      if (chosen) scene.setMetal(chosen, true);
+      // Metals picked while the scene was building: the pictures show them already.
+      state.items.forEach(function (item) {
+        scene.setMetal(item.id, window.EmjiveSeries.metalFor(item.product));
+      });
       scene.handOver(poses);
       state.scene = scene;
       // A ring without its model keeps its hand poster, crossing into the sprite.
@@ -1285,7 +1282,7 @@
     if (window.EmjiveHero && window.EmjiveHero.onLayout) window.EmjiveHero.onLayout(onLayoutChange);
     if (typeof ResizeObserver === "function") {
       var edges = new ResizeObserver(onLayoutChange);
-      [header, viewToggle, materialEl, document.querySelector(".selection-bar__summary")].forEach(function (node) {
+      [header, viewToggle, document.querySelector(".selection-bar__summary")].forEach(function (node) {
         if (node) edges.observe(node);
       });
     }
@@ -1323,10 +1320,12 @@
         whenPageRevealed(startScene);
       },
 
-      // The material picker (js/gallery.js): every product in this metal.
-      setMetal: function (metal) {
-        state.items.forEach(function (item) { H.crossfadeSrc(item.img, pictureFor(item.product, metal)); });
-        if (state.scene) state.scene.setMetal(metal);
+      // A product's metal, picked on its grid tile (js/gallery.js) while the wheel is hidden.
+      setMetal: function (id, metal) {
+        var item = state.byId[String(id)];
+        if (!item) return;
+        item.img.src = pictureFor(item.product, metal);
+        if (state.scene) state.scene.setMetal(item.id, metal);
       }
     };
   }

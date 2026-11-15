@@ -15,7 +15,7 @@
     loadingEl.hidden = false;
     window.EmjiveMessage.show(loadingEl, "The requested series doesn't exist", {
       label: "Back to gallery",
-      href: "/#products"
+      href: "/#gallery"
     }, "status");
     pageReady();
   }

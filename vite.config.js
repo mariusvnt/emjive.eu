@@ -330,7 +330,15 @@ function galleryItemMarkup(product, index, slug) {
   const assets = product.assets || {};
   const pick = (kind) => (assets[kind] && assets[kind][metal]) || "";
   const picture = (assets.model && pick("fallback-img")) || pick("icons");
-  const span = priceSpan(product, index);
+  const span = priceSpan(product, index, metal);
+  const metals = index.metals || [];
+  const option = (m) => '<div class="grid-item__option' + (m === metal ? " is-active" : "") + '">' +
+    '<button class="grid-item__swatch" type="button" aria-label="' + m + '" aria-pressed="' + (m === metal) + '">' +
+    '<span class="product-dial__swatch" data-metal="' + m + '"></span></button>' +
+    '<span class="grid-item__metal" aria-hidden="true"><span>' + m + "</span></span></div>";
+  const picker = metals.length < 2 ? "" :
+    '<div class="grid-item__material"><div class="grid-item__swatches" role="group" aria-label="' + escapeAttr(name) + ' material">' +
+    metals.map(option).join("") + '<span class="grid-item__label" aria-hidden="true">' + metal + "</span></div></div>";
   const price = !span ? "TBD" : span.low === span.high ? span.high + " €" : span.low + " – " + span.high + " €";
   const range = product["size-range"];
   const fact = (key, label, shown, value) =>
@@ -340,6 +348,7 @@ function galleryItemMarkup(product, index, slug) {
       ? '<div class="grid-item__frame"><div class="grid-item__deck"><img class="grid-item__card grid-item__card--model" src="/' + escapeAttr(picture) + '" alt="' +
         escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" width="512" height="512" loading="lazy" decoding="async" /></div></div>'
       : "") +
+    picker +
     '<dl class="grid-item__facts">' +
     fact("name", "Id", false, '<a class="grid-item__name" href="/' + slug + '">' + escapeText(name) + "</a>") +
     fact("category", "Category", false, escapeText((product.category || "").toLowerCase())) +
@@ -463,8 +472,8 @@ function emitItemPages() {
   };
 }
 
-// What public/.htaccess does, for dev and preview: /gallery and /index
-// redirected to /, /<page>, and /<slug> (its own page in preview, the shared
+// What public/.htaccess does, for dev and preview: /index redirected to /
+// and /gallery to /#gallery, /<page>, and /<slug> (its own page in preview, the shared
 // product.html in dev, where /product itself is left to 404 as in
 // production). Only extension-less single-segment paths. Keep in step with
 // .htaccess.
@@ -479,7 +488,7 @@ function cleanUrls() {
     if (!name || name === "product" || name.includes("/") || name.includes(".")) return next();
 
     if (name === "gallery" || name === "index") {
-      res.writeHead(301, { Location: "/" + rest });
+      res.writeHead(301, { Location: "/" + rest + (name === "gallery" ? "#gallery" : "") });
       res.end();
       return;
     }

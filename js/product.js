@@ -122,7 +122,7 @@
     var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
-      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/") + "#products"
+      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/") + "#gallery"
     }, "status");
     pageReady();
   }
@@ -190,8 +190,8 @@
   function render(product) {
     // The built page already has it; the dev server serves the bare template.
     document.title = "em·ji·ve: " + (product.name || "product").toLowerCase();
-    // The metal picked in the gallery, priced as a pick, else the item's own.
-    var chosen = window.EmjiveSeries.chosenMetal();
+    // The metal picked on its grid tile, priced as a pick, else the item's own.
+    var chosen = window.EmjiveSeries.chosenMetal(product);
     state.selectedMetal = chosen || product["default-metal"] || state.metals[0] || "steel";
     state.metalPicked = !!chosen;
     var sizes = H.sizeRange(product);

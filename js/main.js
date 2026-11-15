@@ -24,19 +24,23 @@
     var svg = node("svg", { width: "0", height: "0", "aria-hidden": "true", focusable: "false" });
     svg.style.position = "absolute";
     // Red one way, blue the other along `axis` ("dy" or "dx"); `flip` swaps
-    // them; `amount` in px (default 1.5).
+    // them; `amount` in px (default 1.5). A shift leaves its channel empty
+    // along one edge (no blue on top: a yellow line), so each shifted
+    // channel lies over its unshifted one.
     function aberration(id, axis, flip, amount) {
       var d = String(amount || 1.5);
       var filter = node("filter", { id: id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" }, svg);
-      var red = { "in": "r", result: "rShifted" };
-      var blue = { "in": "b", result: "bShifted" };
+      var red = { "in": "r", result: "rMoved" };
+      var blue = { "in": "b", result: "bMoved" };
       red[axis] = flip ? d : "-" + d;
       blue[axis] = flip ? "-" + d : d;
       node("feColorMatrix", channel("r", "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
       node("feOffset", red, filter);
+      node("feComposite", { "in": "rMoved", in2: "r", operator: "over", result: "rShifted" }, filter);
       node("feColorMatrix", channel("g", "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0"), filter);
       node("feColorMatrix", channel("b", "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"), filter);
       node("feOffset", blue, filter);
+      node("feComposite", { "in": "bMoved", in2: "b", operator: "over", result: "bShifted" }, filter);
       node("feBlend", { "in": "rShifted", in2: "g", mode: "screen", result: "rg" }, filter);
       node("feBlend", { "in": "rg", in2: "bShifted", mode: "screen" }, filter);
     }
@@ -131,7 +135,7 @@
       url.searchParams.set("series", series);
     }
     url.searchParams.set("cat", cat);
-    return url.pathname + url.search + "#products";
+    return url.pathname + url.search + "#gallery";
   }
 
   function renderHeaderFilter() {
@@ -145,7 +149,7 @@
       var galleryLink = document.createElement("a");
       galleryLink.className = "is-info";
       galleryLink.textContent = "Gallery";
-      galleryLink.href = window.EmjiveSeries.mainHref(window.EmjiveSeries.slug) + "#products";
+      galleryLink.href = window.EmjiveSeries.mainHref(window.EmjiveSeries.slug) + "#gallery";
       filterOptions.appendChild(galleryLink);
       return;
     }

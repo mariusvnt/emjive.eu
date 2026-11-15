@@ -15,16 +15,20 @@
   var STORAGE_PREFIX = "emjive:scroll:";
   // The last chosen view this visit (cleared on a landing).
   var VIEW_KEY = "emjive_gallery_view";
+  // Set by js/gallery.js once the visitor has been in the gallery, for this tab.
+  var REACHED_KEY = "emjive_gallery_reached";
 
   var html = document.documentElement;
   var H = window.EmjiveHelpers;
 
   /* ---- the landing ----
      1. The entry's saved state (Back, reload): the exact layout left.
-     2. #products in the address: skip the hero.
-     3. Otherwise the hero plays when arriving from outside the site, and is
-        skipped within a visit. A landing resets the view to the wheel; within a
-        visit it is the visitor's last choice. Blocked storage keeps the defaults. */
+     2. #gallery in the address, or the gallery already reached in this tab:
+        skip the hero, the address then naming #gallery (a #top would have
+        the browser scroll back up to the hero).
+     3. Otherwise the hero plays. Arriving from outside the site resets the
+        view to the wheel; within a visit it is the visitor's last choice.
+        Blocked storage keeps the defaults. */
   function cameFromThisSite() {
     try {
       return !!document.referrer && new URL(document.referrer).origin === window.location.origin;
@@ -40,9 +44,16 @@
     if (view !== "grid") view = "stack";
     var hero;
     if (saved && saved.hero) hero = saved.hero;
-    else if (window.location.hash === "#products") hero = "skip";
-    else hero = cameFromThisSite() ? "skip" : "play";
+    else if (window.location.hash === "#gallery" || H.readStorage("sessionStorage", REACHED_KEY) === "1") hero = "skip";
+    else hero = "play";
     if (hero !== "skip") hero = "play";
+    if (!saved && hero === "skip" && window.location.hash !== "#gallery") {
+      try {
+        window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + "#gallery");
+      } catch (e) {
+        // The address keeps its fragment.
+      }
+    }
     html.setAttribute("data-gallery-view", view);
     html.setAttribute("data-hero", hero);
     // fresh: nothing saved yet for this entry (an arrival, not Back). A skipped
@@ -347,7 +358,7 @@
     html.style.setProperty(HEIGHT_VAR, reservedHeight + "px");
     html.classList.add(RESTORING_CLASS, RESERVE_CLASS);
 
-    // A fragment (the logo's #top, #products) has the browser scroll to it
+    // A fragment (the logo's #top, #gallery) has the browser scroll to it
     // once the page has loaded, which on a slow load comes after the restore
     // and undoes it: dropped from this entry's address (the landing was
     // decided above). The load is answered too, unless the visitor moved.

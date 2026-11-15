@@ -179,7 +179,7 @@ if (fileSet.has("index.html")) {
 
 if (fileSet.has(".htaccess")) {
   const rules = fs.readFileSync(path.join(DIST, ".htaccess"), "utf8");
-  for (const needle of ["RewriteRule ^(?:gallery|index)$ https://%{HTTP_HOST}/ [L,R=301]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/ [L,R=301]"]) {
+  for (const needle of ["RewriteRule ^index$ https://%{HTTP_HOST}/ [L,R=301]", "RewriteRule ^gallery$ https://%{HTTP_HOST}/#gallery [NE,L,R=301]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/ [L,R=301]"]) {
     if (!rules.includes(needle)) fail(".htaccess: the clean-URL rules are missing (" + needle + ")");
   }
 }

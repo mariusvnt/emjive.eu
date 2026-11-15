@@ -2425,7 +2425,6 @@ export { toolkit };
     loadEnvironment: loadEnvironment,
     addSun: addSun,
     metalMaterial: metalMaterial,
-    fadeMetal: fadeMetal,
     handShader: handShaderSettings,
     configureRenderer: configureRenderer,
     // The default orbit's vertical fov and zoom (1 = bounding sphere fits exactly): what frames a fallback-img.

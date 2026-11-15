@@ -784,7 +784,6 @@ html[data-gallery-view="grid"] .gallery-stage {
    Above the header's veil, so it steps aside while the menu is open. In the
    wheel view only once the entrance is done (.is-ready). */
 :root {
-  /* The line the toggle and the material picker (below) share. */
   --gallery-controls-height: 2.5rem;
 }
 .gallery-control {
@@ -832,95 +831,6 @@ body:has(.site-header__menu.is-open) .gallery-control {
 }
 @media (hover: hover) {
   .gallery-control:hover { opacity: 0.6; }
-}
-
-/* ---- the material picker (js/gallery.js) ----
-   The metals' swatches in a row at the top left, on the view toggle's
-   line and twice as tall as its text's capitals, the active one dotted as a
-   dial's option is, its name inline to their right (the wheel keeps below
-   the line, js/gallery-stack.js). Each swatch's button is wider and taller
-   than it, for the finger. Shown as the toggle is, once past the hero
-   (.is-ready). */
-.gallery-material {
-  --swatch-room: 0.75rem;
-  position: fixed;
-  top: var(--header-height);
-  left: 0;
-  z-index: 81;
-  display: flex;
-  align-items: center;
-  height: var(--gallery-controls-height);
-  padding: 0 var(--edge-px);
-  /* Quick taps across the swatches aren't a double-tap zoom on a phone. */
-  touch-action: manipulation;
-  transition: opacity var(--fade-standard) ease, visibility 0s;
-}
-.gallery-material:not(.is-ready),
-body:has(.site-header__menu.is-open) .gallery-material {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
-}
-.gallery-material__swatches {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  /* The first swatch, not its button, on the edge. */
-  margin-left: calc(var(--swatch-room) / -2);
-}
-/* In the toggle's font, so em and cap are its text's. */
-.gallery-material__swatch {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 100%;
-  margin: 0;
-  padding: 0 calc(var(--swatch-room) / 2);
-  border: none;
-  background: none;
-  font-family: var(--font-main);
-  font-weight: var(--button-font-weight);
-  font-size: var(--button-secondary-font-size);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity var(--fade-quick) ease;
-}
-.gallery-material__swatch .product-dial__swatch {
-  width: 1.4em;
-  height: 1.4em;
-  width: 2cap;
-  height: 2cap;
-}
-/* The selection dot: always laid out, shown on the active swatch. */
-.gallery-material__swatch::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0.42em;
-  height: 0.42em;
-  width: 0.6cap;
-  height: 0.6cap;
-  border-radius: 50%;
-  background-color: var(--bg);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: opacity var(--fade-quick) ease;
-}
-.gallery-material__swatch[aria-pressed="true"]::after {
-  opacity: 1;
-}
-@media (hover: hover) {
-  .gallery-material__swatch[aria-pressed="false"]:hover { opacity: 0.6; }
-}
-.gallery-material__name {
-  margin-left: calc(var(--swatch-room) / 2);
-  font-family: var(--font-main);
-  font-size: calc(0.75rem * var(--text-scale));
-  line-height: 1;
-  color: var(--black);
-  white-space: nowrap;
 }
 
 /* ---- the veil a view switch fades through (js/gallery.js) ----
@@ -1185,17 +1095,20 @@ body:has(.site-header__menu.is-open) .gallery-material {
 .grid-item__card--photo {
   object-fit: cover;
 }
+/* Frosted glass tinted toward the page: what's behind is blurred, then
+   mostly washed into --bg. */
 .grid-item__card--model {
-  background: none;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
-/* The frost's edge: three inset shadows, darkest tightest, as on the glass bars. */
-.grid-item__deck[role="group"] .grid-item__card--model {
+/* The frost's edge, on every model card, a deck's or not: three inset
+   glows fading into --bg, strongest tightest. Beats a deck's card shadow. */
+.grid-item__deck .grid-item__card.grid-item__card--model {
   box-shadow:
-    inset 0 0 1px rgba(0, 0, 0, 0.1),
-    inset 0 0 3px rgba(0, 0, 0, 0.06),
-    inset 0 0 6px rgba(0, 0, 0, 0.04);
+    inset 0 0 1px var(--bg),
+    inset 0 0 3px color-mix(in srgb, var(--bg) 60%, transparent),
+    inset 0 0 6px color-mix(in srgb, var(--bg) 40%, transparent);
 }
 /* The facts (a <dl>), stacked: 12px DINish, the name --black, the rest
    --category-col. Labels are visually hidden but the size's, shown before
@@ -1231,6 +1144,123 @@ body:has(.site-header__menu.is-open) .gallery-material {
   text-align: inherit;
   letter-spacing: inherit;
   cursor: pointer;
+}
+/* The item's material picker (js/gallery.js): the metals' swatches in a row
+   between the pictures and the facts, in the facts' font, the active one
+   dotted as a dial's option is, its name right after it. Each swatch is an
+   option of two columns, its button and an invisible copy of its name, the
+   name's column 0fr but on the active one, so a change slides the swatches
+   aside to make the room; one label (.grid-item__label) moves into it.
+   Each swatch's button is a square --swatch-room wider than
+   it, for the finger; the first swatch, not its button, on the tile's edge. */
+.grid-item__material {
+  --swatch: 1.25em;
+  --swatch-room: 0.75em;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  /* The buttons' room above and below the swatches eats into the item's gaps. */
+  margin: -0.5rem 0 -0.25rem;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  cursor: default;
+  /* Quick taps across the swatches aren't a double-tap zoom on a phone. */
+  touch-action: manipulation;
+}
+.grid-item__swatches {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-left: calc(var(--swatch-room) / -2);
+}
+.grid-item__option {
+  display: grid;
+  grid-template-columns: auto 0fr;
+  align-items: center;
+  transition: grid-template-columns var(--fade-quick) ease-in-out;
+}
+.grid-item__option.is-active {
+  grid-template-columns: auto 1fr;
+}
+.grid-item__swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(var(--swatch) + var(--swatch-room));
+  height: calc(var(--swatch) + var(--swatch-room));
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--fade-quick) ease;
+}
+.grid-item__swatch .product-dial__swatch {
+  width: var(--swatch);
+  height: var(--swatch);
+}
+/* The selection dot: always laid out, shown on the active swatch. */
+.grid-item__swatch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--swatch) * 0.3);
+  height: calc(var(--swatch) * 0.3);
+  border-radius: 50%;
+  background-color: var(--bg);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.grid-item__swatch[aria-pressed="true"]::after {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .grid-item__swatch[aria-pressed="false"]:hover { opacity: 0.6; }
+}
+/* The room for a name: its gaps are padding inside the clipped column, so
+   a closed one takes none. Laid out as the label is, never shown. */
+.grid-item__metal {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1;
+  white-space: nowrap;
+  visibility: hidden;
+}
+.grid-item__metal > span {
+  display: block;
+  padding: 0 calc(var(--swatch-room) / 2);
+}
+/* The active name, after the --active-th swatch (set by js/gallery.js): the
+   swatches before it keep their names' columns closed, so it sits
+   (--active + 1) buttons in. Moving, it fades out and back in (moveLabel),
+   so it's never seen crossing a swatch. */
+.grid-item__label {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  padding: 0 calc(var(--swatch-room) / 2);
+  line-height: 1;
+  color: var(--category-col);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(calc((var(--active, 0) + 1) * (var(--swatch) + var(--swatch-room))), -50%);
+  transition: transform var(--fade-quick) ease-in-out;
+}
+/* Each half eased in and out (the timing function applies per keyframe
+   segment), with only a short hold at nothing in the middle. */
+.grid-item__label.is-moving {
+  animation: grid-item-label-swap var(--fade-quick) ease-in-out;
+}
+@keyframes grid-item-label-swap {
+  0% { opacity: 1; }
+  42% { opacity: 0; }
+  58% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* ==== Content pages (archives, creation process, series manifest) ====

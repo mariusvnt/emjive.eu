@@ -47,7 +47,7 @@
       "geometry": { "volume-cm3": 1.08496, "volume-cm3-per-size-mm": 0.0231482, "volume-cm3-per-size-mm2": 0.000104488, "area-cm2": 12.9722, "area-cm2-per-size-mm": 0.249011, "area-cm2-per-size-mm2": 0.00101411, "dimensions-mm": [29.3, 23.7, 20.3], "min-size-mm": 15.4, "min-box": { "center": [-2.355, 1.043, -1.89], "axes": [[0.51443, -0.33317, 0.79017], [0.66669, 0.73492, -0.12416], [-0.53935, 0.59067, 0.60018]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[-0.287, 0.167, -3.596], [-0.288, 0.167, -4.194], [-0.288, 0.167, -4.684]], "size": [[17.52, 17.58, 25.51], [24.52, 24.58, 29.76], [30.25, 30.3, 33.23]] }, "model-sha1": "353a90040cfc0ad70667220f99d0af32c65be294" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": true, "x": 55, "y": 42, "scale": 7.5, "rotation": 5 },
-      "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 70 },
+      "3d-viewer-camera-default": { "rotation": -12, "tilt": 12, "zoom": 80, "roll": 0 },
       "assets": {
         "model": "assets/series/bones/products/foramen_ring/Foramen_gltf.glb",
         "icons": {

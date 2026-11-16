@@ -521,6 +521,16 @@ button, input, textarea {
   border: none;
   cursor: pointer;
 }
+/* An invisible touch target around the small drawn "+". */
+.menu-toggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
 .menu-toggle__bar {
   position: absolute;
   top: 50%;
@@ -671,22 +681,23 @@ body:has(.product-stage) .site-header__veil {
 .site-header__group dt {
   grid-column: 1;
   grid-row: 1;
+  color: var(--category-col);
 }
 .site-header__group dd {
   grid-column: 2;
   margin: 0;
-  color: var(--category-col);
 }
 .site-header__cta {
   margin: 0;
   text-align: right;
+  color: var(--category-col);
 }
 /* Right under the contact line, at the groups' row spacing. */
 .site-header__about {
   margin-top: calc(0.15rem - var(--header-menu-gap));
 }
 .site-header__cta a {
-  color: var(--category-col);
+  color: var(--black);
 }
 /* The arrow, drawn rather than the → glyph: the fonts lack it, and each
    browser's fallback sits at its own height. The wheel's centre-button arrow
@@ -5155,13 +5166,11 @@ html[data-gallery-view="stack"] .site-footer {
   color: var(--category-col);
 }
 .site-footer a,
-.site-header__nav a,
 .legal-strip a {
   transition: color var(--fade-quick) ease;
 }
 @media (hover: hover) {
   .site-footer a:hover,
-  .site-header__nav a:hover,
   .legal-strip a:hover {
     color: var(--black);
   }

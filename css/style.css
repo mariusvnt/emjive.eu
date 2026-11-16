@@ -4990,7 +4990,9 @@ html[data-gallery-view="stack"] .legal-strip {
   /* Blank space only between the links. */
   gap: 1.5em;
   font-family: var(--font-main);
-  font-size: calc(10px * var(--text-scale));
+  /* Not through --text-scale, whose step at the breakpoint would break the
+     ramp: 8px up to the breakpoint (640px), growing evenly to 12px at 1280px. */
+  font-size: clamp(8px, 4px + 0.625vw, 12px);
   color: var(--category-col);
   opacity: 0;
   visibility: hidden;

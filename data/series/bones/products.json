@@ -350,44 +350,44 @@
     },
     {
       "id": "09",
-      "name": "omoplates",
+      "name": "ilium",
       "category": "ring",
-      "description": "Shoulder blades, also known as omoplates or scapulae, are flat, triangular bones located on the upper back. They connect the humerus (upper arm bone) with the clavicle (collarbone) and provide attachment points for various muscles that facilitate shoulder and arm movements.",
+      "description": "The ilium is the broad, flaring upper part of the hip bone. Its two wings rise on either side of the spine, cradle the organs of the lower belly and anchor the muscles that hold us upright.",
       "default-metal": "steel",
-      "geometry": { "volume-cm3": 1.80585, "volume-cm3-per-size-mm": 0.0340564, "volume-cm3-per-size-mm2": 0.000135842, "area-cm2": 17.7129, "area-cm2-per-size-mm": 0.28652, "area-cm2-per-size-mm2": 0.00094002, "dimensions-mm": [29.8, 27.1, 17.5], "min-size-mm": 2.8, "min-box": { "center": [0, 2.825, 0.493], "axes": [[0.00094, 0.96161, 0.27443], [1, -0.00091, -0.00026], [0, -0.27443, 0.96161]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 2.07, 1.263], [0, 1.991, 1.445], [0, 1.931, 1.594]], "size": [[20.13, 21.57, 16.91], [27.12, 28.42, 19.34], [32.85, 34.03, 21.34]] }, "model-sha1": "e66dbc8129983730d6054de2803d643a307ac218" },
+      "geometry": { "volume-cm3": 1.80585, "volume-cm3-per-size-mm": 0.0340564, "volume-cm3-per-size-mm2": 0.000135842, "area-cm2": 17.7129, "area-cm2-per-size-mm": 0.28652, "area-cm2-per-size-mm2": 0.00094002, "dimensions-mm": [29.8, 27.1, 17.5], "min-size-mm": 2.8, "min-box": { "center": [0, 2.825, 0.493], "axes": [[0.00094, 0.96161, 0.27443], [1, -0.00091, -0.00026], [0, -0.27443, 0.96161]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 2.07, 1.263], [0, 1.991, 1.445], [0, 1.931, 1.594]], "size": [[20.13, 21.57, 16.91], [27.12, 28.42, 19.34], [32.85, 34.03, 21.34]] }, "model-sha1": "001981d38954ee81eb97ca9256a75f21ff70224e" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
       "3d-viewer-camera-default": { "rotation": -62, "tilt": 43, "zoom": 80, "roll": 29 },
       "assets": {
-        "model": "assets/series/bones/products/omoplates_ring/omoplates_gltf.glb",
-        "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_icon_bronze.webp" },
-        "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates_fallback-img_bronze.webp" },
+        "model": "assets/series/bones/products/ilium_ring/ilium_gltf.glb",
+        "icons": { "steel": "assets/series/bones/products/ilium_ring/ilium_icon_steel.webp", "silver": "assets/series/bones/products/ilium_ring/ilium_icon_silver.webp", "bronze": "assets/series/bones/products/ilium_ring/ilium_icon_bronze.webp" },
+        "fallback-img": { "steel": "assets/series/bones/products/ilium_ring/ilium_fallback-img_steel.webp", "silver": "assets/series/bones/products/ilium_ring/ilium_fallback-img_silver.webp", "bronze": "assets/series/bones/products/ilium_ring/ilium_fallback-img_bronze.webp" },
         "wheel-poster": {
-          "steel":  "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_steel.webp",
-          "silver": "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_silver.webp",
-          "bronze": "assets/series/bones/products/omoplates_ring/omoplates_wheel-poster_bronze.webp"
+          "steel":  "assets/series/bones/products/ilium_ring/ilium_wheel-poster_steel.webp",
+          "silver": "assets/series/bones/products/ilium_ring/ilium_wheel-poster_silver.webp",
+          "bronze": "assets/series/bones/products/ilium_ring/ilium_wheel-poster_bronze.webp"
         },
-        "xray": "assets/series/bones/products/omoplates_ring/omoplates_xray.webp",
-        "hand-poster": "assets/series/bones/products/omoplates_ring/omoplates_hand-poster.webp",
-        "plan-views": { "front": "assets/series/bones/products/omoplates_ring/omoplates_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates_plan-side.webp" },
+        "xray": "assets/series/bones/products/ilium_ring/ilium_xray.webp",
+        "hand-poster": "assets/series/bones/products/ilium_ring/ilium_hand-poster.webp",
+        "plan-views": { "front": "assets/series/bones/products/ilium_ring/ilium_plan-front.webp", "side": "assets/series/bones/products/ilium_ring/ilium_plan-side.webp" },
         "photos": []
       },
       "designs": {
         "default": "dual",
         "options": [
-          { "key": "blades", "label": "Blades", "choices": ["dual", "unified"] }
+          { "key": "wings", "label": "Wings", "choices": ["dual", "unified"] }
         ],
         "list": [
-          { "key": "dual", "name": "omoplates", "picks": { "blades": "dual" } },
+          { "key": "dual", "name": "ilium", "picks": { "wings": "dual" } },
           {
             "key": "unified",
-            "name": "omoplates-unified",
-            "picks": { "blades": "unified" },
-            "geometry": { "volume-cm3": 2.09992, "volume-cm3-per-size-mm": 0.0401075, "volume-cm3-per-size-mm2": 0.000161975, "area-cm2": 19.4952, "area-cm2-per-size-mm": 0.321769, "area-cm2-per-size-mm2": 0.00113912, "dimensions-mm": [30, 26.1, 18], "min-size-mm": 3.8, "min-box": { "center": [0, 2.512, 0.469], "axes": [[0, 0.96152, 0.27472], [1, 0, 0], [0, -0.27472, 0.96152]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 1.673, 1.187], [0, 1.597, 1.361], [0, 1.538, 1.503]], "size": [[19.16, 21.94, 17.31], [26.11, 28.77, 19.84], [31.83, 34.36, 21.91]] }, "model-sha1": "bc76d8b66cd93fdd1ba37a039062a4f722adc81b" },
-            "model": "assets/series/bones/products/omoplates_ring/omoplates-unified_gltf.glb",
-            "icons": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-unified_icon_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-unified_icon_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-unified_icon_bronze.webp" },
-            "fallback-img": { "steel": "assets/series/bones/products/omoplates_ring/omoplates-unified_fallback-img_steel.webp", "silver": "assets/series/bones/products/omoplates_ring/omoplates-unified_fallback-img_silver.webp", "bronze": "assets/series/bones/products/omoplates_ring/omoplates-unified_fallback-img_bronze.webp" },
-            "plan-views": { "front": "assets/series/bones/products/omoplates_ring/omoplates-unified_plan-front.webp", "side": "assets/series/bones/products/omoplates_ring/omoplates-unified_plan-side.webp" }
+            "name": "ilium-unified",
+            "picks": { "wings": "unified" },
+            "geometry": { "volume-cm3": 2.09992, "volume-cm3-per-size-mm": 0.0401075, "volume-cm3-per-size-mm2": 0.000161975, "area-cm2": 19.4952, "area-cm2-per-size-mm": 0.321769, "area-cm2-per-size-mm2": 0.00113912, "dimensions-mm": [30, 26.1, 18], "min-size-mm": 3.8, "min-box": { "center": [0, 2.512, 0.469], "axes": [[0, 0.96152, 0.27472], [1, 0, 0], [0, -0.27472, 0.96152]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 1.673, 1.187], [0, 1.597, 1.361], [0, 1.538, 1.503]], "size": [[19.16, 21.94, 17.31], [26.11, 28.77, 19.84], [31.83, 34.36, 21.91]] }, "model-sha1": "aaa94039375fa0b62b911e8eae09fb8e011c9499" },
+            "model": "assets/series/bones/products/ilium_ring/ilium-unified_gltf.glb",
+            "icons": { "steel": "assets/series/bones/products/ilium_ring/ilium-unified_icon_steel.webp", "silver": "assets/series/bones/products/ilium_ring/ilium-unified_icon_silver.webp", "bronze": "assets/series/bones/products/ilium_ring/ilium-unified_icon_bronze.webp" },
+            "fallback-img": { "steel": "assets/series/bones/products/ilium_ring/ilium-unified_fallback-img_steel.webp", "silver": "assets/series/bones/products/ilium_ring/ilium-unified_fallback-img_silver.webp", "bronze": "assets/series/bones/products/ilium_ring/ilium-unified_fallback-img_bronze.webp" },
+            "plan-views": { "front": "assets/series/bones/products/ilium_ring/ilium-unified_plan-front.webp", "side": "assets/series/bones/products/ilium_ring/ilium-unified_plan-side.webp" }
           }
         ]
       }

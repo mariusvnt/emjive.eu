@@ -770,6 +770,10 @@ body:has(.product-stage) .site-header__veil {
 html[data-gallery-view="stack"] .products {
   padding: 0;
 }
+/* The footer starts past the screen's end, however few the items. */
+html[data-gallery-view="grid"] .products {
+  min-height: calc(100svh - var(--footer-gap));
+}
 /* No room for the fixed bar when nothing scrolls under it. */
 html[data-gallery-view="stack"] body {
   padding-bottom: 0;
@@ -1295,7 +1299,8 @@ body:has(.site-header__menu.is-open) .gallery-control {
   max-width: var(--max);
   margin: 0 auto;
   padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 0;
-  min-height: 55vh;
+  /* The footer starts past the screen's end, however short the page. */
+  min-height: calc(100svh - var(--footer-gap));
 }
 
 /* ---- Archives: a shelf of cases, one per study (js/archives.js) ----
@@ -1530,7 +1535,8 @@ html.is-archives-touch * {
   max-width: var(--max);
   margin: 0 auto;
   padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 0;
-  min-height: 55vh;
+  /* The footer starts past the screen's end, however short the page. */
+  min-height: calc(100svh - var(--footer-gap));
 }
 
 .selection-empty {
@@ -5089,6 +5095,7 @@ html.is-modal-open .order-checkout-drawer {
 :root {
   /* The wheel's circle stops above it (js/gallery-stack.js domain()). */
   --legal-strip-height: 1.75rem;
+  --footer-gap: 12rem;
 }
 
 .site-footer {
@@ -5100,7 +5107,7 @@ html.is-modal-open .order-checkout-drawer {
   --footer-logo-mark: 1rem;
   --footer-logo-size: calc(var(--footer-logo-mark) * 512 / 232);
   position: relative;
-  margin-top: 12rem;
+  margin-top: var(--footer-gap);
   font-family: var(--font-main);
   background: var(--footer-bg);
   /* Down over the body's room for the fixed bars, which a glass bar shows
@@ -5111,17 +5118,6 @@ html.is-modal-open .order-checkout-drawer {
    footer's. body's own --bg still covers the page. */
 html:has(.site-footer):not([data-gallery-view="stack"]) {
   background: var(--footer-bg);
-}
-/* Pages often shorter than the screen (the shells, the order page) keep the
-   footer at the screen's end. The body's bottom padding is inside the min-height. */
-body:has(> .page-shell, > .selection-page) {
-  display: flex;
-  flex-direction: column;
-  min-height: 100svh;
-}
-body:has(> .page-shell, > .selection-page) > main {
-  flex: 1 0 auto;
-  width: 100%;
 }
 html[data-gallery-view="stack"] .site-footer {
   display: none;

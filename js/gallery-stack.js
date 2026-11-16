@@ -54,6 +54,9 @@
   var SIZE_MAX = 200;
   // Margin between the circle (focused product included) and its domain's edges, px.
   var MARGIN = 12;
+  // On phones, the circle also keeps this much more (rem) from the screen's sides.
+  var PHONE_SIDE_REM = 0.5;
+  var phoneQuery = window.matchMedia("(max-width: 640px)");
   // Angles sampled over a half turn when fitting the circle to its domain (fitCircle()).
   var FIT_SAMPLES = 90;
   // Pulled back, the fingertips stay at least this far (px) under the header,
@@ -387,7 +390,8 @@
       var d = domain();
       var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
       var step = TAU / n;
-      var fit = fitCircle((d.right - d.left) / 2 - MARGIN, (d.bottom - d.top) / 2 - MARGIN, step);
+      var side = phoneQuery.matches ? PHONE_SIDE_REM * parseFloat(getComputedStyle(document.documentElement).fontSize) : 0;
+      var fit = fitCircle((d.right - d.left) / 2 - MARGIN - side, (d.bottom - d.top) / 2 - MARGIN, step);
       var R1 = fit.R;
       var s = fit.s;
       var h = hero();

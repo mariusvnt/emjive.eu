@@ -810,7 +810,7 @@ html[data-gallery-view="grid"] .gallery-stage {
   z-index: 81;
   display: inline-grid;
   align-items: center;
-  justify-items: end;
+  justify-items: center;
   height: var(--gallery-controls-height);
   margin: 0;
   padding: 0 var(--edge-px);
@@ -826,15 +826,18 @@ html[data-gallery-view="grid"] .gallery-stage {
   transition: opacity var(--fade-standard) ease, visibility 0s, color var(--fade-standard) ease;
   -webkit-tap-highlight-color: transparent;
 }
-/* At the content span's right edge: a fixed box's % is of the viewport without
-   its scrollbar, as the span is laid out (vw would count the scrollbar). */
-.gallery-control--view { right: max(0px, calc(50% - var(--max) / 2)); }
+/* Centred on the screen's width: a fixed box's % is of the viewport without
+   its scrollbar (vw would count it). */
+.gallery-control--view {
+  left: 50%;
+  transform: translateX(-50%);
+}
 /* Black at once; the fade is only on the way back. */
 .gallery-control.is-pressed {
   color: var(--black);
   transition: opacity var(--fade-standard) ease, visibility 0s;
 }
-/* Both faces share one cell, right-aligned. */
+/* Both faces share one cell, centred. */
 .gallery-control__face {
   grid-area: 1 / 1;
   display: inline-flex;

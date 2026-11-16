@@ -4,11 +4,8 @@
 //   grid   the grid, built here: two tiles per product, its pictures (a deck dealt by
 //          swiping) over its material picker and its facts
 // data-hero="play" plays the hero reveal first, "skip" lands at rest.
-// Also owns product loading, the view toggle and its veil, the filter's
-// effect on both views, and reporting changes to js/scroll-memory.js,
-// the gallery being reached included.
-//
-// window.EmjiveGallery = { setFilter(cats, onShowAll) -> counts | null }
+// Also owns product loading, the view toggle and its veil, and reporting
+// changes to js/scroll-memory.js, the gallery being reached included.
 
 (function () {
   "use strict";
@@ -54,9 +51,6 @@
     slug: null,
     items: [],
     stack: null,
-    cats: [],
-    onShowAll: null,
-    emptyMsg: null,
     stage: null
   };
 
@@ -218,7 +212,6 @@
       H.jumpScroll(next === "stack" ? html.scrollHeight : 0);
       if (hero()) hero().setMode();
       if (state.stack) state.stack.setActive(next === "stack");
-      placeEmptyMessage();
       syncControls();
       // Its faces crossfade (data-gallery-view): back to its colour with them.
       if (viewToggle) viewToggle.classList.remove("is-pressed");
@@ -517,64 +510,10 @@
     if (!window.EmjiveLoader) return;
     var top = window.innerHeight || 0;
     var waits = state.items.filter(function (item) {
-      if (!item.firstImg || item.el.hidden) return false;
+      if (!item.firstImg) return false;
       return item.el.getBoundingClientRect().top < top;
     }).map(function (item) { return H.imageReady(item.firstImg); });
     Promise.race([Promise.all(waits), H.wait(FIRST_ITEMS_MS)]).then(function () { window.EmjiveLoader.pageReady(); });
-  }
-
-  /* ---- filtering ----
-     Both views hide non-matching items without rebuilding. A filter set before
-     the products load (?cat=) is applied once they do. */
-  function counts() {
-    var out = {};
-    (state.products || []).forEach(function (product) {
-      out[product.category] = (out[product.category] || 0) + 1;
-    });
-    return out;
-  }
-
-  function matches(product) {
-    return !state.cats.length || state.cats.indexOf(product.category) !== -1;
-  }
-
-  function placeEmptyMessage() {
-    if (!state.emptyMsg) return;
-    var inGrid = view() === "grid";
-    var host = inGrid ? grid : stage;
-    state.emptyMsg.classList.toggle("page-message--grid", inGrid);
-    state.emptyMsg.classList.toggle("page-message--stage", !inGrid);
-    if (state.emptyMsg.parentNode !== host) host.appendChild(state.emptyMsg);
-  }
-
-  function showEmpty(empty) {
-    if (!empty) {
-      if (state.emptyMsg) state.emptyMsg.hidden = true;
-      return;
-    }
-    var text = "Nothing in " + state.cats.map(function (c) { return "." + c; }).join(" or ") + " in this series yet. ";
-    if (!state.emptyMsg) {
-      // Built once, then only its text changes, so a focused "Show all" keeps focus.
-      state.emptyMsg = el("div");
-      window.EmjiveMessage.show(state.emptyMsg, text, {
-        label: "Show all",
-        onClick: function () { if (state.onShowAll) state.onShowAll(); }
-      }, "status");
-    } else {
-      state.emptyMsg.querySelector(".page-message__text").textContent = text;
-    }
-    state.emptyMsg.hidden = false;
-    placeEmptyMessage();
-  }
-
-  function applyFilter() {
-    var visible = 0;
-    state.items.forEach(function (item) {
-      item.el.hidden = !matches(item.product);
-      if (!item.el.hidden) visible++;
-    });
-    if (state.stack) state.stack.setFilter(state.products.filter(matches).map(function (p) { return p.id; }));
-    showEmpty(state.products.length > 0 && visible === 0);
   }
 
   /* ---- loading ---- */
@@ -622,8 +561,6 @@
           active: view() === "stack"
         });
       }
-      applyFilter();
-      window.dispatchEvent(new CustomEvent("emjive:gallery-filtered", { detail: { counts: counts() } }));
       if (view() === "grid" && heroMode() === "skip") releaseLoaderOnItems();
       // The gallery is the last height change: js/scroll-memory.js finishes restoring on it.
       if (state.stack && view() === "stack" && isRestoring() && window.EmjiveScrollMemory.holdUntil) {
@@ -641,17 +578,4 @@
       // Still signalled: the page's height is now final.
       signalContentReady();
     });
-
-  window.EmjiveGallery = {
-    // cats: categories to show ([] for all). onShowAll: the empty message's
-    // "Show all". Returns per-category counts, or null before products load
-    // (reported then via "emjive:gallery-filtered").
-    setFilter: function (cats, onShowAll) {
-      state.cats = (cats || []).slice();
-      if (onShowAll) state.onShowAll = onShowAll;
-      if (!state.products) return null;
-      applyFilter();
-      return counts();
-    }
-  };
 })();

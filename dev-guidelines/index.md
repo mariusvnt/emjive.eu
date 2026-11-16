@@ -6,14 +6,23 @@ The repo's structure, generated from the code. Each description is the first sen
 
 ## Tree
 
+- [3d-printing.html](../3d-printing.html) — 3D printing (/3d-printing): how each piece is printed in metal.
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
 - [archives.html](../archives.html) — Archives (/archives): every series across the brand's lifetime.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
+- [environment.html](../environment.html) — Environment (/environment): the environmental impact of making each piece.
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
 - [index.html](../index.html) — The homepage (/): the featured series' hero, then its gallery as the wheel or the grid.
   - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #gallery
+- [intent.html](../intent.html) — Intent (/intent): what the emjive project sets out to do.
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
 - [json-tool.html](../json-tool.html) — Dev-only page (not built), served by scripts/json-tool-server.js (npm run json-tool): edit data/series.json's globals, series and products, with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray, photos).
   - scripts: js/helpers.js (blocking), inline (module)
   - landmarks: #panel-global, #panel-series, #panel-products
@@ -52,13 +61,12 @@ The repo's structure, generated from the code. Each description is the first sen
   - [gallery-stack.js](../js/gallery-stack.js) — The homepage wheel (index.html, "stack" in code).
     - sets `EmjiveGalleryStack` { mount }
   - [gallery.js](../js/gallery.js) — Homepage gallery (index.html): one of two views, data-gallery-view on <html> (set in the <head> by js/scroll-memory.js).
-    - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
     - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
-  - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
+  - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu and the chromatic-aberration filter.
   - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by a row's Modify in query mode (js/order-rows.js), in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
     - sets `EmjiveModifyModal` { open, isOpen }
   - [option-dial.js](../js/option-dial.js) — Option dials (js/product.js, js/modify-modal.js): a circular button showing the active option, the dial's name under it, opening a disc over three blurs, divided into one section per option, each always in the same place, the active one dotted (the button's circle shrinking to the dot, turning round the middle to it).
@@ -81,7 +89,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
     - sets `EmjiveMenus` { opened, closed }
     - sets `EmjiveMessage` { show }
-    - sets `EmjiveSeries` { index, metals, hdris, slug, series, ready, categories, categoryInfo, hdriPath, all, get, featuredSlug, isFeatured, loadProducts, loadManifest, mainHref, manifestHref, productHref, productSlug, resolveDesign, chosenMetal, chooseMetal, metalFor, requestedSlug }
+    - sets `EmjiveSeries` { index, metals, hdris, slug, series, ready, categoryInfo, hdriPath, all, get, featuredSlug, isFeatured, loadProducts, loadManifest, mainHref, manifestHref, productHref, productSlug, resolveDesign, chosenMetal, chooseMetal, metalFor, requestedSlug }
   - [size-finder.js](../js/size-finder.js) — "Find my size": a full-screen overlay measuring a ring size, opened from the product page (size row, Select sheet) and the Modify sheet.
     - sets `EmjiveSizeFinder` { open, isOpen, sizeFromDiameter }
   - [stack-scene.js](../js/stack-scene.js) — The wheel's 3D scene: every product's model in one full-screen canvas (one WebGL context, one environment map).
@@ -149,7 +157,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [split-models.js](../scripts/split-models.js) — Splits combined Blender exports into the per-model .glb files the site loads.
   - [stl.js](../scripts/stl.js) — Binary STL reading, splitting and writing for the print models (scripts/split-models.js, scripts/measure-models.js).
     - exports `readStl`, `trianglesOf`, `sliceStl`, `writeStl`, `segmentStl`
-  - [validate-data.js](../scripts/validate-data.js) — Validates data/series.json and every series' products.json and manifest.json against their schemas, then what a schema can't: every referenced path exists with its exact case (the Linux host is case-sensitive), image variants, measured geometry, designs, slugs and the shared phone constants.
+  - [validate-data.js](../scripts/validate-data.js) — Validates data/series.json and every series' products.json and manifest.json against their schemas, then what a schema can't: every referenced path exists with its exact case (the Linux host is case-sensitive), image variants, measured geometry, designs, slugs, the shared phone constants and the featured series' name in the header.
 - **[public/](../public/)** — Copied as-is to the root of dist/.
   - [.htaccess](../public/.htaccess) — Apache config for the OVH host.
   - [apple-touch-icon.png](../public/apple-touch-icon.png) — Generated from assets/logo_compact.svg (npm run render-favicons).
@@ -169,7 +177,6 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | Global | Set by | Read by |
 | --- | --- | --- |
 | `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
-| `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
 | `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js`, `scripts/auto-render.js` |
 | `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `series/bones/hero.js` |
@@ -203,7 +210,6 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | `emjive_metals` | `js/series.js` |
 | `emjive_model_interacted` | `js/three-viewer.js` |
 | `emjive_selection` | `js/selection.js` |
-| `emjive:gallery-filtered` | `js/gallery.js`, `js/main.js` |
 | `emjive:modify-close` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:modify-open` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `emjive:pageready` | `js/gallery-stack.js`, `js/loader.js`, `js/viewer-entry.js` |

@@ -482,15 +482,11 @@ button, input, textarea {
   /* The +/- toggle's size as a share of the brand image's height. */
   --header-plus-ratio: 0.3;
 
-  /* Rubric menu spacing: between rubrics, and above/below the list (pb larger
-     to balance the toggle row above). */
-  --header-rubric-gap: 1.75rem;
+  /* Menu spacing: between its parts (Who are we?, the groups, the contact
+     line), and above/below them (pb larger to balance the toggle row above). */
+  --header-menu-gap: 1.75rem;
   --header-menu-pt: 1.25rem;
   --header-menu-pb: 2.5rem;
-
-  /* Filter row: between category buttons, and after the label. */
-  --header-filter-gap: .75rem;
-  --header-filter-label-gap: 1rem;
 }
 
 .site-header__row {
@@ -621,69 +617,76 @@ body:has(.product-stage) .site-header__veil {
   backdrop-filter: url(#emjiveAberration);
 }
 
+/* The menu, a column under the toggle: the groups, stacked label | links
+   tables, then the contact line and Who are we?. */
 .site-header__nav {
   padding: var(--header-menu-pt) var(--edge-px) var(--header-menu-pb);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--header-rubric-gap);
-}
-.site-header__nav a {
+  gap: var(--header-menu-gap);
+  font-family: var(--font-main);
   font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
   color: var(--black);
 }
-
-/* Category links are mono and muted; informative links DINish and full ink. */
-.site-header__nav a.is-cat {
-  font-family: var(--font-secondary);
-  color: var(--category-col);
+/* The current page: full ink and a dot to its left, outside the text so the
+   column doesn't shift. */
+.site-header__nav [aria-current="page"] {
+  position: relative;
+  color: var(--black);
 }
-.site-header__nav a.is-info {
-  font-family: var(--font-main);
-  font-size: calc(14px * var(--text-scale));
-}
-
-/* Selected categories get a dot (.is-active, js/main.js), reserved on every
-   tag so nothing shifts. A series' only category shows permanently dotted
-   and inert. */
-.site-header__nav a.is-cat::before {
+.site-header__nav [aria-current="page"]::before {
   content: "";
-  display: inline-block;
-  vertical-align: middle;
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 0.3rem);
   width: 0.25rem;
   height: 0.25rem;
-  margin-right: 0.3rem;
   border-radius: 50%;
-  background: transparent;
+  background: currentColor;
+  transform: translateY(-50%);
 }
-.site-header__nav a.is-cat.is-active::before {
-  background: var(--category-col);
+/* One grid for all groups, passed down by subgrid, so their labels and links
+   line up: the widest label, the widest link. */
+.site-header__groups {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: var(--label-gap);
+  row-gap: 1rem;
+  margin: 0;
 }
-
-/* The menu's first row; wraps for long category lists. */
-.site-header__filter {
-  display: flex;
-  /* baseline: the label (14px DINish) and buttons (12px mono) share a text line. */
-  align-items: baseline;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--header-filter-label-gap);
+.site-header__group {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 0.15rem;
+  align-items: start;
 }
-.site-header__filter-options {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--header-filter-gap);
+.site-header__group dt {
+  grid-column: 1;
+  grid-row: 1;
 }
-/* The nav's `a` font rule doesn't reach this <span>. */
-.site-header__filter-label {
-  font-family: var(--font-main);
-  font-size: calc(14px * var(--text-scale));
-  color: var(--black);
+.site-header__group dd {
+  grid-column: 2;
+  margin: 0;
+  color: var(--category-col);
 }
-/* Hidden for a zero-category series; the author display rule beats the UA [hidden]. */
-.site-header__filter[hidden] {
-  display: none;
+.site-header__cta {
+  margin: 0;
+  text-align: right;
+}
+/* Right under the contact line, at the groups' row spacing. */
+.site-header__about {
+  margin-top: calc(0.15rem - var(--header-menu-gap));
+}
+.site-header__cta a {
+  color: var(--category-col);
+}
+/* The arrow, lowered onto the text's optical centre. */
+.site-header__cta span {
+  position: relative;
+  top: 0.1rem;
 }
 
 /* ==== Series hero slots ====
@@ -4956,11 +4959,13 @@ html[data-gallery-view="stack"] .site-footer {
   color: var(--category-col);
 }
 .site-footer a,
+.site-header__nav a,
 .legal-strip a {
   transition: color var(--fade-quick) ease;
 }
 @media (hover: hover) {
   .site-footer a:hover,
+  .site-header__nav a:hover,
   .legal-strip a:hover {
     color: var(--black);
   }

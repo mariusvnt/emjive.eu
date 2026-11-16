@@ -136,7 +136,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 ### Add a category
 
-`json-tool`'s Global tab, then list it in each series that sells it. The header's filter renders from the data. A category with no unit disables selection for its products.
+`json-tool`'s Global tab, then list it in each series that sells it. A category with no unit disables selection for its products.
 
 ### Add a metal
 

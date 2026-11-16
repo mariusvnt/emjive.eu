@@ -18,7 +18,7 @@
 //          model can't turn then)
 //
 // window.EmjiveGalleryStack = { mount(stage, { products, slug, active }) }
-//   -> { settleLayout(), setFilter(ids), setActive(on), setMetal(id, metal) },
+//   -> { settleLayout(), setActive(on), setMetal(id, metal) },
 //   mounted by js/gallery.js.
 
 (function () {
@@ -74,8 +74,6 @@
   // Settle and tap-to-turn durations.
   var SETTLE_MS = 450;
   var TURN_MS = 700;
-  // Glide to a new layout (filter, resize).
-  var FLY_MS = 550;
 
   var H = window.EmjiveHelpers;
   var el = H.el;
@@ -217,7 +215,6 @@
         ringImg: ringImg,
         listItem: li,
         nameEl: nameEl,
-        visible: true,
         // Its slot on the circle (orbitLayout()).
         slot: 0,
         // Its place on the hand, if any: { angle, dist, size, rot } about the wrist, at hero scale.
@@ -232,10 +229,6 @@
       state.items.push(item);
       state.byId[item.id] = item;
     });
-
-    function visibleItems() {
-      return state.items.filter(function (item) { return item.visible; });
-    }
 
     /* ---- geometry ----
        The domain: under the header and the view toggle, above the selection
@@ -382,10 +375,9 @@
          step     angle between slots
        The hand's rings take the nearest slots, the rest the free ones in catalog order. */
     function orbitLayout() {
-      var list = visibleItems();
+      var list = state.items;
       var n = list.length;
-      // Nothing to show (a filter left none): the last layout stays, so the
-      // camera, and the hand with it, holds where it is.
+      // An empty series: nothing to lay out.
       if (!n) return;
       var d = domain();
       var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
@@ -415,7 +407,6 @@
         };
         hand.push({ item: item, angle: item.hand.angle });
       });
-      state.items.forEach(function (item) { if (!item.visible) item.hand = null; });
 
       var taken = [];
       assignHandSlots(hand, n, step).forEach(function (slot, i) {
@@ -452,13 +443,13 @@
     // The plate's landing turn: this entry's saved product on top, or the first slot.
     function homeTheta() {
       var item = state.restoreId ? state.byId[state.restoreId] : null;
-      return item && item.visible && state.L ? -item.slot * state.L.step : 0;
+      return item && state.L ? -item.slot * state.L.step : 0;
     }
 
     // The hero (its circle, its rings) may land after the wheel is mounted: relayout then.
     function layoutStale() {
       var L = state.L;
-      if (!L) return visibleItems().length > 0;
+      if (!L) return state.items.length > 0;
       var h = hero();
       if (!L.fromHero && h && h.orbit && h.orbit()) return true;
       return L.ringsSeen === 0 && heroRings().length > 0;
@@ -481,10 +472,8 @@
 
     // Re-measures at the plate's current turn if the visitor turned it, else at homeTheta().
     function remeasure() {
-      // Snap: no glide from the old layout's poses.
-      blend = null;
       if (state.touched) {
-        relayout(false);
+        relayout();
         return;
       }
       orbitLayout();
@@ -533,8 +522,6 @@
     function syncWaiting() {
       var waiting = heroPending();
       stage.classList.toggle("is-waiting", waiting);
-      // Undrawn: nothing to glide from.
-      if (waiting) blend = null;
     }
 
     /* ---- the camera ----
@@ -599,19 +586,6 @@
       return pose;
     }
 
-    /* ---- between layouts: once landed, a new layout glides in over FLY_MS ---- */
-    var blend = null;
-
-    function lerpPose(from, to, t) {
-      var out = {};
-      Object.keys(to).forEach(function (key) { out[key] = to[key]; });
-      out.x = lerp(from.x, to.x, t);
-      out.y = lerp(from.y, to.y, t);
-      out.size = lerp(from.size, to.size, t);
-      out.alpha = lerp(from.alpha, to.alpha, t);
-      return out;
-    }
-
     /* ---- back to the hand ----
        Slots are assigned unturned (orbitLayout()), so theta = 0 (mod TAU) is
        where the rings slide least. A plate left turned is rolled back first by
@@ -619,7 +593,7 @@
        (rollShare(), syncRoom(), the hero's setEntranceRoom); the pull-back then
        plays as if unturned. */
     function hasHand() {
-      return state.items.some(function (item) { return item.visible && item.hand; });
+      return state.items.some(function (item) { return item.hand; });
     }
 
     // The roll back's room, as a share of the entrance.
@@ -699,7 +673,7 @@
       var slot = focusedSlot(state.theta);
       var top = null;
       state.items.forEach(function (item) {
-        if (item.visible && item.slot === slot) top = item;
+        if (item.slot === slot) top = item;
       });
       if (top && state.touched && window.EmjiveScrollMemory && window.EmjiveScrollMemory.rememberWheel) {
         window.EmjiveScrollMemory.rememberWheel(top.id);
@@ -735,11 +709,7 @@
 
     function currentPose(item, raw) {
       var at = stageAt(raw);
-      var pose = poseAt(item, at.p, at.theta);
-      if (!blend) return pose;
-      var from = blend.from[item.id];
-      if (!from) return pose;
-      return lerpPose(from, pose, easeInOutCubic(clamp01((performance.now() - blend.start) / FLY_MS)));
+      return poseAt(item, at.p, at.theta);
     }
 
     /* ---- the hand's rings ---- */
@@ -747,7 +717,7 @@
     // Whether the 3D scene draws this ring on the hand, as its model.
     function ringIn3d(id, waiting) {
       var item = state.byId[String(id)];
-      return !!(state.scene && !waiting && item && item.visible && item.hand && state.scene.drawsModel(item.id));
+      return !!(state.scene && !waiting && item && item.hand && state.scene.drawsModel(item.id));
     }
 
     // The hero's pictures of the rings show only before the entrance, and
@@ -823,7 +793,6 @@
       var slot = focusedSlot(at.theta);
       var focus = null;
       state.items.forEach(function (item) {
-        if (!item.visible) return;
         var pose = currentPose(item, p);
         item.pose = pose;
         poses[item.id] = pose;
@@ -849,7 +818,7 @@
     // The model drag target over the focused product, while the plate is still.
     function placeSpin() {
       var pose = state.focus && state.focus.pose;
-      var on = !!(pose && landed && state.scene && motion.mode === "idle" && !blend);
+      var on = !!(pose && landed && state.scene && motion.mode === "idle");
       spinEl.classList.toggle("is-on", on);
       if (!pose) return;
       var box = pose.size;
@@ -866,7 +835,6 @@
         orbitLayout();
         // The hero arrived: land as this entry left it, or on the first slot.
         if (stale && !state.touched) state.theta = homeTheta();
-        if (stale) blend = null;
       }
       // First stage: the roll starts where the scroll is.
       if (was === null) {
@@ -894,7 +862,7 @@
     }
 
     /* ---- turning the plate ----
-       One loop, running only while something moves: drag, coast, settle, turn, layout glide. */
+       One loop, running only while something moves: drag, coast, settle, turn. */
     var motion = { mode: "idle" };
     var loopRaf = 0;
     var lastTick = 0;
@@ -946,10 +914,6 @@
       if (motion.mode === "drag") going = true;
       if (stepRoll(dt)) going = true;
       if (rolledBack()) keepRolledBack();
-      if (blend) {
-        if (now - blend.start >= FLY_MS) blend = null;
-        else going = true;
-      }
       render();
       if (going) loopRaf = requestAnimationFrame(tick);
     }
@@ -967,7 +931,7 @@
       var best = null;
       var bestD = Infinity;
       state.items.forEach(function (item) {
-        if (!item.visible || !item.pose) return;
+        if (!item.pose) return;
         var d = Math.sqrt(Math.pow(x - item.pose.x, 2) + Math.pow(y - item.pose.y, 2));
         if (d < item.pose.size * 0.45 && d < bestD) {
           best = item;
@@ -1104,13 +1068,9 @@
 
     /* ---- new layouts ---- */
 
-    // Filter or screen change: new slots, glided to once landed; the focused product stays on top if still shown.
-    function relayout(animate) {
-      var from = {};
-      state.items.forEach(function (item) {
-        if (item.visible && item.pose) from[item.id] = item.pose;
-      });
-      var keep = state.focus && state.focus.visible ? state.focus : null;
+    // Screen change: new slots, the focused product kept on top.
+    function relayout() {
+      var keep = state.focus || null;
       orbitLayout();
       if (!state.L) {
         render();
@@ -1119,9 +1079,7 @@
       state.theta = keep ? -keep.slot * state.L.step : 0;
       stopMotion();
       if (state.scene) state.scene.setBaseSize(state.L.s);
-      blend = animate && landed && !reducedMotion.matches ? { from: from, start: performance.now() } : null;
       render();
-      if (blend) kick();
     }
 
     /* ---- the 3D scene ----
@@ -1136,7 +1094,7 @@
       var poses = {};
       var p = state.p === null ? 0 : state.p;
       state.items.forEach(function (item) {
-        if (item.visible) poses[item.id] = currentPose(item, p);
+        poses[item.id] = currentPose(item, p);
       });
       // Metals picked while the scene was building: the pictures show them already.
       state.items.forEach(function (item) {
@@ -1271,7 +1229,7 @@
         return;
       }
       laidOutFor = size;
-      relayout(false);
+      relayout();
     }
     var resizeTimer = 0;
     function syncViewportSoon() {
@@ -1331,19 +1289,6 @@
     return {
       settleLayout: settleLayout,
 
-      // ids: products to show; hidden ones leave the circle, the rest re-slot.
-      setFilter: function (ids) {
-        var keep = {};
-        (ids || []).forEach(function (id) { keep[String(id)] = true; });
-        state.items.forEach(function (item) {
-          item.visible = !!keep[item.id];
-          item.el.hidden = !item.visible;
-          item.listItem.hidden = !item.visible;
-        });
-        if (state.scene) state.scene.setVisible(Object.keys(keep));
-        relayout(true);
-      },
-
       // View switched (js/gallery.js): the grid needs none of this, nor its WebGL contexts.
       setActive: function (on) {
         if (on === state.active) return;
@@ -1354,7 +1299,7 @@
           render();
           return;
         }
-        relayout(false);
+        relayout();
         whenPageRevealed(startScene);
       },
 

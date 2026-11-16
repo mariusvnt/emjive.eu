@@ -72,7 +72,7 @@ function resolvesLocally(ref, fromPage) {
   return false;
 }
 
-const NOINDEX = new Set(["archives.html", "who-are-we.html", "series.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
+const NOINDEX = new Set(["archives.html", "who-are-we.html", "intent.html", "3d-printing.html", "environment.html", "series.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
 
 // The links the law asks for from every page: in the shared footer, and on the
 // homepage also in the wheel view's legal strip.

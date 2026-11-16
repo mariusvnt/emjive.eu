@@ -523,11 +523,6 @@
     slug: null,
     series: null,
 
-    // The active series' categories, in its order (the header filter row).
-    categories: function () {
-      return (activeSeries && activeSeries.categories) || [];
-    },
-
     // Sizing belongs to the category, in the global vocabulary.
     categoryInfo: function (id) {
       var all = (index && index.categories) || {};

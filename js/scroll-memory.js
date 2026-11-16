@@ -502,7 +502,7 @@
     },
     wheel: function () { return wheel; },
 
-    // js/gallery.js, once the gallery is rendered and filtered: the last height change.
+    // js/gallery.js, once the gallery is rendered: the last height change.
     contentReady: function () {
       if (contentReadyCalled) return;
       contentReadyCalled = true;

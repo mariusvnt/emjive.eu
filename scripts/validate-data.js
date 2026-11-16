@@ -2,7 +2,8 @@
 // Validates data/series.json and every series' products.json and manifest.json
 // against their schemas, then what a schema can't: every referenced path
 // exists with its exact case (the Linux host is case-sensitive), image
-// variants, measured geometry, designs, slugs and the shared phone constants.
+// variants, measured geometry, designs, slugs, the shared phone constants and
+// the featured series' name in the header.
 // Reports every problem, exits 1 if any.
 
 const crypto = require("node:crypto");
@@ -749,6 +750,18 @@ if (existsExactCase("js/helpers.js")) {
 
 if (existsExactCase("js/loader.js") && !fs.readFileSync(path.join(ROOT, "js/loader.js"), "utf8").includes(PHONE_QUERY)) {
   fail("js/loader.js", "does not contain the phone query " + PHONE_QUERY);
+}
+
+// The header menu names the featured series in every page's markup.
+if (index) {
+  const featured = index.series.find((series) => series.slug === index.featured);
+  const expected = featured ? featured.name + " series" : null;
+  for (const page of fs.readdirSync(ROOT).filter((name) => name.endsWith(".html"))) {
+    const html = fs.readFileSync(path.join(ROOT, page), "utf8");
+    for (const match of html.matchAll(/<a\b[^>]*\bdata-featured-series\b[^>]*>([^<]*)<\/a>/g)) {
+      if (match[1] !== expected) fail(page, 'the header\'s featured series link reads "' + match[1] + '", not "' + expected + '"');
+    }
+  }
 }
 
 exitOnProblems("validate-data", problems);

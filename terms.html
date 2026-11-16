@@ -66,13 +66,21 @@
   <div class="site-header__menu" id="siteHeaderMenu">
     <div class="site-header__menu-inner">
       <nav class="site-header__nav" aria-label="Site">
-        <!-- Filled by js/main.js from the active series' categories. -->
-        <div class="site-header__filter" id="siteHeaderFilter">
-          <span class="site-header__filter-label">Filter gallery by</span>
-          <span class="site-header__filter-options" id="headerFilterOptions"></span>
-        </div>
-        <a href="/archives" class="is-info">Archives</a>
-        <a href="/who-are-we" class="is-info">Who are we?</a>
+        <dl class="site-header__groups">
+          <div class="site-header__group">
+            <dt>Shop</dt>
+            <dd><a href="/#gallery" data-featured-series>Bones series</a></dd>
+            <dd><a href="/archives">Archives</a></dd>
+          </div>
+          <div class="site-header__group">
+            <dt>Design</dt>
+            <dd><a href="/intent">Intent</a></dd>
+            <dd><a href="/3d-printing">3D printing</a></dd>
+            <dd><a href="/environment">Environment</a></dd>
+          </div>
+        </dl>
+        <p class="site-header__cta">Have an idea? Let's design it together <span aria-hidden="true">&rarr;</span> <a href="mailto:contact@emjive.eu?subject=Custom%20design">contact@emjive.eu</a></p>
+        <a href="/who-are-we" class="site-header__about">Who are we?</a>
       </nav>
     </div>
     <!-- Header blur and chromatic aberration (.site-header__veil). -->

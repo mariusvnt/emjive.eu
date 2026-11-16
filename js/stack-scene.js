@@ -140,7 +140,7 @@ export function createStackScene(options) {
 
   // Free a mesh's CPU arrays once it has drawn (the GPU holds a copy; bounds
   // are computed first, and taps test poses, not meshes). Only after
-  // onAfterRender: a model hidden by the filter isn't uploaded yet.
+  // onAfterRender: a model without a pose isn't uploaded yet.
   var drawnMeshes = [];
   function markDrawn() {
     if (!this.userData.released) drawnMeshes.push(this);
@@ -568,7 +568,7 @@ export function createStackScene(options) {
     ready: ready,
 
     // Takes over from the pictures: models placed by pose (missing ids are
-    // filtered out), drawn in the same frame the page hides the pictures.
+    // left out), drawn in the same frame the page hides the pictures.
     handOver: function (poses) {
       entries.forEach(function (entry) {
         setSize(entry, baseSize);
@@ -617,18 +617,6 @@ export function createStackScene(options) {
       entries.forEach(function (entry) {
         setSize(entry, px);
         if (entry.pose) placeFromPose(entry, entry.pose);
-      });
-      kick();
-    },
-
-    // Filter: unlisted models leave; relisted ones return at the next poses.
-    setVisible: function (ids) {
-      var keep = {};
-      ids.forEach(function (id) { keep[String(id)] = true; });
-      entries.forEach(function (entry) {
-        var show = !!keep[entry.id];
-        entry.visible = show;
-        entry.group.visible = show;
       });
       kick();
     },

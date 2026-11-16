@@ -19,7 +19,7 @@
 // and calls onChange({ toDesign, stage }). While steady() (the vertical wall,
 // scrolled along with the page) every change of pace is a smoothstep over
 // STEADY_RAMP_SCREENS: the wall eases from its pace to rest at its end, then
-// the band eases in from rest to a constant pace (--stage-step-in,
+// the band eases in from rest to the scroll's own pace (--stage-step-in,
 // css/style.css), crossing the wall as it holds still.
 // Returns { scrollToStage(index), update() }. Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
@@ -38,13 +38,10 @@
 
   var STAGES = ["inspiration", "design"];
 
-  // Design browsing pace: 15px up per 24px scrolled. The track lengthens for a
-  // taller column rather than browsing faster.
-  var BROWSE_PACE = 15 / 24;
-  // The wall is walked at design's pace (sideways, or up when turned
-  // vertical), easing to rest over its last ramp before the transition. With
-  // nothing to browse it still gets FEED_MIN_SCREENS.
-  var FEED_PACE = BROWSE_PACE;
+  // Both stretches browse one px per px scrolled: the wall walked (sideways,
+  // or up when turned vertical), easing to rest over its last ramp before the
+  // transition, and design browsed up. The track lengthens for more room. With
+  // nothing to browse the wall still gets FEED_MIN_SCREENS.
   var FEED_MIN_SCREENS = 0.4;
   // While steady, the length of each change of pace. Mirrored in
   // --stage-step-in's phone value (css/style.css).
@@ -113,9 +110,8 @@
     var stepInProbe = probe("var(--stage-step-in)");
     var restProbe = probe("var(--design-rest)");
 
-    // Inspiration stretch (--feed-hold): --feed-room (js/product.js) at FEED_PACE
-    // plus half the ramp (none while steady), or FEED_MIN_SCREENS with nothing
-    // to browse.
+    // Inspiration stretch (--feed-hold): --feed-room (js/product.js) plus half
+    // the ramp (none while steady), or FEED_MIN_SCREENS with nothing to browse.
     // While steady: the slow-down to rest takes the walk plus half its length.
     var feedHold = 0;
     var feedRoom = 0;
@@ -128,11 +124,11 @@
         var room = parseFloat(getComputedStyle(stageEl).getPropertyValue("--feed-room")) || 0;
         if (room > 0.5) feedRoom = room;
         if (feedRoom && steady()) {
-          glideLen = Math.min(screenPx() * STEADY_RAMP_SCREENS, (2 * room) / FEED_PACE);
-          want = room / FEED_PACE + glideLen / 2;
+          glideLen = Math.min(screenPx() * STEADY_RAMP_SCREENS, 2 * room);
+          want = room + glideLen / 2;
         } else {
           var ramp = screenPx() * ENTRY_SCREENS;
-          want = feedRoom ? room / FEED_PACE + ramp / 2 : screenPx() * FEED_MIN_SCREENS;
+          want = feedRoom ? room + ramp / 2 : screenPx() * FEED_MIN_SCREENS;
         }
       }
       if (Math.abs(want - feedHold) < 0.5) return;
@@ -141,15 +137,15 @@
       else stageEl.style.removeProperty("--feed-hold");
     }
 
-    // Design stretch (--design-hold): --design-room (js/product.js) at
-    // BROWSE_PACE plus half the ramp, at least DESIGN_MIN_SCREENS.
+    // Design stretch (--design-hold): --design-room (js/product.js) plus half
+    // the ramp, at least DESIGN_MIN_SCREENS.
     var designHold = 0;
     function syncDesignHold() {
       var want = 0;
       designRoom = flow.matches ? 0 : designRoomProbe.offsetHeight;
       if (!flow.matches) {
         var ramp = screenPx() * ENTRY_SCREENS;
-        want = Math.max(screenPx() * DESIGN_MIN_SCREENS, designRoom / BROWSE_PACE + ramp / 2);
+        want = Math.max(screenPx() * DESIGN_MIN_SCREENS, designRoom + ramp / 2);
       }
       if (Math.abs(want - designHold) < 0.5) return;
       designHold = want;
@@ -157,17 +153,17 @@
       else stageEl.style.removeProperty("--design-hold");
     }
 
-    // While steady: px walked `s` into the inspiration stretch, at FEED_PACE
+    // While steady: px walked `s` into the inspiration stretch, one for one
     // until the slow-down to rest.
     function steadyWalk(s, feed) {
       var from = feed - glideLen;
-      if (s <= from) return FEED_PACE * Math.max(0, s);
+      if (s <= from) return Math.max(0, s);
       var t = clamp01((s - from) / glideLen);
-      return FEED_PACE * (from + glideLen * (t - settle(t)));
+      return from + glideLen * (t - settle(t));
     }
 
     // While steady: the transition at `x` px into it, the band easing in
-    // over the first STEADY_RAMP_SCREENS, then at constant pace.
+    // over the first STEADY_RAMP_SCREENS, then one for one.
     function steadyStep(x, stepIn) {
       var ramp = Math.min(screenPx() * STEADY_RAMP_SCREENS, stepIn);
       var d = x < ramp ? ramp * settle(x / ramp) : ramp / 2 + x - ramp;

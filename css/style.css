@@ -2394,14 +2394,13 @@ button.product-wall__frame {
    end at the show's bottom (js/product.js fitFeed). The labels are read off
    the placard instead. The walk eases to rest at its end and holds still
    through the transition, fading and erased by the band, which eases in to
-   --band-pace (js/product-stages.js steady): the transition is the band's
-   way (the screen plus its 0.77rem height here) at that pace, plus half its
+   the scroll's pace (js/product-stages.js steady): the transition is the
+   band's way (the screen plus its 0.77rem height here), plus half its
    ease-in (25svh, half of STEADY_RAMP_SCREENS). Same breakpoint as
    js/product-wall.js isVertical(). */
 @media (max-width: 640px) {
   .product-stage {
-    --band-pace: 0.6;
-    --stage-step-in: calc((100svh + 0.77rem) / var(--band-pace) + 25svh);
+    --stage-step-in: calc(100svh + 0.77rem + 25svh);
   }
   .product-feed {
     --feed-exit: 0px;

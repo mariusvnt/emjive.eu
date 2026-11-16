@@ -1911,10 +1911,9 @@ html.is-archives-touch * {
 }
 
 /* ---- query mode (js/order-rows.js) ----
-   A tapped row's controls, over the row and its band, in the band's colours,
-   in columns following the row's: the − count + stepper where the
-   label starts, the close cross at one place for every row (about a price's
-   middle), Modify centred between + and the cross.
+   A tapped row's controls, over the row and its band, in the band's colours:
+   the − count + stepper at the content's left margin, Modify centred in the
+   row, the close cross at one place for every row (about a price's middle).
      .is-query          the row's content fades, the controls fade in
      .is-count-changed  the count differs from the stored one: Modify and the
                         cross give way to Save, in Modify's place
@@ -1951,12 +1950,11 @@ html.is-archives-touch * {
 .order-item.is-query :is(.order-item__picture, .order-item__words) {
   opacity: 0;
 }
-/* The row's columns (.order-item__content: the picture, 1rem gaps, the text,
-   the price) inside the row's padding; the picture's column stays empty. */
+/* The stepper's column, then the cross's, inside the row's padding. */
 .order-item__query-box {
   position: relative;
   display: grid;
-  grid-template-columns: 3.75rem minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 1rem;
   align-items: center;
   height: 100%;
@@ -1992,17 +1990,16 @@ html.is-archives-touch * {
   .order-item__q:not(:disabled):hover { opacity: 0.6; }
 }
 .order-item__q-text {
-  grid-column: 2;
+  grid-column: 1;
   display: flex;
   align-items: center;
   min-width: 0;
 }
-/* Modify, Save and Remove in one cell, crossfading, centred between the +
-   glyph and the cross's drawing (--actions-x, js/order-rows.js placeActions). */
+/* Modify, Save and Remove in one cell, crossfading, centred in the row. */
 .order-item__q-actions {
   position: absolute;
   top: 50%;
-  left: var(--actions-x, 50%);
+  left: 50%;
   display: grid;
   justify-items: center;
   transform: translate(-50%, -50%);
@@ -2013,7 +2010,7 @@ html.is-archives-touch * {
   grid-area: 1 / 1;
 }
 /* At the name's size (the row's text size, so em is the name's here).
-   Where the row's label starts: the − drawing's edge there (less its
+   At the content's left margin: the − drawing's edge there (less its
    button's side room). It keeps its place at 0, − gone. --stepper-gap
    sets the spaces between −, the count and +; --step-size is the drawings'. */
 .order-item__stepper {
@@ -2052,7 +2049,7 @@ html.is-archives-touch * {
    price's type) at the row's right edge, where prices end: the cross centred
    on it, at the same place on every row whatever its own price's length. */
 .order-item__q-price {
-  grid-column: 3;
+  grid-column: 2;
   position: relative;
   align-self: stretch;
   width: 5ch;
@@ -2268,16 +2265,14 @@ body:has(.order-checkout-bar:not([hidden])) {
   padding: 0 var(--edge-px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-end;
 }
-.order-checkout-bar__total {
-  font-family: var(--font-main);
-  color: var(--black);
-}
-/* Text-only, at the row's right edge. */
+/* Text-only, at the row's right edge, the total after its label. */
 .order-checkout-bar__button {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.75em;
   padding: 0;
   background: none;
   color: var(--black);
@@ -2293,6 +2288,8 @@ body:has(.order-checkout-bar:not([hidden])) {
 @media (hover: hover) {
   .order-checkout-bar__button:hover { opacity: 0.6; }
 }
+/* No gap after the label when there is no total. */
+.order-checkout-bar__total:empty { display: none; }
 .order-checkout-bar__button:disabled { opacity: 0.35; cursor: not-allowed; }
 .order-checkout-bar__button:disabled:hover { opacity: 0.35; }
 
@@ -4284,8 +4281,9 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .review-pick__option:hover { opacity: 0.6; }
 }
 
-/* The size, typed in place: reads as the other values until focused, then
-   underlined (its focus indication, instead of the ring). iOS zooms on a
+/* The size, typed in place: always underlined, so it reads as a field among
+   the other values; focused (its indication, instead of the ring) or holding
+   a size out of range, it and its underline take full ink. iOS zooms on a
    focused field under 16px, so it is laid out at 16px and scaled down to the
    values' size (maximum-scale=1 would also block pinch-zoom on Android); the
    negative margins give back the room the scale frees. 6ch fits "62.50". */
@@ -4300,21 +4298,20 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   background: none;
   -webkit-appearance: none;
   appearance: none;
-  box-shadow: inset 0 -1px 0 transparent;
+  box-shadow: inset 0 -1px 0 currentColor;
   font-family: var(--font-main);
   font-size: 16px;
   line-height: 1.5;
   color: var(--category-col);
   transform: scale(var(--size-input-scale));
   transform-origin: left top;
-  transition: box-shadow var(--fade-quick) ease;
+  transition: color var(--fade-quick) ease;
 }
-/* Underlined while focused, and while it holds a size out of range. */
 .size-modal__size-input:focus,
 .size-modal__size-input:focus-visible,
 .size-modal__size-input[aria-invalid="true"] {
   outline: none;
-  box-shadow: inset 0 -1px 0 currentColor;
+  color: var(--black);
 }
 .size-modal__size-input::placeholder { color: var(--category-col); opacity: 0.5; }
 

@@ -275,11 +275,11 @@
 
     /* ---- query mode ----
        The controls are a layer over the row (.order-item__query), built on
-       the row's first query and kept, inert while out of query mode. Its
-       columns follow the row's: the picture's (empty), the text's (the
-       stepper at its start) and a fixed one about a price wide (the cross),
-       with Modify, Save or Remove centred between + and the cross. The row's
-       content fades and goes inert while it shows (.is-query). */
+       the row's first query and kept, inert while out of query mode: the
+       stepper at the content's left margin, Modify, Save or Remove centred
+       in the row, and the cross in a fixed column about a price wide at the
+       right. The row's content fades and goes inert while it shows
+       (.is-query). */
 
     // − and + drawn, not typed: a glyph sits on the font's math axis, off the
     // strip's middle. In the cross's stroke (EmjiveHelpers.ICON_CLOSE).
@@ -347,7 +347,7 @@
       });
 
       return {
-        layer: layer, box: box, minus: minus, count: count, plus: plus,
+        layer: layer, minus: minus, count: count, plus: plus,
         actions: actions, modify: modify, save: save, remove: remove, close: close
       };
     }
@@ -391,22 +391,6 @@
       focusQuietly(binding.query.plus);
       document.addEventListener("pointerdown", onOutsidePointer, true);
       document.addEventListener("keydown", onEscapeKey, true);
-      window.addEventListener("resize", onQueryResize);
-    }
-
-    // Modify, Save and Remove centred between the + and the cross's drawings,
-    // which the grid can't express (the count's width moves +): measured, and
-    // set as --actions-x on the layer's box.
-    function placeActions() {
-      var parts = query.binding.query;
-      var from = parts.plus.firstElementChild.getBoundingClientRect().right;
-      var to = parts.close.firstElementChild.getBoundingClientRect().left;
-      var box = parts.box.getBoundingClientRect();
-      parts.box.style.setProperty("--actions-x", ((from + to) / 2 - box.left) + "px");
-    }
-
-    function onQueryResize() {
-      if (query) placeActions();
     }
 
     // focusRow: focus moves to the row's button if it was in the row (the
@@ -417,7 +401,6 @@
       query = null;
       document.removeEventListener("pointerdown", onOutsidePointer, true);
       document.removeEventListener("keydown", onEscapeKey, true);
-      window.removeEventListener("resize", onQueryResize);
       var active = document.activeElement;
       var hadFocus = !active || active === document.body || binding.li.contains(active);
       binding.li.classList.remove("is-query", "is-count-changed", "is-hosting");
@@ -449,8 +432,6 @@
       parts.close.inert = changed;
       parts.save.inert = !changed || zero;
       parts.remove.inert = !zero;
-      // The count's width moves +.
-      placeActions();
       if (zero && active === parts.minus) focusQuietly(parts.plus);
       else if (zero && active === parts.save) focusQuietly(parts.remove);
       else if (!zero && active === parts.remove) focusQuietly(parts.save);

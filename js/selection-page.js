@@ -87,8 +87,8 @@
     setLiveHeight(null);
   }
 
-  // Recomputed from scratch after every change; any unpriced (price 0) item
-  // makes it "TBD".
+  // The total, in the checkout button. Recomputed from scratch after every
+  // change; any unpriced (price 0) item leaves the button without one.
   function updateCheckoutSummary() {
     var sel = window.EmjiveSelection;
     var items = sel.getSelection();
@@ -99,7 +99,7 @@
       total += sel.linePrice(item);
       if (!(item.price > 0)) unpriced = true;
     });
-    checkoutTotalEl.textContent = unpriced ? "TBD" : window.EmjiveSelection.formatPrice(total);
+    checkoutTotalEl.textContent = unpriced ? "" : window.EmjiveSelection.formatPrice(total);
   }
 
   /* ---- list <-> empty state ---- */

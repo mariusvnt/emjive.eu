@@ -543,7 +543,9 @@ button, input, textarea {
 }
 
 /* The rubric menu overlays the page below (absolute under the header); the
-   0fr/1fr grid row animates without knowing the content's height. */
+   0fr/1fr grid row animates without knowing the content's height. Its border
+   is always there, so the line rides its edge as it opens and closes; closed,
+   at no height, it lies over the header's own. */
 .site-header__menu {
   position: absolute;
   top: 100%;
@@ -551,6 +553,7 @@ button, input, textarea {
   right: 0;
   z-index: 80;
   background: var(--white);
+  border-bottom: .5px solid var(--black);
   display: grid;
   grid-template-rows: 0fr;
   /* visibility (delayed on close, so the collapse plays) removes the closed
@@ -560,7 +563,6 @@ button, input, textarea {
 }
 .site-header__menu.is-open {
   grid-template-rows: 1fr;
-  border-bottom: .5px solid var(--black);
   visibility: visible;
   transition: grid-template-rows 0.35s ease, visibility 0s;
 }
@@ -569,13 +571,16 @@ button, input, textarea {
 /* Under the header: the title bar's blur effect (as .product-detail__label-veil):
    three masked backdrop blurs (1px, 3px, 6px, the strongest the shortest) and a
    channel-splitting layer (Chromium only, js/main.js). The menu's last child,
-   so it drops with the menu; half a pixel below the header's border. Not on
-   the product page, whose title bar has its own. */
+   so it drops with the menu. Its transparent top border, as wide as the
+   header's and the menu's, puts the bars just under their line: Chromium
+   rounds a .5px border up to a whole pixel, so a fixed .5px offset would put
+   the blur over the line. Not on the product page, whose title bar has its own. */
 .site-header__veil {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + .5px);
+  top: 100%;
+  border-top: .5px solid transparent;
   height: 3.5rem;
   visibility: visible;
   pointer-events: none;

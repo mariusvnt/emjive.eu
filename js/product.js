@@ -1414,12 +1414,13 @@
 
   // Where design holds the model, as its lift (px up from rest): its middle
   // at DESIGN_ANCHOR of the screen (or under the title bar), then
-  // DESIGN_GAP_REM lower. Everything placed against
-  // the model, the x-ray included, goes with it.
+  // DESIGN_GAP_REM and --design-drop (css/style.css) lower. Everything placed
+  // against the model, the x-ray included, goes with it.
   var DESIGN_ANCHOR = 1 / 3;
   var DESIGN_GAP_REM = 4.5;
   // The model's approximate half-height as a share of its tile.
   var DESIGN_HALF_HEIGHT = 0.13;
+  var designDropProbe = null;
   function designLift() {
     if (!designFrameEl || state.flow) return 0;
     var titleBar = labelBar();
@@ -1428,7 +1429,8 @@
     var browsed = browsePx();
     var box = designFrameEl.getBoundingClientRect();
     var half = DESIGN_HALF_HEIGHT * box.height;
-    var target = Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBottom + half + 8 : 0) + DESIGN_GAP_REM * remPx();
+    if (!designDropProbe) designDropProbe = lengthProbe(stageEl, "width:0;height:var(--design-drop)");
+    var target = Math.max(DESIGN_ANCHOR * screenHeight(), titleBar ? titleBottom + half + 8 : 0) + DESIGN_GAP_REM * remPx() + designDropProbe.offsetHeight;
     return Math.max(0, box.top - shift + box.height / 2 + browsed - target);
   }
 

@@ -5,8 +5,8 @@
 // show browses through, with an eased transition between them.
 //
 // Track order: inspiration stretch (--feed-hold), transition
-// (--stage-step-in), design stretch (--design-hold). The stretches are sized
-// here from the room each stage needs.
+// (--stage-step-in), a rest (--design-rest), design stretch (--design-hold).
+// The stretches are sized here from the room each stage needs.
 //
 // window.EmjiveProductStages.mount(stageEl, { onChange, steady }) publishes on the track:
 //   --to-design               eased 0..1 transition
@@ -17,10 +17,10 @@
 //   data-stage                "inspiration" | "design" | "flow" (too short to pin)
 //   .is-feed-gone, .is-design-out, .is-model-out   for what CSS can't fade
 // and calls onChange({ toDesign, stage }). While steady() (the vertical wall,
-// scrolled one for one like the page) every change of pace is a smoothstep
-// over STEADY_RAMP_SCREENS: the wall eases from one for one to rest at its
-// end, then the band eases in from rest to a constant, slower pace
-// (--stage-step-in, css/style.css), crossing the wall as it holds still.
+// scrolled along with the page) every change of pace is a smoothstep over
+// STEADY_RAMP_SCREENS: the wall eases from its pace to rest at its end, then
+// the band eases in from rest to a constant pace (--stage-step-in,
+// css/style.css), crossing the wall as it holds still.
 // Returns { scrollToStage(index), update() }. Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
 // scrolls there.
@@ -38,9 +38,13 @@
 
   var STAGES = ["inspiration", "design"];
 
-  // The wall is walked one for one (sideways, or up when turned vertical),
-  // easing to rest over its last ramp before the transition. With nothing to browse it still gets FEED_MIN_SCREENS.
-  var FEED_PACE = 1;
+  // Design browsing pace: 15px up per 24px scrolled. The track lengthens for a
+  // taller column rather than browsing faster.
+  var BROWSE_PACE = 15 / 24;
+  // The wall is walked at design's pace (sideways, or up when turned
+  // vertical), easing to rest over its last ramp before the transition. With
+  // nothing to browse it still gets FEED_MIN_SCREENS.
+  var FEED_PACE = BROWSE_PACE;
   var FEED_MIN_SCREENS = 0.4;
   // While steady, the length of each change of pace. Mirrored in
   // --stage-step-in's phone value (css/style.css).
@@ -55,9 +59,6 @@
   var ENTRY_SCREENS = 1 / 3;
   // The design stretch's minimum, a rest at the end.
   var DESIGN_MIN_SCREENS = 0.25;
-  // Design browsing pace: 15px up per 24px scrolled. The track lengthens for a
-  // taller column rather than browsing faster.
-  var BROWSE_PACE = 15 / 24;
   function entry(u, a) {
     var t = clamp01(u);
     var y = t < a ? (t * t) / (2 * a) : t - a / 2;
@@ -100,7 +101,7 @@
     // Each stage's page scroll position, as last measured.
     var stops = [0, 0];
 
-    // CSS lengths in px, read off probes: --design-room, --stage-step-in.
+    // CSS lengths in px, read off probes: --design-room, --stage-step-in, --design-rest.
     function probe(height) {
       var el = document.createElement("div");
       el.setAttribute("aria-hidden", "true");
@@ -110,6 +111,7 @@
     }
     var designRoomProbe = probe("var(--design-room)");
     var stepInProbe = probe("var(--stage-step-in)");
+    var restProbe = probe("var(--design-rest)");
 
     // Inspiration stretch (--feed-hold): --feed-room (js/product.js) at FEED_PACE
     // plus half the ramp (none while steady), or FEED_MIN_SCREENS with nothing
@@ -126,8 +128,8 @@
         var room = parseFloat(getComputedStyle(stageEl).getPropertyValue("--feed-room")) || 0;
         if (room > 0.5) feedRoom = room;
         if (feedRoom && steady()) {
-          glideLen = Math.min(screenPx() * STEADY_RAMP_SCREENS, 2 * room);
-          want = room + glideLen / 2;
+          glideLen = Math.min(screenPx() * STEADY_RAMP_SCREENS, (2 * room) / FEED_PACE);
+          want = room / FEED_PACE + glideLen / 2;
         } else {
           var ramp = screenPx() * ENTRY_SCREENS;
           want = feedRoom ? room / FEED_PACE + ramp / 2 : screenPx() * FEED_MIN_SCREENS;
@@ -155,13 +157,13 @@
       else stageEl.style.removeProperty("--design-hold");
     }
 
-    // While steady: px walked `s` into the inspiration stretch, at pace 1
+    // While steady: px walked `s` into the inspiration stretch, at FEED_PACE
     // until the slow-down to rest.
     function steadyWalk(s, feed) {
       var from = feed - glideLen;
-      if (s <= from) return Math.max(0, s);
+      if (s <= from) return FEED_PACE * Math.max(0, s);
       var t = clamp01((s - from) / glideLen);
-      return from + glideLen * (t - settle(t));
+      return FEED_PACE * (from + glideLen * (t - settle(t)));
     }
 
     // While steady: the transition at `x` px into it, the band easing in
@@ -184,10 +186,11 @@
       var feed = feedHold;
       var stepIn = stepInProbe.offsetHeight;
       var offset = feed + stepIn;
-      // The design stretch is whatever the track has left past the transition.
-      var hold = Math.max(0, stageEl.offsetHeight - pin.offsetHeight - offset);
+      var rest = restProbe.offsetHeight;
+      // The design stretch is whatever the track has left past the rest.
+      var hold = Math.max(0, stageEl.offsetHeight - pin.offsetHeight - offset - rest);
       stops = [trackStart, trackStart + offset];
-      return { scrolled: scrolled, feed: feed, stepIn: stepIn, offset: offset, hold: hold };
+      return { scrolled: scrolled, feed: feed, stepIn: stepIn, offset: offset, rest: rest, hold: hold };
     }
 
     function publish(next) {
@@ -224,10 +227,10 @@
       else if (m.feed > 0) browse0 = exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed));
       var x = Math.max(0, s - m.feed);
       var toDesign = m.stepIn > 0 ? (even ? steadyStep(x, m.stepIn) : ease(x / m.stepIn)) : (s >= m.feed ? 1 : 0);
-      // Counted from the design stretch's first pixel. On the device's
-      // pixels: the show's translate (--design-browse) keeps the plan
-      // views' hairlines sharp.
-      var s1 = s - m.offset;
+      // Counted from the design stretch's first pixel, past the rest. On
+      // the device's pixels: the show's translate (--design-browse) keeps
+      // the plan views' hairlines sharp.
+      var s1 = s - m.offset - m.rest;
       var browse1 = m.hold > 0 ? H.devicePx(designRoom * entry(clamp01(s1 / m.hold), Math.min(1, screenRamp / m.hold))) : 0;
       publish({ toDesign: toDesign, stage: STAGES[toDesign < 0.5 ? 0 : 1], browse: [browse0, browse1] });
     }

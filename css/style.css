@@ -2138,10 +2138,15 @@ body:has(.order-checkout-bar:not([hidden])) {
   --feed-room: 0px;
   --browse-px: var(--design-browse);
   --pin-h: calc(100svh - var(--stage-top) - var(--selection-bar-height) - var(--select-bar-height));
+  /* Scroll on arriving in design where nothing moves, before its browsing. */
+  --design-rest: 18rem;
+  /* Room added above design's elements (js/product.js designLift): 0.5rem up
+     to the breakpoint (640px), growing evenly to 4.5rem at 1280px, as --band-h. */
+  --design-drop: clamp(0.5rem, -3.5rem + 10vw, 4.5rem);
   /* Track height: the inspiration stretch (--feed-hold), the transition to
-     design, then the design stretch (--design-hold), the stretches from
-     js/product-stages.js. */
-  height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + var(--design-hold, 25svh));
+     design, the rest, then the design stretch (--design-hold), the stretches
+     from js/product-stages.js. */
+  height: calc(var(--pin-h) + var(--feed-hold, 40svh) + var(--stage-step-in) + var(--design-rest) + var(--design-hold, 25svh));
   /* The track's length changes under the visitor (a text's glide): the
      browser must not shift the scroll to hold an element in place. */
   overflow-anchor: none;
@@ -2373,7 +2378,7 @@ button.product-wall__frame {
   opacity: 1;
 }
 
-/* Phones: the same hang turned vertical, walked by scrolling up one for one.
+/* Phones: the same hang turned vertical, walked up by scrolling.
    Frame centres on the screen's middle; --h is a share of the wall's width,
    --gap of the screen's height. The room above the first frame (from the
    description) repeats the gap after it, and the room under the last repeats

@@ -6,10 +6,12 @@
 // open until another is focused, a click lands elsewhere or Escape is pressed,
 // so the pointer can travel down to the item links.
 //
-// The focused study is read from the pointer's x against the closed stack
-// (zoneAt), not from the case under it, which changes size as the focus moves:
-// a mouse sweeping the shelf focuses each study as it passes, and on touch a
-// held finger can slide along the shelf the same way.
+// Arriving on the shelf (the pointer back over it, or a new hold) opens the
+// case pointed at, the old one closing where it is. From there the focus is
+// read from the pointer's travel in closed-spine steps (zoneAt), not from the
+// case under it, which changes size as the focus moves: a mouse sweeping the
+// shelf focuses each study as it passes, and on touch a held finger can slide
+// along the shelf the same way.
 
 (function () {
   "use strict";
@@ -42,7 +44,11 @@
   var settledIndex = -1; // the one whose name and text show
   var settleTimer = 0;
   // pos: the study the opening is centred on; amount: how open the stack is (0 to 1).
-  var glide = { pos: { x: 0, v: 0 }, amount: { x: 0, v: 0 }, target: 0, omega: 0, frame: 0, last: 0 };
+  // fade, fadeFrom: the openness a cut is closing (startGlide).
+  var glide = { pos: { x: 0, v: 0 }, amount: { x: 0, v: 0 }, fade: { x: 0, v: 0 }, fadeFrom: [], target: 0, omega: 0, frame: 0, last: 0 };
+  // True once the pointer has left the stack or the finger has lifted.
+  var detached = true;
+  var zoneOffset = 0; // set by anchor()
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   var touch = null;
   var lastTouchEnd = 0;
@@ -168,7 +174,14 @@
   // once and starts widening; its name turns level and its text shows
   // (data-open) only once the focus has rested, so a sweep only slides pictures.
   function setOpen(index) {
-    if (index === openIndex) return;
+    if (index === openIndex) {
+      if (index >= 0) detached = false;
+      return;
+    }
+    // Back after the pointer left the stack or the finger lifted: the old case
+    // closes where it is while the new one opens, rather than gliding across.
+    var cut = detached;
+    detached = index < 0;
     var focused = document.activeElement;
     var refocus = null;
     cases.forEach(function (c, k) {
@@ -184,7 +197,7 @@
     settle(-1);
     clearTimeout(settleTimer);
     if (index >= 0) settleTimer = setTimeout(function () { settle(openIndex); }, SETTLE_MS);
-    startGlide();
+    startGlide(cut);
   }
 
   function settle(index) {
@@ -203,10 +216,20 @@
   // sweep is one motion rather than a width transition restarted at each border.
   // A critically damped spring: it sets off gently and carries its speed from
   // one study to the next, where an ease toward each would jump at every change.
-  function startGlide() {
+  //
+  // A cut hands the openness as it stands to a fading layer (fadeFrom, scaled
+  // by fade) and opens the new case from nothing. The two springs start at
+  // rest with the same omega, so the fade closes exactly as the new case
+  // opens and the widths still sum to one case.
+  function startGlide(cut) {
     // 95% of a move from rest at omega * t = 4.74.
     var caseW = rulers.open.getBoundingClientRect().width || GLIDE_REF_PX;
     glide.omega = 4.74 / (GLIDE_S * Math.sqrt(caseW / GLIDE_REF_PX));
+    if (cut && openIndex >= 0 && glide.amount.x + glide.fade.x > 0.01) {
+      glide.fadeFrom = cases.map(function (c, k) { return openness(k); });
+      glide.fade = { x: 1, v: 0 };
+      glide.amount = { x: 0, v: 0 };
+    }
     if (openIndex >= 0) {
       // From closed, a case opens where it stands, not gliding over from the last one.
       if (glide.amount.x < 0.01) glide.pos = { x: openIndex, v: 0 };
@@ -215,6 +238,10 @@
     if (glide.frame) return;
     glide.last = 0;
     glide.frame = requestAnimationFrame(stepGlide);
+  }
+
+  function openness(k) {
+    return glide.amount.x * Math.max(0, 1 - Math.abs(glide.pos.x - k)) + glide.fade.x * (glide.fadeFrom[k] || 0);
   }
 
   // Semi-implicit Euler in steps of 8 ms at most, steady at any frame rate.
@@ -235,9 +262,11 @@
     if (reduceMotion.matches) {
       glide.pos = { x: glide.target, v: 0 };
       glide.amount = { x: goal, v: 0 };
+      glide.fade = { x: 0, v: 0 };
     } else {
       spring(glide.pos, glide.target, dt);
       spring(glide.amount, goal, dt);
+      spring(glide.fade, 0, dt);
     }
     // Kept on the shelf and never past fully open, where the widths would no
     // longer sum to one case.
@@ -249,14 +278,17 @@
       glide.amount.x = H.clamp(glide.amount.x, 0, 1);
       glide.amount.v = 0;
     }
+    if (glide.fade.x < 0) glide.fade = { x: 0, v: 0 };
     var done = Math.abs(glide.target - glide.pos.x) < 0.002 && Math.abs(glide.pos.v) < 0.01 &&
-      Math.abs(goal - glide.amount.x) < 0.002 && Math.abs(glide.amount.v) < 0.01;
+      Math.abs(goal - glide.amount.x) < 0.002 && Math.abs(glide.amount.v) < 0.01 &&
+      glide.fade.x < 0.002 && Math.abs(glide.fade.v) < 0.01;
     if (done) {
       glide.pos = { x: glide.target, v: 0 };
       glide.amount = { x: goal, v: 0 };
+      glide.fade = { x: 0, v: 0 };
     }
     cases.forEach(function (c, k) {
-      c.el.style.setProperty("--w", (glide.amount.x * Math.max(0, 1 - Math.abs(glide.pos.x - k))).toFixed(4));
+      c.el.style.setProperty("--w", openness(k).toFixed(4));
     });
     if (!done) glide.frame = requestAnimationFrame(stepGlide);
   }
@@ -264,8 +296,9 @@
   /* ---- which study the pointer points at ---- */
 
   // Each study owns one spine step of the closed stack, centred in the row
-  // whatever is open. The centred row keeps the open case centred on its own
-  // zone, so the case under the pointer is the one it focuses.
+  // whatever is open, shifted by the last anchor. The centred row keeps the
+  // open case within reach of its zone, so the pointer stays over the case it
+  // focuses.
   function ruler(prop) {
     var el = H.el("span", "archives__ruler");
     el.style.width = "var(" + prop + ")";
@@ -274,18 +307,31 @@
     return el;
   }
 
-  // The study at clientX, or -1 outside the stack as it stands (closed, or
-  // with a case open) unless clamped.
-  function zoneAt(x, clamped) {
+  // clientX in steps from the closed stack's left edge, unclamped, or NaN
+  // outside the stack as it stands (closed, or with a case open).
+  function stackPos(x, clamped) {
     var r = row.getBoundingClientRect();
     var step = rulers.step.getBoundingClientRect().width;
     var gap = step - rulers.spine.getBoundingClientRect().width;
     var n = cases.length;
     var centre = r.left + r.width / 2;
-    var left = centre - (n * step - gap) / 2;
     var span = openIndex < 0 ? n * step - gap : (n - 1) * step + rulers.open.getBoundingClientRect().width;
-    if (!clamped && Math.abs(x - centre) > span / 2) return -1;
-    return H.clamp(Math.floor((x - left) / step), 0, n - 1);
+    if (!clamped && Math.abs(x - centre) > span / 2) return NaN;
+    return (x - (centre - (n * step - gap) / 2)) / step;
+  }
+
+  // On arrival (the pointer back on the stack, or a new hold) the case under
+  // the pointer opens, whatever its zone; the zones then shift so that this
+  // spot is that study's middle, and moves count from there.
+  function anchor(k, x) {
+    zoneOffset = k + 0.5 - stackPos(x, true);
+  }
+
+  // The study at clientX, or -1 outside the stack unless clamped.
+  function zoneAt(x, clamped) {
+    var u = stackPos(x, clamped);
+    if (isNaN(u)) return -1;
+    return H.clamp(Math.floor(u + zoneOffset), 0, cases.length - 1);
   }
 
   /* ---- mouse ---- */
@@ -295,8 +341,23 @@
     // The open case's name is its link: reaching for it never shifts the focus.
     var name = e.target.closest && e.target.closest(".archives__name");
     if (name && settledIndex >= 0 && name === cases[settledIndex].name) return;
-    var k = zoneAt(e.clientX, false);
-    if (k >= 0) setOpen(k);
+    if (isNaN(stackPos(e.clientX, false))) {
+      detached = true;
+      return;
+    }
+    if (detached) {
+      // Only a case's picture and name take the pointer, so this is the one pointed at.
+      var k = caseIndexAt(e.target);
+      if (k < 0) return;
+      anchor(k, e.clientX);
+      setOpen(k);
+      return;
+    }
+    setOpen(zoneAt(e.clientX, false));
+  }
+
+  function onMouseLeave(e) {
+    if (e.pointerType === "mouse") detached = true;
   }
 
   /* ---- touch: hold, then slide ---- */
@@ -345,7 +406,8 @@
       endHold();
       touch.held = true;
       swallowClicks = true;
-      setOpen(zoneAt(touch.x, true));
+      anchor(touch.k, touch.x);
+      setOpen(touch.k);
     }, HOLD_MS);
   }
 
@@ -366,7 +428,10 @@
 
   function onTouchEnd(e) {
     lastTouchEnd = Date.now();
-    if (!e.touches.length) lockSelection(false);
+    if (!e.touches.length) {
+      lockSelection(false);
+      detached = true;
+    }
     if (!touch) return;
     endHold();
     if (!touch.held && touch.k !== openIndex) nudge(touch.k);
@@ -377,6 +442,7 @@
     endHold();
     touch = null;
     lockSelection(false);
+    detached = true;
   }
 
   /* ---- wiring ---- */
@@ -402,6 +468,7 @@
     });
 
     row.addEventListener("pointermove", onMouseMove);
+    row.addEventListener("pointerleave", onMouseLeave);
     row.addEventListener("touchstart", onTouchStart, { passive: true });
     // Not passive: a held finger's moves are kept from scrolling the page.
     row.addEventListener("touchmove", onTouchMove, { passive: false });

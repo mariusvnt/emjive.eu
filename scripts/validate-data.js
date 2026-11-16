@@ -399,7 +399,16 @@ const productSchema = {
         "plan-views": planViewsSchema,
         photos: {
           type: "array",
-          items: { type: "object", required: ["src", "description"], properties: { src: str, description: str } }
+          items: {
+            type: "object",
+            required: ["src", "description"],
+            properties: {
+              src: str,
+              description: str,
+              // The crop's focus on the wall (object-position): two percentages.
+              focus: { type: "string", pattern: "^\\d+(\\.\\d+)?% \\d+(\\.\\d+)?%$" }
+            }
+          }
         }
       }
     },

@@ -9,6 +9,8 @@
   --white: #ffffff;
   --category-col: #727272;
   --black-bg: #1a1a1a;
+  /* The page dimmed behind a sheet or the photo viewer. */
+  --dim: rgba(0, 0, 0, 0.4);
   /* Channel inverses of the tokens above: what each looks like under an
      invert band (backdrop-filter: invert(1)). Text resting on a band is drawn
      over it in the colour it would have under it (code-guide.md §5). */
@@ -2124,7 +2126,7 @@ body:has(.order-checkout-bar:not([hidden])) {
      information's). */
   --gap-row: 1.25rem;
   --gap-group: 4rem;
-  /* Browsing (js/product-stages.js): inspiration moves the feed by
+  /* Browsing (js/product-stages.js): inspiration walks the wall by
      --feed-room (js/product.js fitFeed) times --browse-0, its progress
      through the stretch. Design moves the show up by --design-browse (px),
      up to --design-room, until the column's end clears the bottom bars
@@ -2194,36 +2196,36 @@ body:has(.order-checkout-bar:not([hidden])) {
 }
 
 /* ---- 1. the feed (inspiration) ----
-   The description 1.5rem under the title, then the photos stacked without
-   gaps, each captioned in its bottom right corner, then the trail. Screen
-   wide, the photos flush with the content's left edge: full width on a phone,
-   a tile (at most 560px) wider. The first stretch scrolls it up by
-   --feed-room; as design comes in it fades (--i-out), drifting up a little
-   (--feed-exit). */
+   The description 1.5rem under the title, then the museum wall
+   (js/product-wall.js) in the rest of the show, screen wide. Each frame's
+   numbers come from the hang: --h its size (a share of the wall's height),
+   --ratio its format, --gap the room before it (a share of the wall's width).
+   align-items: center puts every frame's centre on the wall's middle, the eye
+   line; each label sits right of its frame, its top just under that line, so
+   all labels share one line. Blank wall before the first frame and after the
+   last puts each in the middle of the screen at its end of the walk. The
+   first stretch walks the wall sideways by --feed-room; as design comes in it
+   fades (--i-out), walking on a little (--feed-exit). Phones turn the wall
+   vertical (below). */
 .product-feed {
-  --feed-w: min(560px, 100%);
   --feed-exit: 6rem;
-  /* The trail's height. */
-  --trail-h: 12rem;
+  /* Between the description and the wall. */
+  --feed-gap: 1.5rem;
   position: absolute;
   z-index: 3;
   top: 0;
+  bottom: 0;
   /* Screen wide, centred on the show. */
   left: 50%;
   width: 100vw;
   margin-left: -50vw;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--feed-gap);
   opacity: var(--i-out);
-  transform: translateY(calc((var(--browse-0) * var(--feed-room) + var(--to-design) * var(--feed-exit)) * -1));
-}
-@media (max-width: 640px) {
-  .product-feed {
-    --feed-w: 100vw;
-  }
 }
 .product-detail__description {
+  flex: none;
   align-self: stretch;
   max-width: 640px;
   /* From the content's left edge: a wide screen's margin plus the page margin. */
@@ -2233,112 +2235,183 @@ body:has(.order-checkout-bar:not([hidden])) {
   font-size: calc(12px * var(--text-scale));
   line-height: 1.7;
 }
-.product-feed__photos {
-  align-self: flex-start;
-  /* The content span's left edge. */
-  margin-left: max(0px, calc(50vw - var(--max) / 2));
-  width: var(--feed-w);
-  display: flex;
-  flex-direction: column;
-}
-.product-feed__photos:empty {
-  display: none;
-}
-.product-feed__photo {
-  margin: 0;
-}
-/* Square until the picture loads, then its own shape; a loader crosses it meanwhile. */
-.product-feed__frame {
+.product-wall {
+  --wall-label-w: 9rem;
+  --wall-label-gap: 1.25rem;
+  /* The labels' line, under the eye line. */
+  --wall-label-drop: 0.75rem;
+  /* The widest a frame gets (resolved against this wall, its container). */
+  --wall-frame-max: 56cqw;
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Clear of the bottom veil's blurs. */
+  margin-bottom: 4rem;
+  container-type: size;
 }
-.product-feed__frame > img {
+.product-wall__track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: max-content;
+  display: flex;
+  align-items: center;
+  transform: translateX(calc((var(--browse-0) * var(--feed-room) + var(--to-design) * var(--feed-exit)) * -1));
+}
+/* Never closer to its neighbour than the neighbour's label needs. */
+.product-wall__work {
+  --frame-h: min(calc(var(--h) * 100cqh), calc(var(--wall-frame-max) / var(--ratio)));
+  position: relative;
+  flex: none;
+  margin: 0 0 0 max(calc(var(--gap) * 100cqw), calc(var(--wall-label-w) + 2 * var(--wall-label-gap)));
+  height: var(--frame-h);
+  aspect-ratio: var(--ratio);
+}
+/* Centred on screen at the walk's start and end; the last keeps room for its label. */
+.product-wall__work:first-child {
+  margin-left: calc(50cqw - var(--frame-h) * var(--ratio) / 2);
+}
+.product-wall__work:last-child {
+  margin-right: max(calc(50cqw - var(--frame-h) * var(--ratio) / 2), calc(var(--wall-label-w) + 2 * var(--wall-label-gap)));
+}
+.product-wall__frame {
+  position: absolute;
+  inset: 0;
+}
+/* A photo's frame is a button opening the photo viewer. */
+button.product-wall__frame {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.product-wall__frame > img {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: auto 1 / 1;
+  height: 100%;
   object-fit: cover;
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
 }
-/* The caption (js/product.js captionFor): the name, then ".category.metal.size"
-   smaller in mono, shown once the photo is in. data-ink (inkCaption) sets
-   white or black from the picture under it; until then (or if unreadable) it
-   is white with mix-blend-mode: difference. */
-.product-feed__caption {
+.product-wall__work.is-empty .product-wall__frame {
+  border: 1px solid var(--category-col);
+}
+/* As the facts under a grid tile (.grid-item__fact): 12px DINish, the name
+   --black, the rest --category-col, a line each. A photo's label shows once
+   the photo is in. */
+.product-wall__label {
   position: absolute;
-  right: var(--edge-px);
-  bottom: 0.75rem;
-  max-width: calc(100% - 2 * var(--edge-px));
-  color: var(--white);
-  mix-blend-mode: difference;
-  font-size: calc(0.75rem * var(--text-scale));
-  line-height: 1.2;
-  text-align: right;
-  white-space: nowrap;
+  left: calc(100% + var(--wall-label-gap));
+  top: calc(50% + var(--wall-label-drop));
+  width: var(--wall-label-w);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
   pointer-events: none;
+}
+.product-wall__work:not(.is-empty) .product-wall__label {
   opacity: 0;
-  transition: opacity var(--fade-standard) ease, color var(--fade-quick) ease;
+  transition: opacity var(--fade-standard) ease;
 }
-.product-feed__caption[data-ink] {
-  mix-blend-mode: normal;
-}
-.product-feed__caption[data-ink="white"] {
-  color: var(--white);
-}
-.product-feed__caption[data-ink="black"] {
-  color: var(--black);
-}
-.product-feed__photo.is-loaded .product-feed__caption {
+.product-wall__work.is-loaded .product-wall__label {
   opacity: 1;
 }
-.product-feed__caption-name {
+.product-wall__label-line {
+  display: block;
   font-family: var(--font-main);
+  font-variant-numeric: tabular-nums;
+  color: var(--category-col);
+  overflow-wrap: anywhere;
 }
-.product-feed__caption-type {
-  font-family: var(--font-secondary);
-  font-size: 0.65em;
-  margin-left: 0.3em;
+.product-wall__label-line--name {
+  color: var(--black);
 }
-/* The trail (js/product.js buildTrail): a canvas smear of the photo's edge
-   over the trail's height, under a --bg layer whose alpha rises along a
-   smootherstep (nine stops) to exactly --bg at the bottom, so it follows the
-   background colour by itself. Height reserved from the start. */
-/* The photo's part of the effect (buildPhotoFringe): a canvas over its bottom
-   6rem (TRAIL_FRINGE_LEAD), where the colour split begins. */
-.product-feed__fringe {
+/* The phones' placard (below): a small frosted card held to the screen's right
+   edge at the show's middle, but never above the first frame's middle or
+   below the last's (--placard-y, js/product.js updatePlacard), so it stays
+   level with a frame at both ends of the wall. Its words, left-aligned, end
+   by the content's right edge. One item per frame stacked in one grid cell,
+   so the card keeps the widest label's size; the current one shows. */
+.product-wall__placard {
+  /* The title bar's room around its words: the band's height over its type's. */
+  --placard-inset: calc((var(--band-h) - 1rem * var(--text-scale)) / 2);
+  display: none;
   position: absolute;
-  left: 0;
-  bottom: 0;
-  display: block;
-  width: 100%;
-  height: 6rem;
+  z-index: 4;
+  top: var(--placard-y, 50%);
+  /* The show's right edge is the content's; the card reaches on to the screen's. */
+  right: calc(var(--edge-px) * -1);
+  max-width: calc(8rem + var(--edge-px));
+  /* Less the lines' half-leading above and below (line-height 1.3). */
+  padding: max(0px, calc(var(--placard-inset) - 0.15em)) var(--edge-px) max(0px, calc(var(--placard-inset) - 0.15em)) var(--placard-inset);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.3;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transform: translateY(-50%);
+  opacity: var(--i-out);
   pointer-events: none;
 }
-.product-feed__trail {
-  position: relative;
-  align-self: flex-start;
-  width: var(--feed-w);
-  /* One pixel up over the photo, so no hairline shows between them. */
-  margin-top: -1px;
-  height: calc(var(--trail-h) + 1px);
-  overflow: hidden;
-  pointer-events: none;
+.product-stage.is-feed-gone .product-wall__placard {
+  visibility: hidden;
 }
-.product-feed__trail > canvas {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
+.product-wall__placard-item {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity var(--fade-standard) ease;
 }
-.product-feed__trail.is-built::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.016) 12.5%, rgba(0, 0, 0, 0.104) 25%, rgba(0, 0, 0, 0.275) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.725) 62.5%, rgba(0, 0, 0, 0.896) 75%, rgba(0, 0, 0, 0.984) 87.5%, #000 100%);
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.016) 12.5%, rgba(0, 0, 0, 0.104) 25%, rgba(0, 0, 0, 0.275) 37.5%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.725) 62.5%, rgba(0, 0, 0, 0.896) 75%, rgba(0, 0, 0, 0.984) 87.5%, #000 100%);
+.product-wall__placard-item.is-current {
+  opacity: 1;
+}
+
+/* Phones: the same hang turned vertical, walked by scrolling up one for one.
+   Frame centres on the screen's middle; --h is a share of the wall's width,
+   --gap of the screen's height. The room above the first frame (from the
+   description) repeats the gap after it, and the room under the last repeats
+   the gap before it (--gap-first, --gap-last); the walk ends with that room's
+   end at the show's bottom (js/product.js fitFeed). The labels are read off
+   the placard instead. Same breakpoint as js/product-wall.js isVertical(). */
+@media (max-width: 640px) {
+  .product-feed {
+    bottom: auto;
+    transform: translateY(calc((var(--browse-0) * var(--feed-room) + var(--to-design) * var(--feed-exit)) * -1));
+  }
+  .product-wall {
+    /* The tallest a frame gets, and the least room between frames. */
+    --wall-frame-max: 43svh;
+    --wall-gap-min: 3rem;
+    flex: none;
+    margin-bottom: 0;
+    container-type: inline-size;
+  }
+  .product-wall__track {
+    position: static;
+    width: auto;
+    flex-direction: column;
+    padding: calc(max(calc(var(--gap-first) * 100svh), var(--wall-gap-min)) - var(--feed-gap)) 0 max(calc(var(--gap-last) * 100svh), var(--wall-gap-min));
+    transform: none;
+  }
+  .product-wall__work {
+    margin: max(calc(var(--gap) * 100svh), var(--wall-gap-min)) 0 0;
+    width: min(calc(var(--h) * 100cqw), calc(var(--wall-frame-max) * var(--ratio)));
+    height: auto;
+  }
+  .product-wall__work:first-child {
+    margin-top: 0;
+    margin-left: 0;
+  }
+  .product-wall__work:last-child {
+    margin-right: 0;
+  }
+  .product-wall__label {
+    display: none;
+  }
+  .product-wall__placard {
+    display: grid;
+  }
 }
 
 /* The scan band: a full-width inversion band, as the hero's frontier band,
@@ -3633,8 +3706,41 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   .product-detail__description {
     margin: 0;
   }
-  .product-feed__photos {
-    margin-left: 0;
+  /* The wall in the column, scrolled sideways by hand. */
+  .product-wall {
+    flex: none;
+    height: min(420px, 80svh);
+    margin-bottom: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+  .product-wall__track {
+    transform: none;
+  }
+  .product-wall__placard {
+    display: none;
+  }
+  /* Narrow too: the vertical wall in the column, each label centred under its frame. */
+  @media (max-width: 640px) {
+    .product-wall {
+      height: auto;
+      overflow: visible;
+    }
+    .product-wall__work {
+      margin-top: max(calc(var(--gap) * 100svh), 4.5rem);
+    }
+    .product-wall__track {
+      padding-bottom: 3rem;
+    }
+    .product-wall__label {
+      display: block;
+      left: 0;
+      right: 0;
+      top: calc(100% + var(--wall-label-gap));
+      width: auto;
+      text-align: center;
+    }
   }
   .product-design-frame {
     --tile: min(560px, 100vw - 4rem, 70svh);
@@ -3781,7 +3887,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 .size-modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--dim);
 }
 /* Full-bleed; only .size-modal__content is capped and padded. */
 .size-modal__panel {
@@ -4097,6 +4203,53 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--black);
 }
 
+/* ---- the photo viewer (js/product-wall.js) ----
+   A wall photo full screen, as large as the screen takes clear of the cross,
+   over the page dimmed as behind the review sheet. Over the bottom bars too
+   (z-index 95, the size finder's). */
+.photo-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+.photo-viewer.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.photo-viewer:focus {
+  outline: none;
+}
+.photo-viewer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--dim);
+}
+.photo-viewer__img {
+  position: relative;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 2 * var(--edge-px));
+  /* Clear of the cross above and, mirrored, below. */
+  max-height: calc(100svh - 2 * (max(var(--edge-px), env(safe-area-inset-top)) + 2.75rem));
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.photo-viewer .photo-viewer__close:focus-visible {
+  position: absolute;
+  outline: var(--focus-ring-inverted);
+}
+
 /* ---- the size finder (js/size-finder.js) ----
    A full-page --black-bg overlay over everything (z-index 95), stepped by
    [data-step]; a step change fades its parts (.is-swapping).
@@ -4132,9 +4285,11 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   display: none;
 }
 
-/* Close at top right always; back at top left after the first step. */
+/* Close at top right always; back at top left after the first step. The
+   photo viewer (below) has the same cross. */
 .size-finder__close,
-.size-finder__back {
+.size-finder__back,
+.photo-viewer__close {
   position: absolute;
   top: max(var(--edge-px), env(safe-area-inset-top));
   width: 2.75rem;
@@ -4147,7 +4302,8 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   cursor: pointer;
   transition: opacity var(--fade-quick) ease;
 }
-.size-finder__close {
+.size-finder__close,
+.photo-viewer__close {
   right: max(var(--edge-px), env(safe-area-inset-right));
   margin-right: -0.75rem;
 }
@@ -4156,14 +4312,16 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   margin-left: -0.75rem;
 }
 .size-finder__close svg,
-.size-finder__back svg {
+.size-finder__back svg,
+.photo-viewer__close svg {
   display: block;
   width: 100%;
   height: 100%;
 }
 @media (hover: hover) {
   .size-finder__close:hover,
-  .size-finder__back:hover { opacity: 0.6; }
+  .size-finder__back:hover,
+  .photo-viewer__close:hover { opacity: 0.6; }
 }
 
 /* The upper part: the label and what goes under it. */

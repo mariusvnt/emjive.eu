@@ -624,7 +624,7 @@ async function handleProductEdit(req, res) {
     merged.assets.photos = (merged.assets.photos || []).map((p) => {
       const newRel = newFolder + "/" + path.basename(p.src);
       moveAssetFile(p.src, newRel, moved, warnings);
-      return { src: newRel, description: p.description };
+      return Object.assign({}, p, { src: newRel });
     });
     // The other designs' files move too; their renders are auto-render's to redo.
     if (merged.designs) {
@@ -789,7 +789,7 @@ async function handleProductUpdatePhotoDescription(req, res) {
   const merged = Object.assign({}, current);
   merged.assets = Object.assign({}, current.assets);
   merged.assets.photos = photos.slice();
-  merged.assets.photos[index] = { src: photoPath, description: body.description || "" };
+  merged.assets.photos[index] = Object.assign({}, photos[index], { description: body.description || "" });
 
   const blockText = blocks.renderProductBlock(merged, metals);
   const patched = blocks.replaceProductBlockInText(text, productId, blockText);
@@ -935,7 +935,7 @@ async function handleProductReplacePhoto(req, res) {
   const merged = Object.assign({}, current);
   merged.assets = Object.assign({}, current.assets);
   merged.assets.photos = photos.slice();
-  merged.assets.photos[index] = { src: dest, description: photos[index].description };
+  merged.assets.photos[index] = Object.assign({}, photos[index], { src: dest });
 
   const blockText = blocks.renderProductBlock(merged, metals);
   const patched = blocks.replaceProductBlockInText(text, productId, blockText);

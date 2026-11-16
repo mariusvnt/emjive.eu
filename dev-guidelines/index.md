@@ -26,7 +26,7 @@ The repo's structure, generated from the code. Each description is the first sen
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product-wall.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
   - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
@@ -49,7 +49,7 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveGallery` { setFilter }
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the category filter row and its link to the homepage gallery, and the chromatic-aberration filter.
@@ -59,9 +59,11 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveOptionDial` { mount, mountSize, nameShower }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
     - sets `EmjiveOrderRows` { create, notice }
-  - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and photo feed) -> design (the model and its configuration: design options, metal, size, plan views; then the information).
+  - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and museum wall) -> design (the model and its configuration: design options, metal, size, plan views; then the information).
     - sets `EmjiveProductStages` { mount, screenPx }
-  - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, photo feed, model, dials (shape, material, size), plan views, the information and the selection flow across the two stages js/product-stages.js drives, handling what CSS can't (the band's reveal of the model, its lift, the feed's and the design column's room).
+  - [product-wall.js](../js/product-wall.js) — The product page's museum wall (inspiration stage): the item's photos hung as frames of varied size and format, their centres on one line, wide gaps between, each with its wall label; empty frames hold the places of photos still to come.
+    - sets `EmjiveProductWall` { build, showPlacard, isVertical }
+  - [product.js](../js/product.js) — The product page: resolves the item from the address and renders its label, museum wall, model, dials (shape, material, size), plan views, the information and the selection flow across the two stages js/product-stages.js drives, handling what CSS can't (the band's reveal of the model, its lift, the feed's and the design column's room).
   - [scroll-memory.js](../js/scroll-memory.js) — Homepage scroll memory (index.html only): Back returns to the exact offset on the first painted frame.
     - sets `EmjiveScrollMemory` { isRestoring, holdUntil, landing, remember, rememberWheel, wheel, contentReady }
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (stacked for a count above one, or "No selected item") and "Order (N) ›", N counting pieces.
@@ -160,12 +162,12 @@ The `window.Emjive*` names the classic scripts publish to each other.
 
 | Global | Set by | Read by |
 | --- | --- | --- |
-| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
+| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/series.js`, `js/size-finder.js` |
 | `EmjiveGallery` | `js/gallery.js` | `js/main.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
-| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js`, `scripts/auto-render.js` |
+| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/series.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `series/bones/hero.js`, `scripts/auto-render.js` |
 | `EmjiveHero` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `series/bones/hero.js` |
-| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
+| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product-wall.js`, `js/product.js`, `js/series-page.js`, `js/series.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |
 | `EmjiveLoadViewer` | `js/viewer-entry.js` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `EmjiveMem` | `js/stack-scene.js`, `js/three-viewer.js` | `js/viewer-entry.js` |
@@ -176,8 +178,9 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveOptionDial` | `js/option-dial.js` | `js/modify-modal.js`, `js/product.js` |
 | `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |
+| `EmjiveProductWall` | `js/product-wall.js` | `js/product.js` |
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `series/bones/hero.js` |
-| `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
+| `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
 | `EmjiveSeries` | `js/series.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/selection.js`, `js/series-page.js`, `js/three-viewer.js` |
 | `EmjiveSeriesHero` | `series/bones/hero.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/series.js` |
 | `EmjiveSizeFinder` | `js/size-finder.js` | `js/modify-modal.js`, `js/product.js` |

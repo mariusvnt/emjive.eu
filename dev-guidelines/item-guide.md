@@ -57,7 +57,7 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 - `<name>_hand-poster.webp`, the render of the ring on the hero's hand, one for every metal;
 - `<name>_plan-<front|side>.webp`, its outline views, one set for all metals (not shown by the site at present);
 - `<name>_xray.webp`, the design stage's backdrop;
-- `<Name>_photo<N>.webp`, photography.
+- `<Name>_photo<N>.webp`, photography. A photo's caption is written `name.category.metal.size`, which the wall label reads as the grid tile's facts; any other caption shows whole. The wall crops photos to its frames, from the centre unless the photo sets a `focus`.
 
 A non-default design's files are named `<name>-<design key>_…`. The renders are always lowercase. The hand-exported models are not consistently so, so don't assume a case.
 
@@ -161,4 +161,4 @@ With `json-tool`, whose blocking checks keep the catalog whole. By hand means fi
 
 ## 7. Current content
 
-Placeholder content is expected, not a bug. Only Furcula has a description and photos. Every other product has a placeholder description with no photos, and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders. No product names a print model at present, so every price, weight and dimension comes from the model on the page, and `size-stl` has nothing to size.
+Placeholder content is expected, not a bug. Only Furcula has a description and photos. Every other product has a placeholder description with no photos (its wall shows empty frames), and a few aren't placed on the hero's hand yet. Every product has its model, wireframe, measured geometry and full set of renders. No product names a print model at present, so every price, weight and dimension comes from the model on the page, and `size-stl` has nothing to size.

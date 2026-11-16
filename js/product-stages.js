@@ -1,6 +1,6 @@
 // The product page's two-stage show: a tall track (.product-stage) holding
-// one sticky stage, where scrolling steps inspiration (description and photo
-// feed) -> design (the model and its configuration: design options, metal,
+// one sticky stage, where scrolling steps inspiration (description and museum
+// wall) -> design (the model and its configuration: design options, metal,
 // size, plan views; then the information). Each stage is a stretch the
 // show browses through, with an eased transition between them.
 //
@@ -34,8 +34,8 @@
 
   var STAGES = ["inspiration", "design"];
 
-  // The feed scrolls one for one, easing to rest over its last ramp before the
-  // transition. With nothing to browse it still gets FEED_MIN_SCREENS.
+  // The wall is walked one for one (sideways, or up when turned vertical),
+  // easing to rest over its last ramp before the transition. With nothing to browse it still gets FEED_MIN_SCREENS.
   var FEED_PACE = 1;
   var FEED_MIN_SCREENS = 0.4;
   // Mirrors --i-out and --d-in in css/style.css.

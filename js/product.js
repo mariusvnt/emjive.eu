@@ -1,5 +1,5 @@
 // The product page: resolves the item from the address and renders its label,
-// photo feed, model, dials (shape, material, size), plan views, the
+// museum wall, model, dials (shape, material, size), plan views, the
 // information and the selection flow across the two stages
 // js/product-stages.js drives, handling what CSS can't (the band's reveal of
 // the model, its lift, the feed's and the design column's room).
@@ -52,8 +52,6 @@
     technologies: {},
     // data/series.json "metal-composition".
     compositions: {},
-    // Each caption with its picture, for inkCaption.
-    captions: [],
     selectedMetal: null,
     modelHandle: null,
     // The model box's poster (fallback-img) until the viewer is in.
@@ -252,7 +250,7 @@
         resolve();
       }
       var frame = document.getElementById("productFeedColumn");
-      var first = frame && frame.querySelector(".product-feed__photo img");
+      var first = frame && frame.querySelector(".product-wall__frame img");
       var box = first && first.getBoundingClientRect();
       var onScreen = !!box && box.bottom > 0 && box.top < screenHeight() && getComputedStyle(first).visibility !== "hidden";
       if (!onScreen) {
@@ -420,286 +418,20 @@
 
   /* ---- 2. the feed (inspiration) ---- */
 
-  // The description, then the photos stacked without gaps, each with its
-  // caption, then the trail (buildTrail). The first photo is requested at once;
-  // the rest after the first paint (loadRest), each behind its own loader. Photo
-  // heights are their own, so the feed's room is re-fitted as each arrives (fitFeed).
+  // The description, then the wall (js/product-wall.js), whose first photo is
+  // what the first paint waits on. The wall's room and the placard are
+  // re-fitted once the text has its font (fitFeed, updatePlacard).
   function renderFeed(product) {
     var description = document.getElementById("productDescription");
     description.textContent = product.description || "";
     description.hidden = !product.description;
-
-    var list = document.getElementById("productFeed");
-    list.innerHTML = "";
-    state.captions = [];
-    var photos = (product.assets && product.assets.photos) || [];
-    var last = photos.length - 1;
-    var trail = null;
-    if (photos.length) {
-      trail = el("div", "product-feed__trail");
-      trail.setAttribute("aria-hidden", "true");
-    }
-    var loaders = photos.map(function (photo, i) {
-      var figure = el("figure", "product-feed__photo");
-      var frame = el("div", "product-feed__frame");
-      var img = document.createElement("img");
-      img.alt = (product.name || "") + (photo.description ? " — " + photo.description : "");
-      img.decoding = "async";
-      img.draggable = false;
-      if (i === 0) img.fetchPriority = "high";
-      else img.loading = "lazy";
-      frame.appendChild(img);
-      var caption = null;
-      if (photo.description) {
-        caption = captionFor(photo.description);
-        frame.appendChild(caption);
-        state.captions.push({ img: img, caption: caption });
-      }
-      figure.appendChild(frame);
-      list.appendChild(figure);
-      var started = null;
-      return function load() {
-        if (started) return started;
-        img.src = photo.src;
-        started = H.imageReady(img);
-        if (window.EmjiveLoader && i > 0) window.EmjiveLoader.cover(frame, started);
-        started.then(function () {
-          // The caption's ink is set before it shows (.is-loaded).
-          inkCaption(img, caption);
-          figure.classList.add("is-loaded");
-          if (i === last) buildTrail(trail, img);
-          fitFeed();
-        });
-        return started;
-      };
-    });
-    if (trail) list.appendChild(trail);
-    wireCaptionInk();
-    return {
-      firstReady: loaders.length ? loaders[0]() : Promise.resolve(),
-      loadRest: function () { loaders.forEach(function (load) { load(); }); }
-    };
-  }
-
-  // The caption is the item's name styled like everywhere else: name, then
-  // ".category.metal.size" in mono (appendSize). Colour from inkCaption.
-  function captionFor(text) {
-    var caption = el("figcaption", "product-feed__caption");
-    var dot = text.indexOf(".");
-    caption.appendChild(el("span", "product-feed__caption-name", dot === -1 ? text : text.slice(0, dot)));
-    if (dot !== -1) {
-      var type = el("span", "product-feed__caption-type");
-      var rest = text.slice(dot);
-      var sized = /^(.*)\.(\d+(?:\.\d+)?)$/.exec(rest);
-      if (sized) {
-        type.appendChild(document.createTextNode(sized[1] + "."));
-        window.EmjiveSelection.appendSize(type, sized[2]);
-      } else {
-        type.textContent = rest;
-      }
-      caption.appendChild(type);
-    }
-    return caption;
-  }
-
-  // Caption colour from the picture under it: the area (plus INK_PAD_PX) is
-  // averaged through a 16x8 canvas and its WCAG relative luminance compared to
-  // INK_THRESHOLD (0.179, where white and black read equally), giving data-ink.
-  // An unreadable picture leaves the CSS default. Re-run on width changes.
-  var INK_PAD_PX = 6;
-  var INK_THRESHOLD = 0.179;
-  var INK_COLS = 16;
-  var INK_ROWS = 8;
-  var inkContext = null;
-  function inkCaption(img, caption) {
-    if (!caption || !img.naturalWidth) return;
-    var shown = img.getBoundingClientRect();
-    var box = caption.getBoundingClientRect();
-    if (!(shown.width > 0) || !(box.width > 0)) return;
-    var k = img.naturalWidth / shown.width;
-    var x0 = Math.max(0, (box.left - INK_PAD_PX - shown.left) * k);
-    var y0 = Math.max(0, (box.top - INK_PAD_PX - shown.top) * k);
-    var x1 = Math.min(img.naturalWidth, (box.right + INK_PAD_PX - shown.left) * k);
-    var y1 = Math.min(img.naturalHeight, (box.bottom + INK_PAD_PX - shown.top) * k);
-    if (x1 - x0 < 1 || y1 - y0 < 1) return;
-    try {
-      if (!inkContext) {
-        var canvas = document.createElement("canvas");
-        canvas.width = INK_COLS;
-        canvas.height = INK_ROWS;
-        inkContext = canvas.getContext("2d", { willReadFrequently: true });
-      }
-      inkContext.clearRect(0, 0, INK_COLS, INK_ROWS);
-      inkContext.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, INK_COLS, INK_ROWS);
-      var data = inkContext.getImageData(0, 0, INK_COLS, INK_ROWS).data;
-      var sum = 0;
-      for (var i = 0; i < data.length; i += 4) {
-        sum += 0.2126 * linearChannel(data[i]) + 0.7152 * linearChannel(data[i + 1]) + 0.0722 * linearChannel(data[i + 2]);
-      }
-      caption.setAttribute("data-ink", sum / (data.length / 4) < INK_THRESHOLD ? "white" : "black");
-    } catch (err) {
-      // A tainted canvas: left as it was.
-    }
-  }
-
-  // sRGB channel (0-255) to linear light.
-  function linearChannel(value) {
-    var c = value / 255;
-    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  }
-
-  var captionInkWired = false;
-  function wireCaptionInk() {
-    if (captionInkWired) return;
-    captionInkWired = true;
-    var queued = false;
-    window.addEventListener("resize", function () {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(function () {
-        queued = false;
-        state.captions.forEach(function (c) { inkCaption(c.img, c.caption); });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        fitFeed();
+        updatePlacard();
       });
-    });
-  }
-
-  // The trail under the last photo: a slit-scan smear of its bottom
-  // TRAIL_DEPTH rows, laid down one canvas row at a time with the stretch
-  // growing from the photo's own scale at the seam to a single held row, so the
-  // edge continues as coarsening streaks. CSS stretches the canvas over the
-  // trail and fades it to --bg beneath an overlay. No trail if the picture can't
-  // be read.
-  //
-  // Red and blue slip apart, starting TRAIL_FRINGE_LEAD rem inside the photo
-  // (buildPhotoFringe) and widening down the trail up to TRAIL_FRINGE of the
-  // width; one profile (trailFringe) so photo and trail join seamlessly. The
-  // split fades out toward the sides so edges don't get coloured.
-  var TRAIL_DEPTH = 180; // rows of the photo's edge used
-  var TRAIL_ROWS = 288; // the smear's height, in canvas rows
-  var TRAIL_PACE = 3; // stretch growth: photo rows per canvas row at the seam = DEPTH * PACE / ROWS
-  var TRAIL_FRINGE = 0.04; // widest red-blue gap, as a share of the width
-  var TRAIL_FRINGE_LEAD = 6; // rem of the photo above its bottom edge carrying the split
-  var TRAIL_FRINGE_FULL = 14; // rem from its start to its widest
-  function trailFringe(rem) {
-    return Math.pow(H.clamp01(rem / TRAIL_FRINGE_FULL), 1.8);
-  }
-  // The picture multiplied into red, green and blue layers, each with its slip direction.
-  function fringeChannels(source, width, height) {
-    return [["#f00", 1], ["#0f0", 0], ["#00f", -1]].map(function (spec) {
-      var canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      var ctx = canvas.getContext("2d");
-      ctx.drawImage(source, 0, 0);
-      ctx.globalCompositeOperation = "multiply";
-      ctx.fillStyle = spec[0];
-      ctx.fillRect(0, 0, width, height);
-      return { canvas: canvas, side: spec[1] };
-    });
-  }
-  // Row y takes row rowAt(y) of the channels, split by the profile at
-  // rem0 + (y + 0.5) / height * remSpan; added together they rebuild the picture
-  // where unsplit. Transparent toward the sides.
-  function fringeSplit(channels, width, height, rowAt, rem0, remSpan) {
-    var canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    var ctx = canvas.getContext("2d");
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, width, height);
-    ctx.globalCompositeOperation = "lighter";
-    var widest = Math.round(width * TRAIL_FRINGE * 0.5);
-    for (var y = 0; y < height; y++) {
-      var shift = Math.round(widest * trailFringe(rem0 + (y + 0.5) / height * remSpan));
-      var sy = rowAt(y);
-      for (var c = 0; c < channels.length; c++) {
-        var dx = shift * channels[c].side;
-        ctx.drawImage(channels[c].canvas, 0, sy, width, 1, dx, y, width, 1);
-        if (dx) ctx.drawImage(channels[c].canvas, 0, sy, width, 1, dx > 0 ? dx - width : dx + width, y, width, 1);
-      }
     }
-    // None within the widest slip of the edge (wrapped pixels), full from twice that in.
-    var edge = Math.min(width / 4, widest + 2);
-    var fade = ctx.createLinearGradient(0, 0, width, 0);
-    fade.addColorStop(0, "rgba(0,0,0,0)");
-    fade.addColorStop(edge / width, "rgba(0,0,0,0)");
-    fade.addColorStop(Math.min(0.5, 2 * edge / width), "#000");
-    fade.addColorStop(Math.max(0.5, 1 - 2 * edge / width), "#000");
-    fade.addColorStop(1 - edge / width, "rgba(0,0,0,0)");
-    fade.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.fillStyle = fade;
-    ctx.fillRect(0, 0, width, height);
-    return canvas;
-  }
-  function buildTrail(trail, img) {
-    if (!trail || trail.firstChild || !img.naturalWidth) return;
-    try {
-      var width = Math.min(img.naturalWidth, 1600);
-      var depth = Math.min(TRAIL_DEPTH, img.naturalHeight);
-      var strip = document.createElement("canvas");
-      strip.width = width;
-      strip.height = depth;
-      strip.getContext("2d").drawImage(img, 0, img.naturalHeight - depth, img.naturalWidth, depth, 0, 0, width, depth);
-      var channels = fringeChannels(strip, width, depth);
-      var row = document.createElement("canvas");
-      row.width = width;
-      row.height = TRAIL_ROWS;
-      var ctx = row.getContext("2d");
-      ctx.imageSmoothingEnabled = false;
-      // Which row of the photo's edge a trail row takes.
-      var rowAt = function (y) {
-        var t = (y + 0.5) / TRAIL_ROWS;
-        return depth - 1 - Math.min(depth - 1, Math.floor(depth * (1 - Math.pow(1 - t, TRAIL_PACE))));
-      };
-      for (var y = 0; y < TRAIL_ROWS; y++) ctx.drawImage(strip, 0, rowAt(y), width, 1, 0, y, width, 1);
-      var span = (trail.offsetHeight / remPx()) || 12;
-      ctx.drawImage(fringeSplit(channels, width, TRAIL_ROWS, rowAt, TRAIL_FRINGE_LEAD, span), 0, 0);
-      trail.appendChild(row);
-      trail.classList.add("is-built");
-      watchPhotoFringe(img);
-    } catch (err) {
-      trail.innerHTML = "";
-    }
-  }
-
-  // The photo's own part of the split: a canvas over its bottom
-  // TRAIL_FRINGE_LEAD rem (.product-feed__fringe), from zero at its top to where
-  // the trail takes over. Redrawn at the photo's current width.
-  function buildPhotoFringe(img) {
-    var shown = img.clientWidth;
-    if (!shown || !img.naturalWidth) return false;
-    var width = Math.min(img.naturalWidth, 1600);
-    var height = Math.min(Math.round(TRAIL_FRINGE_LEAD * remPx() * width / shown), Math.floor(img.naturalHeight * width / img.naturalWidth));
-    var natural = Math.min(img.naturalHeight, Math.round(height * img.naturalWidth / width));
-    var strip = document.createElement("canvas");
-    strip.width = width;
-    strip.height = height;
-    strip.getContext("2d").drawImage(img, 0, img.naturalHeight - natural, img.naturalWidth, natural, 0, 0, width, height);
-    var canvas = img.parentNode.querySelector(".product-feed__fringe");
-    if (!canvas) {
-      canvas = document.createElement("canvas");
-      canvas.className = "product-feed__fringe";
-      canvas.setAttribute("aria-hidden", "true");
-      img.parentNode.insertBefore(canvas, img.nextSibling);
-    }
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext("2d").drawImage(
-      fringeSplit(fringeChannels(strip, width, height), width, height, function (y) { return y; }, 0, TRAIL_FRINGE_LEAD),
-      0, 0
-    );
-    return true;
-  }
-  function watchPhotoFringe(img) {
-    var built = 0;
-    var build = function () {
-      if (Math.abs(img.clientWidth - built) < 1) return;
-      if (buildPhotoFringe(img)) built = img.clientWidth;
-    };
-    build();
-    if (window.ResizeObserver) new ResizeObserver(build).observe(img);
+    return window.EmjiveProductWall.build(document.getElementById("productWallTrack"), product, document.getElementById("productWallPlacard"));
   }
 
   /* ---- 2b. the model (design) ---- */
@@ -1561,28 +1293,56 @@
     state.settleTimer = setTimeout(function () { costs.classList.add("is-settled"); }, 2300);
   }
 
-  // The inspiration stretch scrolls the feed up until its end (the trail, already
-  // the page colour) stands FEED_CLEAR_REM above the bottom bars, clear of the
-  // bottom veil's blurs. Published as --feed-room (js/product-stages.js sizes
-  // the stretch from it). Measured unshifted against the bars at their highest,
-  // so it holds still; re-fitted as photos arrive and on resize.
-  var FEED_CLEAR_REM = 4;
+  // The inspiration stretch walks the wall to its end. Sideways, CSS leaves
+  // room at both ends for the end frames to stand in the middle of the screen,
+  // so the walk is the track's overflow. Turned vertical, it ends with the room
+  // under the last frame at the show's bottom. Published as --feed-room
+  // (js/product-stages.js sizes the stretch from it). Measured from offsets,
+  // which ignore the walk's transform, so it holds still; re-fitted on resize.
   var feedRoom = 0;
   function fitFeed() {
     var feed = document.getElementById("productFeedColumn");
     var show = document.querySelector(".product-stage__show");
-    if (!stageEl || !feed || !show) return;
+    var wall = document.getElementById("productWall");
+    var track = document.getElementById("productWallTrack");
+    if (!stageEl || !feed || !show || !wall || !track) return;
     var room = 0;
-    if (!state.flow) {
-      var rem = remPx();
-      var showTop = show.getBoundingClientRect().top - pinShift() + browsePx();
-      var bottom = showTop + feed.offsetTop + feed.offsetHeight;
-      room = Math.max(0, bottom - (barsTopPx() - FEED_CLEAR_REM * rem));
+    if (!state.flow && !window.EmjiveProductWall.isVertical()) {
+      room = Math.max(0, track.offsetWidth - wall.clientWidth);
+    } else if (!state.flow) {
+      room = Math.max(0, feed.offsetTop + feed.offsetHeight - show.clientHeight);
     }
     if (Math.abs(room - feedRoom) < 0.5) return;
     feedRoom = room;
     stageEl.style.setProperty("--feed-room", room.toFixed(1) + "px");
     if (stages) stages.update();
+  }
+
+  // On the vertical wall the placard stands at the show's middle, held between
+  // the first frame's middle and the last's (--placard-y), and shows the label
+  // of the frame nearest it.
+  var placardY = -1;
+  function updatePlacard() {
+    if (state.flow || !window.EmjiveProductWall.isVertical()) return;
+    var show = document.querySelector(".product-stage__show");
+    var track = document.getElementById("productWallTrack");
+    var placard = document.getElementById("productWallPlacard");
+    if (!show || !track || !placard || !track.firstElementChild) return;
+    var top = show.getBoundingClientRect().top;
+    var centres = Array.prototype.map.call(track.children, function (work) {
+      var r = work.getBoundingClientRect();
+      return r.top + r.height / 2 - top;
+    });
+    var y = clamp(show.clientHeight / 2, centres[0], centres[centres.length - 1]);
+    if (Math.abs(y - placardY) >= 0.5) {
+      placardY = y;
+      placard.style.setProperty("--placard-y", y.toFixed(1) + "px");
+    }
+    var nearest = 0;
+    centres.forEach(function (c, i) {
+      if (Math.abs(c - y) < Math.abs(centres[nearest] - y)) nearest = i;
+    });
+    window.EmjiveProductWall.showPlacard(nearest);
   }
 
   // The bottom bars' top in screen px: the small viewport's bottom minus
@@ -1704,6 +1464,7 @@
     if (modelBoxEl) modelBoxEl.classList.toggle("is-cut", cutting);
     if (band) band.classList.toggle("is-on", cutting);
     fitFeed();
+    updatePlacard();
     applyStageToViewer();
   }
 

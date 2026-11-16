@@ -47,7 +47,15 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 
 **A metal per item, picked in the grid.** Each grid tile has its own row of swatches under its pictures, and a pick changes that item only: its picture, its price range (always for its own metal, so the default metal's until a pick), the wheel's model of it and its page, which opens on it priced as a pick. The wheel has no picker: it is the showroom, and changes only while it is out of sight. The choices are kept for the visit (not across visits, so the site always opens on the items' default metals) and owned by `EmjiveSeries`, which knows the metals offered.
 
-**The product page is a two-stage scroll show**: inspiration (description and photos), then design (the model, its configuration under it, then the information). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
+**The product page is a two-stage scroll show**: inspiration (the description over a museum wall of photos), then design (the model, its configuration under it, then the information). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
+
+**Inspiration hangs the photos like a museum wall, and scrolling walks along it** (`js/product-wall.js`).
+
+- **The frames:** they vary in size and format, with wide gaps between them, and their centres share one eye line.
+- **The hang:** it is seeded by the item's name rather than random. Each item keeps its own wall on every visit and at every width, nothing moves after load, and neighbouring items still differ.
+- **Empty frames:** an item still waiting for its photographs shows empty frames in their places, so the wall can be judged now.
+- **Phones:** a phone gets the same hang turned vertical and scrolled one for one. Mapping a phone's scroll sideways felt too forceful there. Since a vertical wall has no eye line for labels to share, one label card fixed on screen shows the label of the frame being passed.
+- **The photo viewer:** a photo's frame opens it full screen.
 
 **Design configures the item with a row of dials, so a phone shows the model and its options on one screen.** Shape (when there's more than one design), material and size are each a round button under the model (`js/option-dial.js`), the same dials the Modify sheet uses. Shape and material open a disc over layered blurs, cut into one section per option, each always in the same place, and pointing into a section picks it live: hovering on a desktop, a tap or a held finger slid across on a phone. The size opens a vertical slider instead.
 
@@ -155,7 +163,7 @@ Wherever a rule sets `display`, the `hidden` attribute needs a matching `[hidden
 
 - One `h1` and a distinct `<title>` per page, and a skip link to `<main>`.
 - One `:focus-visible` ring for the whole site. It positions its element, so already-positioned controls keep their own position.
-- The bottom sheets trap focus and lock the page.
+- The bottom sheets and the photo viewer trap focus and lock the page.
 - The wheel is a picture, so its keyboard and screen-reader path is a hidden list of links. A keyboard on that list drives the wheel itself, so the focus can be seen.
 - Closed panels leave the tab order, and status changes go through live regions.
 - Reduced motion is honoured in three places that don't know about each other: the stylesheet, the viewers and the loader.

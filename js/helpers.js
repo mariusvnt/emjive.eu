@@ -107,6 +107,25 @@
     return componentAt(u, y1, y2);
   }
 
+  // A repeatable random sequence for a string: a generator of numbers in
+  // [0, 1), the same for the same key on every visit (FNV-1a hash seeding
+  // mulberry32).
+  function seededRandom(key) {
+    var h = 2166136261;
+    var text = String(key);
+    for (var i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    var a = h >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
   /* ---- timing ---- */
 
   function wait(ms) {
@@ -645,6 +664,7 @@
     easeOutCubic: easeOutCubic,
     easeInOutCubic: easeInOutCubic,
     cubicBezierEase: cubicBezierEase,
+    seededRandom: seededRandom,
     wait: wait,
     whenIdle: whenIdle,
     afterTransition: afterTransition,

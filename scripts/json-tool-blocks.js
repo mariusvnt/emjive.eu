@@ -351,9 +351,9 @@ function renderProductBlock(p, metals) {
   const assets = p.assets || {};
   const hhv = p["hero-hand-visibility"] || { visible: false, x: 50, y: 50, scale: 6, rotation: 0 };
   const cam = p["3d-viewer-camera-default"] || { rotation: 0, tilt: 75, zoom: 105 };
-  // One { src, description } per line.
+  // One { src, description[, focus] } per line.
   const photoLines = (assets.photos || [])
-    .map((ph) => '          { "src": "' + esc(ph.src) + '", "description": "' + esc(ph.description) + '" }')
+    .map((ph) => '          { "src": "' + esc(ph.src) + '", "description": "' + esc(ph.description) + '"' + (ph.focus ? ', "focus": "' + esc(ph.focus) + '"' : "") + " }")
     .join(",\n");
   const photos = photoLines ? "[\n" + photoLines + "\n        ]" : "[]";
 

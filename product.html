@@ -114,11 +114,16 @@
         <!-- Show area -->
         <div class="product-stage__show">
 
-          <!-- Inspiration stage: description and photo feed (js/product.js). -->
+          <!-- Inspiration stage: the description over the museum wall
+               (js/product-wall.js hangs it, js/product.js walks it). -->
           <div class="product-feed" id="productFeedColumn">
             <p class="product-detail__description" id="productDescription" hidden></p>
-            <div class="product-feed__photos" id="productFeed"></div>
+            <div class="product-wall" id="productWall">
+              <div class="product-wall__track" id="productWallTrack"></div>
+            </div>
           </div>
+          <!-- Phones: the label of the frame being passed, fixed on screen. -->
+          <div class="product-wall__placard" id="productWallPlacard" aria-hidden="true"></div>
 
           <!-- Design stage: the model over its x-ray, then the configuration and
                the information under it. Everything placed against the
@@ -288,7 +293,7 @@
 <!-- Deferred, run in document order after the viewer-entry.js module (so
      window.EmjiveLoadViewer exists). Helpers precede their users:
      focus-trap.js and option-dial.js before modify-modal.js and product.js,
-     product-stages.js before product.js, order-rows.js before
+     product-stages.js and product-wall.js before product.js, order-rows.js before
      selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>
@@ -299,6 +304,7 @@
 <script src="js/selection-bar.js" defer></script>
 <script src="js/main.js" defer></script>
 <script src="js/product-stages.js" defer></script>
+<script src="js/product-wall.js" defer></script>
 <script src="js/product.js" defer></script>
 </body>
 </html>

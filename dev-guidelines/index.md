@@ -11,8 +11,8 @@ The repo's structure, generated from the code. Each description is the first sen
   - landmarks: #main
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
-- [archives.html](../archives.html) — Archives (/archives): every study across the brand's lifetime.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+- [archives.html](../archives.html) — Archives (/archives): every study across the brand's lifetime, as a shelf of cases (js/archives.js).
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/archives.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [environment.html](../environment.html) — Environment (/environment): the environmental impact of making each piece.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
@@ -56,6 +56,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a study's hero.css is injected after it.
     - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Study hero slots · Products · Content pages (archives, who are we, study manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Footer · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
 - **[js/](../js/)** — Client scripts: classic scripts talking through window.Emjive* globals, and the ES modules of the 3D layer.
+  - [archives.js](../js/archives.js) — archives.html: the shelf of studies, one case per study in data/studies.json, newest first.
   - [focus-trap.js](../js/focus-trap.js) — Modal focus trap and page lock for the bottom sheets (#sizeModal, #modifyModal, the size finder): window.EmjiveFocusTrap.
     - sets `EmjiveFocusTrap` { activate, release, isActive, focus }
   - [gallery-stack.js](../js/gallery-stack.js) — The homepage wheel (index.html, "stack" in code).
@@ -63,7 +64,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [gallery.js](../js/gallery.js) — Homepage gallery (index.html): one of two views, data-gallery-view on <html> (set in the <head> by js/scroll-memory.js).
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, ICON_OUT, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu and the chromatic-aberration filter.
@@ -118,7 +119,7 @@ The repo's structure, generated from the code. Each description is the first sen
       - [manifest.json](../data/studies/bones/manifest.json)
         - `study`, `title`, `subtitle`, `year`, `intro`, `sections`, `credits`.
       - [products.json](../data/studies/bones/products.json)
-        - `study`, `products`. 10 products: furcula, foramen, Disc, Marrow, suture, rib-cage, joint, ilium, jaw, blades.
+        - `study`, `products`. 10 products: furcula, foramen, disc, marrow, suture, rib-cage, joint, ilium, jaw, blades.
 - **[assets/](../assets/)** — Static binaries. Everything outside studies/ is brand-wide.
   - **[assets/draco/](../assets/draco/)** — three's Draco decoder, self-hosted (the site makes no external requests).
   - **[assets/fonts/](../assets/fonts/)** — Self-hosted fonts: DINish and Geist Mono.
@@ -178,14 +179,14 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | --- | --- | --- |
 | `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/size-finder.js`, `js/studies.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
-| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `studies/bones/hero.js`, `scripts/auto-render.js` |
+| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `studies/bones/hero.js`, `scripts/auto-render.js` |
 | `EmjiveHero` | `js/studies.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `studies/bones/hero.js` |
-| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product-wall.js`, `js/product.js`, `js/studies-page.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
+| `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product-wall.js`, `js/product.js`, `js/studies-page.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |
 | `EmjiveLoadViewer` | `js/viewer-entry.js` | `js/gallery-stack.js`, `js/modify-modal.js`, `js/product.js` |
 | `EmjiveMem` | `js/stack-scene.js`, `js/three-viewer.js` | `js/viewer-entry.js` |
 | `EmjiveMenus` | `js/studies.js` | `js/main.js`, `js/selection-bar.js` |
-| `EmjiveMessage` | `js/studies.js` | `js/gallery.js`, `js/product.js`, `js/studies-page.js` |
+| `EmjiveMessage` | `js/studies.js` | `js/archives.js`, `js/gallery.js`, `js/product.js`, `js/studies-page.js` |
 | `EmjiveModelViewer` | `js/three-viewer.js` | `scene-tool.html`, `js/modify-modal.js`, `js/product.js`, `js/viewer-entry.js`, `scripts/auto-render.js` |
 | `EmjiveModifyModal` | `js/modify-modal.js` | `js/order-rows.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveOptionDial` | `js/option-dial.js` | `js/modify-modal.js`, `js/product.js` |
@@ -195,7 +196,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `studies/bones/hero.js` |
 | `EmjiveSelection` | `js/selection.js` | `js/gallery.js`, `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/selection-bar.js`, `js/selection-page.js`, `js/size-finder.js` |
 | `EmjiveSizeFinder` | `js/size-finder.js` | `js/modify-modal.js`, `js/product.js` |
-| `EmjiveStudies` | `js/studies.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/selection.js`, `js/studies-page.js`, `js/three-viewer.js` |
+| `EmjiveStudies` | `js/studies.js` | `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/main.js`, `js/modify-modal.js`, `js/product.js`, `js/selection.js`, `js/studies-page.js`, `js/three-viewer.js` |
 | `EmjiveStudyHero` | `studies/bones/hero.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/studies.js` |
 
 ## Shared names

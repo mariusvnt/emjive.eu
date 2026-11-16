@@ -1287,6 +1287,232 @@ body:has(.site-header__menu.is-open) .gallery-control {
   min-height: 55vh;
 }
 
+/* ---- Archives: a shelf of cases, one per study (js/archives.js) ----
+   Closed cases are spines standing on one bottom line, centred on the screen;
+   the open one widens to the study's hero picture at the spine's height. The
+   centred group shifts by half the open width when the first case opens, so
+   the case under a pointer still opens over that pointer; between two open
+   cases its width doesn't change. --n (the study count) and --archives-hold
+   are set by the script, --k (a case's index) per case. */
+
+/* Lower than the other shells, so the shelf sits about mid-screen. */
+.page-shell--archives {
+  padding-top: 12rem;
+}
+/* Touch only scrolls the page down or zooms it: iOS otherwise lets a sideways
+   swipe wobble it, and a double tap on the spines zoom it. The hold and slide
+   is js/archives.js's own. */
+html:has(.page-shell--archives),
+html:has(.page-shell--archives) body {
+  touch-action: pan-y pinch-zoom;
+}
+.archives {
+  container-type: inline-size;
+  padding-bottom: 4rem;
+}
+.archives__row,
+.archives__details-area {
+  --gap: 0.25rem;
+  --spine-h: 20svh;
+  --spine-step-max: calc(2rem + var(--gap));
+  /* Height over width of the hero's first picture (16:9). */
+  --case-ratio: calc(1620 / 2880);
+  --case-w: min(var(--spine-h) / var(--case-ratio), max(50cqw, 100cqw - (var(--n) - 1) * var(--spine-step-max)));
+  /* The spines share what the open case leaves, up to their own width. */
+  --spine-step: min(var(--spine-step-max), (100cqw - var(--case-w)) / max(var(--n) - 1, 1));
+  --spine-w: calc(var(--spine-step) - var(--gap));
+  --archives-open: 0.4s;
+}
+
+.archives__row {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--gap);
+  /* Room over the spines for their names and the open case's title. */
+  height: calc(var(--spine-h) + 6rem * var(--text-scale));
+  /* The long press is the shelf's own: no callout, no text selection. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Out of the flow, for js/archives.js to read the stack's widths (zoneAt). */
+.archives__ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A finger on the shelf: nothing on the page selectable (js/archives.js lockSelection). */
+html.is-archives-touch,
+html.is-archives-touch * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Only its parts take the pointer, not the empty column above a spine. */
+.archives__case {
+  position: relative;
+  flex: none;
+  width: var(--spine-w);
+  pointer-events: none;
+  /* --w, 0 closed to 1 open, is eased each frame by js/archives.js (stepGlide). */
+  width: calc(var(--spine-w) + var(--w, 0) * (var(--case-w) - var(--spine-w)));
+}
+
+.archives__frame {
+  position: relative;
+  height: var(--spine-h);
+  overflow: hidden;
+  background: var(--footer-bg);
+  pointer-events: auto;
+  transition: transform var(--fade-quick) ease;
+}
+/* Lifts over the hold, so the finger sees it coming. */
+.archives__case.is-pressed .archives__frame {
+  transform: translateY(-0.4rem);
+  transition: transform var(--archives-hold, 0.45s) ease-out;
+}
+/* A short tap on a spine: a hop, as a hint to hold. */
+.archives__case.is-nudged .archives__frame {
+  animation: archives-nudge var(--fade-standard) ease-in-out;
+}
+@keyframes archives-nudge {
+  0%, 100% { transform: none; }
+  45% { transform: translateY(-0.3rem); }
+}
+
+/* At the open size from the start, centred: a closed case shows the
+   picture's centre slice, and opening uncovers the rest on both sides. */
+.archives__picture {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: var(--case-w);
+  height: var(--spine-h);
+  max-width: none;
+  object-fit: cover;
+  transform: translateX(-50%);
+}
+
+.archives__spine,
+.archives__cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  outline-offset: -2px;
+}
+.archives__cover,
+.archives__case[data-focus] .archives__spine {
+  visibility: hidden;
+}
+.archives__case[data-focus] .archives__cover {
+  visibility: visible;
+}
+
+/* The case's name, from its foot just over the spine's top centre: closed it
+   is turned to read upward, open it turns level about that foot and slides to
+   centre over the case. line-height 1 makes the turned name 1em wide, hence
+   the 0.5em that centres it on the spine. */
+.archives__name {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  left: 50%;
+  bottom: calc(var(--spine-h) + 0.5rem);
+  transform-origin: 0 100%;
+  transform: translateX(0.5em) rotate(-90deg);
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--black);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform var(--archives-open) ease;
+}
+.archives__case[data-open] .archives__name {
+  transform: translateX(-50%) rotate(0deg);
+}
+/* After the name, shown once it has turned level; the name and arrow centre together. */
+.archives__name svg {
+  flex: none;
+  width: 0.85rem;
+  height: 0.85rem;
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease;
+}
+.archives__case[data-open] .archives__name svg {
+  opacity: 1;
+  transition: opacity var(--fade-standard) ease calc(var(--archives-open) * 0.5);
+}
+
+/* Every case's details in one cell, each at its open case's left edge: the
+   area is as tall as the longest, so the page keeps its length as the focus moves. */
+.archives__details-area {
+  display: grid;
+  margin-top: 1rem;
+}
+.archives__details {
+  grid-area: 1 / 1;
+  align-self: start; /* its own height, so a tap below its text is a tap away */
+  min-width: 0;
+  width: var(--case-w);
+  max-width: 100%;
+  /* Its open case's left edge, in the centred group. */
+  margin-left: calc((100cqw - (var(--n) - 1) * var(--spine-step) - var(--case-w)) / 2 + var(--k) * var(--spine-step));
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--fade-quick) ease, visibility 0s linear var(--fade-quick);
+}
+.archives__details[data-open] {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--fade-standard) ease;
+}
+.archives__intro {
+  max-width: 60ch;
+  margin: 0 0 1rem;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  white-space: pre-line;
+  color: var(--black);
+}
+.archives__items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-main);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  color: var(--category-col);
+}
+.archives__items a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--fade-quick) ease;
+}
+@media (hover: hover) {
+  .archives__items a:hover {
+    color: var(--black);
+  }
+}
+
 /* ==== Selection / order page ==== */
 
 .selection-page {

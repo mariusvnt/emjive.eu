@@ -67,7 +67,7 @@
   pageToggle.type = "button";
   var pageLabel = el("span", "size-modal__page-label");
   pageToggle.appendChild(pageLabel);
-  pageToggle.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 L19 5 M9 5 H19 V15" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>');
+  pageToggle.insertAdjacentHTML("beforeend", H.ICON_OUT);
   // Across from the name: the draft's price for the item's count (syncPrice).
   // One line, so the two centre on each other.
   var priceEl = el("p", "size-modal__price");

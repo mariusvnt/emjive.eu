@@ -100,7 +100,7 @@
     },
     {
       "id": "03",
-      "name": "Disc",
+      "name": "disc",
       "category": "ring",
       "description": "A disc is a flat, circular structure that can be found in various parts of the body, such as the spine. It serves as a cushion between bones and helps to absorb shock and maintain flexibility.",
       "default-metal": "steel",
@@ -133,7 +133,7 @@
     },
     {
       "id": "04",
-      "name": "Marrow",
+      "name": "marrow",
       "category": "ring",
       "description": "The marrow is the soft, fatty tissue found inside bones. It plays a crucial role in producing blood cells.",
       "default-metal": "steel",

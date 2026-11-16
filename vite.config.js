@@ -219,12 +219,12 @@ function readProducts() {
   return { index, list };
 }
 
-// The gallery and every item. The noindex pages are left out.
+// The gallery, the archives and every item. The noindex pages are left out.
 function emitSitemap() {
   return {
     name: "emit-sitemap",
     generateBundle() {
-      const urls = [SITE_ORIGIN + "/"];
+      const urls = [SITE_ORIGIN + "/", SITE_ORIGIN + "/archives"];
       for (const item of readProducts().list) urls.push(SITE_ORIGIN + "/" + item.slug);
       const xml =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +

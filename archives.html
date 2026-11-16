@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Archives (/archives): every study across the brand's lifetime. An empty shell, design pending. -->
+<!-- Archives (/archives): every study across the brand's lifetime, as a shelf of cases (js/archives.js). -->
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -7,8 +7,6 @@
 <meta name="theme-color" content="#f8f8f8" />
 <title>em·ji·ve: archives</title>
 <meta name="description" content="Every study across the brand's lifetime" />
-<!-- Remove once the page has content worth indexing. -->
-<meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
 <link rel="icon" href="/favicon.ico" sizes="32x32" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -90,9 +88,11 @@
   </div>
 </header>
 
-<main class="page-shell" id="main" tabindex="-1">
+<main class="page-shell page-shell--archives" id="main" tabindex="-1">
   <div class="page-shell__body" id="archivesBody">
-    <!-- Empty until designed. -->
+    <h1 class="visually-hidden">Archives</h1>
+    <!-- Filled by js/archives.js: the cases in a row, then their details. -->
+    <div class="archives" id="archivesShelf"></div>
   </div>
 </main>
 
@@ -118,6 +118,7 @@
 
 <!-- Deferred: run in document order once the page is parsed. -->
 <script src="js/main.js" defer></script>
+<script src="js/archives.js" defer></script>
 <!-- Modify sheet and its parts; order-rows.js must precede selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>

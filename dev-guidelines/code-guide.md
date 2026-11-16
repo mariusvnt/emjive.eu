@@ -17,9 +17,10 @@ A static site: HTML pages at the repo root, one stylesheet, vanilla JavaScript a
 - `index.html` shows any study's gallery.
 - `product.html` shows any item.
 - `studies.html` shows any study's manifest.
+- `archives.html` shows every study, newest first, as a shelf of cases (`js/archives.js`).
 - `launch-order.html` is the selection's checkout review.
 
-Adding a product or a study never adds a page. Then there are the shells (`archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
+Adding a product or a study never adds a page. Then there are the shells (`who-are-we`, `intent`, `3d-printing`, `environment`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
 
 **Clean, flat addresses.** `/` for the gallery, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no study, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The gallery is the root itself, not a `/gallery` page, because Google reads a site's name only from the domain root; `/gallery` redirects to `/#gallery`, which lands past the hero. A fragment never reaches the server, so `/#gallery` is still the one canonical address.
 
@@ -231,6 +232,6 @@ When the CSP report-only header logs nothing on any page, switch it to enforcing
 
 ## 8. Not built yet
 
-- **The content pages are empty shells.** `archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, `legal-notice`, `terms`, `privacy` and `studies` have real addresses, meta tags and styling hooks, but show nothing between the header and the footer, not even a title. The archives page is meant to list every study from `data/studies.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
+- **The content pages are empty shells.** `who-are-we`, `intent`, `3d-printing`, `environment`, `legal-notice`, `terms`, `privacy` and `studies` have real addresses, meta tags and styling hooks, but show nothing between the header and the footer, not even a title. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
 - **There is no checkout.** "Proceed to checkout" (once the terms are accepted) only shows a notice saying so. A real payment step needs a backend (e.g. a Stripe Checkout session).
 - **There is no contact form.** `js/main.js` keeps a guarded handler that does nothing until a page has `#contactForm`. A real form needs a form backend.

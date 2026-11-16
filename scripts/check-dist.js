@@ -72,7 +72,7 @@ function resolvesLocally(ref, fromPage) {
   return false;
 }
 
-const NOINDEX = new Set(["archives.html", "who-are-we.html", "intent.html", "3d-printing.html", "environment.html", "studies.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
+const NOINDEX = new Set(["who-are-we.html", "intent.html", "3d-printing.html", "environment.html", "studies.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
 
 // The links the law asks for from every page: in the shared footer, and on the
 // homepage also in the wheel view's legal strip.
@@ -170,7 +170,7 @@ for (const { product, study, slug } of items) {
 }
 
 // Non-item pages' canonical form has no .html.
-for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
+for (const page of ["index.html", "archives.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
   if (!fileSet.has(page)) continue;
   const head = fs.readFileSync(path.join(DIST, page), "utf8").split("</head>")[0];
   const url = page === "index.html" ? SITE_ORIGIN + "/" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
@@ -206,7 +206,7 @@ if (fileSet.has("sitemap.xml")) {
   const sitemap = fs.readFileSync(path.join(DIST, "sitemap.xml"), "utf8");
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   if (urls.length < 2) fail("sitemap.xml lists fewer than two URLs");
-  const wanted = [SITE_ORIGIN + "/", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
+  const wanted = [SITE_ORIGIN + "/", SITE_ORIGIN + "/archives", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
   for (const url of wanted) if (!urls.includes(url)) fail("sitemap.xml does not list " + url);
   for (const url of urls) {
     if (!wanted.includes(url)) fail("sitemap.xml lists an address the site does not use: " + url);

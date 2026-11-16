@@ -558,8 +558,11 @@
 
   /* ---- icons ----
      Inline SVG markup for icon buttons, drawn in currentColor: the back arrow
-     and the close cross (the size finder, the Modify strip, the order rows). */
+     and the close cross (the size finder, the Modify strip, the order rows),
+     and the arrow pointing up and out (the Modify sheet's page link, the
+     archives' open study). */
   var ICON_BACK = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 12 H3 M10 5 L3 12 L10 19" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+  var ICON_OUT = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19 L19 5 M9 5 H19 V15" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
   var ICON_CLOSE = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3 L21 21 M21 3 L3 21" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
 
   // Decoded ahead, so a later swap to one shows at once; kept referenced so
@@ -700,6 +703,7 @@
     thumbStack: thumbStack,
     ICON_BACK: ICON_BACK,
     ICON_CLOSE: ICON_CLOSE,
+    ICON_OUT: ICON_OUT,
     preload: preload,
     crossfadeSrc: crossfadeSrc,
     resampleBand: resampleBand

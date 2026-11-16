@@ -8,7 +8,7 @@
 // (--stage-step-in), design stretch (--design-hold). The stretches are sized
 // here from the room each stage needs.
 //
-// window.EmjiveProductStages.mount(stageEl, { onChange }) publishes on the track:
+// window.EmjiveProductStages.mount(stageEl, { onChange, steady }) publishes on the track:
 //   --to-design               eased 0..1 transition
 //   --browse-0                0..1 through the inspiration stretch
 //   --design-browse           px the show is browsed up through the design
@@ -16,7 +16,11 @@
 //                             so a room changing never moves the show)
 //   data-stage                "inspiration" | "design" | "flow" (too short to pin)
 //   .is-feed-gone, .is-design-out, .is-model-out   for what CSS can't fade
-// and calls onChange({ toDesign, stage }).
+// and calls onChange({ toDesign, stage }). While steady() (the vertical wall,
+// scrolled one for one like the page) every change of pace is a smoothstep
+// over STEADY_RAMP_SCREENS: the wall eases from one for one to rest at its
+// end, then the band eases in from rest to a constant, slower pace
+// (--stage-step-in, css/style.css), crossing the wall as it holds still.
 // Returns { scrollToStage(index), update() }. Keyboard focus
 // (:focus-visible) entering a data-stage-owner element of another stage
 // scrolls there.
@@ -38,6 +42,9 @@
   // easing to rest over its last ramp before the transition. With nothing to browse it still gets FEED_MIN_SCREENS.
   var FEED_PACE = 1;
   var FEED_MIN_SCREENS = 0.4;
+  // While steady, the length of each change of pace. Mirrored in
+  // --stage-step-in's phone value (css/style.css).
+  var STEADY_RAMP_SCREENS = 0.5;
   // Mirrors --i-out and --d-in in css/style.css.
   var FEED_GONE_AT = 0.45;
   var DESIGN_FROM = 0.55;
@@ -60,6 +67,13 @@
   function exit(u, a) {
     return 1 - entry(1 - u, a);
   }
+  // Distance (in shares of its length) at t through a pace rising from 0 to 1
+  // along a smoothstep, so neither end jolts. settle(1) = 1/2; the mirror,
+  // 1 to 0, is t - settle(t).
+  function settle(t) {
+    var t3 = t * t * t;
+    return t3 - (t3 * t) / 2;
+  }
 
   // The screen height as the pin counts it (svh), stable while the browser's
   // bars move; innerHeight changes mid-scroll on iOS. Shared with js/product.js.
@@ -77,6 +91,7 @@
   function mount(stageEl, options) {
     var pin = stageEl.querySelector(".product-stage__pin");
     var onChange = (options && options.onChange) || function () {};
+    var steady = (options && options.steady) || function () { return false; };
     var flow = window.matchMedia(FLOW_QUERY);
     var ticking = false;
     var state = { toDesign: -1, stage: "", browse: "" };
@@ -97,14 +112,26 @@
     var stepInProbe = probe("var(--stage-step-in)");
 
     // Inspiration stretch (--feed-hold): --feed-room (js/product.js) at FEED_PACE
-    // plus half the ramp, or FEED_MIN_SCREENS with nothing to browse.
+    // plus half the ramp (none while steady), or FEED_MIN_SCREENS with nothing
+    // to browse.
+    // While steady: the slow-down to rest takes the walk plus half its length.
     var feedHold = 0;
+    var feedRoom = 0;
+    var glideLen = 0;
     function syncFeedHold() {
       var want = 0;
+      feedRoom = 0;
+      glideLen = 0;
       if (!flow.matches) {
         var room = parseFloat(getComputedStyle(stageEl).getPropertyValue("--feed-room")) || 0;
-        var ramp = screenPx() * ENTRY_SCREENS;
-        want = room > 0.5 ? room / FEED_PACE + ramp / 2 : screenPx() * FEED_MIN_SCREENS;
+        if (room > 0.5) feedRoom = room;
+        if (feedRoom && steady()) {
+          glideLen = Math.min(screenPx() * STEADY_RAMP_SCREENS, 2 * room);
+          want = room + glideLen / 2;
+        } else {
+          var ramp = screenPx() * ENTRY_SCREENS;
+          want = feedRoom ? room / FEED_PACE + ramp / 2 : screenPx() * FEED_MIN_SCREENS;
+        }
       }
       if (Math.abs(want - feedHold) < 0.5) return;
       feedHold = want;
@@ -126,6 +153,23 @@
       designHold = want;
       if (want > 0) stageEl.style.setProperty("--design-hold", want.toFixed(1) + "px");
       else stageEl.style.removeProperty("--design-hold");
+    }
+
+    // While steady: px walked `s` into the inspiration stretch, at pace 1
+    // until the slow-down to rest.
+    function steadyWalk(s, feed) {
+      var from = feed - glideLen;
+      if (s <= from) return Math.max(0, s);
+      var t = clamp01((s - from) / glideLen);
+      return from + glideLen * (t - settle(t));
+    }
+
+    // While steady: the transition at `x` px into it, the band easing in
+    // over the first STEADY_RAMP_SCREENS, then at constant pace.
+    function steadyStep(x, stepIn) {
+      var ramp = Math.min(screenPx() * STEADY_RAMP_SCREENS, stepIn);
+      var d = x < ramp ? ramp * settle(x / ramp) : ramp / 2 + x - ramp;
+      return clamp01(d / (stepIn - ramp / 2));
     }
 
     // Track scroll past the pin's stick point, in px.
@@ -174,8 +218,12 @@
       var m = measure();
       var s = m.scrolled;
       var screenRamp = screenPx() * ENTRY_SCREENS;
-      var browse0 = m.feed > 0 ? exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed)) : 1;
-      var toDesign = m.stepIn > 0 ? ease((s - m.feed) / m.stepIn) : (s >= m.feed ? 1 : 0);
+      var even = glideLen > 0;
+      var browse0 = 1;
+      if (even) browse0 = clamp01(steadyWalk(Math.min(s, m.feed), m.feed) / feedRoom);
+      else if (m.feed > 0) browse0 = exit(clamp01(s / m.feed), Math.min(1, screenRamp / m.feed));
+      var x = Math.max(0, s - m.feed);
+      var toDesign = m.stepIn > 0 ? (even ? steadyStep(x, m.stepIn) : ease(x / m.stepIn)) : (s >= m.feed ? 1 : 0);
       // Counted from the design stretch's first pixel. On the device's
       // pixels: the show's translate (--design-browse) keeps the plan
       // views' hairlines sharp.

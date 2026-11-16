@@ -1215,7 +1215,7 @@
   function wireStages() {
     if (!stageEl) return;
     if (!window.EmjiveProductStages) return;
-    stages = window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange });
+    stages = window.EmjiveProductStages.mount(stageEl, { onChange: onStageChange, steady: window.EmjiveProductWall.isVertical });
     // mount() published before this handle existed: fit the feed into the track now.
     fitFeed();
     stages.update();
@@ -1462,6 +1462,13 @@
       modelBoxEl.style.removeProperty("--model-cut");
     }
     if (modelBoxEl) modelBoxEl.classList.toggle("is-cut", cutting);
+    // The first stage is erased below the same edge, on top of its fade.
+    [document.getElementById("productFeedColumn"), document.getElementById("productWallPlacard")].forEach(function (part) {
+      if (!part) return;
+      if (cutting) part.style.setProperty("--feed-cut", (cutY - band.offsetHeight / 2 - part.getBoundingClientRect().top).toFixed(1) + "px");
+      else part.style.removeProperty("--feed-cut");
+      part.classList.toggle("is-cut", cutting);
+    });
     if (band) band.classList.toggle("is-on", cutting);
     fitFeed();
     updatePlacard();

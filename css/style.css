@@ -2194,6 +2194,12 @@ body:has(.order-checkout-bar:not([hidden])) {
 .product-stage.is-design-out:not(.is-model-out) .product-model {
   visibility: visible;
 }
+/* The feed and the placard, cut at the band's top edge as it passes (.is-cut,
+   --feed-cut from js/product.js): what the band has crossed is gone. */
+.product-feed.is-cut,
+.product-wall__placard.is-cut {
+  clip-path: inset(-999px -999px calc(100% - var(--feed-cut)) -999px);
+}
 
 /* ---- 1. the feed (inspiration) ----
    The description 1.5rem under the title, then the museum wall
@@ -2373,9 +2379,19 @@ button.product-wall__frame {
    description) repeats the gap after it, and the room under the last repeats
    the gap before it (--gap-first, --gap-last); the walk ends with that room's
    end at the show's bottom (js/product.js fitFeed). The labels are read off
-   the placard instead. Same breakpoint as js/product-wall.js isVertical(). */
+   the placard instead. The walk eases to rest at its end and holds still
+   through the transition, fading and erased by the band, which eases in to
+   --band-pace (js/product-stages.js steady): the transition is the band's
+   way (the screen plus its 0.77rem height here) at that pace, plus half its
+   ease-in (25svh, half of STEADY_RAMP_SCREENS). Same breakpoint as
+   js/product-wall.js isVertical(). */
 @media (max-width: 640px) {
+  .product-stage {
+    --band-pace: 0.6;
+    --stage-step-in: calc((100svh + 0.77rem) / var(--band-pace) + 25svh);
+  }
   .product-feed {
+    --feed-exit: 0px;
     bottom: auto;
     transform: translateY(calc((var(--browse-0) * var(--feed-room) + var(--to-design) * var(--feed-exit)) * -1));
   }

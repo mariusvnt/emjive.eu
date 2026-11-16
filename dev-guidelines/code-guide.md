@@ -56,6 +56,7 @@ Filtering hides what is already built and never rebuilds it (see rules.md).
 - **Empty frames:** an item still waiting for its photographs shows empty frames in their places, so the wall can be judged now.
 - **Phones:** a phone gets the same hang turned vertical and scrolled one for one. Mapping a phone's scroll sideways felt too forceful there. Since a vertical wall has no eye line for labels to share, one label card fixed on screen shows the label of the frame being passed.
 - **The photo viewer:** a photo's frame opens it full screen.
+- **The way to design:** the band rising to design erases the wall as it passes, on top of the wall's fade, so nothing of inspiration lingers under it. On a phone, where the scroll moves with the finger, any step in pace is felt: the wall eases to rest at its end and holds still, then the band eases in to a slower, steady pace.
 
 **Design configures the item with a row of dials, so a phone shows the model and its options on one screen.** Shape (when there's more than one design), material and size are each a round button under the model (`js/option-dial.js`), the same dials the Modify sheet uses. Shape and material open a disc over layered blurs, cut into one section per option, each always in the same place, and pointing into a section picks it live: hovering on a desktop, a tap or a held finger slid across on a phone. The size opens a vertical slider instead.
 

@@ -14,7 +14,7 @@ Visitors build a **selection** as they go, which follows them from page to page.
 
 ## Where it stands
 
-The site is a working prototype whose look keeps evolving. Most pieces are still waiting for their photographs and descriptions. The order page ends with a "Proceed to checkout" button, but there is no payment step behind it yet. The archives, creation process and terms pages are placeholders.
+The site is a working prototype whose look keeps evolving. Most pieces are still waiting for their photographs and descriptions. The order page ends with a "Proceed to checkout" button, but there is no payment step behind it yet. The archives and "Who are we?" pages are placeholders, and so are the legal pages the footer links to (legal notice, terms of sale, privacy policy).
 
 ## Working on it
 

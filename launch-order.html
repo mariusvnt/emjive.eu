@@ -72,7 +72,7 @@
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
         </div>
         <a href="/archives" class="is-info">Archives</a>
-        <a href="/creation-process" class="is-info">Creation process</a>
+        <a href="/who-are-we" class="is-info">Who are we?</a>
       </nav>
     </div>
     <!-- Header blur and chromatic aberration (.site-header__veil). -->
@@ -110,16 +110,36 @@
       </div>
       <div class="order-info__row">
         <h3 class="order-info__title">Returns</h3>
-        <p class="order-info__text">Each item is custom-made. The right of withdrawal does not apply. See terms &amp; conditions for more information.</p>
+        <p class="order-info__text">Each item is custom-made. The right of withdrawal does not apply. See the terms of sale for more information.</p>
       </div>
       <div class="order-info__row order-terms" id="orderTerms">
-        <p class="order-terms__text" id="orderTermsText">I have read and accept the <a href="/terms">terms &amp; conditions</a>.</p>
+        <p class="order-terms__text" id="orderTermsText">I have read and accept the <a href="/terms">terms of sale</a>.</p>
         <!-- A checkbox to assistive tech, named by the sentence beside it. -->
         <button type="button" class="order-terms__toggle" id="orderTermsToggle" role="checkbox" aria-checked="false" aria-labelledby="orderTermsText"></button>
       </div>
     </section>
   </div>
 </main>
+
+<!-- The shared footer, the same on every page but 404; the homepage shows it in
+     the grid view only (the wheel view has .legal-strip). -->
+<footer class="site-footer">
+  <img class="site-footer__logo" src="assets/logo_compact.svg" width="512" height="512" alt="" />
+  <dl class="site-footer__groups">
+    <div class="site-footer__group">
+      <dt>About</dt>
+      <dd><a href="/who-are-we">Who are we?</a></dd>
+      <dd><a href="mailto:contact@emjive.eu">contact@emjive.eu</a></dd>
+      <dd><a href="https://www.instagram.com/em.ji.ve/" rel="noopener">Instagram</a></dd>
+    </div>
+    <div class="site-footer__group">
+      <dt>Compliance</dt>
+      <dd><a href="/legal-notice">Legal notice</a></dd>
+      <dd><a href="/terms">Terms of sale</a></dd>
+      <dd><a href="/privacy">Privacy policy</a></dd>
+    </div>
+  </dl>
+</footer>
 
 <!-- Checkout bar, specific to this page (no js/selection-bar.js here). While
      the Modify sheet is open, its Remove | Save strip, appended here by

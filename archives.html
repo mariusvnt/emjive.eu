@@ -72,7 +72,7 @@
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
         </div>
         <a href="/archives" class="is-info">Archives</a>
-        <a href="/creation-process" class="is-info">Creation process</a>
+        <a href="/who-are-we" class="is-info">Who are we?</a>
       </nav>
     </div>
     <!-- Header blur and chromatic aberration (.site-header__veil). -->
@@ -92,6 +92,26 @@
     <!-- Empty until designed. -->
   </div>
 </main>
+
+<!-- The shared footer, the same on every page but 404; the homepage shows it in
+     the grid view only (the wheel view has .legal-strip). -->
+<footer class="site-footer">
+  <img class="site-footer__logo" src="assets/logo_compact.svg" width="512" height="512" alt="" />
+  <dl class="site-footer__groups">
+    <div class="site-footer__group">
+      <dt>About</dt>
+      <dd><a href="/who-are-we">Who are we?</a></dd>
+      <dd><a href="mailto:contact@emjive.eu">contact@emjive.eu</a></dd>
+      <dd><a href="https://www.instagram.com/em.ji.ve/" rel="noopener">Instagram</a></dd>
+    </div>
+    <div class="site-footer__group">
+      <dt>Compliance</dt>
+      <dd><a href="/legal-notice">Legal notice</a></dd>
+      <dd><a href="/terms">Terms of sale</a></dd>
+      <dd><a href="/privacy">Privacy policy</a></dd>
+    </div>
+  </dl>
+</footer>
 
 <!-- Deferred: run in document order once the page is parsed. -->
 <script src="js/main.js" defer></script>

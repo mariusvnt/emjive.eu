@@ -14,7 +14,7 @@ function slugify(name) {
 
 // Names no item may take: the page routes plus every top-level entry of the built site.
 const PAGE_ROUTES = [
-  "gallery", "archives", "creation-process", "series", "terms", "launch-order",
+  "gallery", "archives", "who-are-we", "series", "terms", "legal-notice", "privacy", "launch-order",
   "product", "index", "404"
 ];
 

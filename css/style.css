@@ -5,6 +5,8 @@
 
 :root {
   --bg: #f8f8f8;
+  /* The footer's background: --bg a shade darker. */
+  --footer-bg: #f2f2f2;
   --black: #000000;
   --white: #ffffff;
   --category-col: #727272;
@@ -124,7 +126,8 @@
 
 * { box-sizing: border-box; }
 
-/* html's own background, so overscroll areas and short pages match --bg. */
+/* html's own background, so overscroll areas and short pages match --bg
+   (--footer-bg on pages with a footer: see Footer). */
 html {
   scroll-behavior: smooth;
   background: var(--bg);
@@ -164,6 +167,10 @@ body:has(.selection-bar) {
 /* Plus the product page's Select bar. */
 body:has(.product-select-bar:not([hidden])) {
   padding-bottom: calc(var(--selection-bar-height) + var(--select-bar-height));
+}
+/* The order page's checkout bar, in place of the selection bar. */
+body:has(.order-checkout-bar:not([hidden])) {
+  padding-bottom: var(--selection-bar-height);
 }
 /* Without :has(), reserve the larger amount everywhere. */
 @supports not selector(:has(*)) {
@@ -762,7 +769,8 @@ body:has(.product-stage) .site-header__veil {
    data-hero="skip": the hero isn't played; the wheel lands, the grid starts the page. */
 .products {
   position: relative;
-  padding: clamp(2rem, 5vw, 3.5rem) 0 clamp(3rem, 8vw, 6rem);
+  /* No bottom padding: the footer keeps its own distance. */
+  padding: clamp(2rem, 5vw, 3.5rem) 0 0;
 }
 html[data-gallery-view="stack"] .products {
   padding: 0;
@@ -1282,13 +1290,13 @@ body:has(.site-header__menu.is-open) .gallery-control {
   100% { opacity: 1; }
 }
 
-/* ==== Content pages (archives, creation process, series manifest) ====
+/* ==== Content pages (archives, who are we, series manifest) ====
    Padded past the fixed header like .selection-page and .product-detail. */
 
 .page-shell {
   max-width: var(--max);
   margin: 0 auto;
-  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
+  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 0;
   min-height: 55vh;
 }
 /* Already inside the page's max-width and padding. */
@@ -1308,7 +1316,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
 .selection-page {
   max-width: var(--max);
   margin: 0 auto;
-  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 6rem;
+  padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 0;
   min-height: 55vh;
 }
 
@@ -2115,7 +2123,7 @@ body:has(.order-checkout-bar:not([hidden])) {
    (.is-feed-gone, .is-design-out).
    The pin fills the screen between the stick point and the bottom bars, in
    svh so iOS's toolbar never resizes it (or the canvas). The track ends
-   exactly where the page does. */
+   where the content does, the footer after it. */
 .product-stage {
   --to-design: 0;
   --d-from: 0.55;
@@ -4860,6 +4868,148 @@ html.is-modal-open .order-checkout-drawer {
   padding-right: var(--page-scrollbar, 0px);
 }
 .size-modal__panel { overscroll-behavior: contain; }
+
+/* ==== Footer ====
+   .site-footer: every page's end but 404 and the wheel view, full width on
+   --footer-bg: label | value groups, one item per row. .legal-strip: the
+   wheel view's footer, its legal links alone over the selection bar. */
+
+:root {
+  /* The wheel's circle stops above it (js/gallery-stack.js domain()). */
+  --legal-strip-height: 1.75rem;
+}
+
+.site-footer {
+  --footer-pt: 1.5rem;
+  /* The compact logo: a box 1.5rem tall, its mark 1rem tall centred in it.
+     The svg's mark fills 232 of its 512 units of height, so the image is
+     larger than the box. */
+  --footer-logo-box: 1.5rem;
+  --footer-logo-mark: 1rem;
+  --footer-logo-size: calc(var(--footer-logo-mark) * 512 / 232);
+  position: relative;
+  margin-top: 12rem;
+  font-family: var(--font-main);
+  background: var(--footer-bg);
+  /* Down over the body's room for the fixed bars, which a glass bar shows
+     through; a shadow, since it adds no scroll length. */
+  box-shadow: 0 8rem 0 var(--footer-bg);
+}
+/* iOS paints its overscroll in the root's colour: past the footer, the
+   footer's. body's own --bg still covers the page. */
+html:has(.site-footer):not([data-gallery-view="stack"]) {
+  background: var(--footer-bg);
+}
+/* Pages often shorter than the screen (the shells, the order page) keep the
+   footer at the screen's end. The body's bottom padding is inside the min-height. */
+body:has(> .page-shell, > .selection-page) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+body:has(> .page-shell, > .selection-page) > main {
+  flex: 1 0 auto;
+  width: 100%;
+}
+html[data-gallery-view="stack"] .site-footer {
+  display: none;
+}
+.site-footer__groups {
+  display: flex;
+  flex-direction: column;
+  row-gap: 1rem;
+  margin: 0;
+  /* Clear of the logo on the right. */
+  padding: var(--footer-pt) calc(var(--edge-px) + var(--footer-logo-size) + 1rem) 3rem var(--edge-px);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+}
+/* The compact logo in the top right corner: its box's top on the rows' top,
+   the mark's right edge on the edge inset. The offsets take out the svg's
+   own blank margins (140 of 512 units above the mark, 16 right of it). */
+.site-footer__logo {
+  position: absolute;
+  top: calc(var(--footer-pt) + (var(--footer-logo-box) - var(--footer-logo-mark)) / 2 - var(--footer-logo-size) * 140 / 512);
+  right: calc(var(--edge-px) - var(--footer-logo-size) * 16 / 512);
+  width: var(--footer-logo-size);
+  height: var(--footer-logo-size);
+  pointer-events: none;
+}
+/* The label in the first column, each item a row of the second. */
+.site-footer__group {
+  display: grid;
+  grid-template-columns: var(--label-col) minmax(0, 1fr);
+  column-gap: var(--label-gap);
+  row-gap: 0.15rem;
+  align-items: start;
+}
+.site-footer__group dt {
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--black);
+}
+.site-footer__group dd {
+  grid-column: 2;
+  margin: 0;
+  color: var(--category-col);
+}
+.site-footer a,
+.legal-strip a {
+  transition: color var(--fade-quick) ease;
+}
+@media (hover: hover) {
+  .site-footer a:hover,
+  .legal-strip a:hover {
+    color: var(--black);
+  }
+}
+/* Past the breakpoint the groups sit side by side. */
+@media (min-width: 641px) {
+  .site-footer__groups {
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: calc(var(--label-gap) * 3);
+  }
+}
+
+/* Shown in the wheel view only, and there laid out from the start (hidden),
+   so the circle's room never changes as it fades in with the landed wheel.
+   Over the stage, under the view-switch veil. */
+.legal-strip {
+  display: none;
+}
+html[data-gallery-view="stack"] .legal-strip {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--selection-bar-height);
+  z-index: 4;
+  height: var(--legal-strip-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Blank space only between the links. */
+  gap: 1.5em;
+  font-family: var(--font-main);
+  font-size: calc(10px * var(--text-scale));
+  color: var(--category-col);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
+html[data-gallery-view="stack"] .gallery-stage.is-landed ~ .legal-strip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--fade-standard) ease, visibility 0s;
+}
+html[data-gallery-view="stack"] body:has(.site-header__menu.is-open) .legal-strip {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--fade-standard) ease, visibility 0s linear var(--fade-standard);
+}
 
 /* ==== Floating selection bar ====
    Built by js/selection-bar.js on every page but launch-order.html. Fixed to

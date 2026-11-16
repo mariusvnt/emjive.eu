@@ -19,13 +19,15 @@ A static site: HTML pages at the repo root, one stylesheet, vanilla JavaScript a
 - `series.html` shows any series' manifest.
 - `launch-order.html` is the selection's checkout review.
 
-Adding a product or a series never adds a page. Then there are the shells (`archives`, `creation-process`, `terms`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
+Adding a product or a series never adds a page. Then there are the shells (`archives`, `who-are-we`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
 
 **Clean, flat addresses.** `/` for the gallery, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no series, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The gallery is the root itself, not a `/gallery` page, because Google reads a site's name only from the domain root; `/gallery` redirects to `/#gallery`, which lands past the hero. A fragment never reaches the server, so `/#gallery` is still the one canonical address.
 
 **One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. The template itself doesn't ship: an item-less page would only be an indexable "not found", so `/product` is a real 404. The gallery gets the same treatment: the build writes the featured series' grid into its markup (each item's picture, name linked to its page, and facts), which the live grid replaces at once without the page ever shrinking, and adds the site's Organization and WebSite data with a square logo, for the site name and logo in search results. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
 
 **One shared header.** Every page opens with the same header and nav. The category filter row is rendered from the active series' data, never written in the markup, because each series declares its own categories.
+
+**One shared footer, and the legal links everywhere.** Every page but the not-found one ends with the same footer, written in the markup like the header so crawlers see it. Its reason to exist is the law: an online shop must reach its legal notice, terms of sale and privacy policy from every page, and `check-dist` fails a page without them. The gallery's wheel view is the one exception to the footer. The wheel is the page's end by design and can't be scrolled past, so it gets only a line of the legal links over the selection bar, and the circle fits above that line.
 
 **The homepage decides what the visitor lands on before `<body>` is parsed.**
 
@@ -231,6 +233,6 @@ When the CSP report-only header logs nothing on any page, switch it to enforcing
 
 ## 8. Not built yet
 
-- **The content pages are empty shells.** `archives`, `creation-process`, `terms` and `series` have real addresses, meta tags and styling hooks, but no designed content. The archives page is meant to list every series from `data/series.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
+- **The content pages are empty shells.** `archives`, `who-are-we`, `legal-notice`, `terms`, `privacy` and `series` have real addresses, meta tags and styling hooks, but no designed content. The archives page is meant to list every series from `data/series.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
 - **There is no checkout.** "Proceed to checkout" (once the terms are accepted) only shows a notice saying so. A real payment step needs a backend (e.g. a Stripe Checkout session).
 - **There is no contact form.** `js/main.js` keeps a guarded handler that does nothing until a page has `#contactForm`. A real form needs a form backend.

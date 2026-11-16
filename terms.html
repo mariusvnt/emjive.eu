@@ -1,12 +1,12 @@
 <!doctype html>
-<!-- Terms and conditions (/terms). An empty shell, design pending. -->
+<!-- Terms of sale (/terms). An empty shell, design pending. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#f8f8f8" />
-<title>em·ji·ve: terms &amp; conditions</title>
-<meta name="description" content="Terms &amp; conditions" />
+<title>em·ji·ve: terms of sale</title>
+<meta name="description" content="Terms of sale" />
 <!-- Remove once the page has content worth indexing. -->
 <meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
@@ -15,8 +15,8 @@
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
-<meta property="og:title" content="em·ji·ve: terms &amp; conditions" />
-<meta property="og:description" content="Terms &amp; conditions" />
+<meta property="og:title" content="em·ji·ve: terms of sale" />
+<meta property="og:description" content="Terms of sale" />
 <meta property="og:url" content="https://emjive.eu/terms" />
 <meta property="og:image" content="https://emjive.eu/preview.jpg" />
 <meta property="og:image:width" content="1200" />
@@ -24,8 +24,8 @@
 <meta property="og:image:alt" content="em&middot;ji&middot;ve" />
 <meta property="og:locale" content="en" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="em·ji·ve: terms &amp; conditions" />
-<meta name="twitter:description" content="Terms &amp; conditions" />
+<meta name="twitter:title" content="em·ji·ve: terms of sale" />
+<meta name="twitter:description" content="Terms of sale" />
 <meta name="twitter:image" content="https://emjive.eu/preview.jpg" />
 
 <!-- crossorigin is required even same-origin, or the font is fetched twice. -->
@@ -72,7 +72,7 @@
           <span class="site-header__filter-options" id="headerFilterOptions"></span>
         </div>
         <a href="/archives" class="is-info">Archives</a>
-        <a href="/creation-process" class="is-info">Creation process</a>
+        <a href="/who-are-we" class="is-info">Who are we?</a>
       </nav>
     </div>
     <!-- Header blur and chromatic aberration (.site-header__veil). -->
@@ -84,14 +84,34 @@
 
 <main class="page-shell" id="main" tabindex="-1">
   <div class="section-head">
-    <span class="section-head__index">terms</span>
-    <h1>Terms &amp; Conditions</h1>
+    <span class="section-head__index">legal</span>
+    <h1>Terms of sale</h1>
   </div>
 
   <div class="page-shell__body" id="termsBody">
     <!-- Empty until the legal copy is written. -->
   </div>
 </main>
+
+<!-- The shared footer, the same on every page but 404; the homepage shows it in
+     the grid view only (the wheel view has .legal-strip). -->
+<footer class="site-footer">
+  <img class="site-footer__logo" src="assets/logo_compact.svg" width="512" height="512" alt="" />
+  <dl class="site-footer__groups">
+    <div class="site-footer__group">
+      <dt>About</dt>
+      <dd><a href="/who-are-we">Who are we?</a></dd>
+      <dd><a href="mailto:contact@emjive.eu">contact@emjive.eu</a></dd>
+      <dd><a href="https://www.instagram.com/em.ji.ve/" rel="noopener">Instagram</a></dd>
+    </div>
+    <div class="site-footer__group">
+      <dt>Compliance</dt>
+      <dd><a href="/legal-notice">Legal notice</a></dd>
+      <dd><a href="/terms">Terms of sale</a></dd>
+      <dd><a href="/privacy">Privacy policy</a></dd>
+    </div>
+  </dl>
+</footer>
 
 <!-- Deferred: run in document order once the page is parsed. -->
 <script src="js/main.js" defer></script>

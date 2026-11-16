@@ -11,9 +11,6 @@ The repo's structure, generated from the code. Each description is the first sen
 - [archives.html](../archives.html) — Archives (/archives): every series across the brand's lifetime.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
-- [creation-process.html](../creation-process.html) — Creation process (/creation-process).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
-  - landmarks: #main
 - [index.html](../index.html) — The homepage (/): the featured series' hero, then its gallery as the wheel or the grid.
   - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #gallery
@@ -23,8 +20,14 @@ The repo's structure, generated from the code. Each description is the first sen
 - [launch-order.html](../launch-order.html) — The order page (/launch-order): the selection's checkout review, up to a "Proceed to checkout" stub.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
   - landmarks: #main
+- [legal-notice.html](../legal-notice.html) — Legal notice (/legal-notice): the publisher, host and contact the law requires.
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
+- [privacy.html](../privacy.html) — Privacy policy (/privacy): what is stored about a visitor, cookies included.
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product-wall.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
@@ -34,12 +37,15 @@ The repo's structure, generated from the code. Each description is the first sen
 - [series.html](../series.html) — A series' design manifest (/series?series=<slug>).
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/series-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #seriesManifest
-- [terms.html](../terms.html) — Terms and conditions (/terms).
+- [terms.html](../terms.html) — Terms of sale (/terms).
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - landmarks: #main
+- [who-are-we.html](../who-are-we.html) — Who are we?
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/series.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - **[css/](../css/)** — The site's one stylesheet.
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a series' hero.css is injected after it.
-    - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Series hero slots · Section heads · Products · Content pages (archives, creation process, series manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
+    - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Series hero slots · Section heads · Products · Content pages (archives, who are we, series manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Footer · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
 - **[js/](../js/)** — Client scripts: classic scripts talking through window.Emjive* globals, and the ES modules of the 3D layer.
   - [focus-trap.js](../js/focus-trap.js) — Modal focus trap and page lock for the bottom sheets (#sizeModal, #modifyModal, the size finder): window.EmjiveFocusTrap.
     - sets `EmjiveFocusTrap` { activate, release, isActive, focus }

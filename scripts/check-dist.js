@@ -72,7 +72,14 @@ function resolvesLocally(ref, fromPage) {
   return false;
 }
 
-const NOINDEX = new Set(["archives.html", "creation-process.html", "series.html", "terms.html", "launch-order.html", "404.html"]);
+const NOINDEX = new Set(["archives.html", "who-are-we.html", "series.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
+
+// The links the law asks for from every page: in the shared footer, and on the
+// homepage also in the wheel view's legal strip.
+const LEGAL_LINKS = ["/legal-notice", "/terms", "/privacy"];
+function hasLegalLinks(block) {
+  return LEGAL_LINKS.every((href) => block.includes('href="' + href + '"'));
+}
 
 for (const page of pages) {
   const raw = fs.readFileSync(path.join(DIST, page), "utf8");
@@ -98,6 +105,15 @@ for (const page of pages) {
   if (htmlTag.includes('data-products="eager"') &&
       !/<link\b[^>]*\brel="preload"[^>]*\bas="fetch"[^>]*\bhref="data\/series\/[^"]+\/products\.json"/.test(head)) {
     fail(page + ": no products.json preload (see injectLoadHints in vite.config.js)");
+  }
+
+  if (page !== "404.html") {
+    const footer = /<footer class="site-footer">([\s\S]*?)<\/footer>/.exec(html);
+    if (!footer || !hasLegalLinks(footer[1])) fail(page + ": no shared footer with the legal links");
+    if (page === "index.html") {
+      const strip = /<nav class="legal-strip"[^>]*>([\s\S]*?)<\/nav>/.exec(html);
+      if (!strip || !hasLegalLinks(strip[1])) fail(page + ": no legal strip with the legal links");
+    }
   }
 
   const noindex = /<meta\b[^>]*\bname="robots"[^>]*\bcontent="[^"]*noindex/.test(head);

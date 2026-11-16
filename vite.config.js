@@ -545,9 +545,11 @@ export default defineConfig({
         product: resolve(__dirname, "product.html"),
         launchOrder: resolve(__dirname, "launch-order.html"),
         archives: resolve(__dirname, "archives.html"),
-        creationProcess: resolve(__dirname, "creation-process.html"),
+        whoAreWe: resolve(__dirname, "who-are-we.html"),
         series: resolve(__dirname, "series.html"),
         terms: resolve(__dirname, "terms.html"),
+        legalNotice: resolve(__dirname, "legal-notice.html"),
+        privacy: resolve(__dirname, "privacy.html"),
         // The ErrorDocument; an entry so Vite makes its references absolute.
         notFound: resolve(__dirname, "404.html")
       }

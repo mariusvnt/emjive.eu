@@ -102,6 +102,7 @@
     var slug = options.slug;
     var header = document.querySelector(".site-header");
     var viewToggle = document.getElementById("galleryViewToggle");
+    var legalStrip = document.querySelector(".legal-strip");
 
     var state = {
       active: options.active !== false,
@@ -235,7 +236,7 @@
 
     /* ---- geometry ----
        The domain: under the header and the view toggle, above the selection
-       bar's summary, full width. Its height uses 100svh (viewHeight()), not
+       bar's summary and the legal strip over it, full width. Its height uses 100svh (viewHeight()), not
        innerHeight, so the circle doesn't jump as the phone's browser bars
        come and go; resizes that only move them change nothing. */
     var STALE_PROBE_SHARE = 0.5;
@@ -259,10 +260,15 @@
       return summary ? summary.getBoundingClientRect().height : 56;
     }
 
+    // Laid out (if unseen) through the whole wheel view, so it's 0 only in the grid.
+    function stripHeight() {
+      return legalStrip ? legalStrip.getBoundingClientRect().height : 0;
+    }
+
     function domain() {
       var top = header ? header.getBoundingClientRect().bottom : 0;
       if (viewToggle) top = Math.max(top, viewToggle.getBoundingClientRect().bottom);
-      return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, viewHeight() - barHeight()) };
+      return { left: 0, top: top, right: window.innerWidth, bottom: Math.max(top + 1, viewHeight() - barHeight() - stripHeight()) };
     }
 
     function hero() {
@@ -1310,7 +1316,7 @@
     if (window.EmjiveHero && window.EmjiveHero.onLayout) window.EmjiveHero.onLayout(onLayoutChange);
     if (typeof ResizeObserver === "function") {
       var edges = new ResizeObserver(onLayoutChange);
-      [header, viewToggle, document.querySelector(".selection-bar__summary")].forEach(function (node) {
+      [header, viewToggle, document.querySelector(".selection-bar__summary"), legalStrip].forEach(function (node) {
         if (node) edges.observe(node);
       });
     }

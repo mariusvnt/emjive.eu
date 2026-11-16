@@ -1,4 +1,4 @@
-/* The site's one stylesheet, for every page; a series' hero.css is injected after it.
+/* The site's one stylesheet, for every page; a study's hero.css is injected after it.
    Phones are the baseline, with one breakpoint at 640px. */
 
 /* ==== Design tokens ==== */
@@ -200,7 +200,7 @@ html.emjive-restoring-scroll .gallery-stage {
   visibility: hidden;
 }
 /* The hero too in the wheel view: drawn before the wheel's pull-back, it would jump. */
-html.emjive-restoring-scroll[data-gallery-view="stack"] .series-hero {
+html.emjive-restoring-scroll[data-gallery-view="stack"] .study-hero {
   visibility: hidden;
 }
 
@@ -282,7 +282,7 @@ button, input, textarea {
 
 /* ==== Messages ====
    "Couldn't load / doesn't exist / needs JavaScript / 404": built by
-   window.EmjiveMessage.show() (js/series.js), or by hand without a script.
+   window.EmjiveMessage.show() (js/studies.js), or by hand without a script.
    The text block is up to --message-width wide, centred (so several lines
    read left-justified within it), with an optional text button 1.5rem below.
    Full-screen variants sit in the top two thirds. */
@@ -297,7 +297,7 @@ button, input, textarea {
   margin: 0;
 }
 .page-message[hidden] { display: none; }
-/* Full-screen: --hero fills the hero's slot when the series index failed;
+/* Full-screen: --hero fills the hero's slot when the studies index failed;
    --screen is fixed under the header on a page with nothing else to show. */
 .page-message--hero,
 .page-message--screen {
@@ -683,21 +683,32 @@ body:has(.product-stage) .site-header__veil {
 .site-header__cta a {
   color: var(--category-col);
 }
-/* The arrow, lowered onto the text's optical centre. */
+/* The arrow, drawn rather than the → glyph: the fonts lack it, and each
+   browser's fallback sits at its own height. The wheel's centre-button arrow
+   (js/gallery-stack.js), centred on the lowercase letters; the glyph stays
+   in the markup, pushed out of the box. */
 .site-header__cta span {
-  position: relative;
-  top: 0.1rem;
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.85em;
+  overflow: hidden;
+  text-indent: 100%;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 12 H21 M14 5 L21 12 L14 19' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 12 H21 M14 5 L21 12 L14 19' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* ==== Series hero slots ====
-   The containers js/series.js clones the featured hero into; the hero's own
-   look is in series/<slug>/hero.css. */
+/* ==== Study hero slots ====
+   The containers js/studies.js clones the featured hero into; the hero's own
+   look is in studies/<slug>/hero.css. */
 
 /* Reserves the first screen before the bundle lands, so the grid never
    flashes up. Must stay a plain box: .reveal__pin inside is sticky, which
    breaks under any ancestor overflow (except clip, which hero.css uses),
    transform, filter, contain or will-change. */
-.series-hero {
+.study-hero {
   /* vh fallback for browsers without svh. */
   min-height: 100vh;
   min-height: 100svh;
@@ -705,7 +716,7 @@ body:has(.product-stage) .site-header__veil {
 }
 
 /* display: contents, so the backdrop lays out as a direct child of .products. */
-.series-hero-backdrop {
+.study-hero-backdrop {
   display: contents;
 }
 
@@ -782,7 +793,7 @@ html[data-gallery-view="stack"] .products {
 html[data-gallery-view="stack"] body {
   padding-bottom: 0;
 }
-html[data-gallery-view="grid"][data-hero="skip"] .series-hero {
+html[data-gallery-view="grid"][data-hero="skip"] .study-hero {
   display: none;
 }
 html[data-gallery-view="grid"][data-hero="skip"] .products {
@@ -794,7 +805,7 @@ html[data-gallery-view="grid"] .gallery-stage {
 }
 /* The hero's second slot (the arm below the fold) isn't used by either view;
    its pictures are lazy, so never fetched. */
-.series-hero-backdrop {
+.study-hero-backdrop {
   display: none;
 }
 
@@ -1296,7 +1307,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
   100% { opacity: 1; }
 }
 
-/* ==== Content pages (archives, who are we, series manifest) ====
+/* ==== Content pages (archives, who are we, study manifest) ====
    Padded past the fixed header like .selection-page and .product-detail. */
 
 .page-shell {
@@ -1310,7 +1321,7 @@ body:has(.site-header__menu.is-open) .gallery-control {
   max-width: none;
   padding: 0;
 }
-.series-manifest__subtitle {
+.study-manifest__subtitle {
   font-family: var(--font-main);
   font-size: calc(0.95rem * var(--text-scale));
   color: var(--category-col);
@@ -2457,7 +2468,7 @@ button.product-wall__frame {
   right: 0;
   top: 0;
   /* 0.77rem up to the breakpoint, growing evenly to 1rem at 1280px, as
-     --band-h; the hero's frontier band (series/bones/hero.css) matches. */
+     --band-h; the hero's frontier band (studies/bones/hero.css) matches. */
   height: clamp(0.77rem, 0.54rem + 0.575vw, 1rem);
   transform: translateY(-50%);
   /* Under the title bar (z-index 3 in the pin), over the rest. */
@@ -5043,9 +5054,9 @@ html[data-gallery-view="stack"] body:has(.site-header__menu.is-open) .legal-stri
 }
 /* Pages with a hero start it hidden, covering the moment before the hero's
    first scroll position arrives (which is this same transform). A static
-   class (js/series.js removes it if the bundle fails), since a live :has()
+   class (js/studies.js removes it if the bundle fails), since a live :has()
    would only match once the hero lands, after a visible flash. */
-body.has-series-hero .selection-bar {
+body.has-study-hero .selection-bar {
   transform: translateY(100%) translateZ(0);
 }
 

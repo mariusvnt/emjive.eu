@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Assertions about the built site in dist/, before deploy (which mirrors dist/
 // with --delete): required host files, nothing private, every local href/src
-// resolves, <head> order and the series.json preload, noindex pages, link
+// resolves, <head> order and the studies.json preload, noindex pages, link
 // preview images, per-item pages, clean URLs and the sitemap.
 
 const fs = require("node:fs");
@@ -49,7 +49,7 @@ for (const file of files) {
 
 /* ---- pages ------------------------------------------------------------- */
 
-// Root-level pages only: series/<slug>/ hero fragments are cloned into
+// Root-level pages only: studies/<slug>/ hero fragments are cloned into
 // index.html, so their paths resolve against it.
 const pages = files.filter((f) => f.endsWith(".html") && !f.includes("/"));
 
@@ -72,7 +72,7 @@ function resolvesLocally(ref, fromPage) {
   return false;
 }
 
-const NOINDEX = new Set(["archives.html", "who-are-we.html", "intent.html", "3d-printing.html", "environment.html", "series.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
+const NOINDEX = new Set(["archives.html", "who-are-we.html", "intent.html", "3d-printing.html", "environment.html", "studies.html", "terms.html", "legal-notice.html", "privacy.html", "launch-order.html", "404.html"]);
 
 // The links the law asks for from every page: in the shared footer, and on the
 // homepage also in the wheel view's legal strip.
@@ -87,7 +87,7 @@ for (const page of pages) {
   const head = html.split("</head>")[0];
 
   if (/<link\b[^>]*\bhref="data:application\/json/.test(head)) {
-    fail(page + ": the series.json preload was inlined into a data: URL (see restoreHeadOrderAndPreload in vite.config.js)");
+    fail(page + ": the studies.json preload was inlined into a data: URL (see restoreHeadOrderAndPreload in vite.config.js)");
   }
 
   const firstScript = head.search(/<script\b/);
@@ -103,7 +103,7 @@ for (const page of pages) {
   // (injectLoadHints in vite.config.js).
   const htmlTag = (html.match(/<html\b[^>]*>/) || [""])[0];
   if (htmlTag.includes('data-products="eager"') &&
-      !/<link\b[^>]*\brel="preload"[^>]*\bas="fetch"[^>]*\bhref="data\/series\/[^"]+\/products\.json"/.test(head)) {
+      !/<link\b[^>]*\brel="preload"[^>]*\bas="fetch"[^>]*\bhref="data\/studies\/[^"]+\/products\.json"/.test(head)) {
     fail(page + ": no products.json preload (see injectLoadHints in vite.config.js)");
   }
 
@@ -140,15 +140,15 @@ for (const page of pages) {
 
 /* ---- items -------------------------------------------------------------- */
 
-const catalog = readJson("data/series.json");
+const catalog = readJson("data/studies.json");
 const items = [];
-for (const series of catalog.series) {
-  for (const product of readJson(series.products).products) {
-    items.push({ product, series, slug: slugify(product.name) });
+for (const study of catalog.studies) {
+  for (const product of readJson(study.products).products) {
+    items.push({ product, study, slug: slugify(product.name) });
   }
 }
 
-for (const { product, series, slug } of items) {
+for (const { product, study, slug } of items) {
   const file = slug + ".html";
   if (!fileSet.has(file)) { fail("no page for item " + product.name + ": dist/" + file + " is missing (emitItemPages in vite.config.js)"); continue; }
   const html = fs.readFileSync(path.join(DIST, file), "utf8");
@@ -166,7 +166,7 @@ for (const { product, series, slug } of items) {
   if (!head.includes('<link rel="canonical" href="' + url + '" />')) fail(file + ": canonical is not " + url);
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(file + ": og:url is not " + url);
   if (!head.includes("<title>em·ji·ve: " + product.name.toLowerCase())) fail(file + ": <title> is not the brand and the item's name");
-  if (!head.includes('href="' + series.products + '"')) fail(file + ": no products.json hint for its series (" + series.products + ")");
+  if (!head.includes('href="' + study.products + '"')) fail(file + ": no products.json hint for its study (" + study.products + ")");
 }
 
 // Non-item pages' canonical form has no .html.
@@ -182,8 +182,8 @@ for (const page of ["index.html", ...[...NOINDEX].filter((p) => p !== "404.html"
 if (fileSet.has("index.html")) {
   const html = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
   const grid = (/<div class="product-grid" id="productGrid">([\s\S]*?)<\/section>/.exec(html) || ["", ""])[1];
-  for (const { series, slug } of items) {
-    if (series.slug === catalog.featured && !grid.includes('<a class="grid-item__name" href="/' + slug + '">')) {
+  for (const { study, slug } of items) {
+    if (study.slug === catalog.featured && !grid.includes('<a class="grid-item__name" href="/' + slug + '">')) {
       fail("index.html: the static grid has no link to /" + slug);
     }
   }

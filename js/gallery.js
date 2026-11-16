@@ -13,7 +13,7 @@
   var grid = document.getElementById("productGrid");
   var stage = document.getElementById("galleryStage");
   var section = document.getElementById("gallery");
-  if (!grid || !stage || !section || !window.EmjiveSeries) return;
+  if (!grid || !stage || !section || !window.EmjiveStudies) return;
 
   var html = document.documentElement;
   var viewToggle = document.getElementById("galleryViewToggle");
@@ -43,7 +43,7 @@
   }
 
   function hero() {
-    return window.EmjiveSeriesHero && window.EmjiveSeriesHero.setMode ? window.EmjiveSeriesHero : null;
+    return window.EmjiveStudyHero && window.EmjiveStudyHero.setMode ? window.EmjiveStudyHero : null;
   }
 
   var state = {
@@ -327,7 +327,7 @@
   }
 
   function openProduct(product) {
-    window.location.href = window.EmjiveSeries.productHref(product, state.slug);
+    window.location.href = window.EmjiveStudies.productHref(product, state.slug);
   }
 
   // An item's facts, stacked; only the size's label is shown. Price runs
@@ -355,7 +355,7 @@
       var range = H.sizeRange(product);
       return el("dd", "", range.min + " – " + range.max);
     }
-    return el("dd", "", priceText(product, window.EmjiveSeries.metalFor(product)));
+    return el("dd", "", priceText(product, window.EmjiveStudies.metalFor(product)));
   }
 
   function priceText(product, metal) {
@@ -380,7 +380,7 @@
     return list;
   }
 
-  /* An item's own material (EmjiveSeries.chooseMetal): the metals' swatches
+  /* An item's own material (EmjiveStudies.chooseMetal): the metals' swatches
      in a row under its pictures, its metal's dotted and named right after
      it. The room for the name opens after the active swatch (each swatch an
      option with an invisible copy of its name, opened on the active one),
@@ -388,7 +388,7 @@
      pick changes its picture, its price, the wheel's and its page's metal,
      and no other item's. */
   function buildPicker(entry) {
-    var metals = window.EmjiveSeries.metals || [];
+    var metals = window.EmjiveStudies.metals || [];
     if (metals.length < 2) return null;
     var product = entry.product;
     var picker = el("div", "grid-item__material");
@@ -443,7 +443,7 @@
     function choose(metal) {
       if (metal === entry.metal) return;
       entry.metal = metal;
-      window.EmjiveSeries.chooseMetal(product, metal);
+      window.EmjiveStudies.chooseMetal(product, metal);
       moveLabel(metal);
       paint();
       var src = cardPicture(product, metal);
@@ -464,7 +464,7 @@
     var deck = el("div", "grid-item__deck");
     var assets = product.assets || {};
     var name = product.name || "";
-    var metal = window.EmjiveSeries.metalFor(product);
+    var metal = window.EmjiveStudies.metalFor(product);
     var first = cardPicture(product, metal);
     var firstImg = null;
     if (first) {
@@ -520,9 +520,9 @@
 
   function showLoadFailure() {
     grid.innerHTML = "";
-    // Where the visitor is looking: the empty hero slot if the series index
+    // Where the visitor is looking: the empty hero slot if the studies index
     // failed, else where the products would have been.
-    var heroSlot = document.getElementById("seriesHero");
+    var heroSlot = document.getElementById("studyHero");
     var host;
     if (heroSlot && !heroSlot.children.length && view() === "stack") {
       host = heroSlot;
@@ -541,16 +541,16 @@
     if (window.EmjiveScrollMemory) window.EmjiveScrollMemory.contentReady();
   }
 
-  window.EmjiveSeries.ready
+  window.EmjiveStudies.ready
     .then(function (ctx) {
       state.slug = ctx.slug;
-      return window.EmjiveSeries.loadProducts(ctx.slug);
+      return window.EmjiveStudies.loadProducts(ctx.slug);
     })
     .then(function (products) {
       state.products = products;
       if (!products.length) {
         var none = el("div", "page-message--grid");
-        window.EmjiveMessage.show(none, "No items in this series yet.", null, "status");
+        window.EmjiveMessage.show(none, "No items in this study yet.", null, "status");
         grid.appendChild(none);
       }
       renderGrid(products);

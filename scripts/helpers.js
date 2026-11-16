@@ -12,13 +12,13 @@ const http = require("node:http");
 /* ---- paths and constants ---- */
 
 const ROOT = path.resolve(__dirname, "..");
-const SERIES_JSON_PATH = path.join(ROOT, "data", "series.json");
+const STUDIES_JSON_PATH = path.join(ROOT, "data", "studies.json");
 
 // The host of every page's og:url and canonical.
 const SITE_ORIGIN = "https://emjive.eu";
 
 // The smartphone query for responsive images; must match js/loader.js,
-// css/style.css and series/<slug>/hero.css (validate-data checks).
+// css/style.css and studies/<slug>/hero.css (validate-data checks).
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
 // The size, in mm, models are drawn at and their geometry measured from; must
@@ -78,8 +78,8 @@ function exitOnProblems(tool, problems) {
 
 /* ---- catalog ---- */
 
-function findSeriesEntry(seriesIndex, seriesSlug) {
-  return (seriesIndex.series || []).find((s) => s.slug === seriesSlug) || null;
+function findStudyEntry(studiesIndex, studySlug) {
+  return (studiesIndex.studies || []).find((s) => s.slug === studySlug) || null;
 }
 
 // A product name as a folder name (not the URL slug: see scripts/slugs.js).
@@ -89,8 +89,8 @@ function folderSlug(name) {
 
 // A product's asset folder, from its name and category (the <name>_<category>
 // convention), not from wherever its files sit.
-function productFolder(seriesSlug, name, category) {
-  return "assets/series/" + seriesSlug + "/products/" + folderSlug(name) + "_" + category;
+function productFolder(studySlug, name, category) {
+  return "assets/studies/" + studySlug + "/products/" + folderSlug(name) + "_" + category;
 }
 
 // A measured "geometry" (or its "print") volume at a size, cm3, as
@@ -117,7 +117,7 @@ function productionCost(rates, volumeCm3, areaCm2) {
 }
 
 // The selling price rounded up to whole euros, 0 when unknown, as js/helpers.js
-// salePrice() computes it from the series index.
+// salePrice() computes it from the studies index.
 function salePrice(index, geometry, metal, mm) {
   const printed = geometry && (geometry.print || geometry);
   const pricing = index && index.pricing;
@@ -156,40 +156,40 @@ function isSwatchCamera(camera) {
     (camera.frame === undefined || (typeof camera.frame === "number" && camera.frame > 0 && camera.frame <= 1));
 }
 
-// Catalog drift that fails silently on the site, as messages: a series
+// Catalog drift that fails silently on the site, as messages: a study
 // category outside the global vocabulary gives a dead filter button, a
-// product outside its series' categories vanishes under any filter, an
+// product outside its study's categories vanishes under any filter, an
 // unknown HDRI or a malformed swatch field falls back to a default.
-// productsBySlug: series slug -> parsed products.json, for the series to check products of.
-function catalogDrift(seriesIndex, productsBySlug) {
+// productsBySlug: study slug -> parsed products.json, for the study to check products of.
+function catalogDrift(studiesIndex, productsBySlug) {
   const warnings = [];
-  const categories = Object.keys(seriesIndex.categories || {});
-  const hdris = Object.keys(seriesIndex.hdris || {});
-  for (const entry of seriesIndex.series || []) {
+  const categories = Object.keys(studiesIndex.categories || {});
+  const hdris = Object.keys(studiesIndex.hdris || {});
+  for (const entry of studiesIndex.studies || []) {
     for (const cat of entry.categories || []) {
       if (!categories.includes(cat)) {
-        warnings.push('series "' + entry.slug + '" declares category "' + cat + '" which isn\'t in data/series.json\'s top-level "categories"');
+        warnings.push('study "' + entry.slug + '" declares category "' + cat + '" which isn\'t in data/studies.json\'s top-level "categories"');
       }
     }
     const data = productsBySlug[entry.slug];
     for (const product of (data && data.products) || []) {
       if (!(entry.categories || []).includes(product.category)) {
-        warnings.push("[" + entry.slug + "] " + product.name + ' is category "' + product.category + "\", which that series doesn't declare — it won't be reachable by any filter");
+        warnings.push("[" + entry.slug + "] " + product.name + ' is category "' + product.category + "\", which that study doesn't declare — it won't be reachable by any filter");
       }
     }
     if (!entry.hdri || !hdris.includes(entry.hdri)) {
-      warnings.push('series "' + entry.slug + '" declares hdri "' + entry.hdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
+      warnings.push('study "' + entry.slug + '" declares hdri "' + entry.hdri + '" which isn\'t in data/studies.json\'s top-level "hdris"');
     }
   }
-  const swatchHdri = seriesIndex["swatch-hdri"];
+  const swatchHdri = studiesIndex["swatch-hdri"];
   if (swatchHdri && !hdris.includes(swatchHdri)) {
-    warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/series.json\'s top-level "hdris"');
+    warnings.push('top-level "swatch-hdri" is "' + swatchHdri + '" which isn\'t in data/studies.json\'s top-level "hdris"');
   }
-  const blur = seriesIndex["swatch-blur"];
+  const blur = studiesIndex["swatch-blur"];
   if (blur !== undefined && !(typeof blur === "number" && isFinite(blur) && blur >= 0)) {
     warnings.push('top-level "swatch-blur" is ' + JSON.stringify(blur) + ", not a number of pixels (0 or more) - the swatch will render with no blur");
   }
-  const camera = seriesIndex["swatch-camera"];
+  const camera = studiesIndex["swatch-camera"];
   if (camera !== undefined && !isSwatchCamera(camera)) {
     warnings.push('top-level "swatch-camera" is ' + JSON.stringify(camera) + ", not { rotation, tilt, roll } of numbers with an optional frame in (0, 1] - the swatch will render with the default camera");
   }
@@ -320,7 +320,7 @@ function startToolServer({ name, port, page, routes }) {
 
 module.exports = {
   ROOT,
-  SERIES_JSON_PATH,
+  STUDIES_JSON_PATH,
   SITE_ORIGIN,
   PHONE_QUERY,
   REFERENCE_SIZE_MM,
@@ -333,7 +333,7 @@ module.exports = {
   mb,
   argValue,
   exitOnProblems,
-  findSeriesEntry,
+  findStudyEntry,
   folderSlug,
   productFolder,
   volumeAt,

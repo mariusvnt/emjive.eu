@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Dev server for scene-tool.html (npm run scene-tool): live preview of product
-// cameras, series and swatch HDRIs, the HDRI blur, swatch blur and camera, the
+// cameras, study and swatch HDRIs, the HDRI blur, swatch blur and camera, the
 // sun, reflection detail and metal shaders through the real viewer, saved by
 // text-patching the data files in place.
 
@@ -9,7 +9,7 @@
 const fs = require("fs");
 const path = require("path");
 const blocks = require("./json-tool-blocks");
-const { ROOT, SERIES_JSON_PATH, findSeriesEntry, readJsonBody, sendJson, startToolServer } = require("./helpers");
+const { ROOT, STUDIES_JSON_PATH, findStudyEntry, readJsonBody, sendJson, startToolServer } = require("./helpers");
 
 const PORT = 5200;
 const MAX_BODY_BYTES = 1e6;
@@ -53,7 +53,7 @@ function updateSwatchSceneInText(text, updates) {
   return result;
 }
 
-// One metal's entry in data/series.json's "metal-shaders", added if the metal has none yet.
+// One metal's entry in data/studies.json's "metal-shaders", added if the metal has none yet.
 function updateMetalShaderInText(text, metalKey, shader) {
   var anchor = '"metal-shaders": {';
   var value = '{ "color": [' + shader.color.join(", ") + '], "metalness": ' + shader.metalness +
@@ -66,18 +66,18 @@ function updateMetalShaderInText(text, metalKey, shader) {
 
 async function handleSaveProductCamera(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
-  var seriesSlug = body.seriesSlug;
+  var studySlug = body.studySlug;
   var productId = body.productId;
-  if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
+  if (!studySlug || !productId) return sendJson(res, 400, { error: "studySlug and productId are required" });
   if (![body.rotation, body.tilt, body.zoom, body.roll].every(isFiniteNumber)) {
     return sendJson(res, 400, { error: "rotation/tilt/zoom/roll must be finite numbers" });
   }
 
-  var seriesIndex = JSON.parse(fs.readFileSync(SERIES_JSON_PATH, "utf8"));
-  var seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
+  var studiesIndex = JSON.parse(fs.readFileSync(STUDIES_JSON_PATH, "utf8"));
+  var studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
 
-  var productsPath = path.join(ROOT, seriesEntry.products);
+  var productsPath = path.join(ROOT, studyEntry.products);
   var text = fs.readFileSync(productsPath, "utf8");
   var orbit = {
     rotation: Math.round(body.rotation),
@@ -89,7 +89,7 @@ async function handleSaveProductCamera(req, res) {
   if (!patched) {
     return sendJson(res, 404, {
       error: "could not find \"" + productId + "\"'s 3d-viewer-camera-default field in " +
-        seriesEntry.products + " — add it by hand first"
+        studyEntry.products + " — add it by hand first"
     });
   }
 
@@ -97,26 +97,26 @@ async function handleSaveProductCamera(req, res) {
   return sendJson(res, 200, { ok: true, saved: orbit });
 }
 
-async function handleSaveSeriesHdri(req, res) {
+async function handleSaveStudyHdri(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
-  var seriesSlug = body.seriesSlug;
+  var studySlug = body.studySlug;
   var hdriKey = body.hdriKey;
-  if (!seriesSlug || !hdriKey) return sendJson(res, 400, { error: "seriesSlug and hdriKey are required" });
+  if (!studySlug || !hdriKey) return sendJson(res, 400, { error: "studySlug and hdriKey are required" });
 
-  var seriesText = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var seriesIndex = JSON.parse(seriesText);
-  if (!findSeriesEntry(seriesIndex, seriesSlug)) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  if (!Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, hdriKey)) {
+  var studyText = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  var studiesIndex = JSON.parse(studyText);
+  if (!findStudyEntry(studiesIndex, studySlug)) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  if (!Object.prototype.hasOwnProperty.call(studiesIndex.hdris || {}, hdriKey)) {
     return sendJson(res, 400, { error: "unknown hdri: " + hdriKey });
   }
 
-  var patched = blocks.updateSeriesFieldInText(seriesText, seriesSlug, "hdri", '"' + hdriKey + '"');
+  var patched = blocks.updateStudyFieldInText(studyText, studySlug, "hdri", '"' + hdriKey + '"');
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find series \"" + seriesSlug + "\"'s hdri field — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find study \"" + studySlug + "\"'s hdri field — add it by hand first" });
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
-  return sendJson(res, 200, { ok: true, saved: { seriesSlug: seriesSlug, hdri: hdriKey } });
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
+  return sendJson(res, 200, { ok: true, saved: { studySlug: studySlug, hdri: hdriKey } });
 }
 
 // The angles and the frame: distance and fov are solved (swatchOrbit in js/three-viewer.js).
@@ -134,13 +134,13 @@ async function handleSaveSwatchCamera(req, res) {
     roll: Math.round(body.roll * 100) / 100
   };
   if (body.frame !== undefined) camera.frame = Math.round(body.frame * 100) / 100;
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
   var patched = updateSwatchSceneInText(text, { "swatch-camera": camera });
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-camera\" in data/series.json — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-camera\" in data/studies.json — add it by hand first" });
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { "swatch-camera": camera } });
 }
 
@@ -149,17 +149,17 @@ async function handleSaveSwatchHdri(req, res) {
   var hdriKey = body.hdriKey;
   if (!hdriKey) return sendJson(res, 400, { error: "hdriKey is required" });
 
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var seriesIndex = JSON.parse(text);
-  if (!Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, hdriKey)) {
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  var studiesIndex = JSON.parse(text);
+  if (!Object.prototype.hasOwnProperty.call(studiesIndex.hdris || {}, hdriKey)) {
     return sendJson(res, 400, { error: "unknown hdri: " + hdriKey });
   }
   var patched = updateSwatchSceneInText(text, { "swatch-hdri": hdriKey });
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-hdri\" in data/series.json — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-hdri\" in data/studies.json — add it by hand first" });
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { "swatch-hdri": hdriKey } });
 }
 
@@ -170,13 +170,13 @@ async function handleSaveSwatchBlur(req, res) {
     return sendJson(res, 400, { error: "blur must be a finite number, 0 or more" });
   }
   var blur = Math.round(body.blur * 100) / 100;
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
   var patched = updateSwatchSceneInText(text, { "swatch-blur": blur });
   if (!patched) {
-    return sendJson(res, 404, { error: "could not find \"swatch-blur\" in data/series.json — add it by hand first" });
+    return sendJson(res, 404, { error: "could not find \"swatch-blur\" in data/studies.json — add it by hand first" });
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { "swatch-blur": blur } });
 }
 
@@ -187,14 +187,14 @@ async function handleSaveHdriBlur(req, res) {
     return sendJson(res, 400, { error: "blur must be a finite number, 0 or more" });
   }
   var blur = Math.round(body.blur * 100) / 100;
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
   var blurPattern = /"hdri-blur":\s*-?[0-9.]+/;
   if (!blurPattern.test(text)) {
-    return sendJson(res, 404, { error: 'could not find "hdri-blur" in data/series.json — add it by hand first' });
+    return sendJson(res, 404, { error: 'could not find "hdri-blur" in data/studies.json — add it by hand first' });
   }
   var patched = text.replace(blurPattern, function () { return '"hdri-blur": ' + blur; });
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { "hdri-blur": blur } });
 }
 
@@ -205,14 +205,14 @@ async function handleSaveReflectionDetail(req, res) {
     return sendJson(res, 400, { error: "levels must be a finite number, 0 or more" });
   }
   var levels = Math.round(body.levels * 100) / 100;
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
   var levelsPattern = /"reflection-detail":\s*[0-9.]+/;
   if (!levelsPattern.test(text)) {
-    return sendJson(res, 404, { error: 'could not find "reflection-detail" in data/series.json — add it by hand first' });
+    return sendJson(res, 404, { error: 'could not find "reflection-detail" in data/studies.json — add it by hand first' });
   }
   var patched = text.replace(levelsPattern, function () { return '"reflection-detail": ' + levels; });
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { "reflection-detail": levels } });
 }
 
@@ -222,16 +222,16 @@ async function handleSaveSun(req, res) {
     return sendJson(res, 400, { error: "on must be a boolean and strength a finite number, 0 or more" });
   }
   var sun = { on: body.on, strength: Math.round(body.strength * 100) / 100 };
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
   var sunPattern = /"sun":\s*\{[^{}]*\}/;
   if (!sunPattern.test(text)) {
-    return sendJson(res, 404, { error: 'could not find "sun" in data/series.json — add it by hand first' });
+    return sendJson(res, 404, { error: 'could not find "sun" in data/studies.json — add it by hand first' });
   }
   var patched = text.replace(sunPattern, function () {
     return '"sun": { "on": ' + sun.on + ', "strength": ' + sun.strength + " }";
   });
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { sun: sun } });
 }
 
@@ -239,9 +239,9 @@ async function handleSaveMetalShader(req, res) {
   var body = await readJsonBody(req, MAX_BODY_BYTES);
   var metalKey = body.metalKey;
 
-  var text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  var seriesIndex = JSON.parse(text);
-  if (!(seriesIndex.metals || []).includes(metalKey)) {
+  var text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  var studiesIndex = JSON.parse(text);
+  if (!(studiesIndex.metals || []).includes(metalKey)) {
     return sendJson(res, 400, { error: "unknown metal: " + metalKey });
   }
   var color = body.color;
@@ -259,16 +259,16 @@ async function handleSaveMetalShader(req, res) {
   };
   var patched = updateMetalShaderInText(text, metalKey, shader);
   if (!patched) {
-    return sendJson(res, 404, { error: 'could not find "metal-shaders" in data/series.json — add it by hand first' });
+    return sendJson(res, 404, { error: 'could not find "metal-shaders" in data/studies.json — add it by hand first' });
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   return sendJson(res, 200, { ok: true, saved: { metalKey: metalKey, shader: shader } });
 }
 
 const ROUTES = {
   "POST /api/save-product-camera": handleSaveProductCamera,
-  "POST /api/save-series-hdri": handleSaveSeriesHdri,
+  "POST /api/save-study-hdri": handleSaveStudyHdri,
   "POST /api/save-swatch-camera": handleSaveSwatchCamera,
   "POST /api/save-swatch-hdri": handleSaveSwatchHdri,
   "POST /api/save-swatch-blur": handleSaveSwatchBlur,

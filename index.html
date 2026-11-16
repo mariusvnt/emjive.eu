@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The homepage (/): the featured series' hero, then its gallery as the wheel or the grid. -->
+<!-- The homepage (/): the featured study's hero, then its gallery as the wheel or the grid. -->
 <html lang="en" data-page-loader data-viewer="idle" data-products="eager">
 <head>
 <meta charset="UTF-8" />
@@ -31,8 +31,8 @@
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
 
-<!-- Every page waits on data/series.json; preloading starts it in parallel with series.js. -->
-<link rel="preload" as="fetch" href="data/series.json" crossorigin />
+<!-- Every page waits on data/studies.json; preloading starts it in parallel with studies.js. -->
+<link rel="preload" as="fetch" href="data/studies.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
@@ -47,20 +47,20 @@
 <!-- Blocking: the arrival cover (data-page-loader) must be up before <body> parses. -->
 <script src="js/loader.js"></script>
 
-<!-- Blocking on purpose; see js/series.js. -->
-<script src="js/series.js"></script>
+<!-- Blocking on purpose; see js/studies.js. -->
+<script src="js/studies.js"></script>
 
 <!-- Lazy 3D viewer: three.js loads when idle (data-viewer="idle") or when a model is first needed. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <!-- Static, so the selection bar is hidden from first paint, before the hero arrives. -->
-<body id="top" class="has-series-hero">
+<body id="top" class="has-study-hero">
 <a class="skip-link" href="#main">Skip to content</a>
 
 
 <header class="site-header">
   <div class="site-header__row">
-    <!-- #top, not /#top as on the other pages: with ?series= in the address, that would load the page again instead of scrolling. -->
+    <!-- #top, not /#top as on the other pages: with ?study= in the address, that would load the page again instead of scrolling. -->
     <a class="site-header__brand" href="#top">
       <img src="assets/logo.svg" width="512" height="192" alt="em&middot;ji&middot;ve" />
     </a>
@@ -75,7 +75,7 @@
         <dl class="site-header__groups">
           <div class="site-header__group">
             <dt>Shop</dt>
-            <dd><a href="/#gallery" data-featured-series aria-current="page">Bones series</a></dd>
+            <dd><a href="/#gallery" data-featured-study aria-current="page">Bones study</a></dd>
             <dd><a href="/archives">Archives</a></dd>
           </div>
           <div class="site-header__group">
@@ -106,8 +106,8 @@
   <!-- Visually hidden: the design has no room for a title. -->
   <h1 class="visually-hidden">em&middot;ji&middot;ve: gallery of items we made</h1>
 
-  <!-- The featured series' hero (series/<slug>/hero.*), injected by js/series.js. -->
-  <div class="series-hero" id="seriesHero"></div>
+  <!-- The featured study's hero (studies/<slug>/hero.*), injected by js/studies.js. -->
+  <div class="study-hero" id="studyHero"></div>
 
   <section class="products" id="gallery">
     <!-- Wheel/grid toggle ("stack"/"grid" in code). Both faces (icon and label)
@@ -125,7 +125,7 @@
     </button>
 
     <!-- Second hero slot, behind the grid. -->
-    <div class="series-hero-backdrop" id="seriesBackdrop"></div>
+    <div class="study-hero-backdrop" id="studyBackdrop"></div>
 
     <!-- The wheel, built by js/gallery-stack.js. -->
     <div class="gallery-stage" id="galleryStage"></div>

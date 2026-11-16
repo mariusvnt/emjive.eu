@@ -1,6 +1,6 @@
 // Homepage scroll memory (index.html only): Back returns to the exact offset
 // on the first painted frame. Native restoration can't: the page reaches its
-// height only after series.json, the hero bundle and products.json, so it
+// height only after studies.json, the hero bundle and products.json, so it
 // clamps to the top. This reserves the previous height before first paint and
 // scrolls inside a rAF, before that frame paints.
 //
@@ -57,7 +57,7 @@
     html.setAttribute("data-gallery-view", view);
     html.setAttribute("data-hero", hero);
     // fresh: nothing saved yet for this entry (an arrival, not Back). A skipped
-    // hero in the wheel view is then landed at its end (series/<slug>/hero.js).
+    // hero in the wheel view is then landed at its end (studies/<slug>/hero.js).
     return { view: view, hero: hero, fresh: !saved };
   }
 

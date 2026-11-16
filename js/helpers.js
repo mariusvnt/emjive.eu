@@ -373,7 +373,7 @@
   }
 
   // The printer's price for one piece, euros to the cent, from one metal's
-  // data/series.json "production-costs" entry: the volume and area terms,
+  // data/studies.json "production-costs" entry: the volume and area terms,
   // raised to the minimum, then the flat fee charged after it. null when an
   // input is missing or the volume is past the range the formula was fitted
   // on. Mirrored in scripts/helpers.js.
@@ -386,7 +386,7 @@
 
   // The selling price, rounded up to whole euros, of a piece of `geometry`
   // (its print geometry when measured) in `metal` at size `mm`: the production
-  // cost plus the margin, plus VAT on that ("pricing" in data/series.json
+  // cost plus the margin, plus VAT on that ("pricing" in data/studies.json
   // `index`). 0 ("TBD") when the cost is unknown. The epsilon keeps float noise
   // on a whole amount from rounding it up a euro. Mirrored in scripts/helpers.js.
   function salePrice(index, geometry, metal, mm) {

@@ -14,7 +14,7 @@
 
   // Stored as { v, items }. Bump when stored item fields change meaning (ids,
   // pricing): carts of another version are dropped rather than misread.
-  var STORAGE_VERSION = 4;
+  var STORAGE_VERSION = 5;
 
   // localStorage can hold stale, hand-edited or corrupt entries: keep only
   // usable items and coerce the fields the UI computes with.
@@ -37,7 +37,7 @@
       price: isFinite(price) && price > 0 ? price : 0,
       image: isSafeImagePath(raw.image) ? raw.image : ""
     });
-    if (item.series != null) item.series = String(item.series);
+    if (item.study != null) item.study = String(item.study);
     // The chosen design's key; absent for single-design products.
     if (item.design != null) item.design = String(item.design);
     item.count = countOf(raw);
@@ -113,9 +113,9 @@
     return -1;
   }
 
-  // item: { series, productId, design, name, category, metal, size, price, image, count },
-  // a self-contained snapshot (name and image are the chosen design's). series
-  // qualifies productId, which is only unique within a series. The same
+  // item: { study, productId, design, name, category, metal, size, price, image, count },
+  // a self-contained snapshot (name and image are the chosen design's). study
+  // qualifies productId, which is only unique within a study. The same
   // configuration again adds one to that item's count, in place.
   function addItem(item) {
     var items = readAll();
@@ -185,10 +185,10 @@
      The bar's icon strip and the order rows animate only the item a change
      touched, identified with these two. */
 
-  // Stable across renders; `|| ""` covers items without a series or design.
+  // Stable across renders; `|| ""` covers items without a study or design.
   // The count isn't part of it: a count change is an update in place.
   function itemKey(item) {
-    return (item.series || "") + "|" + item.productId + "|" + (item.design || "") + "|" + item.metal + "|" + item.size;
+    return (item.study || "") + "|" + item.productId + "|" + (item.design || "") + "|" + item.metal + "|" + item.size;
   }
 
   // The single change from oldKeys to keys: an insert or removal at `index`, or
@@ -213,20 +213,20 @@
   /* ---- prices by size ----
      Every price is derived: the printed piece's production cost at the size,
      plus margin and VAT (EmjiveHelpers.salePrice), whole euros, the size
-     clamped to "size-range". 0 means "TBD". Needs the series index
-     (EmjiveSeries.ready). Mirrored in scripts/helpers.js for the per-item
+     clamped to "size-range". 0 means "TBD". Needs the studies index
+     (EmjiveStudies.ready). Mirrored in scripts/helpers.js for the per-item
      pages' structured data. */
   var sizeRange = window.EmjiveHelpers.sizeRange;
 
   // `product` priced as its own geometry: pass the design view
-  // (EmjiveSeries.resolveDesign) for a chosen design. `size` may be a number
+  // (EmjiveStudies.resolveDesign) for a chosen design. `size` may be a number
   // or a typed string.
   function priceAt(product, metal, size) {
     var mm = parseFloat(size);
     if (!product || !isFinite(mm) || mm <= 0) return 0;
     var range = sizeRange(product);
     mm = Math.min(Math.max(mm, range.min), range.max);
-    return window.EmjiveHelpers.salePrice(window.EmjiveSeries.index, product.geometry, metal, mm);
+    return window.EmjiveHelpers.salePrice(window.EmjiveStudies.index, product.geometry, metal, mm);
   }
 
   // Lowest to highest price over one metal, or over every metal, and over the
@@ -237,7 +237,7 @@
     if (!product) return span;
     var range = sizeRange(product);
     var geometries = product.designKey !== undefined ? [product.geometry] : window.EmjiveHelpers.designGeometries(product);
-    var index = window.EmjiveSeries.index;
+    var index = window.EmjiveStudies.index;
     (metal ? [metal] : (index && index.metals) || []).forEach(function (m) {
       geometries.forEach(function (geometry) {
         var low = window.EmjiveHelpers.salePrice(index, geometry, m, range.min);

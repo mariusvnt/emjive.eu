@@ -82,7 +82,7 @@ async function main() {
     renames.length + " image(s): " + mb(totalBefore) + "  ->  " + mb(totalAfter) +
     "   (" + (100 - (totalAfter / totalBefore) * 100).toFixed(1) + "% smaller)"
   );
-  console.log("\nUpdate these paths by hand (data/series/<slug>/products.json):");
+  console.log("\nUpdate these paths by hand (data/studies/<slug>/products.json):");
   for (const r of renames) console.log("  " + r.from + "  ->  " + r.to);
 }
 

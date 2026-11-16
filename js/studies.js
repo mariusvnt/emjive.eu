@@ -1,19 +1,19 @@
-// Series resolution (window.EmjiveSeries), plus the page-wide helpers every
+// Study resolution (window.EmjiveStudies), plus the page-wide helpers every
 // page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage
 // hero bundle loader.
 //
-// Blocking in <head>: EmjiveSeries must exist before any deferred script runs,
-// and the data/series.json fetch starts at head-parse time so the hero can
+// Blocking in <head>: EmjiveStudies must exist before any deferred script runs,
+// and the data/studies.json fetch starts at head-parse time so the hero can
 // load without a flash.
 (function () {
   "use strict";
 
-  var INDEX_PATH = "data/series.json";
+  var INDEX_PATH = "data/studies.json";
 
   // data/*.json paths are repo-root-relative, which only resolves because every page sits at the root.
   var index = null;
   var activeSlug = null;
-  var activeSeries = null;
+  var activeStudy = null;
 
   // Memoized per slug: the gallery and the hero share one request. A failure
   // is evicted, so a later call retries.
@@ -35,25 +35,25 @@
   }
 
   function resolveSlug(data) {
-    var wanted = queryParam("series");
+    var wanted = queryParam("study");
     if (wanted) {
-      for (var i = 0; i < data.series.length; i++) {
-        if (data.series[i].slug === wanted) return wanted;
+      for (var i = 0; i < data.studies.length; i++) {
+        if (data.studies[i].slug === wanted) return wanted;
       }
-      console.warn("Unknown series: " + wanted);
+      console.warn("Unknown study: " + wanted);
     }
     return data.featured;
   }
 
   function get(slug) {
     if (!index || !slug) return null;
-    for (var i = 0; i < index.series.length; i++) {
-      if (index.series[i].slug === slug) return index.series[i];
+    for (var i = 0; i < index.studies.length; i++) {
+      if (index.studies[i].slug === slug) return index.studies[i];
     }
     return null;
   }
 
-  // A series' "hdri" key -> asset path, for options.hdri. null when unresolved,
+  // A study's "hdri" key -> asset path, for options.hdri. null when unresolved,
   // leaving js/three-viewer.js's DEFAULT_HDRI_SRC as the only fallback.
   function hdriPath(slug) {
     var entry = get(slug);
@@ -88,7 +88,7 @@
 
   function loadProducts(slug) {
     var entry = get(slug);
-    if (!entry) return Promise.reject(new Error("Unknown series: " + slug));
+    if (!entry) return Promise.reject(new Error("Unknown study: " + slug));
     return memoized(productCache, slug, function () {
       return fetchJson(entry.products).then(function (data) {
         return data.products || [];
@@ -98,29 +98,29 @@
 
   function loadManifest(slug) {
     var entry = get(slug);
-    if (!entry) return Promise.reject(new Error("Unknown series: " + slug));
+    if (!entry) return Promise.reject(new Error("Unknown study: " + slug));
     return memoized(manifestCache, slug, function () { return fetchJson(entry.manifest); });
   }
 
-  // Addresses: / (the gallery), /series?series=<slug>, and /<item slug> flat at the
+  // Addresses: / (the gallery), /studies?study=<slug>, and /<item slug> flat at the
   // root (pages reference css/, js/, assets/ relatively). public/.htaccess and
-  // vite.config.js map them to the .html files. The featured series gets no
-  // ?series=, keeping common URLs clean.
+  // vite.config.js map them to the .html files. The featured study gets no
+  // ?study=, keeping common URLs clean.
   function isFeatured(slug) {
     return !!index && slug === index.featured;
   }
 
-  function seriesParam(slug, leading) {
+  function studyParam(slug, leading) {
     if (!slug || isFeatured(slug)) return "";
-    return (leading || "?") + "series=" + encodeURIComponent(slug);
+    return (leading || "?") + "study=" + encodeURIComponent(slug);
   }
 
   function mainHref(slug) {
-    return "/" + seriesParam(slug);
+    return "/" + studyParam(slug);
   }
 
   function manifestHref(slug) {
-    return "/series?series=" + encodeURIComponent(slug);
+    return "/studies?study=" + encodeURIComponent(slug);
   }
 
   // Mirrors slugify() in scripts/slugs.js; validate-data compares them on every
@@ -130,7 +130,7 @@
     return String(product.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
-  // Item slugs are unique across series, so no ?series=.
+  // Item slugs are unique across studies, so no ?study=.
   function productHref(product) {
     return "/" + productSlug(product);
   }
@@ -289,7 +289,7 @@
     top.close();
   });
 
-  /* ---- hero bundle loading (index.html, #seriesHero) ---- */
+  /* ---- hero bundle loading (index.html, #studyHero) ---- */
   // hero.preload lists originals: the first is the first-paint picture (with a
   // low-res pair), the rest are layers with high-res versions only.
   function injectPreload(href, isLcp) {
@@ -379,22 +379,22 @@
     return Promise.all([fragmentPromise, scriptPromise]).then(function (results) {
       var doc = new DOMParser().parseFromString(results[0], "text/html");
 
-      // One <template data-series-slot="id"> per destination. Template content is
+      // One <template data-study-slot="id"> per destination. Template content is
       // inert, so images fetch only once cloned, resolving against the page.
-      var templates = doc.querySelectorAll("template[data-series-slot]");
+      var templates = doc.querySelectorAll("template[data-study-slot]");
       for (var i = 0; i < templates.length; i++) {
-        var target = document.getElementById(templates[i].dataset.seriesSlot);
+        var target = document.getElementById(templates[i].dataset.studySlot);
         if (target) {
           var clone = templates[i].content.cloneNode(true);
           chooseHeroImages(clone);
           target.appendChild(clone);
         }
-        else console.warn("No slot #" + templates[i].dataset.seriesSlot + " for the hero fragment");
+        else console.warn("No slot #" + templates[i].dataset.studySlot + " for the hero fragment");
       }
 
       watchHeroForPhoneChange();
-      if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.init) {
-        window.EmjiveSeriesHero.init(slot, { slug: activeSlug, series: entry });
+      if (window.EmjiveStudyHero && window.EmjiveStudyHero.init) {
+        window.EmjiveStudyHero.init(slot, { slug: activeSlug, study: entry });
       }
       return true;
     });
@@ -412,8 +412,8 @@
 
   function heroFailed(slot, err) {
     console.error("Hero bundle failed to load: " + (err && err.message ? err.message : err));
-    // Otherwise .has-series-hero keeps the selection bar off-screen for good.
-    document.body.classList.remove("has-series-hero");
+    // Otherwise .has-study-hero keeps the selection bar off-screen for good.
+    document.body.classList.remove("has-study-hero");
     if (slot) slot.innerHTML = "";
     noHero();
   }
@@ -422,26 +422,26 @@
   var ready = fetchJson(INDEX_PATH).then(function (data) {
     index = data;
     activeSlug = resolveSlug(data);
-    activeSeries = get(activeSlug);
+    activeStudy = get(activeSlug);
 
-    window.EmjiveSeries.index = index;
-    window.EmjiveSeries.metals = index.metals || [];
-    window.EmjiveSeries.hdris = index.hdris || {};
-    window.EmjiveSeries.slug = activeSlug;
-    window.EmjiveSeries.series = activeSeries;
+    window.EmjiveStudies.index = index;
+    window.EmjiveStudies.metals = index.metals || [];
+    window.EmjiveStudies.hdris = index.hdris || {};
+    window.EmjiveStudies.slug = activeSlug;
+    window.EmjiveStudies.study = activeStudy;
 
     // data-products="eager" on <html> starts products.json as soon as the slug is
     // known; loadProducts() memoizes, so the page's own call reuses it.
-    if (activeSeries && document.documentElement.getAttribute("data-products") === "eager") {
+    if (activeStudy && document.documentElement.getAttribute("data-products") === "eager") {
       loadProducts(activeSlug).catch(function () {});
     }
 
-    var slot = document.getElementById("seriesHero");
-    if (slot && activeSeries) {
-      loadHero(slot, activeSeries)
+    var slot = document.getElementById("studyHero");
+    if (slot && activeStudy) {
+      loadHero(slot, activeStudy)
         .then(function (loaded) {
           if (!loaded) {
-            document.body.classList.remove("has-series-hero");
+            document.body.classList.remove("has-study-hero");
             noHero();
             pageReady();
             return;
@@ -466,8 +466,8 @@
           }
           // Its own catch: the hero is working, and the outer catch would tear it down.
           return loadProducts(activeSlug).then(function (products) {
-            if (window.EmjiveSeriesHero && window.EmjiveSeriesHero.onProducts) {
-              window.EmjiveSeriesHero.onProducts(products);
+            if (window.EmjiveStudyHero && window.EmjiveStudyHero.onProducts) {
+              window.EmjiveStudyHero.onProducts(products);
             }
           }).catch(function (err) {
             console.error("Hero could not receive the products: " + (err && err.message ? err.message : err));
@@ -475,12 +475,12 @@
         })
         .catch(function (err) { heroFailed(slot, err); pageReady(); });
     } else if (slot) {
-      document.body.classList.remove("has-series-hero");
+      document.body.classList.remove("has-study-hero");
       noHero();
       pageReady();
     }
 
-    return { index: index, slug: activeSlug, series: activeSeries };
+    return { index: index, slug: activeSlug, study: activeStudy };
   });
 
   // Without the index nothing else lifts the cover but its watchdog; the
@@ -514,14 +514,14 @@
     return chosenMetal(product) || product["default-metal"];
   }
 
-  window.EmjiveSeries = {
+  window.EmjiveStudies = {
     ready: ready,
 
     index: null,
     metals: [],
     hdris: {},
     slug: null,
-    series: null,
+    study: null,
 
     // Sizing belongs to the category, in the global vocabulary.
     categoryInfo: function (id) {
@@ -531,7 +531,7 @@
 
     hdriPath: hdriPath,
 
-    all: function () { return (index && index.series) || []; },
+    all: function () { return (index && index.studies) || []; },
     get: get,
     featuredSlug: function () { return index && index.featured; },
     isFeatured: isFeatured,
@@ -549,7 +549,7 @@
     chooseMetal: chooseMetal,
     metalFor: metalFor,
 
-    // The raw ?series=, without the featured fallback (series.html shows not-found instead).
-    requestedSlug: function () { return queryParam("series"); }
+    // The raw ?study=, without the featured fallback (studies.html shows not-found instead).
+    requestedSlug: function () { return queryParam("study"); }
   };
 })();

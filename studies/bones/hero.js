@@ -5,8 +5,8 @@
 // A skipped hero (data-hero="skip") lands at its end; the grid view doesn't
 // show it.
 //
-// Loaded by js/series.js from a runtime path, so:
-//   1. No side effects on execution: it only sets window.EmjiveSeriesHero,
+// Loaded by js/studies.js from a runtime path, so:
+//   1. No side effects on execution: it only sets window.EmjiveStudyHero,
 //      letting the fragment, stylesheet and script load in parallel.
 //   2. No bare imports: Vite never sees this file.
 // Elements are looked up in init(), once the fragment is cloned in.
@@ -316,7 +316,7 @@
     return !!(revealSection && revealPin && revealSection.offsetHeight > revealPin.offsetHeight * 1.5);
   }
 
-  window.EmjiveSeriesHero = {
+  window.EmjiveStudyHero = {
     init: function () {
       revealSection = document.getElementById("revealSection");
       revealXrayGroup = document.getElementById("revealXrayGroup");

@@ -256,10 +256,10 @@ const { requestJson } = window.EmjiveHelpers;
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 const state = {
-  seriesIndex: null,
-  productsBySeriesSlug: {},
+  studiesIndex: null,
+  productsByStudySlug: {},
   mode: null, // "product" | "swatch"
-  seriesSlug: null,
+  studySlug: null,
   product: null,
   swatchCamera: null, // swatch camera: { rotation, tilt, roll, frame }
   swatchBlur: null, // swatch HDRI blur, px of the HDRI image
@@ -287,11 +287,11 @@ init().catch((err) => {
 });
 
 async function init() {
-  state.seriesIndex = await requestJson("data/series.json");
-  state.seriesIndex["metal-shaders"] = state.seriesIndex["metal-shaders"] || {};
-  window.EmjiveModelViewer.setMetalShaders(state.seriesIndex["metal-shaders"]);
-  state.seriesIndex.sun = state.seriesIndex.sun || { on: true, strength: 12 };
-  window.EmjiveModelViewer.setSun(state.seriesIndex.sun);
+  state.studiesIndex = await requestJson("data/studies.json");
+  state.studiesIndex["metal-shaders"] = state.studiesIndex["metal-shaders"] || {};
+  window.EmjiveModelViewer.setMetalShaders(state.studiesIndex["metal-shaders"]);
+  state.studiesIndex.sun = state.studiesIndex.sun || { on: true, strength: 12 };
+  window.EmjiveModelViewer.setSun(state.studiesIndex.sun);
   window.EmjiveModelViewer.setHdriBlur(savedHdriBlur());
   window.EmjiveModelViewer.setReflectionDetail(savedDetail());
   els.detailInput.value = savedDetail();
@@ -309,14 +309,14 @@ async function init() {
 }
 
 async function loadAllProducts() {
-  const seriesList = state.seriesIndex.series || [];
-  for (const s of seriesList) {
-    state.productsBySeriesSlug[s.slug] = await requestJson(s.products);
+  const studiesList = state.studiesIndex.studies || [];
+  for (const s of studiesList) {
+    state.productsByStudySlug[s.slug] = await requestJson(s.products);
   }
 }
 
 function populateHdriSelect() {
-  const hdris = state.seriesIndex.hdris || {};
+  const hdris = state.studiesIndex.hdris || {};
   els.hdriSelect.innerHTML = "";
   Object.keys(hdris).forEach((key) => {
     const opt = document.createElement("option");
@@ -324,8 +324,8 @@ function populateHdriSelect() {
     opt.textContent = key;
     els.hdriSelect.appendChild(opt);
   });
-  const firstSeries = (state.seriesIndex.series || [])[0];
-  const defaultKey = (firstSeries && firstSeries.hdri) || Object.keys(hdris)[0];
+  const firstStudy = (state.studiesIndex.studies || [])[0];
+  const defaultKey = (firstStudy && firstStudy.hdri) || Object.keys(hdris)[0];
   if (defaultKey) els.hdriSelect.value = defaultKey;
 }
 
@@ -334,8 +334,8 @@ function populateModelSelect() {
 
   const productsGroup = document.createElement("optgroup");
   productsGroup.label = "Products";
-  (state.seriesIndex.series || []).forEach((s) => {
-    const productsData = state.productsBySeriesSlug[s.slug];
+  (state.studiesIndex.studies || []).forEach((s) => {
+    const productsData = state.productsByStudySlug[s.slug];
     (productsData.products || []).forEach((p) => {
       const opt = document.createElement("option");
       opt.value = "product:" + s.slug + ":" + p.id;
@@ -357,7 +357,7 @@ function populateModelSelect() {
 }
 
 function populateMetalButtons() {
-  const metals = state.seriesIndex.metals || [];
+  const metals = state.studiesIndex.metals || [];
   els.metalButtons.innerHTML = "";
   metals.forEach((m) => {
     const btn = document.createElement("button");
@@ -369,19 +369,19 @@ function populateMetalButtons() {
   });
 }
 
-function findSeries(slug) {
-  return (state.seriesIndex.series || []).find((entry) => entry.slug === slug) || null;
+function findStudy(slug) {
+  return (state.studiesIndex.studies || []).find((entry) => entry.slug === slug) || null;
 }
 
 function currentModelSelection() {
   const value = els.modelSelect.value;
   const parts = value.split(":");
   if (parts[0] === "product") {
-    const seriesSlug = parts[1];
+    const studySlug = parts[1];
     const productId = parts[2];
-    const productsData = state.productsBySeriesSlug[seriesSlug];
+    const productsData = state.productsByStudySlug[studySlug];
     const product = (productsData.products || []).find((p) => p.id === productId);
-    return { mode: "product", seriesSlug, product };
+    return { mode: "product", studySlug, product };
   }
   return { mode: "swatch" };
 }
@@ -449,20 +449,20 @@ function wireEvents() {
 // viewer's default frame), as an editable copy.
 const SWATCH_FRAME_DEFAULT = 0.85;
 function savedSwatchCamera() {
-  const saved = state.seriesIndex["swatch-camera"];
+  const saved = state.studiesIndex["swatch-camera"];
   const ok = saved && ["rotation", "tilt", "roll"].every((k) => typeof saved[k] === "number");
   const frame = saved && typeof saved.frame === "number" ? saved.frame : SWATCH_FRAME_DEFAULT;
   return ok ? { rotation: saved.rotation, tilt: saved.tilt, roll: saved.roll, frame } : { rotation: 0, tilt: 90, roll: 0, frame };
 }
 
 function savedSwatchBlur() {
-  const saved = state.seriesIndex["swatch-blur"];
+  const saved = state.studiesIndex["swatch-blur"];
   return typeof saved === "number" && saved >= 0 ? saved : 0;
 }
 
 // Every scene's HDRI blur, sigma in degrees.
 function savedHdriBlur() {
-  const saved = state.seriesIndex["hdri-blur"];
+  const saved = state.studiesIndex["hdri-blur"];
   return typeof saved === "number" && saved >= 0 ? saved : 0;
 }
 
@@ -475,7 +475,7 @@ function onHdriBlurChange() {
 
 // Every metal's reflection detail: environment levels read finer.
 function savedDetail() {
-  const saved = state.seriesIndex["reflection-detail"];
+  const saved = state.studiesIndex["reflection-detail"];
   return typeof saved === "number" && saved >= 0 ? saved : 0;
 }
 
@@ -513,7 +513,7 @@ function syncSliders() {
 // The "sun" object the viewer reads (setSun in init), edited in place and
 // re-read by applySun(): no rebuild.
 function populateSunControls() {
-  const sun = state.seriesIndex.sun;
+  const sun = state.studiesIndex.sun;
   els.sunOnInput.checked = sun.on;
   els.sunStrengthInput.value = sun.strength;
   els.sunStrengthSlider.value = sun.strength;
@@ -524,7 +524,7 @@ function populateSunControls() {
 function onSunInputChange() {
   const strength = parseFloat(els.sunStrengthInput.value);
   if (!Number.isFinite(strength) || strength < 0) return;
-  const sun = state.seriesIndex.sun;
+  const sun = state.studiesIndex.sun;
   sun.on = els.sunOnInput.checked;
   sun.strength = strength;
   els.sunStrengthSlider.disabled = !sun.on;
@@ -551,7 +551,7 @@ function updateMetalButtonStates() {
 // The selected metal's entry in "metal-shaders", the object the viewer reads
 // (setMetalShaders in init); a metal without one starts from a neutral grey.
 function currentShader() {
-  const shaders = state.seriesIndex["metal-shaders"];
+  const shaders = state.studiesIndex["metal-shaders"];
   if (!shaders[state.metal]) shaders[state.metal] = { color: [128, 128, 128], metalness: 1, roughness: 0.2 };
   return shaders[state.metal];
 }
@@ -597,19 +597,19 @@ async function rebuildViewer() {
   const sel = currentModelSelection();
   const previousMode = state.mode;
   state.mode = sel.mode;
-  state.seriesSlug = sel.seriesSlug || null;
+  state.studySlug = sel.studySlug || null;
   state.product = sel.product || null;
   if (sel.mode === "swatch" && !state.swatchCamera) state.swatchCamera = savedSwatchCamera();
   if (sel.mode === "swatch" && state.swatchBlur === null) state.swatchBlur = savedSwatchBlur();
-  // The HDRI select follows the mode on a mode change: the swatch's, or the series'.
-  const hdris = state.seriesIndex.hdris || {};
+  // The HDRI select follows the mode on a mode change: the swatch's, or the study's.
+  const hdris = state.studiesIndex.hdris || {};
   if (sel.mode !== previousMode) {
-    const seriesEntry = sel.mode === "product" ? findSeries(sel.seriesSlug) : null;
-    const wanted = sel.mode === "swatch" ? state.seriesIndex["swatch-hdri"] : seriesEntry && seriesEntry.hdri;
+    const studyEntry = sel.mode === "product" ? findStudy(sel.studySlug) : null;
+    const wanted = sel.mode === "swatch" ? state.studiesIndex["swatch-hdri"] : studyEntry && studyEntry.hdri;
     if (wanted && hdris[wanted]) els.hdriSelect.value = wanted;
   }
   if (!state.metal) {
-    state.metal = (sel.mode === "product" && sel.product["default-metal"]) || state.seriesIndex.metals[0];
+    state.metal = (sel.mode === "product" && sel.product["default-metal"]) || state.studiesIndex.metals[0];
   }
 
   setControlsDisabled(true);
@@ -637,7 +637,7 @@ async function rebuildViewer() {
   }
 
   const hdriKey = els.hdriSelect.value;
-  const hdriPath = (state.seriesIndex.hdris || {})[hdriKey];
+  const hdriPath = (state.studiesIndex.hdris || {})[hdriKey];
 
   let handle;
   if (sel.mode === "product") {
@@ -821,7 +821,7 @@ async function onSaveClick() {
   if (state.mode === "product") {
     if (els.saveCamera.checked && state.lastOrbit) {
       await attempt("Camera angle", "/api/save-product-camera", {
-        seriesSlug: state.seriesSlug,
+        studySlug: state.studySlug,
         productId: state.product.id,
         rotation: state.lastOrbit.rotation,
         tilt: state.lastOrbit.tilt,
@@ -830,8 +830,8 @@ async function onSaveClick() {
       });
     }
     if (els.saveHdri.checked) {
-      await attempt("HDRI", "/api/save-series-hdri", {
-        seriesSlug: state.seriesSlug,
+      await attempt("HDRI", "/api/save-study-hdri", {
+        studySlug: state.studySlug,
         hdriKey: els.hdriSelect.value
       });
     }
@@ -839,30 +839,30 @@ async function onSaveClick() {
     if (els.saveCamera.checked) {
       await attempt("Swatch camera", "/api/save-swatch-camera", state.swatchCamera);
       // So "Reset to saved default" means what was just saved.
-      if (results[results.length - 1].ok) state.seriesIndex["swatch-camera"] = { ...state.swatchCamera };
+      if (results[results.length - 1].ok) state.studiesIndex["swatch-camera"] = { ...state.swatchCamera };
     }
     if (els.saveHdri.checked) {
       await attempt("Swatch HDRI", "/api/save-swatch-hdri", { hdriKey: els.hdriSelect.value });
-      if (results[results.length - 1].ok) state.seriesIndex["swatch-hdri"] = els.hdriSelect.value;
+      if (results[results.length - 1].ok) state.studiesIndex["swatch-hdri"] = els.hdriSelect.value;
       await attempt("Swatch HDRI blur", "/api/save-swatch-blur", { blur: state.swatchBlur });
-      if (results[results.length - 1].ok) state.seriesIndex["swatch-blur"] = state.swatchBlur;
+      if (results[results.length - 1].ok) state.studiesIndex["swatch-blur"] = state.swatchBlur;
     }
   }
 
   if (els.saveHdriBlur.checked) {
     const deg = parseFloat(els.hdriBlurInput.value);
     await attempt("Blur", "/api/save-hdri-blur", { blur: deg });
-    if (results[results.length - 1].ok) state.seriesIndex["hdri-blur"] = deg;
+    if (results[results.length - 1].ok) state.studiesIndex["hdri-blur"] = deg;
   }
 
   if (els.saveDetail.checked) {
     const levels = parseFloat(els.detailInput.value);
     await attempt("Reflection detail", "/api/save-reflection-detail", { levels });
-    if (results[results.length - 1].ok) state.seriesIndex["reflection-detail"] = levels;
+    if (results[results.length - 1].ok) state.studiesIndex["reflection-detail"] = levels;
   }
 
   if (els.saveSun.checked) {
-    const sun = state.seriesIndex.sun;
+    const sun = state.studiesIndex.sun;
     await attempt("Sun", "/api/save-sun", { on: sun.on, strength: sun.strength });
   }
 

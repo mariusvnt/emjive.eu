@@ -8,7 +8,7 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
 
-# Product/series JSON is hand-aligned in columns.
+# Product/study JSON is hand-aligned in columns.
 [data/**.json]
 trim_trailing_whitespace = false
 

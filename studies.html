@@ -1,12 +1,12 @@
 <!doctype html>
-<!-- A series' design manifest (/series?series=<slug>). Only the title, year and subtitle render so far. -->
+<!-- A study's design manifest (/studies?study=<slug>). Only the title, year and subtitle render so far. -->
 <html lang="en" data-page-loader>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="theme-color" content="#f8f8f8" />
-<title>em·ji·ve: series</title>
-<meta name="description" content="A series and its design manifest" />
+<title>em·ji·ve: study</title>
+<meta name="description" content="A study and its design manifest" />
 <!-- Remove once the page has content worth indexing. -->
 <meta name="robots" content="noindex" />
 <link rel="icon" type="image/svg+xml" href="assets/logo_compact.svg" />
@@ -15,25 +15,25 @@
 
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="em·ji·ve" />
-<meta property="og:title" content="em·ji·ve: series" />
-<meta property="og:description" content="A series and its design manifest" />
-<meta property="og:url" content="https://emjive.eu/series" />
+<meta property="og:title" content="em·ji·ve: study" />
+<meta property="og:description" content="A study and its design manifest" />
+<meta property="og:url" content="https://emjive.eu/studies" />
 <meta property="og:image" content="https://emjive.eu/preview.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="em&middot;ji&middot;ve" />
 <meta property="og:locale" content="en" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="em·ji·ve: series" />
-<meta name="twitter:description" content="A series and its design manifest" />
+<meta name="twitter:title" content="em·ji·ve: study" />
+<meta name="twitter:description" content="A study and its design manifest" />
 <meta name="twitter:image" content="https://emjive.eu/preview.jpg" />
 
 <!-- crossorigin is required even same-origin, or the font is fetched twice. -->
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-mono-woff2/GeistMono-latin.woff2" crossorigin />
 <link rel="preload" as="font" type="font/woff2" href="assets/fonts/dinish-woff2/DINish-Regular.woff2" crossorigin />
 
-<!-- Every page waits on data/series.json; preloading starts it in parallel with series.js. -->
-<link rel="preload" as="fetch" href="data/series.json" crossorigin />
+<!-- Every page waits on data/studies.json; preloading starts it in parallel with studies.js. -->
+<link rel="preload" as="fetch" href="data/studies.json" crossorigin />
 
 <link rel="stylesheet" href="css/style.css" />
 
@@ -43,14 +43,14 @@
 <!-- Blocking: the arrival cover (data-page-loader) must be up before <body> parses. -->
 <script src="js/loader.js"></script>
 
-<!-- Blocking on purpose; see js/series.js. -->
-<script src="js/series.js"></script>
+<!-- Blocking on purpose; see js/studies.js. -->
+<script src="js/studies.js"></script>
 
 <!-- Lazy 3D viewer, only requested by the Modify sheet on this page. -->
 <script type="module" src="js/viewer-entry.js"></script>
 </head>
 <body id="top">
-<a class="skip-link" href="#seriesManifest">Skip to content</a>
+<a class="skip-link" href="#studyManifest">Skip to content</a>
 
 
 <header class="site-header">
@@ -69,7 +69,7 @@
         <dl class="site-header__groups">
           <div class="site-header__group">
             <dt>Shop</dt>
-            <dd><a href="/#gallery" data-featured-series>Bones series</a></dd>
+            <dd><a href="/#gallery" data-featured-study>Bones study</a></dd>
             <dd><a href="/archives">Archives</a></dd>
           </div>
           <div class="site-header__group">
@@ -90,24 +90,24 @@
   </div>
 </header>
 
-<!-- Renders any series' manifest, chosen by ?series=<slug>. -->
-<main class="page-shell series-manifest" id="seriesManifest" tabindex="-1">
+<!-- Renders any study's manifest, chosen by ?study=<slug>. -->
+<main class="page-shell study-manifest" id="studyManifest" tabindex="-1">
 <noscript>
   <div class="page-message page-message--screen">
     <p class="page-message__text">This page needs JavaScript to load its content.</p>
   </div>
 </noscript>
   <!-- Holds only the not-found message. -->
-  <div class="page-message page-message--screen" id="seriesManifestLoading" hidden></div>
+  <div class="page-message page-message--screen" id="studyManifestLoading" hidden></div>
 
-  <div class="series-manifest__content" id="seriesManifestContent" hidden>
+  <div class="study-manifest__content" id="studyManifestContent" hidden>
     <div class="section-head">
-      <span class="section-head__index" id="seriesManifestYear"></span>
-      <h1 id="seriesManifestTitle"></h1>
+      <span class="section-head__index" id="studyManifestYear"></span>
+      <h1 id="studyManifestTitle"></h1>
     </div>
-    <p class="series-manifest__subtitle" id="seriesManifestSubtitle"></p>
+    <p class="study-manifest__subtitle" id="studyManifestSubtitle"></p>
 
-    <div class="series-manifest__body" id="seriesManifestBody">
+    <div class="study-manifest__body" id="studyManifestBody">
       <!-- Empty until designed: manifest.json's "sections" render here. -->
     </div>
   </div>
@@ -135,7 +135,7 @@
 
 <!-- Deferred: run in document order once the page is parsed. -->
 <script src="js/main.js" defer></script>
-<script src="js/series-page.js" defer></script>
+<script src="js/studies-page.js" defer></script>
 <!-- Modify sheet and its parts; order-rows.js must precede selection-bar.js. -->
 <script src="js/focus-trap.js" defer></script>
 <script src="js/selection.js" defer></script>

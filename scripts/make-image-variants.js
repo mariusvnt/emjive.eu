@@ -5,7 +5,7 @@
 //   low res        <name>_lo.webp          <name>_m_lo.webp
 //   high res       <name>.webp (original)  <name>_m.webp
 //
-// Rules, under assets/series/<slug>/:
+// Rules, under assets/studies/<slug>/:
 //   products/<n>/<n>_xray.webp            all four
 //   hero/<n>_3k.webp                      all four
 //   hero/hand_xray*.webp                  _m only, cropped exactly like the picture they overlay
@@ -14,17 +14,17 @@
 //   npm run image-variants                 write missing ones
 //   npm run image-variants -- --force      rewrite all
 //   npm run image-variants -- --dry-run    report only
-//   npm run image-variants -- --series=<slug>
+//   npm run image-variants -- --study=<slug>
 // Also called by scripts/auto-render.js through makeVariants().
 
 const { statSync, existsSync, writeFileSync } = require("node:fs");
 const { join, dirname, basename, extname } = require("node:path");
 const { ROOT, repoPath, walk, argValue } = require("./helpers");
 
-const ASSETS_ROOT = join(ROOT, "assets", "series");
+const ASSETS_ROOT = join(ROOT, "assets", "studies");
 
 // Share of the width a smartphone version keeps, around the centre. Mirrored
-// by --hero-crop (series/<slug>/hero.css); validate-data.js checks they match.
+// by --hero-crop (studies/<slug>/hero.css); validate-data.js checks they match.
 //   hero: a portrait phone (aspect <= 3:5) shows at most 0.6 * 9/16 of it; 0.40 clears that.
 // The x-ray isn't cropped: a phone shows its whole width.
 const PHONE_CROP = { hero: 0.4 };
@@ -75,14 +75,14 @@ async function render(sharp, file, version) {
   return pipeline.webp({ quality: version.quality, alphaQuality: 90, effort: 6 }).toBuffer();
 }
 
-// options: { dryRun, force, series, kinds }
+// options: { dryRun, force, study, kinds }
 //   force   rewrite existing versions
-//   series  limit to assets/series/<slug>
+//   study  limit to assets/studies/<slug>
 //   kinds   limit to "xray", "hero" and/or "icons"
 async function makeVariants(options) {
   const opts = options || {};
-  const root = opts.series ? join(ASSETS_ROOT, opts.series) : ASSETS_ROOT;
-  if (!existsSync(root)) throw new Error("No such series folder: " + repoPath(root));
+  const root = opts.study ? join(ASSETS_ROOT, opts.study) : ASSETS_ROOT;
+  if (!existsSync(root)) throw new Error("No such study folder: " + repoPath(root));
   const rules = opts.kinds ? RULES.filter((r) => opts.kinds.includes(r.kind)) : RULES;
   const sharp = require("sharp");
 
@@ -112,8 +112,8 @@ module.exports = { makeVariants, PHONE_CROP };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
-  const seriesArg = argValue(args, "series");
-  makeVariants({ dryRun: args.includes("--dry-run"), force: args.includes("--force"), series: seriesArg }).catch((err) => {
+  const studyArg = argValue(args, "study");
+  makeVariants({ dryRun: args.includes("--dry-run"), force: args.includes("--force"), study: studyArg }).catch((err) => {
     console.error(err);
     process.exitCode = 1;
   });

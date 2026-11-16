@@ -4,10 +4,10 @@
 // a real GPU (for MSAA; the startup log names the WebGL renderer). Set
 // CHROME_PATH to override the Chrome location.
 //
-//   node scripts/auto-render.js [metal ...] [--series=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--plan-views-only]
-//   node scripts/auto-render.js --image-variants [--series=<slug>]
+//   node scripts/auto-render.js [metal ...] [--study=<slug>] [--product=<slug>[,<slug>]] [--swatches-only] [--wheel-posters-only] [--hand-posters-only] [--plan-views-only]
+//   node scripts/auto-render.js --image-variants [--study=<slug>]
 //
-// Defaults: every metal in data/series.json, every series.
+// Defaults: every metal in data/studies.json, every study.
 //   --product             only those products (designs included); swatches untouched
 //   --swatches-only       only the metal squares
 //   --wheel-posters-only  only the wheel posters
@@ -57,7 +57,7 @@ const sharp = require("sharp");
 const { makeVariants } = require("./make-image-variants");
 const blocks = require("./json-tool-blocks");
 const {
-  ROOT, SERIES_JSON_PATH, readJson, repoPath, argValue, folderSlug, productFolder, isSwatchCamera,
+  ROOT, STUDIES_JSON_PATH, readJson, repoPath, argValue, folderSlug, productFolder, isSwatchCamera,
   catalogDrift, serveStatic
 } = require("./helpers");
 
@@ -159,7 +159,7 @@ const HARNESS_HTML = `<!doctype html>
   }
 
   // A product with sizes (its category among window.__sizedCategories, from
-  // data/series.json) is drawn at the default size, as the product page
+  // data/studies.json) is drawn at the default size, as the product page
   // first shows it; any other as modelled.
   function hasSizes(product) {
     return (window.__sizedCategories || []).indexOf(product.category) !== -1;
@@ -491,7 +491,7 @@ function updateDesignPlanViewsInText(text, product, designKey, paths) {
 }
 
 // A product shown as one of its designs: the design's model and renders, the
-// product's camera (js/series.js resolveDesign).
+// product's camera (js/studies.js resolveDesign).
 function designView(product, design) {
   return Object.assign({}, product, {
     assets: Object.assign({}, product.assets, {
@@ -507,7 +507,7 @@ function designView(product, design) {
 async function main() {
   const args = process.argv.slice(2);
   const requestedMetals = args.filter((a) => !a.startsWith("--"));
-  const seriesArg = argValue(args, "series");
+  const studyArg = argValue(args, "study");
   // Product slugs, comma-separated.
   const productArg = argValue(args, "product");
   const onlyProducts = productArg ? productArg.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null;
@@ -517,26 +517,26 @@ async function main() {
   const planViewsOnly = args.includes("--plan-views-only");
   // No browser needed, nor a valid metal.
   if (args.includes("--image-variants")) {
-    if (seriesArg) {
-      const known = readJson(SERIES_JSON_PATH).series.map((s) => s.slug);
-      if (!known.includes(seriesArg)) {
-        throw new Error("Unknown series: " + seriesArg + " — must be one of: " + known.join(", "));
+    if (studyArg) {
+      const known = readJson(STUDIES_JSON_PATH).studies.map((s) => s.slug);
+      if (!known.includes(studyArg)) {
+        throw new Error("Unknown study: " + studyArg + " — must be one of: " + known.join(", "));
       }
     }
-    console.log("auto-render --image-variants — series: " + (seriesArg || "all"));
-    await makeVariants({ force: true, series: seriesArg });
+    console.log("auto-render --image-variants — study: " + (studyArg || "all"));
+    await makeVariants({ force: true, study: studyArg });
     return;
   }
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const allMetals = seriesIndex.metals || [];
-  const allHdris = seriesIndex.hdris || {};
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const allMetals = studiesIndex.metals || [];
+  const allHdris = studiesIndex.hdris || {};
   const metals = requestedMetals.length ? requestedMetals : allMetals;
 
   // Missing or malformed fields fall back to the defaults, so a swatch always renders.
-  const swatchHdriPath = allHdris[seriesIndex["swatch-hdri"]];
-  const swatchBlur = typeof seriesIndex["swatch-blur"] === "number" && seriesIndex["swatch-blur"] > 0 ? seriesIndex["swatch-blur"] : 0;
-  const swatchCamera = isSwatchCamera(seriesIndex["swatch-camera"]) ? seriesIndex["swatch-camera"] : SWATCH_CAMERA_DEFAULT;
+  const swatchHdriPath = allHdris[studiesIndex["swatch-hdri"]];
+  const swatchBlur = typeof studiesIndex["swatch-blur"] === "number" && studiesIndex["swatch-blur"] > 0 ? studiesIndex["swatch-blur"] : 0;
+  const swatchCamera = isSwatchCamera(studiesIndex["swatch-camera"]) ? studiesIndex["swatch-camera"] : SWATCH_CAMERA_DEFAULT;
 
   const unknown = metals.filter((m) => !allMetals.includes(m));
   if (unknown.length) {
@@ -546,11 +546,11 @@ async function main() {
   }
 
   // raw/text/data stay per file: ids are only unique within one file.
-  const selected = swatchesOnly ? [] : seriesIndex.series.filter((s) => !seriesArg || s.slug === seriesArg);
-  if (seriesArg && !swatchesOnly && !selected.length) {
+  const selected = swatchesOnly ? [] : studiesIndex.studies.filter((s) => !studyArg || s.slug === studyArg);
+  if (studyArg && !swatchesOnly && !selected.length) {
     throw new Error(
-      "Unknown series: " + seriesArg + " — must be one of: " +
-      seriesIndex.series.map((s) => s.slug).join(", ")
+      "Unknown study: " + studyArg + " — must be one of: " +
+      studiesIndex.studies.map((s) => s.slug).join(", ")
     );
   }
   const targets = selected.map((s) => {
@@ -565,10 +565,10 @@ async function main() {
   }
 
   console.log("auto-render — metal(s): " + metals.join(", ") +
-    " — series: " + targets.map((t) => t.slug).join(", ") +
+    " — study: " + targets.map((t) => t.slug).join(", ") +
     (onlyProducts ? " — product(s): " + onlyProducts.join(", ") : ""));
-  // Every series' categories and HDRI, the selected series' products.
-  const drift = catalogDrift(seriesIndex, Object.fromEntries(targets.map((t) => [t.slug, t.data])));
+  // Every study's categories and HDRI, the selected study's products.
+  const drift = catalogDrift(studiesIndex, Object.fromEntries(targets.map((t) => [t.slug, t.data])));
   for (const warning of drift) console.warn("  warning: " + warning);
 
   const chromePath = findChrome();
@@ -594,13 +594,13 @@ async function main() {
       waitUntil: "networkidle0",
       timeout: 30000
     });
-    // The harness loads no js/series.js, so the viewer is handed the shaders.
-    await page.evaluate((shaders) => window.EmjiveModelViewer.setMetalShaders(shaders), seriesIndex["metal-shaders"]);
-    await page.evaluate((settings) => window.EmjiveModelViewer.setHandShader(settings), seriesIndex["hand-shader"]);
-    await page.evaluate((settings) => window.EmjiveModelViewer.setSun(settings), seriesIndex.sun);
-    await page.evaluate((deg) => window.EmjiveModelViewer.setHdriBlur(deg), seriesIndex["hdri-blur"]);
-    await page.evaluate((levels) => window.EmjiveModelViewer.setReflectionDetail(levels), seriesIndex["reflection-detail"]);
-    const categories = seriesIndex.categories || {};
+    // The harness loads no js/studies.js, so the viewer is handed the shaders.
+    await page.evaluate((shaders) => window.EmjiveModelViewer.setMetalShaders(shaders), studiesIndex["metal-shaders"]);
+    await page.evaluate((settings) => window.EmjiveModelViewer.setHandShader(settings), studiesIndex["hand-shader"]);
+    await page.evaluate((settings) => window.EmjiveModelViewer.setSun(settings), studiesIndex.sun);
+    await page.evaluate((deg) => window.EmjiveModelViewer.setHdriBlur(deg), studiesIndex["hdri-blur"]);
+    await page.evaluate((levels) => window.EmjiveModelViewer.setReflectionDetail(levels), studiesIndex["reflection-detail"]);
+    const categories = studiesIndex.categories || {};
     await page.evaluate((sized) => { window.__sizedCategories = sized; }, Object.keys(categories).filter((key) => categories[key].unit));
 
     // Flags a software rasterizer (no real MSAA).
@@ -849,7 +849,7 @@ async function main() {
     // The new icons are the source of the 128px thumbnails.
     if (!swatchesOnly && !wheelPostersOnly && !handPostersOnly && !planViewsOnly) {
       console.log("\n--- icon thumbnails ---");
-      await makeVariants({ force: true, kinds: ["icons"], series: seriesArg });
+      await makeVariants({ force: true, kinds: ["icons"], study: studyArg });
     }
 
     console.log("\nDone.");

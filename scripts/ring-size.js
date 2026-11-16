@@ -26,7 +26,7 @@
 const path = require("node:path");
 const { writeFileSync } = require("node:fs");
 const stlFile = require("./stl");
-const { ROOT, SERIES_JSON_PATH, REFERENCE_SIZE_MM, AXIAL_STRETCH_SHARE, readJson, argValue } = require("./helpers");
+const { ROOT, STUDIES_JSON_PATH, REFERENCE_SIZE_MM, AXIAL_STRETCH_SHARE, readJson, argValue } = require("./helpers");
 
 const AXES = { X: 0, Y: 1, Z: 2 };
 // The print models' finger axis (checked by scripts/measure-models.js).
@@ -156,8 +156,8 @@ function minSize(clearance, referenceSize, marginMm = 0.01) {
 
 // The print model of a product or design named `name`, repo-relative; null if none.
 function stlNamed(name) {
-  for (const series of readJson(SERIES_JSON_PATH).series || []) {
-    for (const product of readJson(path.join(ROOT, series.products)).products || []) {
+  for (const study of readJson(STUDIES_JSON_PATH).studies || []) {
+    for (const product of readJson(path.join(ROOT, study.products)).products || []) {
       if (product.name === name) return (product.assets && product.assets.stl) || null;
       for (const design of (product.designs && product.designs.list) || []) {
         if (design.name === name) return design.stl || (product.assets && product.assets.stl) || null;

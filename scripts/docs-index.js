@@ -26,15 +26,15 @@ const CHECK = process.argv.includes("--check");
 const FOLDERS = {
   "css/": "The site's one stylesheet.",
   "js/": "Client scripts: classic scripts talking through window.Emjive* globals, and the ES modules of the 3D layer.",
-  "series/": "One folder per series: its homepage hero bundle (fragment, styles, behaviour), injected by js/series.js.",
-  "data/": "The catalog, fetched client-side: the series index and one folder per series.",
-  "data/series/": "One folder per series: its products and its design manifest.",
-  "assets/": "Static binaries. Everything outside series/ is brand-wide.",
+  "studies/": "One folder per study: its homepage hero bundle (fragment, styles, behaviour), injected by js/studies.js.",
+  "data/": "The catalog, fetched client-side: the studies index and one folder per study.",
+  "data/studies/": "One folder per study: its products and its design manifest.",
+  "assets/": "Static binaries. Everything outside studies/ is brand-wide.",
   "assets/draco/": "three's Draco decoder, self-hosted (the site makes no external requests).",
   "assets/fonts/": "Self-hosted fonts: DINish and Geist Mono.",
   "assets/hdri/": "Environment maps the models are lit with.",
-  "assets/series/": "One folder per series: its hero art and its products' files.",
-  "hero/": "That series' homepage hero art.",
+  "assets/studies/": "One folder per study: its hero art and its products' files.",
+  "hero/": "That study's homepage hero art.",
   "products/": "One folder per product, <name>_<category>: model, print model (not in git), renders, x-ray, photos.",
   "scripts/": "Node tooling: the build checks, the catalog pipeline and the dev tools' servers.",
   "public/": "Copied as-is to the root of dist/.",
@@ -213,7 +213,7 @@ function htmlSurface(html) {
   const idRe = /<(main|section|nav|aside|dialog|header|footer)\b[^>]*\bid="([^"]+)"/gi;
   while ((m = idRe.exec(text))) ids.push("#" + m[2]);
   const slots = [];
-  const slotRe = /data-series-slot="([^"]+)"/g;
+  const slotRe = /data-study-slot="([^"]+)"/g;
   while ((m = slotRe.exec(text))) slots.push("#" + m[1]);
   return { scripts, ids, slots };
 }
@@ -249,8 +249,8 @@ function jsonSurface(file, text) {
   if (Array.isArray(data.products)) {
     return keys + ". " + data.products.length + " products: " + data.products.map((p) => p.name).join(", ") + ".";
   }
-  if (Array.isArray(data.series)) {
-    return keys + ". Series: " + data.series.map((s) => s.slug).join(", ") + "; featured: " + data.featured + ".";
+  if (Array.isArray(data.studies)) {
+    return keys + ". Studies: " + data.studies.map((s) => s.slug).join(", ") + "; featured: " + data.featured + ".";
   }
   return keys + ".";
 }
@@ -328,24 +328,24 @@ filesIn("css/", /\.css$/).forEach((f) => addFile(f, 1));
 addDir("js/", 0);
 filesIn("js/", /\.js$/).forEach((f) => addFile(f, 1));
 
-addDir("series/", 0);
-for (const dir of dirsIn("series/")) {
+addDir("studies/", 0);
+for (const dir of dirsIn("studies/")) {
   addDir(dir, 1);
   filesIn(dir, /\.(html|css|js)$/).forEach((f) => addFile(f, 2));
 }
 
 addDir("data/", 0);
 filesIn("data/", /\.json$/).forEach((f) => addFile(f, 1));
-addDir("data/series/", 1);
-for (const dir of dirsIn("data/series/")) {
+addDir("data/studies/", 1);
+for (const dir of dirsIn("data/studies/")) {
   addDir(dir, 2);
   filesIn(dir, /\.json$/).forEach((f) => addFile(f, 3));
 }
 
 addDir("assets/", 0);
-dirsIn("assets/").filter((d) => d !== "assets/series/").forEach((d) => addDir(d, 1));
-addDir("assets/series/", 1);
-for (const dir of dirsIn("assets/series/")) {
+dirsIn("assets/").filter((d) => d !== "assets/studies/").forEach((d) => addDir(d, 1));
+addDir("assets/studies/", 1);
+for (const dir of dirsIn("assets/studies/")) {
   addDir(dir, 2);
   dirsIn(dir).forEach((sub) => addDir(sub, 3, path.posix.basename(sub) + "/"));
 }

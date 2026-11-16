@@ -38,19 +38,19 @@
 
   var state = {
     product: null,
-    // The product as its chosen design (EmjiveSeries.resolveDesign), read by the
+    // The product as its chosen design (EmjiveStudies.resolveDesign), read by the
     // model, label thumbnail, costs and selection.
     view: null,
     designKey: "",
     // The loader hold while a design's model is loading.
     swapHold: null,
     metals: [],
-    // data/series.json "production-costs" (computeCosts).
+    // data/studies.json "production-costs" (computeCosts).
     productionCosts: {},
-    // data/series.json "metal-technology" and "printing-technologies".
+    // data/studies.json "metal-technology" and "printing-technologies".
     metalTechnology: {},
     technologies: {},
-    // data/series.json "metal-composition".
+    // data/studies.json "metal-composition".
     compositions: {},
     selectedMetal: null,
     modelHandle: null,
@@ -116,11 +116,11 @@
 
   function showNotFound() {
     loadingEl.hidden = false;
-    // Back to the series being browsed (mainHref drops ?series= for the featured one).
-    var slug = state.seriesSlug || (window.EmjiveSeries && window.EmjiveSeries.slug);
+    // Back to the study being browsed (mainHref drops ?study= for the featured one).
+    var slug = state.studySlug || (window.EmjiveStudies && window.EmjiveStudies.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
-      href: (slug ? window.EmjiveSeries.mainHref(slug) : "/") + "#gallery"
+      href: (slug ? window.EmjiveStudies.mainHref(slug) : "/") + "#gallery"
     }, "status");
     pageReady();
   }
@@ -137,24 +137,24 @@
     pageReady();
   }
 
-  // A slug is unique across all series (validate-data), so it identifies the
-  // series too. The active series is tried first, then the others in index order.
+  // A slug is unique across all studies (validate-data), so it identifies the
+  // study too. The active study is tried first, then the others in index order.
   function findProduct(slug, itemSlug) {
     var matches = function (p) {
-      return !!itemSlug && window.EmjiveSeries.productSlug(p) === itemSlug;
+      return !!itemSlug && window.EmjiveStudies.productSlug(p) === itemSlug;
     };
-    return window.EmjiveSeries.loadProducts(slug).then(function (products) {
+    return window.EmjiveStudies.loadProducts(slug).then(function (products) {
       var product = products.find(matches);
       if (product) return { product: product, slug: slug };
 
-      var others = window.EmjiveSeries.all()
+      var others = window.EmjiveStudies.all()
         .map(function (s) { return s.slug; })
         .filter(function (s) { return s !== slug; });
 
       return others.reduce(function (chain, otherSlug) {
         return chain.then(function (found) {
           if (found) return found;
-          return window.EmjiveSeries.loadProducts(otherSlug).then(function (list) {
+          return window.EmjiveStudies.loadProducts(otherSlug).then(function (list) {
             var hit = list.find(matches);
             return hit ? { product: hit, slug: otherSlug } : null;
           });
@@ -167,7 +167,7 @@
   // chunk: the first paint is the inspiration stage; the model's box starts as
   // its poster until the viewer takes over (mountViewer).
   function init() {
-    window.EmjiveSeries.ready
+    window.EmjiveStudies.ready
       .then(function (ctx) {
         state.metals = ctx.index.metals || [];
         state.productionCosts = ctx.index["production-costs"] || {};
@@ -179,7 +179,7 @@
       .then(function (found) {
         if (!found) return showNotFound();
         state.product = found.product;
-        state.seriesSlug = found.slug;
+        state.studySlug = found.slug;
         render(found.product);
       })
       .catch(showLoadError);
@@ -189,14 +189,14 @@
     // The built page already has it; the dev server serves the bare template.
     document.title = "em·ji·ve: " + (product.name || "product").toLowerCase();
     // The metal picked on its grid tile, priced as a pick, else the item's own.
-    var chosen = window.EmjiveSeries.chosenMetal(product);
+    var chosen = window.EmjiveStudies.chosenMetal(product);
     state.selectedMetal = chosen || product["default-metal"] || state.metals[0] || "steel";
     state.metalPicked = !!chosen;
     var sizes = H.sizeRange(product);
     SIZE_MIN_MM = sizes.min;
     SIZE_MAX_MM = sizes.max;
     // Opens on the default design.
-    state.view = window.EmjiveSeries.resolveDesign(product).view;
+    state.view = window.EmjiveStudies.resolveDesign(product).view;
     state.designKey = state.view.designKey;
 
     // First: the feed's first photo is what the first paint waits on.
@@ -475,7 +475,7 @@
 
     function createModelViewer(loadHold) {
       return window.EmjiveModelViewer(state.view, state.selectedMetal, {
-        hdri: window.EmjiveSeries.hdriPath(state.seriesSlug),
+        hdri: window.EmjiveStudies.hdriPath(state.studySlug),
         // false: no loader (reduced motion).
         loader: loadHold || false,
         // Only a centred circle is the model's to drag (radius leaving a quarter of
@@ -560,7 +560,7 @@
       }
       // Hint the HDRI and model now so they download alongside the chunk; the
       // viewer's own requests reuse them.
-      hintFetch(window.EmjiveSeries.hdriPath(state.seriesSlug));
+      hintFetch(window.EmjiveStudies.hdriPath(state.studySlug));
       hintFetch(state.view.assets.model);
       window.EmjiveLoadViewer().then(function () {
         H.whenIdle(attachViewer, 1500, 0);
@@ -684,7 +684,7 @@
         key: design.key,
         label: design.key,
         preview: function () {
-          var view = window.EmjiveSeries.resolveDesign(product, design.key).view;
+          var view = window.EmjiveStudies.resolveDesign(product, design.key).view;
           return previewImg(H.assetFor(view, "icons", state.selectedMetal), "product-dial__icon");
         }
       };
@@ -706,7 +706,7 @@
   function onDesignSelect(product, key) {
     if (key === state.designKey) return;
     state.designKey = key;
-    state.view = window.EmjiveSeries.resolveDesign(product, key).view;
+    state.view = window.EmjiveStudies.resolveDesign(product, key).view;
     if (state.shapeDial) state.shapeDial.select(key);
     renderLabelDesign(product);
     renderLabelPrice(product);
@@ -792,7 +792,7 @@
   // design = what is left, the margin plus the rounding up, so the rows add up
   // to the price. null if an input is missing or the formula doesn't hold.
   function computeCosts(printed, mm, metal) {
-    var index = window.EmjiveSeries.index;
+    var index = window.EmjiveStudies.index;
     var manufacturing = H.productionCost(state.productionCosts[metal], H.volumeAt(printed, mm), H.areaAt(printed, mm));
     var price = H.salePrice(index, printed, metal, mm);
     if (manufacturing === null || !(price > 0)) return null;
@@ -1542,7 +1542,7 @@
     var selectBtn = document.getElementById("selectButton");
     // Whether the category is sized at all is in the global vocabulary (its
     // "unit"); sizes show as plain numbers.
-    var info = window.EmjiveSeries.categoryInfo(product.category);
+    var info = window.EmjiveStudies.categoryInfo(product.category);
 
     var selectBar = document.getElementById("productSelectBar");
     var selectLabel = selectBar.querySelector(".product-select-bar__label");
@@ -1737,8 +1737,8 @@
       var view = state.view;
       var size = window.EmjiveSelection.normalizeSize(sizeField.value);
       var item = {
-        // Ids are only unique within a series.
-        series: state.seriesSlug,
+        // Ids are only unique within a study.
+        study: state.studySlug,
         productId: product.id,
         // The chosen design's name and icon.
         name: view.designName || product.name,

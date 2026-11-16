@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Validates data/series.json and every series' products.json and manifest.json
+// Validates data/studies.json and every study's products.json and manifest.json
 // against their schemas, then what a schema can't: every referenced path
 // exists with its exact case (the Linux host is case-sensitive), image
 // variants, measured geometry, designs, slugs, the shared phone constants and
-// the featured series' name in the header.
+// the featured study's name in the header.
 // Reports every problem, exits 1 if any.
 
 const crypto = require("node:crypto");
@@ -91,7 +91,7 @@ const strMap = { type: "object", additionalProperties: str };
 
 const indexSchema = {
   type: "object",
-  required: ["featured", "metals", "production-costs", "pricing", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "sun", "hdri-blur", "reflection-detail", "series"],
+  required: ["featured", "metals", "production-costs", "pricing", "metal-technology", "metal-composition", "metal-shaders", "hand-shader", "printing-technologies", "categories", "hdris", "sun", "hdri-blur", "reflection-detail", "studies"],
   properties: {
     featured: str,
     metals: { type: "array", items: str, minItems: 1, uniqueItems: true },
@@ -215,7 +215,7 @@ const indexSchema = {
       // frame: js/three-viewer.js swatchOrbit(), the share of the sphere's radius in the frame.
       properties: { rotation: num, tilt: num, roll: num, frame: { type: "number", exclusiveMinimum: 0, maximum: 1 } }
     },
-    series: {
+    studies: {
       type: "array",
       minItems: 1,
       items: {
@@ -419,15 +419,15 @@ const productSchema = {
 
 const productsFileSchema = {
   type: "object",
-  required: ["series", "products"],
-  properties: { series: str, products: { type: "array", items: productSchema } }
+  required: ["study", "products"],
+  properties: { study: str, products: { type: "array", items: productSchema } }
 };
 
 const manifestSchema = {
   type: "object",
-  required: ["series", "title", "year", "sections", "credits"],
+  required: ["study", "title", "year", "sections", "credits"],
   properties: {
-    series: str,
+    study: str,
     title: str,
     subtitle: str,
     year: str,
@@ -576,84 +576,84 @@ function checkDesigns(label, product, metals) {
 
 /* ---- run ---- */
 
-const index = readJson("data/series.json");
-if (index && validate("data/series.json", indexSchema, index)) {
+const index = readJson("data/studies.json");
+if (index && validate("data/studies.json", indexSchema, index)) {
   const metals = new Set(index.metals);
   const hdriKeys = new Set(Object.keys(index.hdris));
-  const slugs = index.series.map((s) => s.slug);
+  const slugs = index.studies.map((s) => s.slug);
 
-  if (!slugs.includes(index.featured)) fail("data/series.json", 'featured "' + index.featured + '" is not a series slug');
-  if (new Set(slugs).size !== slugs.length) fail("data/series.json", "duplicate series slug");
+  if (!slugs.includes(index.featured)) fail("data/studies.json", 'featured "' + index.featured + '" is not a study slug');
+  if (new Set(slugs).size !== slugs.length) fail("data/studies.json", "duplicate study slug");
   // js/product.js computeCosts: one entry per metal (checkCosts checks the products against them).
   const priced = Object.keys(index["production-costs"]).filter((k) => k !== "last-verified" && k !== "source");
   for (const metal of metals) {
-    if (!priced.includes(metal)) fail("data/series.json", 'production-costs has no "' + metal + '"');
+    if (!priced.includes(metal)) fail("data/studies.json", 'production-costs has no "' + metal + '"');
   }
   for (const metal of priced) {
-    if (!metals.has(metal)) fail("data/series.json", 'production-costs has unknown metal "' + metal + '"');
+    if (!metals.has(metal)) fail("data/studies.json", 'production-costs has unknown metal "' + metal + '"');
   }
   for (const [cat, info] of Object.entries(index.categories)) {
     const guide = info["size-guide"];
     if (!guide) continue;
     for (const row of guide.rows) {
-      if (row.length !== guide.head.length) fail("data/series.json", 'categories "' + cat + '" size-guide: a row has ' + row.length + " cells, the head has " + guide.head.length);
+      if (row.length !== guide.head.length) fail("data/studies.json", 'categories "' + cat + '" size-guide: a row has ' + row.length + " cells, the head has " + guide.head.length);
     }
   }
 
   const technologies = index["printing-technologies"];
   for (const metal of metals) {
     const id = index["metal-technology"][metal];
-    if (!id) fail("data/series.json", 'metal-technology has no "' + metal + '"');
-    else if (!technologies[id]) fail("data/series.json", 'metal-technology "' + metal + '" names "' + id + '", which is not in printing-technologies');
+    if (!id) fail("data/studies.json", 'metal-technology has no "' + metal + '"');
+    else if (!technologies[id]) fail("data/studies.json", 'metal-technology "' + metal + '" names "' + id + '", which is not in printing-technologies');
   }
   for (const metal of Object.keys(index["metal-technology"])) {
-    if (!metals.has(metal)) fail("data/series.json", 'metal-technology has unknown metal "' + metal + '"');
+    if (!metals.has(metal)) fail("data/studies.json", 'metal-technology has unknown metal "' + metal + '"');
   }
 
   for (const metal of metals) {
-    if (!index["metal-composition"][metal]) fail("data/series.json", 'metal-composition has no "' + metal + '"');
+    if (!index["metal-composition"][metal]) fail("data/studies.json", 'metal-composition has no "' + metal + '"');
   }
   for (const metal of Object.keys(index["metal-composition"])) {
-    if (!metals.has(metal)) fail("data/series.json", 'metal-composition has unknown metal "' + metal + '"');
+    if (!metals.has(metal)) fail("data/studies.json", 'metal-composition has unknown metal "' + metal + '"');
   }
   for (const metal of metals) {
-    if (!index["metal-shaders"][metal]) fail("data/series.json", 'metal-shaders has no "' + metal + '"');
+    if (!index["metal-shaders"][metal]) fail("data/studies.json", 'metal-shaders has no "' + metal + '"');
   }
   for (const metal of Object.keys(index["metal-shaders"])) {
-    if (!metals.has(metal)) fail("data/series.json", 'metal-shaders has unknown metal "' + metal + '"');
+    if (!metals.has(metal)) fail("data/studies.json", 'metal-shaders has unknown metal "' + metal + '"');
   }
-  if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/series.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
-  for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/series.json hdris." + key, rel);
+  if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/studies.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
+  for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/studies.json hdris." + key, rel);
 
-  // Item slugs are flat at the root (emjive.eu/<slug>): unique across all series
+  // Item slugs are flat at the root (emjive.eu/<slug>): unique across all studies
   // and not shadowing a page or top-level entry.
   const reserved = reservedNames(ROOT);
   const itemSlugs = new Map();
 
-  for (const series of index.series) {
-    const where = "series " + series.slug;
-    if (!hdriKeys.has(series.hdri)) fail(where, 'hdri "' + series.hdri + '" is not a key of hdris');
-    for (const cat of series.categories) {
+  for (const study of index.studies) {
+    const where = "study " + study.slug;
+    if (!hdriKeys.has(study.hdri)) fail(where, 'hdri "' + study.hdri + '" is not a key of hdris');
+    for (const cat of study.categories) {
       if (!index.categories[cat]) fail(where, 'category "' + cat + '" is not in the global categories');
     }
 
-    checkPath(where + " products", series.products);
-    checkPath(where + " manifest", series.manifest);
-    if (series.hero) {
-      for (const key of ["fragment", "css", "js"]) checkPath(where + " hero." + key, series.hero[key]);
+    checkPath(where + " products", study.products);
+    checkPath(where + " manifest", study.manifest);
+    if (study.hero) {
+      for (const key of ["fragment", "css", "js"]) checkPath(where + " hero." + key, study.hero[key]);
       // Originals; low-res variants are derived for the first, phone ones for the rest.
-      (series.hero.preload || []).forEach((rel, i) => {
+      (study.hero.preload || []).forEach((rel, i) => {
         checkPath(where + " hero.preload", rel);
         checkVariants(where + " hero.preload", rel, i === 0 ? ["lo", "m", "m_lo"] : ["m"]);
       });
       // Fragment images carry data-full (the original) and data-lo when there is a low-res pair.
-      if (series.hero.fragment && existsExactCase(series.hero.fragment)) {
-        const html = fs.readFileSync(path.join(ROOT, series.hero.fragment), "utf8");
+      if (study.hero.fragment && existsExactCase(study.hero.fragment)) {
+        const html = fs.readFileSync(path.join(ROOT, study.hero.fragment), "utf8");
         for (const match of html.matchAll(/<img\b[^>]*>/g)) {
           const tag = match[0];
           const src = (tag.match(/\bsrc="([^"]+)"/) || [])[1];
           const full = (tag.match(/\bdata-full="([^"]+)"/) || [])[1];
-          const at = where + " " + series.hero.fragment;
+          const at = where + " " + study.hero.fragment;
           if (src) checkPath(at, src);
           if (full) {
             checkPath(at + " data-full", full);
@@ -661,24 +661,24 @@ if (index && validate("data/series.json", indexSchema, index)) {
           }
         }
       }
-      checkPhoneConstants(series.hero.css, { "hero-crop": PHONE_CROP.hero });
+      checkPhoneConstants(study.hero.css, { "hero-crop": PHONE_CROP.hero });
     }
 
-    const productsFile = readJson(series.products);
-    if (productsFile && validate(series.products, productsFileSchema, productsFile)) {
-      if (productsFile.series !== series.slug) fail(series.products, 'series field "' + productsFile.series + '" does not match slug "' + series.slug + '"');
+    const productsFile = readJson(study.products);
+    if (productsFile && validate(study.products, productsFileSchema, productsFile)) {
+      if (productsFile.study !== study.slug) fail(study.products, 'study field "' + productsFile.study + '" does not match slug "' + study.slug + '"');
       const ids = new Set();
       for (const product of productsFile.products) {
-        const label = series.products + " product " + product.id + " (" + product.name + ")";
-        if (ids.has(product.id)) fail(label, "duplicate id within the series");
+        const label = study.products + " product " + product.id + " (" + product.name + ")";
+        if (ids.has(product.id)) fail(label, "duplicate id within the study");
         ids.add(product.id);
 
         const itemSlug = slugify(product.name);
         if (!itemSlug) fail(label, "name has no letters or digits to build an address from");
         else if (reserved.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is taken by a page or a top-level file/folder');
         else if (itemSlugs.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is already used by ' + itemSlugs.get(itemSlug));
-        else itemSlugs.set(itemSlug, series.slug + " / " + product.id);
-        if (!series.categories.includes(product.category)) fail(label, 'category "' + product.category + '" is not declared by its series');
+        else itemSlugs.set(itemSlug, study.slug + " / " + product.id);
+        if (!study.categories.includes(product.category)) fail(label, 'category "' + product.category + '" is not declared by its study');
         if (!metals.has(product["default-metal"])) fail(label, 'default-metal "' + product["default-metal"] + '" is not in metals');
 
         if (product["size-range"].min > product["size-range"].max) fail(label, "size-range min is above its max");
@@ -711,26 +711,26 @@ if (index && validate("data/series.json", indexSchema, index)) {
       }
     }
 
-    const manifest = readJson(series.manifest);
-    if (manifest && validate(series.manifest, manifestSchema, manifest)) {
-      if (manifest.series !== series.slug) fail(series.manifest, 'series field "' + manifest.series + '" does not match slug "' + series.slug + '"');
+    const manifest = readJson(study.manifest);
+    if (manifest && validate(study.manifest, manifestSchema, manifest)) {
+      if (manifest.study !== study.slug) fail(study.manifest, 'study field "' + manifest.study + '" does not match slug "' + study.slug + '"');
     }
   }
 }
 
-// productSlug() in js/series.js must agree with scripts/slugs.js.
-if (index && existsExactCase("js/series.js")) {
-  const src = fs.readFileSync(path.join(ROOT, "js/series.js"), "utf8").replace(/\r\n/g, "\n");
+// productSlug() in js/studies.js must agree with scripts/slugs.js.
+if (index && existsExactCase("js/studies.js")) {
+  const src = fs.readFileSync(path.join(ROOT, "js/studies.js"), "utf8").replace(/\r\n/g, "\n");
   const body = /\n {2}function productSlug\(product\) \{[\s\S]*?\n {2}\}/.exec(src);
   if (!body) {
-    fail("js/series.js", "no productSlug(product) function found (validate-data reads it to compare with scripts/slugs.js)");
+    fail("js/studies.js", "no productSlug(product) function found (validate-data reads it to compare with scripts/slugs.js)");
   } else {
     const clientSlug = new Function("return (" + body[0] + ")")();
-    for (const series of index.series) {
-      const file = readJson(series.products);
+    for (const study of index.studies) {
+      const file = readJson(study.products);
       for (const product of (file && file.products) || []) {
         if (clientSlug(product) !== slugify(product.name)) {
-          fail("js/series.js", 'productSlug() gives "' + clientSlug(product) + '" for "' + product.name + '" but scripts/slugs.js gives "' + slugify(product.name) + '"');
+          fail("js/studies.js", 'productSlug() gives "' + clientSlug(product) + '" for "' + product.name + '" but scripts/slugs.js gives "' + slugify(product.name) + '"');
         }
       }
     }
@@ -752,14 +752,14 @@ if (existsExactCase("js/loader.js") && !fs.readFileSync(path.join(ROOT, "js/load
   fail("js/loader.js", "does not contain the phone query " + PHONE_QUERY);
 }
 
-// The header menu names the featured series in every page's markup.
+// The header menu names the featured study in every page's markup.
 if (index) {
-  const featured = index.series.find((series) => series.slug === index.featured);
-  const expected = featured ? featured.name + " series" : null;
+  const featured = index.studies.find((study) => study.slug === index.featured);
+  const expected = featured ? featured.name + " study" : null;
   for (const page of fs.readdirSync(ROOT).filter((name) => name.endsWith(".html"))) {
     const html = fs.readFileSync(path.join(ROOT, page), "utf8");
-    for (const match of html.matchAll(/<a\b[^>]*\bdata-featured-series\b[^>]*>([^<]*)<\/a>/g)) {
-      if (match[1] !== expected) fail(page, 'the header\'s featured series link reads "' + match[1] + '", not "' + expected + '"');
+    for (const match of html.matchAll(/<a\b[^>]*\bdata-featured-study\b[^>]*>([^<]*)<\/a>/g)) {
+      if (match[1] !== expected) fail(page, 'the header\'s featured study link reads "' + match[1] + '", not "' + expected + '"');
     }
   }
 }

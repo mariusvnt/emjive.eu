@@ -175,7 +175,7 @@
       itemEl.setAttribute("aria-hidden", "true");
       var img = el("img", "stack-item__img");
       img.alt = "";
-      img.src = pictureFor(product, window.EmjiveSeries.metalFor(product));
+      img.src = pictureFor(product, window.EmjiveStudies.metalFor(product));
       img.width = 512;
       img.height = 512;
       img.decoding = "async";
@@ -199,7 +199,7 @@
       namesEl.appendChild(nameEl);
       lightEl.appendChild(itemEl);
 
-      var href = window.EmjiveSeries.productHref(product, slug);
+      var href = window.EmjiveStudies.productHref(product, slug);
       var li = el("li");
       var link = el("a", null, (product.name || "") + (product.category ? ", " + product.category : ""));
       link.href = href;
@@ -268,7 +268,7 @@
     }
 
     function hero() {
-      return window.EmjiveSeriesHero || null;
+      return window.EmjiveStudyHero || null;
     }
 
     function heroRings() {
@@ -377,7 +377,7 @@
     function orbitLayout() {
       var list = state.items;
       var n = list.length;
-      // An empty series: nothing to lay out.
+      // An empty study: nothing to lay out.
       if (!n) return;
       var d = domain();
       var c1 = { x: (d.left + d.right) / 2, y: (d.top + d.bottom) / 2 };
@@ -1098,7 +1098,7 @@
       });
       // Metals picked while the scene was building: the pictures show them already.
       state.items.forEach(function (item) {
-        scene.setMetal(item.id, window.EmjiveSeries.metalFor(item.product));
+        scene.setMetal(item.id, window.EmjiveStudies.metalFor(item.product));
       });
       scene.handOver(poses);
       state.scene = scene;
@@ -1127,9 +1127,9 @@
         var scene = create({
           host: stage,
           items: state.items.map(function (item) {
-            return { id: item.id, product: item.product, metal: window.EmjiveSeries.metalFor(item.product), size: state.L ? state.L.s : SIZE_MIN, ring: !!item.ringImg };
+            return { id: item.id, product: item.product, metal: window.EmjiveStudies.metalFor(item.product), size: state.L ? state.L.s : SIZE_MIN, ring: !!item.ringImg };
           }),
-          hdri: window.EmjiveSeries.hdriPath(slug),
+          hdri: window.EmjiveStudies.hdriPath(slug),
           // Context reclaimed (iOS under memory pressure): back to the pictures.
           onLost: function () { setTimeout(stopScene, 0); }
         });

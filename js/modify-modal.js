@@ -30,7 +30,7 @@
 (function () {
   "use strict";
 
-  if (!window.EmjiveSelection || !window.EmjiveSeries || !window.EmjiveOptionDial) return;
+  if (!window.EmjiveSelection || !window.EmjiveStudies || !window.EmjiveOptionDial) return;
 
   // The sheet's 0.3s slide-out plus a margin: dispose the viewer only once out
   // of sight, or the model blanks mid-slide.
@@ -140,7 +140,7 @@
     item: null,
     index: null,
     // The catalog product, and the product as the chosen design (state.product,
-    // EmjiveSeries.resolveDesign), which the model, icons and name follow.
+    // EmjiveStudies.resolveDesign), which the model, icons and name follow.
     base: null,
     product: null,
     designKey: "",
@@ -225,7 +225,7 @@
           img.alt = "";
           img.decoding = "async";
           img.draggable = false;
-          var src = H.assetFor(window.EmjiveSeries.resolveDesign(state.base, design.key).view, "icons", state.selectedMetal);
+          var src = H.assetFor(window.EmjiveStudies.resolveDesign(state.base, design.key).view, "icons", state.selectedMetal);
           if (src) img.src = src;
           return img;
         }
@@ -252,7 +252,7 @@
       : null;
     window.EmjiveOptionDial.mount(dialHost(), {
       name: "Material",
-      options: (window.EmjiveSeries.metals || []).map(function (metal) {
+      options: (window.EmjiveStudies.metals || []).map(function (metal) {
         return {
           key: metal,
           label: metal,
@@ -269,7 +269,7 @@
       onShow: showDialName
     });
     state.sizeDial = null;
-    var info = window.EmjiveSeries.categoryInfo(state.base.category);
+    var info = window.EmjiveStudies.categoryInfo(state.base.category);
     if (!info.unit) return;
     // "Find my size" with the category's size guide; none without one. Its
     // result goes in as if dialled.
@@ -354,7 +354,7 @@
   function selectDesign(key) {
     if (key === state.designKey) return;
     state.designKey = key;
-    state.product = window.EmjiveSeries.resolveDesign(state.base, key).view;
+    state.product = window.EmjiveStudies.resolveDesign(state.base, key).view;
     pageLabel.textContent = itemName();
     previewDraft();
     syncStandIns();
@@ -416,7 +416,7 @@
 
   // Already on that product's page: close and scroll to the top instead.
   function goToPage() {
-    var href = window.EmjiveSeries.productHref(state.base);
+    var href = window.EmjiveStudies.productHref(state.base);
     if (window.location.pathname.replace(/\/+$/, "") === href) {
       close();
       window.scrollTo({ top: 0, left: 0 });
@@ -465,7 +465,7 @@
     var slide = state.modelSlide;
     if (!state.isOpen || !slide || state.modelHandle) return;
     var handle = window.EmjiveModelViewer(state.product, state.selectedMetal, {
-      hdri: window.EmjiveSeries.hdriPath(state.slug),
+      hdri: window.EmjiveStudies.hdriPath(state.slug),
       // The viewer's box has no visible edge.
       loaderBleed: true,
       sizing: { restScale: readModelRest() },
@@ -566,7 +566,7 @@
     state.index = index;
     state.base = product;
     // Shown in the item's chosen design.
-    state.product = window.EmjiveSeries.resolveDesign(product, item.design).view;
+    state.product = window.EmjiveStudies.resolveDesign(product, item.design).view;
     state.designKey = state.product.designKey;
     state.slug = slug;
     state.selectedMetal = item.metal;
@@ -627,16 +627,16 @@
     if (options.onClose) options.onClose();
   }
 
-  // Ids are only unique within a series; items without one use the active
-  // series. A missing product shows a notice instead of opening.
+  // Ids are only unique within a study; items without one use the active
+  // study. A missing product shows a notice instead of opening.
   function open(item, index, options) {
     // Already open: reopening would discard unsaved picks.
     if (state.isOpen) return;
     var token = ++state.openToken;
-    window.EmjiveSeries.ready
+    window.EmjiveStudies.ready
       .then(function () {
-        var slug = item.series || window.EmjiveSeries.slug;
-        return window.EmjiveSeries.loadProducts(slug).then(function (products) {
+        var slug = item.study || window.EmjiveStudies.slug;
+        return window.EmjiveStudies.loadProducts(slug).then(function (products) {
           if (token !== state.openToken) return;
           var product = products.find(function (p) { return p.id === item.productId; });
           if (!product) {
@@ -657,13 +657,13 @@
   // Prefetch the products behind the selection after load, so the first Modify
   // on pages without product data doesn't wait. Failures are left to open().
   function prefetchProducts() {
-    window.EmjiveSeries.ready.then(function () {
+    window.EmjiveStudies.ready.then(function () {
       var seen = {};
       window.EmjiveSelection.getSelection().forEach(function (item) {
-        var slug = item.series || window.EmjiveSeries.slug;
+        var slug = item.study || window.EmjiveStudies.slug;
         if (!slug || seen[slug]) return;
         seen[slug] = true;
-        window.EmjiveSeries.loadProducts(slug).catch(function () {});
+        window.EmjiveStudies.loadProducts(slug).catch(function () {});
       });
     }).catch(function () {});
   }

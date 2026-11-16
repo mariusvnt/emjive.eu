@@ -1,6 +1,6 @@
 <!--
   Dev-only page (not built), served by scripts/json-tool-server.js
-  (npm run json-tool): edit data/series.json's globals, series and products,
+  (npm run json-tool): edit data/studies.json's globals, studies and products,
   with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray,
   photos). No 3D preview or swatch fields: that is scene-tool.html's job. The
   auto-render-owned images (icons, fallback-img, wheel-poster, hand-poster,
@@ -22,8 +22,8 @@
   h1 { font-size: 16px; margin: 0 0 16px; }
   h2 { font-size: 13px; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
   .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom: 8px; }
-  .tab-btn, .mode-btn, .series-mode-btn { font: inherit; padding: 5px 12px; border: 1px solid rgba(128,128,128,0.5); border-radius: 999px; background: transparent; cursor: pointer; }
-  .tab-btn.is-active, .mode-btn.is-active, .series-mode-btn.is-active { background: rgba(128,128,128,0.35); font-weight: 600; }
+  .tab-btn, .mode-btn, .study-mode-btn { font: inherit; padding: 5px 12px; border: 1px solid rgba(128,128,128,0.5); border-radius: 999px; background: transparent; cursor: pointer; }
+  .tab-btn.is-active, .mode-btn.is-active, .study-mode-btn.is-active { background: rgba(128,128,128,0.35); font-weight: 600; }
   .panel { display: none; }
   .panel.is-active { display: block; }
   .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin: 8px 0; }
@@ -71,14 +71,14 @@
 
 <nav class="tabs">
   <button type="button" class="tab-btn is-active" data-panel="global">Global</button>
-  <button type="button" class="tab-btn" data-panel="series">Series</button>
+  <button type="button" class="tab-btn" data-panel="studies">Studies</button>
   <button type="button" class="tab-btn" data-panel="products">Products</button>
 </nav>
 
 <div id="driftBanner" hidden></div>
 
 <section id="panel-global" class="panel is-active">
-  <h2>Featured series</h2>
+  <h2>Featured study</h2>
   <div class="row">
     <select id="featuredSelect"></select>
     <button type="button" id="featuredSaveBtn">Save</button>
@@ -116,38 +116,38 @@
   </div>
 </section>
 
-<section id="panel-series" class="panel">
+<section id="panel-studies" class="panel">
   <div class="row">
-    <button type="button" class="series-mode-btn is-active" data-mode="edit">Edit existing</button>
-    <button type="button" class="series-mode-btn" data-mode="add">Add new</button>
+    <button type="button" class="study-mode-btn is-active" data-mode="edit">Edit existing</button>
+    <button type="button" class="study-mode-btn" data-mode="add">Add new</button>
   </div>
 
-  <div class="stack" id="seriesEditPane">
+  <div class="stack" id="studyEditPane">
     <div class="row">
-      <select id="seriesEditSelect"></select>
+      <select id="studyEditSelect"></select>
     </div>
-    <label>Name <input type="text" id="seriesNameInput"></label>
-    <label>Year <input type="text" id="seriesYearInput"></label>
-    <label>HDRI <select id="seriesHdriSelect"></select></label>
-    <div>Categories<div id="seriesCategoriesChecks" class="chips"></div></div>
+    <label>Name <input type="text" id="studyNameInput"></label>
+    <label>Year <input type="text" id="studyYearInput"></label>
+    <label>HDRI <select id="studyHdriSelect"></select></label>
+    <div>Categories<div id="studyCategoriesChecks" class="chips"></div></div>
     <div class="row">
-      <button type="button" id="seriesEditSaveBtn">Save</button>
-      <button type="button" id="seriesRemoveBtn" class="btn-danger">Remove series</button>
-      <span class="status" id="seriesEditStatus"></span>
+      <button type="button" id="studyEditSaveBtn">Save</button>
+      <button type="button" id="studyRemoveBtn" class="btn-danger">Remove study</button>
+      <span class="status" id="studyEditStatus"></span>
     </div>
   </div>
 
-  <div class="stack" id="seriesAddPane" hidden>
-    <label>Slug <input type="text" id="newSeriesSlugInput" placeholder="e.g. flora"></label>
-    <label>Name <input type="text" id="newSeriesNameInput"></label>
-    <label>Year <input type="text" id="newSeriesYearInput"></label>
-    <label>HDRI <select id="newSeriesHdriSelect"></select></label>
-    <div>Categories<div id="newSeriesCategoriesChecks" class="chips"></div></div>
+  <div class="stack" id="studyAddPane" hidden>
+    <label>Slug <input type="text" id="newStudySlugInput" placeholder="e.g. flora"></label>
+    <label>Name <input type="text" id="newStudyNameInput"></label>
+    <label>Year <input type="text" id="newStudyYearInput"></label>
+    <label>HDRI <select id="newStudyHdriSelect"></select></label>
+    <div>Categories<div id="newStudyCategoriesChecks" class="chips"></div></div>
     <div class="row">
-      <button type="button" id="seriesAddCreateBtn">Create</button>
-      <span class="status" id="seriesAddStatus"></span>
+      <button type="button" id="studyAddCreateBtn">Create</button>
+      <span class="status" id="studyAddStatus"></span>
     </div>
-    <ul class="reminders" id="seriesAddReminders"></ul>
+    <ul class="reminders" id="studyAddReminders"></ul>
   </div>
 </section>
 
@@ -158,7 +158,7 @@
   </div>
 
   <div class="row">
-    <label>Series <select id="productSeriesSelect"></select></label>
+    <label>Study <select id="productStudySelect"></select></label>
     <label id="productSelectLabel">Product <select id="productSelect"></select></label>
   </div>
 
@@ -223,13 +223,13 @@
 const { requestJson } = window.EmjiveHelpers;
 
 const state = {
-  seriesIndex: null,
-  seriesData: {},
+  studiesIndex: null,
+  studyData: {},
   driftWarnings: [],
   hdriDropped: null,
   products: {
     mode: "edit",
-    seriesSlug: null,
+    studySlug: null,
     productId: null,
     dropped: { model: null, xray: null, photos: [] }
   }
@@ -241,10 +241,10 @@ const els = {};
   "categoriesList", "categoryKeyInput", "categorySizesInput", "categoryUnitInput", "categoryAddBtn", "categoryStatus",
   "metalsChips", "metalInput", "metalAddBtn", "metalStatus",
   "hdrisList", "hdriDropzone", "hdriFileInput", "hdriReplaceInput", "hdriInfo", "hdriKeyInput", "hdriAddBtn", "hdriStatus",
-  "seriesEditPane", "seriesAddPane",
-  "seriesEditSelect", "seriesNameInput", "seriesYearInput", "seriesHdriSelect", "seriesCategoriesChecks", "seriesEditSaveBtn", "seriesRemoveBtn", "seriesEditStatus",
-  "newSeriesSlugInput", "newSeriesNameInput", "newSeriesYearInput", "newSeriesHdriSelect", "newSeriesCategoriesChecks", "seriesAddCreateBtn", "seriesAddStatus", "seriesAddReminders",
-  "productSeriesSelect", "productSelectLabel", "productSelect",
+  "studyEditPane", "studyAddPane",
+  "studyEditSelect", "studyNameInput", "studyYearInput", "studyHdriSelect", "studyCategoriesChecks", "studyEditSaveBtn", "studyRemoveBtn", "studyEditStatus",
+  "newStudySlugInput", "newStudyNameInput", "newStudyYearInput", "newStudyHdriSelect", "newStudyCategoriesChecks", "studyAddCreateBtn", "studyAddStatus", "studyAddReminders",
+  "productStudySelect", "productSelectLabel", "productSelect",
   "productNameInput", "productCategorySelect", "productDescriptionInput", "productDefaultMetalSelect",
   "heroVisibleInput", "heroXInput", "heroYInput", "heroScaleInput", "heroRotationInput",
   "camRotationInput", "camTiltInput", "camZoomInput", "camRollInput",
@@ -263,11 +263,11 @@ init().catch((err) => {
 
 async function init() {
   wireTabs();
-  wireSeriesModeTabs();
+  wireStudyModeTabs();
   wireProductModeTabs();
   await loadData();
   wireGlobalPanel();
-  wireSeriesPanel();
+  wireStudiesPanel();
   wireProductsPanel();
   renderAll();
 }
@@ -276,8 +276,8 @@ async function init() {
 
 async function loadData() {
   const data = await requestJson("/api/data");
-  state.seriesIndex = data.seriesIndex;
-  state.seriesData = data.seriesData;
+  state.studiesIndex = data.studiesIndex;
+  state.studyData = data.studyData;
   state.driftWarnings = data.driftWarnings || [];
 }
 
@@ -340,7 +340,7 @@ function slugify(name) {
 function renderAll() {
   renderDriftBanner();
   renderGlobalPanel();
-  renderSeriesPanel();
+  renderStudiesPanel();
   renderProductsPanel();
 }
 
@@ -371,7 +371,7 @@ function wireGlobalPanel() {
   els.hdriReplaceInput.addEventListener("change", async () => {
     const file = els.hdriReplaceInput.files[0];
     els.hdriReplaceInput.value = "";
-    const destPath = hdriReplaceTargetKey && (state.seriesIndex.hdris || {})[hdriReplaceTargetKey];
+    const destPath = hdriReplaceTargetKey && (state.studiesIndex.hdris || {})[hdriReplaceTargetKey];
     if (!file || !destPath) return;
     try {
       const contentBase64 = await fileToBase64(file);
@@ -444,9 +444,9 @@ function wireGlobalPanel() {
 }
 
 function renderGlobalPanel() {
-  const si = state.seriesIndex;
+  const si = state.studiesIndex;
 
-  els.featuredSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.featuredSelect.innerHTML = (si.studies || []).map((s) => optionHtml(s.slug, s.name)).join("");
   els.featuredSelect.value = si.featured;
 
   els.categoriesList.innerHTML = "";
@@ -519,88 +519,88 @@ function renderGlobalPanel() {
   });
 }
 
-// ---- Series panel ----
+// ---- Studies panel ----
 
-function wireSeriesModeTabs() {
-  document.querySelectorAll(".series-mode-btn").forEach((btn) => {
+function wireStudyModeTabs() {
+  document.querySelectorAll(".study-mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".series-mode-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
-      els.seriesEditPane.hidden = btn.dataset.mode !== "edit";
-      els.seriesAddPane.hidden = btn.dataset.mode !== "add";
+      document.querySelectorAll(".study-mode-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+      els.studyEditPane.hidden = btn.dataset.mode !== "edit";
+      els.studyAddPane.hidden = btn.dataset.mode !== "add";
     });
   });
 }
 
-function wireSeriesPanel() {
-  els.seriesEditSelect.addEventListener("change", fillSeriesEditForm);
+function wireStudiesPanel() {
+  els.studyEditSelect.addEventListener("change", fillStudyEditForm);
 
-  els.seriesEditSaveBtn.addEventListener("click", async () => {
-    const seriesSlug = els.seriesEditSelect.value;
-    const categories = Array.from(els.seriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
+  els.studyEditSaveBtn.addEventListener("click", async () => {
+    const studySlug = els.studyEditSelect.value;
+    const categories = Array.from(els.studyCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
     try {
-      await requestJson("/api/series/edit", {
-        seriesSlug,
-        fields: { name: els.seriesNameInput.value, year: els.seriesYearInput.value, hdri: els.seriesHdriSelect.value, categories }
+      await requestJson("/api/study/edit", {
+        studySlug,
+        fields: { name: els.studyNameInput.value, year: els.studyYearInput.value, hdri: els.studyHdriSelect.value, categories }
       });
-      setStatus(els.seriesEditStatus, true, "Saved.");
+      setStatus(els.studyEditStatus, true, "Saved.");
       await refreshAfterSave();
-    } catch (err) { setStatus(els.seriesEditStatus, false, err.message); }
+    } catch (err) { setStatus(els.studyEditStatus, false, err.message); }
   });
 
-  els.seriesRemoveBtn.addEventListener("click", async () => {
-    const slugValue = els.seriesEditSelect.value;
-    const entry = (state.seriesIndex.series || []).find((s) => s.slug === slugValue);
+  els.studyRemoveBtn.addEventListener("click", async () => {
+    const slugValue = els.studyEditSelect.value;
+    const entry = (state.studiesIndex.studies || []).find((s) => s.slug === slugValue);
     const label = entry ? entry.name : slugValue;
-    if (!confirm('Remove series "' + label + '"? This deletes ALL of its data, products, and assets. This cannot be undone.')) return;
+    if (!confirm('Remove study "' + label + '"? This deletes ALL of its data, products, and assets. This cannot be undone.')) return;
     try {
-      await requestJson("/api/series/remove", { slug: slugValue });
-      setStatus(els.seriesEditStatus, true, "Removed.");
+      await requestJson("/api/study/remove", { slug: slugValue });
+      setStatus(els.studyEditStatus, true, "Removed.");
       await refreshAfterSave();
-    } catch (err) { setStatus(els.seriesEditStatus, false, err.message); }
+    } catch (err) { setStatus(els.studyEditStatus, false, err.message); }
   });
 
-  els.seriesAddCreateBtn.addEventListener("click", async () => {
-    const categories = Array.from(els.newSeriesCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
+  els.studyAddCreateBtn.addEventListener("click", async () => {
+    const categories = Array.from(els.newStudyCategoriesChecks.querySelectorAll("input:checked")).map((i) => i.value);
     try {
-      const result = await requestJson("/api/series/add", {
-        slug: els.newSeriesSlugInput.value.trim(),
-        name: els.newSeriesNameInput.value.trim(),
-        year: els.newSeriesYearInput.value.trim(),
-        hdri: els.newSeriesHdriSelect.value,
+      const result = await requestJson("/api/study/add", {
+        slug: els.newStudySlugInput.value.trim(),
+        name: els.newStudyNameInput.value.trim(),
+        year: els.newStudyYearInput.value.trim(),
+        hdri: els.newStudyHdriSelect.value,
         categories
       });
-      setStatus(els.seriesAddStatus, true, "Created.");
-      els.seriesAddReminders.innerHTML = (result.reminders || []).map((r) => "<li>" + escapeHtml(r) + "</li>").join("");
-      els.newSeriesSlugInput.value = "";
-      els.newSeriesNameInput.value = "";
-      els.newSeriesYearInput.value = "";
+      setStatus(els.studyAddStatus, true, "Created.");
+      els.studyAddReminders.innerHTML = (result.reminders || []).map((r) => "<li>" + escapeHtml(r) + "</li>").join("");
+      els.newStudySlugInput.value = "";
+      els.newStudyNameInput.value = "";
+      els.newStudyYearInput.value = "";
       await refreshAfterSave();
-    } catch (err) { setStatus(els.seriesAddStatus, false, err.message); }
+    } catch (err) { setStatus(els.studyAddStatus, false, err.message); }
   });
 }
 
-function renderSeriesPanel() {
-  const si = state.seriesIndex;
-  els.seriesEditSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
-  els.seriesHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
-  els.newSeriesHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
+function renderStudiesPanel() {
+  const si = state.studiesIndex;
+  els.studyEditSelect.innerHTML = (si.studies || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.studyHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
+  els.newStudyHdriSelect.innerHTML = Object.keys(si.hdris || {}).map((k) => optionHtml(k, k)).join("");
 
   const categoryKeys = Object.keys(si.categories || {});
-  els.newSeriesCategoriesChecks.innerHTML = categoryKeys.map((k) => checkboxHtml(k, false)).join("");
+  els.newStudyCategoriesChecks.innerHTML = categoryKeys.map((k) => checkboxHtml(k, false)).join("");
 
-  fillSeriesEditForm();
+  fillStudyEditForm();
 }
 
-function fillSeriesEditForm() {
-  const si = state.seriesIndex;
-  const slug = els.seriesEditSelect.value;
-  const entry = (si.series || []).find((s) => s.slug === slug);
+function fillStudyEditForm() {
+  const si = state.studiesIndex;
+  const slug = els.studyEditSelect.value;
+  const entry = (si.studies || []).find((s) => s.slug === slug);
   if (!entry) return;
-  els.seriesNameInput.value = entry.name;
-  els.seriesYearInput.value = entry.year;
-  els.seriesHdriSelect.value = entry.hdri;
+  els.studyNameInput.value = entry.name;
+  els.studyYearInput.value = entry.year;
+  els.studyHdriSelect.value = entry.hdri;
   const categoryKeys = Object.keys(si.categories || {});
-  els.seriesCategoriesChecks.innerHTML = categoryKeys
+  els.studyCategoriesChecks.innerHTML = categoryKeys
     .map((k) => checkboxHtml(k, (entry.categories || []).includes(k)))
     .join("");
 }
@@ -619,8 +619,8 @@ function wireProductModeTabs() {
 }
 
 function wireProductsPanel() {
-  els.productSeriesSelect.addEventListener("change", () => {
-    state.products.seriesSlug = els.productSeriesSelect.value;
+  els.productStudySelect.addEventListener("change", () => {
+    state.products.studySlug = els.productStudySelect.value;
     state.products.productId = null;
     renderProductsPanel();
   });
@@ -653,7 +653,7 @@ function wireProductsPanel() {
     try {
       const contentBase64 = await fileToBase64(file);
       await requestJson("/api/product/replace-photo", {
-        seriesSlug: state.products.seriesSlug,
+        studySlug: state.products.studySlug,
         productId: state.products.productId,
         oldPhotoPath: photoReplaceTargetPath,
         filename: file.name,
@@ -682,7 +682,7 @@ async function replaceAssetImmediate(assetKey, inputEl) {
   try {
     const contentBase64 = await fileToBase64(file);
     await requestJson("/api/product/replace-asset", {
-      seriesSlug: state.products.seriesSlug,
+      studySlug: state.products.studySlug,
       productId: state.products.productId,
       assetKey,
       filename: file.name,
@@ -697,7 +697,7 @@ async function removeAsset(assetKey, label) {
   if (!confirm("Remove the " + label + "? This cannot be undone.")) return;
   try {
     await requestJson("/api/product/remove-asset", {
-      seriesSlug: state.products.seriesSlug,
+      studySlug: state.products.studySlug,
       productId: state.products.productId,
       assetKey
     });
@@ -710,7 +710,7 @@ async function removePhoto(photoPath) {
   if (!confirm("Remove this photo? This cannot be undone.")) return;
   try {
     await requestJson("/api/product/remove-photo", {
-      seriesSlug: state.products.seriesSlug,
+      studySlug: state.products.studySlug,
       productId: state.products.productId,
       photoPath
     });
@@ -722,7 +722,7 @@ async function removePhoto(photoPath) {
 async function updatePhotoDescription(photoPath, description) {
   try {
     await requestJson("/api/product/update-photo-description", {
-      seriesSlug: state.products.seriesSlug,
+      studySlug: state.products.studySlug,
       productId: state.products.productId,
       photoPath,
       description
@@ -738,7 +738,7 @@ async function removeProduct() {
   if (!confirm('Remove product "' + product.name + '"? This deletes its asset folder too. This cannot be undone.')) return;
   try {
     await requestJson("/api/product/remove", {
-      seriesSlug: state.products.seriesSlug,
+      studySlug: state.products.studySlug,
       productId: state.products.productId
     });
     setStatus(els.productStatus, true, "Removed.");
@@ -770,12 +770,12 @@ function renderXraySection(product) {
   els.xrayCurrentRow.querySelector('[data-act="remove"]').addEventListener("click", () => removeAsset("xray", "x-ray"));
 }
 
-function currentSeriesEntry() {
-  return (state.seriesIndex.series || []).find((s) => s.slug === state.products.seriesSlug) || null;
+function currentStudyEntry() {
+  return (state.studiesIndex.studies || []).find((s) => s.slug === state.products.studySlug) || null;
 }
 
 function currentProductsData() {
-  const sd = state.seriesData[state.products.seriesSlug];
+  const sd = state.studyData[state.products.studySlug];
   return sd ? sd.products : null;
 }
 
@@ -792,12 +792,12 @@ function resetDroppedFiles() {
 }
 
 function renderProductsPanel() {
-  const si = state.seriesIndex;
-  const firstSlug = (si.series && si.series[0] && si.series[0].slug) || null;
-  if (!state.products.seriesSlug) state.products.seriesSlug = firstSlug;
+  const si = state.studiesIndex;
+  const firstSlug = (si.studies && si.studies[0] && si.studies[0].slug) || null;
+  if (!state.products.studySlug) state.products.studySlug = firstSlug;
 
-  els.productSeriesSelect.innerHTML = (si.series || []).map((s) => optionHtml(s.slug, s.name)).join("");
-  els.productSeriesSelect.value = state.products.seriesSlug;
+  els.productStudySelect.innerHTML = (si.studies || []).map((s) => optionHtml(s.slug, s.name)).join("");
+  els.productStudySelect.value = state.products.studySlug;
 
   const isEdit = state.products.mode === "edit";
   els.productSelectLabel.hidden = !isEdit;
@@ -811,7 +811,7 @@ function renderProductsPanel() {
     els.productSelect.value = state.products.productId;
   }
 
-  const entry = currentSeriesEntry();
+  const entry = currentStudyEntry();
   const categoryKeys = (entry && entry.categories) || [];
   els.productCategorySelect.innerHTML = categoryKeys.map((k) => optionHtml(k, k)).join("");
   els.productDefaultMetalSelect.innerHTML = (si.metals || []).map((m) => optionHtml(m, m)).join("");
@@ -820,7 +820,7 @@ function renderProductsPanel() {
 }
 
 function fillProductForm() {
-  const si = state.seriesIndex;
+  const si = state.studiesIndex;
   const isEdit = state.products.mode === "edit";
   const product = isEdit ? currentProduct() : null;
 
@@ -897,10 +897,10 @@ function updateFolderPreview() {
   const name = els.productNameInput.value.trim();
   const category = els.productCategorySelect.value;
   if (!name || !category) { els.folderPreview.textContent = ""; return; }
-  const folder = "assets/series/" + state.products.seriesSlug + "/products/" + slugify(name) + "_" + category + "/";
+  const folder = "assets/studies/" + state.products.studySlug + "/products/" + slugify(name) + "_" + category + "/";
   const product = state.products.mode === "edit" ? currentProduct() : null;
   const currentFolder = product
-    ? "assets/series/" + state.products.seriesSlug + "/products/" + slugify(product.name) + "_" + product.category + "/"
+    ? "assets/studies/" + state.products.studySlug + "/products/" + slugify(product.name) + "_" + product.category + "/"
     : null;
   els.folderPreview.textContent = currentFolder && currentFolder !== folder
     ? "Will move from " + currentFolder + " to " + folder
@@ -930,7 +930,7 @@ async function onProductSave() {
   const defaultMetal = els.productDefaultMetalSelect.value;
 
   const payload = {
-    seriesSlug: state.products.seriesSlug,
+    studySlug: state.products.studySlug,
     name, category, description, defaultMetal,
     heroHandVisibility, cameraDefault
   };

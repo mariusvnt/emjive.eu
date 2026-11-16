@@ -117,31 +117,31 @@ export { toolkit };
     if (document.visibilityState === "hidden") releaseDracoWorkers();
   });
 
-  // Fallback only: callers pass options.hdri from data/series.json's "hdris"
-  // (this module is series-unaware, and the render harness never loads js/series.js).
-  // The one HDRI path outside data/series.json: keep it in step with the file.
+  // Fallback only: callers pass options.hdri from data/studies.json's "hdris"
+  // (this module is study-unaware, and the render harness never loads js/studies.js).
+  // The one HDRI path outside data/studies.json: keep it in step with the file.
   var DEFAULT_HDRI_SRC = "assets/hdri/studio_small_08_2k.hdr";
   var DEFAULT_ORBIT = { rotation: 0, tilt: 75, zoom: 105 };
   var WORLD_UP = new THREE.Vector3(0, 1, 0);
 
-  // The PBR material replacing every model's own, per metal: data/series.json's
+  // The PBR material replacing every model's own, per metal: data/studies.json's
   // "metal-shaders". Read from the loaded index on the site; the tools, which
-  // don't load js/series.js, hand it over with setMetalShaders().
+  // don't load js/studies.js, hand it over with setMetalShaders().
   var metalShaders = null;
   var FALLBACK_SHADER = { color: [128, 128, 128], metalness: 1, roughness: 0.2 };
 
-  // The rings' x-ray look on the hero's hand (js/stack-scene.js): data/series.json's
+  // The rings' x-ray look on the hero's hand (js/stack-scene.js): data/studies.json's
   // "hand-shader", read like "metal-shaders" (the tools use setHandShader()).
   var handShader = null;
   var FALLBACK_HAND_SHADER = { edge: 10, face: 41, falloff: 0.7, sheen: 56, "sheen-from": 0.4, "sheen-to": 0.9, "sheen-roughness": 0.3, "fade-top": 0.65, "fade-bottom": 0.3 };
   function handShaderSettings() {
-    var series = window.EmjiveSeries;
-    return handShader || (series && series.index && series.index["hand-shader"]) || FALLBACK_HAND_SHADER;
+    var study = window.EmjiveStudies;
+    return handShader || (study && study.index && study.index["hand-shader"]) || FALLBACK_HAND_SHADER;
   }
 
   function shaderFor(metalKey) {
-    var series = window.EmjiveSeries;
-    var all = metalShaders || (series && series.index && series.index["metal-shaders"]) || {};
+    var study = window.EmjiveStudies;
+    var all = metalShaders || (study && study.index && study.index["metal-shaders"]) || {};
     return all[metalKey] || FALLBACK_SHADER;
   }
 
@@ -149,7 +149,7 @@ export { toolkit };
   // three.js reads a reflection from the environment level whose cube face is
   // 2^mip px, mip = -2 * log2(1.16 * roughness): about 32px at roughness 0.15,
   // whatever the HDRI's resolution, which shows its texel grid on polished
-  // metal. data/series.json's "reflection-detail" reads that many levels finer
+  // metal. data/studies.json's "reflection-detail" reads that many levels finer
   // (each doubles the resolution); the HDRI blur stands in for the softness
   // the coarser level carried. Read like "metal-shaders" (the tools use
   // setReflectionDetail()); patched once, before any shader compiles.
@@ -164,8 +164,8 @@ export { toolkit };
   }
 
   function reflectionDetail() {
-    var series = window.EmjiveSeries;
-    var levels = reflectionDetailOverride !== null ? reflectionDetailOverride : series && series.index && series.index["reflection-detail"];
+    var study = window.EmjiveStudies;
+    var levels = reflectionDetailOverride !== null ? reflectionDetailOverride : study && study.index && study.index["reflection-detail"];
     return typeof levels === "number" && levels > 0 ? levels : 0;
   }
 
@@ -362,7 +362,7 @@ export { toolkit };
   var SWATCH_FRAME = 0.85;
 
   // The swatch camera for `angles` ({ rotation, tilt, roll } in degrees and
-  // frame, data/series.json "swatch-camera"; defaults 0, 90, 0 and
+  // frame, data/studies.json "swatch-camera"; defaults 0, 90, 0 and
   // SWATCH_FRAME), looking at the centre. The rest is solved: at distance d
   // the sphere's silhouette has angular radius asin(r / d), and the frame
   // reaches `frame` of it, so fov = 2 * atan(tan(asin(r / d)) * frame).
@@ -411,7 +411,7 @@ export { toolkit };
   // cached per URL (one in-flight promise for simultaneous viewers), each
   // viewer wrapping them in its own throwaway DataTexture. A failed load evicts
   // its entry so a later viewer can retry.
-  // hdriSrc comes from the caller (js/series.js hdriPath()), else DEFAULT_HDRI_SRC.
+  // hdriSrc comes from the caller (js/studies.js hdriPath()), else DEFAULT_HDRI_SRC.
   var hdrSourceCache = {};
   var hdrLoadsInFlight = 0;
 
@@ -537,14 +537,14 @@ export { toolkit };
     if (document.visibilityState === "hidden") releaseHdrSources();
   });
 
-  // The studio's gaussian blur of the HDRI, every scene's: data/series.json's
+  // The studio's gaussian blur of the HDRI, every scene's: data/studies.json's
   // "hdri-blur", sigma in degrees (so it means the same at any HDRI width),
   // read like "metal-shaders" (the tools use setHdriBlur()).
   var hdriBlurOverride = null;
 
   function hdriBlurDeg() {
-    var series = window.EmjiveSeries;
-    var deg = hdriBlurOverride !== null ? hdriBlurOverride : series && series.index && series.index["hdri-blur"];
+    var study = window.EmjiveStudies;
+    var deg = hdriBlurOverride !== null ? hdriBlurOverride : study && study.index && study.index["hdri-blur"];
     return typeof deg === "number" && deg > 0 ? deg : 0;
   }
 
@@ -671,7 +671,7 @@ export { toolkit };
   // ---- prefers-reduced-motion ----
   // A live MediaQueryList, read per frame and per timer, so an OS toggle applies
   // without a listener to clean up. Local rather than shared: scene-tool.html
-  // loads this module without js/series.js.
+  // loads this module without js/studies.js.
   var reducedMotion = H.reducedMotion;
 
   // ---- the spin ----
@@ -1036,7 +1036,7 @@ export { toolkit };
     renderer.toneMappingExposure = 1;
   }
 
-  // The studio's sun, straight down: data/series.json's "sun" ({ on, strength },
+  // The studio's sun, straight down: data/studies.json's "sun" ({ on, strength },
   // strength in Blender's units), read like "metal-shaders" (the tools use
   // setSun()). A DirectionalLight's intensity is irradiance, the unit of
   // Blender's sun strength. Down is world -Y, which the viewers (camera
@@ -1045,8 +1045,8 @@ export { toolkit };
   var FALLBACK_SUN = { on: true, strength: 12 };
 
   function sunSettings() {
-    var series = window.EmjiveSeries;
-    return sunOverride || (series && series.index && series.index.sun) || FALLBACK_SUN;
+    var study = window.EmjiveStudies;
+    return sunOverride || (study && study.index && study.index.sun) || FALLBACK_SUN;
   }
 
   // Added even when off, so switching it (applySun) never recompiles shaders.
@@ -1638,7 +1638,7 @@ export { toolkit };
     /* ---- swapping the model in place (handle.setProduct) ----
        The product page's design picks: a new model in this viewer rather than a
        new viewer (context, PMREM, compiles, poster) per pick. `next` is the
-       product as that design (EmjiveSeries.resolveDesign). The camera stays put
+       product as that design (EmjiveStudies.resolveDesign). The camera stays put
        (a product's designs share one frame) and the old model stays until the new
        one is decoded; then the metal and the size are redone.
        The latest pick wins; one asked for before the first model waits for it.

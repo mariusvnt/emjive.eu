@@ -4,19 +4,19 @@ Everything about the catalog's items: how the data is organised, where their fil
 
 ## 1. The model
 
-- **Series.** The catalog is organised into series (collections). Each has its own products, its own design manifest and its own homepage hero. Retired series stay reachable.
-- **The featured series.** One field in `data/series.json`, `featured`, decides which series the homepage shows. Switching it is the whole switch.
-- **Products.** A product belongs to one series and one category.
-  - Its **name is its address** (`/furcula`), so names are unique across all series.
-  - Its **id** only numbers it within its series.
+- **Studies.** The catalog is organised into studies (collections). Each has its own products, its own design manifest and its own homepage hero. Retired studies stay reachable.
+- **The featured study.** One field in `data/studies.json`, `featured`, decides which study the homepage shows. Switching it is the whole switch.
+- **Products.** A product belongs to one study and one category.
+  - Its **name is its address** (`/furcula`), so names are unique across all studies.
+  - Its **id** only numbers it within its study.
 - **Designs.** A product can have several designs: variants of the same item, a different shape, parts added or removed. A design is a combination of the visitor's picks among the product's options. The product's own fields *are* the default design. The other designs carry their own model and renders, and nothing else needs to know they exist.
-- **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/series.json`.
-  - **Categories** own sizing: whether their items are sized at all (a unit), and the size guide. The site never shows the unit: a size is a plain number, since few people know a European ring size is the inner circumference in mm, and "62 mm" reads as a width. A series picks the categories it sells.
+- **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/studies.json`.
+  - **Categories** own sizing: whether their items are sized at all (a unit), and the size guide. The site never shows the unit: a size is a plain number, since few people know a European ring size is the inner circumference in mm, and "62 mm" reads as a width. A study picks the categories it sells.
   - **Metals** are global, because the 3D materials are global.
-  - **Lighting**: the HDRIs, named in one map; each series picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
+  - **Lighting**: the HDRIs, named in one map; each study picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
 - **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii, then the ring is stretched along the axis so its length follows half the change in its outside width: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness stays as designed, so a smaller size never thins a delicate part below what prints, as a scale would; kept at full length, a small ring would reach as far down the finger as a large one and look bulky. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its price, and the print model sent to the printer all follow the same sizing.
 - **Two sizes, kept apart.** The reference size is what the models and their measurements are pinned to; the default size (`EmjiveHelpers.DEFAULT_SIZE_MM`) is the one a ring is first shown and offered at. Changing the default only takes a re-render; changing the reference would mean re-measuring every product.
-- **Prices are derived, never typed.** Every price is what the printer charges to make the piece, in the chosen metal, size and design, plus the brand's margin and VAT, rounded up to the euro (`EmjiveHelpers.salePrice`). Nothing per product is stored that could go stale. The printer's charge is a fit of its quotes on the printed piece's volume and surface area, kept with the date it was last checked against them (`production-costs` and `pricing` in `data/series.json`), so new quotes are a data edit. A fit only holds over the volumes it was made on: `validate-data` fails a ring that grows past one. A piece is priced on its print model when it names one, since the printed piece, not the 3D model on the page, is what is made and the two can differ; without one, on the model itself.
+- **Prices are derived, never typed.** Every price is what the printer charges to make the piece, in the chosen metal, size and design, plus the brand's margin and VAT, rounded up to the euro (`EmjiveHelpers.salePrice`). Nothing per product is stored that could go stale. The printer's charge is a fit of its quotes on the printed piece's volume and surface area, kept with the date it was last checked against them (`production-costs` and `pricing` in `data/studies.json`), so new quotes are a data edit. A fit only holds over the volumes it was made on: `validate-data` fails a ring that grows past one. A piece is priced on its print model when it names one, since the printed piece, not the 3D model on the page, is what is made and the two can differ; without one, on the model itself.
 - **The price is shown broken down**: design (the margin, with the rounding up, so the rows add up to the price), manufacturing (the printer's charge, flat while its minimum applies) and VAT.
 
 ## 2. Data files
@@ -25,9 +25,9 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 
 | File | What it is |
 | --- | --- |
-| `data/series.json` | The brand-wide settings and vocabularies, plus one entry per series (the paths to its data and its hero bundle). |
-| `data/series/<slug>/products.json` | That series' catalog. |
-| `data/series/<slug>/manifest.json` | That series' design manifest, for `series.html` (only its title, year and subtitle render so far). |
+| `data/studies.json` | The brand-wide settings and vocabularies, plus one entry per study (the paths to its data and its hero bundle). |
+| `data/studies/<slug>/products.json` | That study's catalog. |
+| `data/studies/<slug>/manifest.json` | That study's design manifest, for `studies.html` (only its title, year and subtitle render so far). |
 
 **The schemas are in `scripts/validate-data.js`**, which is the source of truth for every field. It also checks what a schema can't: every path exists with its exact case, references resolve across files, names are valid addresses, measured geometry matches its file, the generated image versions exist.
 
@@ -35,10 +35,10 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 
 | Part | Written by |
 | --- | --- |
-| Series, products, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
+| Studies, products, descriptions, categories, metals, HDRIs, `featured` | by hand or with `json-tool` |
 | The printer's charges (`production-costs`), the margin and VAT (`pricing`) | by hand |
 | A product's `designs` block | by hand only (`json-tool` carries it through untouched) |
-| Default camera angle, a series' HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
+| Default camera angle, a study's HDRI, the studio (`sun`, `hdri-blur`, `reflection-detail`), the swatch scene, the metal shaders (`metal-shaders`) | `scene-tool` |
 | The rings' x-ray look on the hero's hand, and their fade where the finger hides them (`hand-shader`) | by hand |
 | `geometry` | `measure-models` |
 | Icons, fallback images, wheel posters, hand posters, plan views (paths and files) | `auto-render` |
@@ -47,7 +47,7 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 
 ## 3. Assets
 
-**Series-scoped or brand-wide.** Everything under `assets/series/<slug>/` belongs to that series: its hero art, and one folder per product. Everything else in `assets/` (fonts, HDRIs, the Draco decoder, logos, metal swatches) is brand-wide and referenced from code that knows nothing about series.
+**Study-scoped or brand-wide.** Everything under `assets/studies/<slug>/` belongs to that study: its hero art, and one folder per product. Everything else in `assets/` (fonts, HDRIs, the Draco decoder, logos, metal swatches) is brand-wide and referenced from code that knows nothing about studies.
 
 **One folder per product, `<name>_<category>`**, holding everything that product is made of. The tools build that path, so a hand-renamed folder gets a new one beside it. Files follow the name:
 
@@ -91,7 +91,7 @@ From a Blender export to a shippable item, in the order that works. None of thes
    - the **plan views** are front and side outline drawings (the item page doesn't show them at present, measuring its dimensions off the live model): the model's silhouettes and edges in the category colour on transparent, seen as on a technical drawing and cropped to one common rectangle, so the two share a scale. Their frame comes from the model's box (`geometry["axis-box"]`, from `measure-models`) and, for a model whose finger runs along its own x, the product's optional `"finger-axis": "x"` (hand-added; the front view must look through the finger hole). One set per product and per design;
    - the **metal swatches** are one sphere, re-tinted for each metal.
 
-   Its flags narrow a run (`--product=`, `--series=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--plan-views-only`, `--image-variants`).
+   Its flags narrow a run (`--product=`, `--study=`, `--swatches-only`, `--wheel-posters-only`, `--hand-posters-only`, `--plan-views-only`, `--image-variants`).
 5. **`npm run image-variants`**: writes any missing image versions (a new x-ray, a new hero picture). `auto-render` rewrites the icon thumbnails itself.
 6. **`npm run verify`**.
 
@@ -99,8 +99,8 @@ Renders never regenerate on their own. After a change to a model's shape, a came
 
 ## 5. Tools
 
-- **`npm run json-tool`** (local page): edits the global settings and adds, edits or removes a series or a product, with drag-and-drop for the hand-owned files (model, x-ray, photos). It files them where the conventions say. It never writes what another tool owns (renders, `geometry`, the `designs` block), never runs another tool, and only reminds you what to run next. Every removal is confirmed, and is blocked while something still depends on what it removes.
-- **`npm run scene-tool`** (local page): previews a product or the swatch sphere through the real viewer, to set a product's default camera, a series' HDRI, the studio (sun, HDRI blur, reflection detail), the swatch scene and the metal shaders, then saves the ticked parts into the source files.
+- **`npm run json-tool`** (local page): edits the global settings and adds, edits or removes a study or a product, with drag-and-drop for the hand-owned files (model, x-ray, photos). It files them where the conventions say. It never writes what another tool owns (renders, `geometry`, the `designs` block), never runs another tool, and only reminds you what to run next. Every removal is confirmed, and is blocked while something still depends on what it removes.
+- **`npm run scene-tool`** (local page): previews a product or the swatch sphere through the real viewer, to set a product's default camera, a study's HDRI, the studio (sun, HDRI blur, reflection detail), the swatch scene and the metal shaders, then saves the ticked parts into the source files.
 - **`npm run size-stl -- <name> <size>`**: a product's or design's print model at an ordered size, written next to it: what goes to the printer. The same sizing as the model on the page, with the toolbox's output exactly.
 - **`optimize-images`, `optimize-hdri`**: occasional squeezers for heavy hand-added art. `optimize-images` converts stray PNG/JPEG to WebP and prints the paths to update. `optimize-hdri` shrinks an oversized HDRI into a new file, since the file name carries the width.
 - **`render-favicons`**: the favicons, from the compact logo. Re-run only if the logo changes.
@@ -111,8 +111,8 @@ Both local pages run their own small servers on loopback only, and both are kept
 
 ### Add a product
 
-1. Pick its name. It becomes its address, so it must not clash with another product in any series or with a page.
-2. Add it with `json-tool` (or by hand, in its series' `products.json`, with its folder).
+1. Pick its name. It becomes its address, so it must not clash with another product in any study or with a page.
+2. Add it with `json-tool` (or by hand, in its study's `products.json`, with its folder).
 3. Bring in its model: `split-models` from the Blender exports, or drop the model in `json-tool` and run `optimize-models`. Check the vertex count it prints.
 4. `measure-models`. If its finger hole runs along the model's x, add `"finger-axis": "x"` to the product.
 5. Set its default camera in `scene-tool`.
@@ -130,19 +130,19 @@ In Blender, one root node per design, named as the design. Write the `designs` b
 
 Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-render if its shape changed.
 
-### Add a series
+### Add a study
 
-`json-tool` → Series → Add new scaffolds the data files, the asset folders and a copy of an existing hero bundle as a starting point. Then write the series' own hero (its contract is in code-guide.md §2) and add its art. It shows on the homepage once `featured` names it.
+`json-tool` → Studies → Add new scaffolds the data files, the asset folders and a copy of an existing hero bundle as a starting point. Then write the study's own hero (its contract is in code-guide.md §2) and add its art. It shows on the homepage once `featured` names it.
 
 ### Add a category
 
-`json-tool`'s Global tab, then list it in each series that sells it. A category with no unit disables selection for its products.
+`json-tool`'s Global tab, then list it in each study that sells it. A category with no unit disables selection for its products.
 
 ### Add a metal
 
 `json-tool` adds it to the `metals` list, with a neutral grey shader to tune in `scene-tool`, and reminds you of the rest, which is by hand:
 
-- its `production-costs` (the printer's charge for it), `metal-composition` and `metal-technology` in `data/series.json`;
+- its `production-costs` (the printer's charge for it), `metal-composition` and `metal-technology` in `data/studies.json`;
 - a swatch rule in `css/style.css`, which the material dial and the grid tiles' pickers share.
 
 Then re-render everything. Removing a metal in `json-tool` cascades through every product.

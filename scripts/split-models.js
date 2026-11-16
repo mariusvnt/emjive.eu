@@ -29,7 +29,7 @@ const { join, resolve, dirname } = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { slugify } = require("./slugs");
 const stlFile = require("./stl");
-const { ROOT, SERIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
+const { ROOT, STUDIES_JSON_PATH, readJson, gltfIO } = require("./helpers");
 
 // How far (mm) two bounding boxes may differ and still be the same pose.
 const BOUNDS_TOLERANCE_MM = 0.1;
@@ -42,7 +42,7 @@ const COUNT_WEIGHT = 5;
 // Every model the catalog expects, keyed by node slug:
 // { label, model, stl, geometry } (repo-relative paths, "" if unset).
 function catalogEntries() {
-  const index = readJson(SERIES_JSON_PATH);
+  const index = readJson(STUDIES_JSON_PATH);
   const entries = new Map();
   function add(slug, entry) {
     if (entries.has(slug)) {
@@ -50,8 +50,8 @@ function catalogEntries() {
     }
     entries.set(slug, entry);
   }
-  for (const series of index.series || []) {
-    const data = readJson(series.products);
+  for (const study of index.studies || []) {
+    const data = readJson(study.products);
     for (const product of data.products || []) {
       const assets = product.assets || {};
       const designs = product.designs;
@@ -59,7 +59,7 @@ function catalogEntries() {
         for (const design of designs.list) {
           const isDefault = design.key === designs.default;
           add(slugify(design.name), {
-            label: series.slug + "/" + product.name + " [" + design.key + "]",
+            label: study.slug + "/" + product.name + " [" + design.key + "]",
             model: isDefault ? assets.model || "" : design.model || "",
             stl: isDefault ? assets.stl || "" : design.stl || "",
             geometry: isDefault ? product.geometry : design.geometry
@@ -67,7 +67,7 @@ function catalogEntries() {
         }
       } else {
         add(slugify(product.name), {
-          label: series.slug + "/" + product.name,
+          label: study.slug + "/" + product.name,
           model: assets.model || "",
           stl: assets.stl || "",
           geometry: product.geometry

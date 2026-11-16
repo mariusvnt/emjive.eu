@@ -9,7 +9,7 @@
 // exponent puts neighbouring mantissas on different scales.
 //
 // Writes a sibling with the new _<n>k width bucket and prints the
-// data/series.json paths to update; never overwrites the source.
+// data/studies.json paths to update; never overwrites the source.
 //
 //   npm run optimize-hdri -- --dry-run     report only
 //   npm run optimize-hdri                  every .hdr wider than 2048
@@ -451,7 +451,7 @@ function main() {
     console.log("Wrote " + written + " file(s), saving " + formatBytes(savedBytes) + ".");
     console.log(
       "\nThe old files are still on disk and still referenced. Update the\n" +
-        '"hdris" map in data/series.json, then delete the originals:\n'
+        '"hdris" map in data/studies.json, then delete the originals:\n'
     );
     pathUpdates.forEach((u) => console.log("  " + u.from + "\n    -> " + u.to));
   }

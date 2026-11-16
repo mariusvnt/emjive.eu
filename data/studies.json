@@ -96,24 +96,24 @@
   "swatch-blur": 25,
   "swatch-camera": { "rotation": -163, "tilt": 105, "roll": 38 },
 
-  "series": [
+  "studies": [
     {
       "slug": "bones",
       "name": "Bones",
       "year": "2026",
       "categories": ["ring"],
-      "products": "data/series/bones/products.json",
+      "products": "data/studies/bones/products.json",
       "hdri": "studio",
-      "manifest": "data/series/bones/manifest.json",
+      "manifest": "data/studies/bones/manifest.json",
       "hero": {
-        "fragment": "series/bones/hero.html",
-        "css":      "series/bones/hero.css",
-        "js":       "series/bones/hero.js",
+        "fragment": "studies/bones/hero.html",
+        "css":      "studies/bones/hero.css",
+        "js":       "studies/bones/hero.js",
         "preload": [
-          "assets/series/bones/hero/hand-rings-under-flesh_3k.webp",
-          "assets/series/bones/hero/hand_xray.webp",
-          "assets/series/bones/hero/hand_xray_extension_1.webp",
-          "assets/series/bones/hero/hand_xray_extension_2.webp"
+          "assets/studies/bones/hero/hand-rings-under-flesh_3k.webp",
+          "assets/studies/bones/hero/hand_xray.webp",
+          "assets/studies/bones/hero/hand_xray_extension_1.webp",
+          "assets/studies/bones/hero/hand_xray_extension_2.webp"
         ]
       }
     }

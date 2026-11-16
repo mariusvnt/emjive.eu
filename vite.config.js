@@ -11,10 +11,10 @@ import { slugify } from "./scripts/slugs.js";
 import { SITE_ORIGIN, PHONE_QUERY, readJson, priceSpan } from "./scripts/helpers.js";
 
 // Vite only ships what it can trace, and most of this site's assets are named
-// in runtime data (products.json, series.json, hero bundles), while classic
+// in runtime data (products.json, studies.json, hero bundles), while classic
 // <script>s aren't bundled or copied at all. So assets/, data/, js/ and
-// series/ are copied verbatim after the build (closeBundle), minus:
-//   assets/hdri/ unused      the HDRIs no series uses (unusedHdris)
+// studies/ are copied verbatim after the build (closeBundle), minus:
+//   assets/hdri/ unused      the HDRIs no study uses (unusedHdris)
 //   assets/fonts/           Vite emits hashed copies from the @font-face and preload references
 //   assets/hand_normal.webp  unused
 //   logos, the pointer SVG, metal-sample_*.webp
@@ -41,11 +41,11 @@ const NEVER_COPY = [
 // Print models are large and for the printer, not visitors; check-dist fails if one ships.
 const PRINT_MODEL = /\.stl$/i;
 
-// data/series.json "hdris" also lists the tools' alternatives: only the ones
-// a series uses ship.
+// data/studies.json "hdris" also lists the tools' alternatives: only the ones
+// a study uses ship.
 function unusedHdris() {
-  const index = readJson("data/series.json");
-  const used = new Set(index.series.map((s) => index.hdris[s.hdri]).filter(Boolean));
+  const index = readJson("data/studies.json");
+  const used = new Set(index.studies.map((s) => index.hdris[s.hdri]).filter(Boolean));
   return Object.values(index.hdris).filter((p) => !used.has(p)).map((p) => resolve(__dirname, p));
 }
 
@@ -57,10 +57,10 @@ function* distFilesToMinify(distDir) {
       if (name.endsWith(".js")) yield join(jsDir, name);
     }
   }
-  const seriesDir = join(distDir, "series");
-  if (existsSync(seriesDir)) {
-    for (const slug of readdirSync(seriesDir)) {
-      const dir = join(seriesDir, slug);
+  const studiesDir = join(distDir, "studies");
+  if (existsSync(studiesDir)) {
+    for (const slug of readdirSync(studiesDir)) {
+      const dir = join(studiesDir, slug);
       if (!statSync(dir).isDirectory()) continue;
       for (const name of readdirSync(dir)) {
         if (name === "hero.js" || name === "hero.css") yield join(dir, name);
@@ -87,7 +87,7 @@ function copyFilesVitesBuildCantTrace() {
     name: "copy-files-vites-build-cant-trace",
     async closeBundle() {
       const skip = NEVER_COPY.concat(unusedHdris());
-      for (const dir of ["assets", "data", "js", "series"]) {
+      for (const dir of ["assets", "data", "js", "studies"]) {
         const src = resolve(__dirname, dir);
         if (existsSync(src)) {
           cpSync(src, resolve(__dirname, "dist", dir), {
@@ -102,8 +102,8 @@ function copyFilesVitesBuildCantTrace() {
 }
 
 // Undoes two things Vite's HTML build does to every <head>:
-// 1. It inlines the data/series.json preload as a data: URL, which can't
-//    satisfy js/series.js's fetch; restore the path (check-dist guards it).
+// 1. It inlines the data/studies.json preload as a data: URL, which can't
+//    satisfy js/studies.js's fetch; restore the path (check-dist guards it).
 // 2. It moves the stylesheet after the blocking scripts, which rely on its
 //    rules being parsed (scroll-memory.js, loader.js); move it back before
 //    the first <script>.
@@ -115,7 +115,7 @@ function restoreHeadOrderAndPreload() {
       handler(html) {
         html = html.replace(
           /(<link\b[^>]*\bhref=")data:application\/json;base64,[^"]*(")/g,
-          "$1data/series.json$2"
+          "$1data/studies.json$2"
         );
 
         const headEnd = html.indexOf("</head>");
@@ -147,9 +147,9 @@ function restoreHeadOrderAndPreload() {
   };
 }
 
-// Preload hints, at build time from data/series.json, for requests the
+// Preload hints, at build time from data/studies.json, for requests the
 // browser would otherwise discover several round trips deep. They name the
-// featured series (other series just get unused preloads):
+// featured study (other studies just get unused preloads):
 //   - its products.json, on pages with data-products="eager"
 //   - the homepage hero bundle and its LCP image
 // Not the three.js chunk, HDRI or model: not part of the first paint, and
@@ -169,18 +169,18 @@ function injectLoadHints() {
         const hasAttr = (name, value) =>
           new RegExp("\\bdata-" + name + "=\"" + value + "\"").test(htmlTag[0]);
 
-        const index = readJson("data/series.json");
-        const series = index.series.find((s) => s.slug === index.featured);
-        if (!series) return html;
+        const index = readJson("data/studies.json");
+        const study = index.studies.find((s) => s.slug === index.featured);
+        if (!study) return html;
 
         const hints = [];
         const hint = (attrs) => hints.push("<link " + attrs + " />");
 
         if (hasAttr("products", "eager")) {
-          hint('rel="preload" as="fetch" href="' + series.products + '" crossorigin');
+          hint('rel="preload" as="fetch" href="' + study.products + '" crossorigin');
         }
-        if (html.includes('id="seriesHero"') && series.hero) {
-          const hero = series.hero;
+        if (html.includes('id="studyHero"') && study.hero) {
+          const hero = study.hero;
           if (hero.fragment) hint('rel="preload" as="fetch" href="' + hero.fragment + '" crossorigin');
           if (hero.css) hint('rel="preload" as="style" href="' + hero.css + '"');
           if (hero.js) hint('rel="preload" as="script" href="' + hero.js + '"');
@@ -206,14 +206,14 @@ function injectLoadHints() {
   };
 }
 
-// Every product with its series, from the site's own data; the address is
+// Every product with its study, from the site's own data; the address is
 // /<slug> (scripts/slugs.js).
 function readProducts() {
-  const index = readJson("data/series.json");
+  const index = readJson("data/studies.json");
   const list = [];
-  for (const series of index.series) {
-    for (const product of readJson(series.products).products) {
-      list.push({ product, series, slug: slugify(product.name), featured: series.slug === index.featured });
+  for (const study of index.studies) {
+    for (const product of readJson(study.products).products) {
+      list.push({ product, study, slug: slugify(product.name), featured: study.slug === index.featured });
     }
   }
   return { index, list };
@@ -358,7 +358,7 @@ function galleryItemMarkup(product, index, slug) {
 }
 
 // The gallery's static content, so crawlers that don't run its scripts still
-// see the items: the featured series' grid written into #productGrid (js/gallery.js
+// see the items: the featured study's grid written into #productGrid (js/gallery.js
 // replaces it with the live one), the site's structured data, and its logo.
 // Build only; after the bundle is written (closeBundle).
 function emitGalleryContent() {
@@ -413,7 +413,7 @@ function emitItemPages() {
       if (!existsSync(templatePath)) throw new Error("emit-item-pages: dist/product.html is missing");
       const template = readFileSync(templatePath, "utf8");
       const { index, list } = readProducts();
-      const featured = index.series.find((s) => s.slug === index.featured);
+      const featured = index.studies.find((s) => s.slug === index.featured);
 
       const swap = (html, pattern, replacement, what) => {
         if (!pattern.test(html)) throw new Error("emit-item-pages: product.html has no " + what + " to rewrite");
@@ -426,7 +426,7 @@ function emitItemPages() {
       writeFileSync(join(distDir, "preview.jpg"), await previewCard(background, logo));
       mkdirSync(join(distDir, "assets/previews"), { recursive: true });
 
-      for (const { product, series, slug } of list) {
+      for (const { product, study, slug } of list) {
         const name = product.name || "Product";
         const title = "em\u00b7ji\u00b7ve: " + name.toLowerCase();
         const description = product.description || "Item detail";
@@ -453,9 +453,9 @@ function emitItemPages() {
           html = swap(html, /<meta property="og:image:alt" content="[^"]*" \/>/, '<meta property="og:image:alt" content="' + escapeAttr(name + (product.category ? " " + product.category : "") + " in " + metal) + '" />', "og:image:alt");
           html = swap(html, /<meta name="twitter:image" content="[^"]*" \/>/, '<meta name="twitter:image" content="' + image + '" />', "twitter:image");
         }
-        // The products.json hint names the featured series; another series' item needs its own.
-        if (featured && series.slug !== featured.slug) {
-          html = html.split('href="' + featured.products + '"').join('href="' + series.products + '"');
+        // The products.json hint names the featured study; another study's item needs its own.
+        if (featured && study.slug !== featured.slug) {
+          html = html.split('href="' + featured.products + '"').join('href="' + study.products + '"');
         }
         // The name and description js/product.js would write, already in the markup.
         html = swap(html, /<span class="product-detail__label-name" id="productLabelName"><\/span>/, '<span class="product-detail__label-name" id="productLabelName">' + escapeText(name) + "</span>", "#productLabelName");
@@ -472,8 +472,8 @@ function emitItemPages() {
   };
 }
 
-// What public/.htaccess does, for dev and preview: /index redirected to /
-// and /gallery to /#gallery, /<page>, and /<slug> (its own page in preview, the shared
+// What public/.htaccess does, for dev and preview: /index redirected to /,
+// /gallery to /#gallery, /series and ?series= to /studies and ?study=, /<page>, and /<slug> (its own page in preview, the shared
 // product.html in dev, where /product itself is left to 404 as in
 // production). Only extension-less single-segment paths. Keep in step with
 // .htaccess.
@@ -485,6 +485,11 @@ function cleanUrls() {
     const rest = q === -1 ? "" : url.slice(q);
     let name = "";
     try { name = decodeURIComponent(path).replace(/^\/+/, "").toLowerCase(); } catch (e) { return next(); }
+    if (name === "series" || ((!name || name === "studies") && /[?&]series=/.test(rest))) {
+      res.writeHead(301, { Location: (name ? "/studies" : "/") + rest.replace(/([?&])series=/, "$1study=") });
+      res.end();
+      return;
+    }
     if (!name || name === "product" || name.includes("/") || name.includes(".")) return next();
 
     if (name === "gallery" || name === "index") {
@@ -549,7 +554,7 @@ export default defineConfig({
         intent: resolve(__dirname, "intent.html"),
         printing: resolve(__dirname, "3d-printing.html"),
         environment: resolve(__dirname, "environment.html"),
-        series: resolve(__dirname, "series.html"),
+        studies: resolve(__dirname, "studies.html"),
         terms: resolve(__dirname, "terms.html"),
         legalNotice: resolve(__dirname, "legal-notice.html"),
         privacy: resolve(__dirname, "privacy.html"),

@@ -36,7 +36,7 @@ var HAND_VERTEX = [
 // The hand view's x-ray look, mixed over the metal by uHand: metal is the
 // densest thing on a radiograph, so near-black on this negative, darkest where
 // the surface turns away (a ray crosses more metal there), with the
-// environment's reflections as a faint grey sheen. Set by data/series.json's
+// environment's reflections as a faint grey sheen. Set by data/studies.json's
 // "hand-shader" (handUniforms()). Appended after <colorspace_fragment>, so the
 // greys are sRGB values. The finger hides the ring's far side: it fades out
 // with depth over the band placeOnHand() sets (vHandFade, the distance above

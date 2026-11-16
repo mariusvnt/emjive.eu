@@ -364,7 +364,7 @@
     }
 
     // Escape ends query mode, wherever focus is. Captured, so the drawer
-    // around the row (js/series.js) stays open; the Modify sheet's own Escape
+    // around the row (js/studies.js) stays open; the Modify sheet's own Escape
     // goes first while it is up.
     function onEscapeKey(e) {
       if (e.key !== "Escape" || !query) return;

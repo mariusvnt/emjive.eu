@@ -58,7 +58,7 @@
   var siteHeader = document.querySelector(".site-header");
   var siteHeaderRow = document.querySelector(".site-header__row");
 
-  // For window.EmjiveMenus (js/series.js) click-away handling; root is the
+  // For window.EmjiveMenus (js/studies.js) click-away handling; root is the
   // whole header so the toggle itself never counts as "away".
   var headerMenuPanel = {
     root: siteHeader,
@@ -96,13 +96,13 @@
     });
   }
 
-  // The featured series' link (its name checked by scripts/validate-data.js)
-  // isn't the current page on the gallery of another series (?series=).
-  var featuredLink = document.querySelector("[data-featured-series][aria-current]");
+  // The featured study's link (its name checked by scripts/validate-data.js)
+  // isn't the current page on the gallery of another study (?study=).
+  var featuredLink = document.querySelector("[data-featured-study][aria-current]");
   if (featuredLink) {
-    window.EmjiveSeries.ready.then(function (ctx) {
-      if (!window.EmjiveSeries.isFeatured(ctx.slug)) featuredLink.removeAttribute("aria-current");
-    // The page itself reports a failed series index.
+    window.EmjiveStudies.ready.then(function (ctx) {
+      if (!window.EmjiveStudies.isFeatured(ctx.slug)) featuredLink.removeAttribute("aria-current");
+    // The page itself reports a failed studies index.
     }).catch(function () {});
   }
 

@@ -1,4 +1,4 @@
-/* Bones hero styles, injected by js/series.js after css/style.css (wins ties).
+/* Bones hero styles, injected by js/studies.js after css/style.css (wins ties).
    url()s here resolve against this file, unlike hero.html's paths. */
 
 :root {
@@ -67,7 +67,7 @@ html[data-gallery-view="stack"] .reveal {
    the entrance there. --reveal-end-slack adds a few px so sub-pixel bar
    heights can't leave the frame flickering between pinned and not. */
 @supports (height: 100lvh) and (overflow: clip) {
-  html[data-gallery-view="stack"] .series-hero {
+  html[data-gallery-view="stack"] .study-hero {
     /* flow-root, so the reveal's negative margin shortens this box instead of
        collapsing through it; overflow: clip doesn't create a formatting context. */
     display: flow-root;

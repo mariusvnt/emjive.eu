@@ -52,7 +52,7 @@ const { createHash } = require("node:crypto");
 const blocks = require("./json-tool-blocks");
 const stlFile = require("./stl");
 const ringSize = require("./ring-size");
-const { ROOT, SERIES_JSON_PATH, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, readJson, gltfIO } = require("./helpers");
+const { ROOT, STUDIES_JSON_PATH, REFERENCE_SIZE_MM, SIZE_SPAN_MM, MEASURED_SIZES_MM, readJson, gltfIO } = require("./helpers");
 
 // Vertices closer than this (mm) are one: Draco decoding can split welded vertices.
 const WELD_EPSILON = 1e-4;
@@ -550,18 +550,18 @@ async function main() {
 
   const io = await gltfIO();
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
   const rows = [];
   let failed = false;
 
-  for (const series of seriesIndex.series || []) {
-    const productsPath = join(ROOT, series.products);
+  for (const study of studiesIndex.studies || []) {
+    const productsPath = join(ROOT, study.products);
     let text = readFileSync(productsPath, "utf8");
     const data = JSON.parse(text);
 
     const eol = text.includes("\r\n") ? "\r\n" : "\n";
     for (const product of data.products || []) {
-      const label = series.slug + "/" + product.name;
+      const label = study.slug + "/" + product.name;
       const measured = await measureFile(io, label, product.assets && product.assets.model, product.assets && product.assets.stl, fingerAxis(product));
       if (!measured) {
         failed = true;
@@ -571,7 +571,7 @@ async function main() {
       const span = blocks.findProductBlockSpan(text, product.id);
       let patchedBlock = span && withGeometry(text.slice(span.start, span.end), measured.geometry, eol);
       if (!patchedBlock) {
-        console.error("  " + label + ": could not locate its block (or default-metal) in " + series.products);
+        console.error("  " + label + ": could not locate its block (or default-metal) in " + study.products);
         failed = true;
         continue;
       }
@@ -591,7 +591,7 @@ async function main() {
         const entrySpan = list === -1 ? null : blocks.findBlockSpanByAnchor(patchedBlock.slice(list), "key", design.key);
         const entry = entrySpan && withDesignGeometry(patchedBlock.slice(list + entrySpan.start, list + entrySpan.end), designMeasured.geometry, eol);
         if (!entry) {
-          console.error("  " + designLabel + ": could not locate its entry (or its picks) in " + series.products);
+          console.error("  " + designLabel + ": could not locate its entry (or its picks) in " + study.products);
           failed = true;
           continue;
         }

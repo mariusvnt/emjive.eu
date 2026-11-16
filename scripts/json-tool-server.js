@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Dev server for json-tool.html (npm run json-tool): edits data/series.json's
-// globals, series and products, and files dropped hand-owned assets (model,
+// Dev server for json-tool.html (npm run json-tool): edits data/studies.json's
+// globals, studies and products, and files dropped hand-owned assets (model,
 // x-ray, photos) into the right folders. Text surgery lives in
 // scripts/json-tool-blocks.js.
 //
@@ -15,7 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const blocks = require("./json-tool-blocks");
 const {
-  ROOT, SERIES_JSON_PATH, readJson, repoPath, findSeriesEntry, folderSlug, productFolder, catalogDrift,
+  ROOT, STUDIES_JSON_PATH, readJson, repoPath, findStudyEntry, folderSlug, productFolder, catalogDrift,
   readJsonBody, sendJson, startToolServer
 } = require("./helpers");
 
@@ -43,17 +43,17 @@ function isSafeSlugSegment(s) {
   return typeof s === "string" && /^[a-z0-9-]+$/.test(s);
 }
 
-// Every series' parsed products.json, keyed by series slug.
-function loadAllProductsData(seriesIndex) {
+// Every study's parsed products.json, keyed by study slug.
+function loadAllProductsData(studiesIndex) {
   const bySlug = {};
-  for (const s of seriesIndex.series || []) {
+  for (const s of studiesIndex.studies || []) {
     const absPath = path.join(ROOT, s.products);
     bySlug[s.slug] = { absPath, data: readJson(absPath) };
   }
   return bySlug;
 }
 
-// Next id within one series (ids restart per series), keeping the existing zero-padding.
+// Next id within one study (ids restart per study), keeping the existing zero-padding.
 function nextProductId(productsData) {
   const ids = (productsData.products || []).map((p) => String(p.id));
   const numeric = ids.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n));
@@ -66,9 +66,9 @@ function nextProductId(productsData) {
 // Every write/delete must match one of these shapes and never an
 // auto-render-owned filename.
 
-const PRODUCT_ASSET_PATH_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+\/[^/]+$/;
+const PRODUCT_ASSET_PATH_RE = /^assets\/studies\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+\/[^/]+$/;
 // A product folder, checked before a recursive delete.
-const PRODUCT_ASSET_FOLDER_RE = /^assets\/series\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
+const PRODUCT_ASSET_FOLDER_RE = /^assets\/studies\/[a-z0-9-]+\/products\/[a-z0-9-]+_[a-z0-9-]+$/;
 const HDRI_ASSET_PATH_RE = /^assets\/hdri\/[^/]+\.hdr$/i;
 const AUTO_RENDER_OWNED_RE = /_(icon|fallback-img|wheel-poster|hand-poster|plan-(?:front|side))[_.]/;
 
@@ -103,21 +103,21 @@ function moveAssetFile(oldRel, newRel, moved, warnings) {
   }
 }
 
-// ---- GET /api/data: the series index, every series' products and manifest
+// ---- GET /api/data: the studies index, every study's products and manifest
 // with its next product id, and drift warnings ----
 
 async function handleGetData(req, res) {
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesData = {};
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyData = {};
   const productsBySlug = {};
-  for (const s of seriesIndex.series || []) {
+  for (const s of studiesIndex.studies || []) {
     const productsData = readJson(s.products);
     const manifestData = fs.existsSync(path.join(ROOT, s.manifest)) ? readJson(s.manifest) : null;
-    seriesData[s.slug] = { products: productsData, manifest: manifestData, nextProductId: nextProductId(productsData) };
+    studyData[s.slug] = { products: productsData, manifest: manifestData, nextProductId: nextProductId(productsData) };
     productsBySlug[s.slug] = productsData;
   }
-  const driftWarnings = catalogDrift(seriesIndex, productsBySlug);
-  sendJson(res, 200, { seriesIndex, seriesData, driftWarnings });
+  const driftWarnings = catalogDrift(studiesIndex, productsBySlug);
+  sendJson(res, 200, { studiesIndex, studyData, driftWarnings });
 }
 
 // ---- global parameters ----
@@ -126,23 +126,23 @@ async function handleGlobalFeatured(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
   if (body.featured === undefined) return sendJson(res, 400, { error: "featured is required" });
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  if (!findSeriesEntry(seriesIndex, body.featured)) return sendJson(res, 400, { error: "unknown series: " + body.featured });
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  if (!findStudyEntry(studiesIndex, body.featured)) return sendJson(res, 400, { error: "unknown study: " + body.featured });
 
   const patched = blocks.updateTopLevelScalarInText(text, "featured", '"' + blocks.esc(body.featured) + '"');
-  if (!patched) return sendJson(res, 404, { error: 'could not find "featured" in data/series.json' });
+  if (!patched) return sendJson(res, 404, { error: 'could not find "featured" in data/studies.json' });
 
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   sendJson(res, 200, { ok: true });
 }
 
-// Series declaring the category and products using it; removal is blocked while any exist.
-function findCategoryUsages(seriesIndex, key) {
+// Studies declaring the category and products using it; removal is blocked while any exist.
+function findCategoryUsages(studiesIndex, key) {
   const usages = [];
-  const productsBySlug = loadAllProductsData(seriesIndex);
-  for (const s of seriesIndex.series || []) {
-    if ((s.categories || []).includes(key)) usages.push('series "' + s.slug + '" declares it');
+  const productsBySlug = loadAllProductsData(studiesIndex);
+  for (const s of studiesIndex.studies || []) {
+    if ((s.categories || []).includes(key)) usages.push('study "' + s.slug + '" declares it');
     const pd = productsBySlug[s.slug];
     for (const p of (pd && pd.data.products) || []) {
       if (p.category === key) usages.push('[' + s.slug + '] ' + p.name + " uses it");
@@ -156,19 +156,19 @@ async function handleGlobalCategory(req, res) {
   const key = String(body.key || "").trim();
   if (!key) return sendJson(res, 400, { error: "key is required" });
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  const exists = Object.prototype.hasOwnProperty.call(seriesIndex.categories || {}, key);
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  const exists = Object.prototype.hasOwnProperty.call(studiesIndex.categories || {}, key);
 
   if (body.mode === "remove") {
     if (!exists) return sendJson(res, 404, { error: "unknown category: " + key });
-    const usages = findCategoryUsages(seriesIndex, key);
+    const usages = findCategoryUsages(studiesIndex, key);
     if (usages.length) {
       return sendJson(res, 409, { error: 'category "' + key + '" is still in use — ' + usages.join("; ") + " — update those first" });
     }
     const patched = blocks.removeObjectEntryInText(text, '"categories": {', key);
-    if (!patched) return sendJson(res, 500, { error: 'could not patch "categories" in data/series.json' });
-    fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+    if (!patched) return sendJson(res, 500, { error: 'could not patch "categories" in data/studies.json' });
+    fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
     return sendJson(res, 200, { ok: true });
   }
 
@@ -184,15 +184,15 @@ async function handleGlobalCategory(req, res) {
     if (exists) return sendJson(res, 409, { error: "category already exists: " + key });
     patched = blocks.insertBeforeObjectClose(text, '"categories": {', '    "' + key + '": ' + valueText);
   }
-  if (!patched) return sendJson(res, 500, { error: 'could not patch "categories" in data/series.json' });
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  if (!patched) return sendJson(res, 500, { error: 'could not patch "categories" in data/studies.json' });
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   sendJson(res, 200, { ok: true });
 }
 
-function findHdriUsages(seriesIndex, key) {
+function findHdriUsages(studiesIndex, key) {
   const usages = [];
-  for (const s of seriesIndex.series || []) {
-    if (s.hdri === key) usages.push('series "' + s.slug + '" uses it');
+  for (const s of studiesIndex.studies || []) {
+    if (s.hdri === key) usages.push('study "' + s.slug + '" uses it');
   }
   return usages;
 }
@@ -201,20 +201,20 @@ async function handleGlobalHdri(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
   const key = String(body.key || "").trim();
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  const exists = Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, key);
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  const exists = Object.prototype.hasOwnProperty.call(studiesIndex.hdris || {}, key);
 
   if (body.mode === "remove") {
     if (!exists) return sendJson(res, 404, { error: "unknown hdri: " + key });
-    const usages = findHdriUsages(seriesIndex, key);
+    const usages = findHdriUsages(studiesIndex, key);
     if (usages.length) {
       return sendJson(res, 409, { error: 'hdri "' + key + '" is still in use — ' + usages.join("; ") + " — update those first" });
     }
-    const hdriPath = seriesIndex.hdris[key];
+    const hdriPath = studiesIndex.hdris[key];
     const patched = blocks.removeObjectEntryInText(text, '"hdris": {', key);
-    if (!patched) return sendJson(res, 500, { error: 'could not patch "hdris" in data/series.json' });
-    fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+    if (!patched) return sendJson(res, 500, { error: 'could not patch "hdris" in data/studies.json' });
+    fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
     if (hdriPath && HDRI_ASSET_PATH_RE.test(hdriPath)) {
       const absPath = path.join(ROOT, hdriPath);
       if (fs.existsSync(absPath)) fs.unlinkSync(absPath);
@@ -234,8 +234,8 @@ async function handleGlobalHdri(req, res) {
     if (exists) return sendJson(res, 409, { error: "hdri key already exists: " + key });
     patched = blocks.insertBeforeObjectClose(text, '"hdris": {', '    "' + key + '": "' + blocks.esc(hdriPath) + '"');
   }
-  if (!patched) return sendJson(res, 500, { error: 'could not patch "hdris" in data/series.json' });
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  if (!patched) return sendJson(res, 500, { error: 'could not patch "hdris" in data/studies.json' });
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
   sendJson(res, 200, { ok: true });
 }
 
@@ -244,18 +244,18 @@ async function handleGlobalMetal(req, res) {
   const metal = String(body.metal || "").trim();
   if (!metal || !/^[a-z0-9-]+$/.test(metal)) return sendJson(res, 400, { error: "metal must be a lowercase kebab-case name" });
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  const exists = (seriesIndex.metals || []).includes(metal);
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  const exists = (studiesIndex.metals || []).includes(metal);
 
   if (body.mode === "remove") {
     if (!exists) return sendJson(res, 404, { error: "unknown metal: " + metal });
-    const newMetals = (seriesIndex.metals || []).filter((m) => m !== metal);
+    const newMetals = (studiesIndex.metals || []).filter((m) => m !== metal);
     if (!newMetals.length) return sendJson(res, 409, { error: "cannot remove the last remaining metal" });
 
-    const productsBySlug = loadAllProductsData(seriesIndex);
+    const productsBySlug = loadAllProductsData(studiesIndex);
     const usedAsDefault = [];
-    for (const s of seriesIndex.series || []) {
+    for (const s of studiesIndex.studies || []) {
       for (const p of (productsBySlug[s.slug] && productsBySlug[s.slug].data.products) || []) {
         if (p["default-metal"] === metal) usedAsDefault.push("[" + s.slug + "] " + p.name);
       }
@@ -267,16 +267,16 @@ async function handleGlobalMetal(req, res) {
     }
 
     let patched = blocks.removeFromInlineStringArray(text, '"metals": [', metal);
-    if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
+    if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/studies.json' });
     // validate-data rejects entries for metals not in the list.
     patched = blocks.removeObjectEntryInText(patched, '"production-costs": {', metal) || patched;
     patched = blocks.removeObjectEntryInText(patched, '"metal-composition": {', metal) || patched;
     patched = blocks.removeObjectEntryInText(patched, '"metal-shaders": {', metal) || patched;
-    fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+    fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
 
     // Re-render every product block against the new metals list, which drops the
     // removed metal's keys everywhere.
-    for (const s of seriesIndex.series || []) {
+    for (const s of studiesIndex.studies || []) {
       const entry = productsBySlug[s.slug];
       let pText = fs.readFileSync(entry.absPath, "utf8");
       let changed = false;
@@ -294,7 +294,7 @@ async function handleGlobalMetal(req, res) {
     return sendJson(res, 200, {
       ok: true,
       reminder:
-        'Removed "' + metal + '" from data/series.json\'s metals list and from every product\'s icons/' +
+        'Removed "' + metal + '" from data/studies.json\'s metals list and from every product\'s icons/' +
         "fallback-img/wheel-poster, and its production-costs, metal-composition and metal-shaders entries. Still worth doing " +
         "by hand if you want a full cleanup (harmless if left, just dead code): remove the " +
         '.product-dial__swatch[data-metal="' + metal + '"] rule from css/style.css.'
@@ -304,43 +304,43 @@ async function handleGlobalMetal(req, res) {
   if (exists) return sendJson(res, 409, { error: "metal already exists: " + metal });
 
   let patched = blocks.appendToInlineStringArray(text, '"metals": [', metal);
-  if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/series.json' });
+  if (!patched) return sendJson(res, 500, { error: 'could not patch "metals" in data/studies.json' });
   // A neutral starting shader, tuned afterwards in scene-tool.
   patched = blocks.insertBeforeObjectClose(patched, '"metal-shaders": {',
     '    "' + metal + '": { "color": [128, 128, 128], "metalness": 1, "roughness": 0.2 }') || patched;
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
 
   sendJson(res, 200, {
     ok: true,
     reminder:
-      'Added "' + metal + '" to data/series.json\'s metals list, with a neutral grey under "metal-shaders" to tune in ' +
+      'Added "' + metal + '" to data/studies.json\'s metals list, with a neutral grey under "metal-shaders" to tune in ' +
       'scene-tool. Still needed by hand: a .product-dial__swatch[data-metal="' + metal + '"] rule in css/style.css ' +
-      "— this tool does not touch it — plus a \"" + metal + '" entry under data/series.json\'s "production-costs" ' +
+      "— this tool does not touch it — plus a \"" + metal + '" entry under data/studies.json\'s "production-costs" ' +
       "(the printer's price formula; `npm run validate-data` fails without it), a \"" + metal +
       '" entry under "metal-composition" and one under "metal-technology".'
   });
 }
 
-// ---- series ----
+// ---- study ----
 
-async function handleSeriesEdit(req, res) {
+async function handleStudyEdit(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const fields = body.fields || {};
-  if (!seriesSlug) return sendJson(res, 400, { error: "seriesSlug is required" });
+  if (!studySlug) return sendJson(res, 400, { error: "studySlug is required" });
   if (fields.slug !== undefined) {
-    return sendJson(res, 400, { error: "slug cannot be changed here — it would require moving every asset path in this series" });
+    return sendJson(res, 400, { error: "slug cannot be changed here — it would require moving every asset path in this study" });
   }
 
-  let text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  if (!findSeriesEntry(seriesIndex, seriesSlug)) return sendJson(res, 404, { error: "unknown series: " + seriesSlug });
+  let text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  if (!findStudyEntry(studiesIndex, studySlug)) return sendJson(res, 404, { error: "unknown study: " + studySlug });
 
   const patches = [];
   if (fields.name !== undefined) patches.push(["name", '"' + blocks.esc(fields.name) + '"']);
   if (fields.year !== undefined) patches.push(["year", '"' + blocks.esc(fields.year) + '"']);
   if (fields.hdri !== undefined) {
-    if (!Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, fields.hdri)) {
+    if (!Object.prototype.hasOwnProperty.call(studiesIndex.hdris || {}, fields.hdri)) {
       return sendJson(res, 400, { error: "unknown hdri: " + fields.hdri });
     }
     patches.push(["hdri", '"' + blocks.esc(fields.hdri) + '"']);
@@ -351,16 +351,16 @@ async function handleSeriesEdit(req, res) {
   }
 
   for (const [fieldName, valueText] of patches) {
-    const patched = blocks.updateSeriesFieldInText(text, seriesSlug, fieldName, valueText);
-    if (!patched) return sendJson(res, 500, { error: 'could not find "' + fieldName + '" on series "' + seriesSlug + '"' });
+    const patched = blocks.updateStudyFieldInText(text, studySlug, fieldName, valueText);
+    if (!patched) return sendJson(res, 500, { error: 'could not find "' + fieldName + '" on study "' + studySlug + '"' });
     text = patched;
   }
 
-  fs.writeFileSync(SERIES_JSON_PATH, text, "utf8");
+  fs.writeFileSync(STUDIES_JSON_PATH, text, "utf8");
   sendJson(res, 200, { ok: true });
 }
 
-async function handleSeriesAdd(req, res) {
+async function handleStudyAdd(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
   const slugValue = String(body.slug || "").trim();
   const name = String(body.name || "").trim();
@@ -372,46 +372,46 @@ async function handleSeriesAdd(req, res) {
   if (!name) return sendJson(res, 400, { error: "name is required" });
   if (!year) return sendJson(res, 400, { error: "year is required" });
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  if (findSeriesEntry(seriesIndex, slugValue)) return sendJson(res, 409, { error: "series already exists: " + slugValue });
-  if (hdri && !Object.prototype.hasOwnProperty.call(seriesIndex.hdris || {}, hdri)) {
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  if (findStudyEntry(studiesIndex, slugValue)) return sendJson(res, 409, { error: "study already exists: " + slugValue });
+  if (hdri && !Object.prototype.hasOwnProperty.call(studiesIndex.hdris || {}, hdri)) {
     return sendJson(res, 400, { error: "unknown hdri: " + hdri });
   }
 
-  const dataDir = path.join(ROOT, "data", "series", slugValue);
-  const heroDir = path.join(ROOT, "series", slugValue);
-  const assetsSeriesDir = path.join(ROOT, "assets", "series", slugValue);
-  if (fs.existsSync(dataDir) || fs.existsSync(heroDir) || fs.existsSync(assetsSeriesDir)) {
-    return sendJson(res, 409, { error: "series folders already exist for slug: " + slugValue });
+  const dataDir = path.join(ROOT, "data", "studies", slugValue);
+  const heroDir = path.join(ROOT, "studies", slugValue);
+  const assetsStudyDir = path.join(ROOT, "assets", "studies", slugValue);
+  if (fs.existsSync(dataDir) || fs.existsSync(heroDir) || fs.existsSync(assetsStudyDir)) {
+    return sendJson(res, 409, { error: "study folders already exist for slug: " + slugValue });
   }
 
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.mkdirSync(path.join(assetsSeriesDir, "hero"), { recursive: true });
-  fs.mkdirSync(path.join(assetsSeriesDir, "products"), { recursive: true });
+  fs.mkdirSync(path.join(assetsStudyDir, "hero"), { recursive: true });
+  fs.mkdirSync(path.join(assetsStudyDir, "products"), { recursive: true });
   fs.mkdirSync(heroDir, { recursive: true });
 
-  const productsRelPath = "data/series/" + slugValue + "/products.json";
-  const manifestRelPath = "data/series/" + slugValue + "/manifest.json";
+  const productsRelPath = "data/studies/" + slugValue + "/products.json";
+  const manifestRelPath = "data/studies/" + slugValue + "/manifest.json";
   // New files: plain JSON.stringify is fine.
-  fs.writeFileSync(path.join(ROOT, productsRelPath), JSON.stringify({ series: slugValue, products: [] }, null, 2) + "\n", "utf8");
+  fs.writeFileSync(path.join(ROOT, productsRelPath), JSON.stringify({ study: slugValue, products: [] }, null, 2) + "\n", "utf8");
   fs.writeFileSync(
     path.join(ROOT, manifestRelPath),
-    JSON.stringify({ series: slugValue, title: name, subtitle: "", year, intro: "", sections: [], credits: [] }, null, 2) + "\n",
+    JSON.stringify({ study: slugValue, title: name, subtitle: "", year, intro: "", sections: [], credits: [] }, null, 2) + "\n",
     "utf8"
   );
 
   const created = [productsRelPath, manifestRelPath];
-  const bonesHeroDir = path.join(ROOT, "series", "bones");
+  const bonesHeroDir = path.join(ROOT, "studies", "bones");
   ["hero.html", "hero.css", "hero.js"].forEach((f) => {
     const src = path.join(bonesHeroDir, f);
     if (fs.existsSync(src)) {
       fs.copyFileSync(src, path.join(heroDir, f));
-      created.push("series/" + slugValue + "/" + f);
+      created.push("studies/" + slugValue + "/" + f);
     }
   });
 
-  const seriesBlockText = blocks.renderSeriesBlock({
+  const studyBlockText = blocks.renderStudyBlock({
     slug: slugValue,
     name,
     year,
@@ -420,52 +420,52 @@ async function handleSeriesAdd(req, res) {
     hdri,
     manifest: manifestRelPath,
     hero: {
-      fragment: "series/" + slugValue + "/hero.html",
-      css: "series/" + slugValue + "/hero.css",
-      js: "series/" + slugValue + "/hero.js",
+      fragment: "studies/" + slugValue + "/hero.html",
+      css: "studies/" + slugValue + "/hero.css",
+      js: "studies/" + slugValue + "/hero.js",
       preload: []
     }
   });
-  const patched = blocks.insertBeforeArrayClose(text, '"series": [', seriesBlockText);
-  if (!patched) return sendJson(res, 500, { error: 'could not find "series": [ in data/series.json' });
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  const patched = blocks.insertBeforeArrayClose(text, '"studies": [', studyBlockText);
+  if (!patched) return sendJson(res, 500, { error: 'could not find "studies": [ in data/studies.json' });
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
 
   sendJson(res, 200, {
     ok: true,
     slug: slugValue,
     created,
     reminders: [
-      "hero.html/css/js were copied verbatim from series/bones/ — edit them by hand before this series is presentable.",
+      "hero.html/css/js were copied verbatim from studies/bones/ — edit them by hand before this study is presentable.",
       "hero.preload was left empty — add real asset paths once hero art exists.",
-      "This series' products array starts empty — use the Products tab to add its first product."
+      "This study's products array starts empty — use the Products tab to add its first product."
     ]
   });
 }
 
-// Deletes a series' data, hero bundle and assets, and its block. Refused for
-// the featured or last series.
-async function handleSeriesRemove(req, res) {
+// Deletes a study's data, hero bundle and assets, and its block. Refused for
+// the featured or last study.
+async function handleStudyRemove(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
   const slugValue = body.slug;
   if (!slugValue) return sendJson(res, 400, { error: "slug is required" });
   if (!isSafeSlugSegment(slugValue)) return sendJson(res, 400, { error: "unsafe slug: " + slugValue });
 
-  const text = fs.readFileSync(SERIES_JSON_PATH, "utf8");
-  const seriesIndex = JSON.parse(text);
-  const entry = findSeriesEntry(seriesIndex, slugValue);
-  if (!entry) return sendJson(res, 404, { error: "unknown series: " + slugValue });
-  if (seriesIndex.featured === slugValue) {
-    return sendJson(res, 409, { error: 'series "' + slugValue + '" is the featured series — change Featured to another series first' });
+  const text = fs.readFileSync(STUDIES_JSON_PATH, "utf8");
+  const studiesIndex = JSON.parse(text);
+  const entry = findStudyEntry(studiesIndex, slugValue);
+  if (!entry) return sendJson(res, 404, { error: "unknown study: " + slugValue });
+  if (studiesIndex.featured === slugValue) {
+    return sendJson(res, 409, { error: 'study "' + slugValue + '" is the featured study — change Featured to another study first' });
   }
-  if ((seriesIndex.series || []).length <= 1) {
-    return sendJson(res, 409, { error: "cannot remove the last remaining series" });
+  if ((studiesIndex.studies || []).length <= 1) {
+    return sendJson(res, 409, { error: "cannot remove the last remaining study" });
   }
 
   const deleted = [];
   [
-    path.join(ROOT, "data", "series", slugValue),
-    path.join(ROOT, "series", slugValue),
-    path.join(ROOT, "assets", "series", slugValue)
+    path.join(ROOT, "data", "studies", slugValue),
+    path.join(ROOT, "studies", slugValue),
+    path.join(ROOT, "assets", "studies", slugValue)
   ].forEach((dir) => {
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -473,9 +473,9 @@ async function handleSeriesRemove(req, res) {
     }
   });
 
-  const patched = blocks.removeSeriesBlockInText(text, slugValue);
-  if (!patched) return sendJson(res, 500, { error: 'could not locate series "' + slugValue + '" in data/series.json' });
-  fs.writeFileSync(SERIES_JSON_PATH, patched, "utf8");
+  const patched = blocks.removeStudyBlockInText(text, slugValue);
+  if (!patched) return sendJson(res, 500, { error: 'could not locate study "' + slugValue + '" in data/studies.json' });
+  fs.writeFileSync(STUDIES_JSON_PATH, patched, "utf8");
 
   sendJson(res, 200, { ok: true, deleted });
 }
@@ -484,23 +484,23 @@ async function handleSeriesRemove(req, res) {
 
 async function handleProductAdd(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const name = String(body.name || "").trim();
   const category = body.category;
-  if (!seriesSlug) return sendJson(res, 400, { error: "seriesSlug is required" });
+  if (!studySlug) return sendJson(res, 400, { error: "studySlug is required" });
   if (!name || !category) return sendJson(res, 400, { error: "name and category are required" });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
 
-  const folder = productFolder(seriesSlug, name, category);
-  const collision = (productsData.products || []).find((p) => productFolder(seriesSlug, p.name, p.category) === folder);
+  const folder = productFolder(studySlug, name, category);
+  const collision = (productsData.products || []).find((p) => productFolder(studySlug, p.name, p.category) === folder);
   if (collision) {
     return sendJson(res, 409, { error: 'a product already uses folder ' + folder + ' ("' + collision.name + '") — pick a different name/category' });
   }
@@ -556,7 +556,7 @@ async function handleProductAdd(req, res) {
 
   const blockText = blocks.renderProductBlock(product, metals);
   const patched = blocks.insertBeforeArrayClose(text, '"products": [', blockText);
-  if (!patched) return sendJson(res, 500, { error: 'could not find "products": [ in ' + seriesEntry.products });
+  if (!patched) return sendJson(res, 500, { error: 'could not find "products": [ in ' + studyEntry.products });
   fs.writeFileSync(productsAbsPath, patched, "utf8");
 
   sendJson(res, 200, {
@@ -572,30 +572,30 @@ async function handleProductAdd(req, res) {
 
 async function handleProductEdit(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
-  if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
+  if (!studySlug || !productId) return sendJson(res, 400, { error: "studySlug and productId are required" });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
-  if (!current) return sendJson(res, 404, { error: "no product with id " + productId + " in " + seriesEntry.products });
+  if (!current) return sendJson(res, 404, { error: "no product with id " + productId + " in " + studyEntry.products });
 
   const fields = body.fields || {};
   const nextName = fields.name !== undefined ? String(fields.name).trim() : current.name;
   const nextCategory = fields.category !== undefined ? fields.category : current.category;
   if (!nextName || !nextCategory) return sendJson(res, 400, { error: "name and category cannot be empty" });
 
-  const oldFolder = productFolder(seriesSlug, current.name, current.category);
-  const newFolder = productFolder(seriesSlug, nextName, nextCategory);
+  const oldFolder = productFolder(studySlug, current.name, current.category);
+  const newFolder = productFolder(studySlug, nextName, nextCategory);
   const collision = (productsData.products || []).find(
-    (p) => String(p.id) !== String(productId) && productFolder(seriesSlug, p.name, p.category) === newFolder
+    (p) => String(p.id) !== String(productId) && productFolder(studySlug, p.name, p.category) === newFolder
   );
   if (collision) {
     return sendJson(res, 409, { error: 'a different product already uses folder ' + newFolder + ' ("' + collision.name + '")' });
@@ -682,7 +682,7 @@ async function handleProductEdit(req, res) {
 
   const blockText = blocks.renderProductBlock(merged, metals);
   const patched = blocks.replaceProductBlockInText(text, productId, blockText);
-  if (!patched) return sendJson(res, 500, { error: "could not locate product " + productId + " in " + seriesEntry.products });
+  if (!patched) return sendJson(res, 500, { error: "could not locate product " + productId + " in " + studyEntry.products });
   fs.writeFileSync(productsAbsPath, patched, "utf8");
 
   sendJson(res, 200, { ok: true, folder: newFolder, moved, written, warnings });
@@ -691,21 +691,21 @@ async function handleProductEdit(req, res) {
 // Deletes a product's asset folder and its block.
 async function handleProductRemove(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
-  if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
+  if (!studySlug || !productId) return sendJson(res, 400, { error: "studySlug and productId are required" });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
   if (!current) return sendJson(res, 404, { error: "no product with id " + productId });
 
-  const folder = productFolder(seriesSlug, current.name, current.category);
+  const folder = productFolder(studySlug, current.name, current.category);
   if (!PRODUCT_ASSET_FOLDER_RE.test(folder)) {
     return sendJson(res, 400, { error: "unsafe product folder, refusing to delete: " + folder });
   }
@@ -726,19 +726,19 @@ async function handleProductRemove(req, res) {
 
 async function handleProductRemovePhoto(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
   const photoPath = body.photoPath;
-  if (!seriesSlug || !productId || !photoPath) {
-    return sendJson(res, 400, { error: "seriesSlug, productId and photoPath are required" });
+  if (!studySlug || !productId || !photoPath) {
+    return sendJson(res, 400, { error: "studySlug, productId and photoPath are required" });
   }
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
@@ -764,19 +764,19 @@ async function handleProductRemovePhoto(req, res) {
 // A photo's caption (assets.photos[i].description), matched by src.
 async function handleProductUpdatePhotoDescription(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
   const photoPath = body.photoPath;
-  if (!seriesSlug || !productId || !photoPath) {
-    return sendJson(res, 400, { error: "seriesSlug, productId and photoPath are required" });
+  if (!studySlug || !productId || !photoPath) {
+    return sendJson(res, 400, { error: "studySlug, productId and photoPath are required" });
   }
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
@@ -804,19 +804,19 @@ async function handleProductUpdatePhotoDescription(req, res) {
 
 async function handleProductReplaceAsset(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
   const assetKey = body.assetKey;
-  if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
+  if (!studySlug || !productId) return sendJson(res, 400, { error: "studySlug and productId are required" });
   if (assetKey !== "model" && assetKey !== "xray") return sendJson(res, 400, { error: 'assetKey must be "model" or "xray"' });
   if (!body.filename || !body.contentBase64) return sendJson(res, 400, { error: "filename and contentBase64 are required" });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
@@ -826,7 +826,7 @@ async function handleProductReplaceAsset(req, res) {
   if (assetKey === "model" && !MODEL_EXTS.includes(ext)) return sendJson(res, 400, { error: "model file must be .glb or .gltf" });
   if (assetKey === "xray" && !IMAGE_EXTS.includes(ext)) return sendJson(res, 400, { error: "xray file must be a png/webp/jpg image" });
 
-  const folder = productFolder(seriesSlug, current.name, current.category);
+  const folder = productFolder(studySlug, current.name, current.category);
   const suffix = assetKey === "model" ? "_gltf" : "_xray";
   const dest = folder + "/" + folderSlug(current.name) + suffix + ext;
 
@@ -855,18 +855,18 @@ async function handleProductReplaceAsset(req, res) {
 
 async function handleProductRemoveAsset(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
   const assetKey = body.assetKey;
-  if (!seriesSlug || !productId) return sendJson(res, 400, { error: "seriesSlug and productId are required" });
+  if (!studySlug || !productId) return sendJson(res, 400, { error: "studySlug and productId are required" });
   if (assetKey !== "model" && assetKey !== "xray") return sendJson(res, 400, { error: 'assetKey must be "model" or "xray"' });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
@@ -893,20 +893,20 @@ async function handleProductRemoveAsset(req, res) {
 // Replaces a photo at the same index, so the carousel order holds.
 async function handleProductReplacePhoto(req, res) {
   const body = await readJsonBody(req, MAX_BODY_BYTES);
-  const seriesSlug = body.seriesSlug;
+  const studySlug = body.studySlug;
   const productId = body.productId;
   const oldPhotoPath = body.oldPhotoPath;
-  if (!seriesSlug || !productId || !oldPhotoPath) {
-    return sendJson(res, 400, { error: "seriesSlug, productId and oldPhotoPath are required" });
+  if (!studySlug || !productId || !oldPhotoPath) {
+    return sendJson(res, 400, { error: "studySlug, productId and oldPhotoPath are required" });
   }
   if (!body.filename || !body.contentBase64) return sendJson(res, 400, { error: "filename and contentBase64 are required" });
 
-  const seriesIndex = readJson(SERIES_JSON_PATH);
-  const seriesEntry = findSeriesEntry(seriesIndex, seriesSlug);
-  if (!seriesEntry) return sendJson(res, 400, { error: "unknown series: " + seriesSlug });
-  const metals = seriesIndex.metals || [];
+  const studiesIndex = readJson(STUDIES_JSON_PATH);
+  const studyEntry = findStudyEntry(studiesIndex, studySlug);
+  if (!studyEntry) return sendJson(res, 400, { error: "unknown study: " + studySlug });
+  const metals = studiesIndex.metals || [];
 
-  const productsAbsPath = path.join(ROOT, seriesEntry.products);
+  const productsAbsPath = path.join(ROOT, studyEntry.products);
   const text = fs.readFileSync(productsAbsPath, "utf8");
   const productsData = JSON.parse(text);
   const current = (productsData.products || []).find((p) => String(p.id) === String(productId));
@@ -919,7 +919,7 @@ async function handleProductReplacePhoto(req, res) {
   const ext = extOf(body.filename) || ".png";
   if (!IMAGE_EXTS.includes(ext)) return sendJson(res, 400, { error: "photo file must be a png/webp/jpg image" });
 
-  const folder = productFolder(seriesSlug, current.name, current.category);
+  const folder = productFolder(studySlug, current.name, current.category);
   const dest = folder + "/" + current.name + "_photo" + (index + 1) + ext;
 
   try {
@@ -971,9 +971,9 @@ const ROUTES = {
   "POST /api/global/category": handleGlobalCategory,
   "POST /api/global/hdri": handleGlobalHdri,
   "POST /api/global/metal": handleGlobalMetal,
-  "POST /api/series/edit": handleSeriesEdit,
-  "POST /api/series/add": handleSeriesAdd,
-  "POST /api/series/remove": handleSeriesRemove,
+  "POST /api/study/edit": handleStudyEdit,
+  "POST /api/study/add": handleStudyAdd,
+  "POST /api/study/remove": handleStudyRemove,
   "POST /api/product/add": handleProductAdd,
   "POST /api/product/edit": handleProductEdit,
   "POST /api/product/remove": handleProductRemove,

@@ -1,10 +1,10 @@
-// series.html: fills the requested series' title, year and subtitle from its manifest.
+// studies.html: fills the requested study's title, year and subtitle from its manifest.
 
 (function () {
   "use strict";
 
-  var loadingEl = document.getElementById("seriesManifestLoading");
-  var contentEl = document.getElementById("seriesManifestContent");
+  var loadingEl = document.getElementById("studyManifestLoading");
+  var contentEl = document.getElementById("studyManifestContent");
   if (!loadingEl || !contentEl) return;
 
   function pageReady() {
@@ -13,29 +13,29 @@
 
   function showNotFound() {
     loadingEl.hidden = false;
-    window.EmjiveMessage.show(loadingEl, "The requested series doesn't exist", {
+    window.EmjiveMessage.show(loadingEl, "The requested study doesn't exist", {
       label: "Back to gallery",
       href: "/#gallery"
     }, "status");
     pageReady();
   }
 
-  window.EmjiveSeries.ready
+  window.EmjiveStudies.ready
     .then(function () {
-      // Not EmjiveSeries.slug, which falls back to the featured series.
-      var slug = window.EmjiveSeries.requestedSlug();
-      var entry = slug && window.EmjiveSeries.get(slug);
+      // Not EmjiveStudies.slug, which falls back to the featured study.
+      var slug = window.EmjiveStudies.requestedSlug();
+      var entry = slug && window.EmjiveStudies.get(slug);
       if (!entry) return showNotFound();
 
-      return window.EmjiveSeries.loadManifest(slug).then(function (manifest) {
+      return window.EmjiveStudies.loadManifest(slug).then(function (manifest) {
         var title = manifest.title || entry.name || slug;
         document.title = "em·ji·ve: " + title.toLowerCase();
 
-        document.getElementById("seriesManifestYear").textContent =
+        document.getElementById("studyManifestYear").textContent =
           manifest.year || entry.year || "";
-        document.getElementById("seriesManifestTitle").textContent = title;
+        document.getElementById("studyManifestTitle").textContent = title;
 
-        var subtitleEl = document.getElementById("seriesManifestSubtitle");
+        var subtitleEl = document.getElementById("studyManifestSubtitle");
         subtitleEl.textContent = manifest.subtitle || "";
         subtitleEl.hidden = !manifest.subtitle;
 
@@ -45,8 +45,8 @@
       });
     })
     .catch(function (err) {
-      // A failed request or exception; a missing series is handled above.
-      console.error("Could not load the series:", err);
+      // A failed request or exception; a missing study is handled above.
+      console.error("Could not load the study:", err);
       loadingEl.hidden = false;
       contentEl.hidden = true;
       window.EmjiveMessage.show(loadingEl,

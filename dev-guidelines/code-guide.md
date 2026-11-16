@@ -8,24 +8,24 @@ A static site: HTML pages at the repo root, one stylesheet, vanilla JavaScript a
 
 **Vite is required, both to run the site and to ship it.** The 3D layer is made of ES modules that import `three` from npm, and only a bundler resolves those imports. Everything else is classic scripts that Vite can't trace, so `vite.config.js` copies them across as they are. A plain static host serving the raw repo would break at the first `import "three"`, which is why what ships is `dist/`, never the repo.
 
-**Every page stays at the repo root.** The pages fetch `data/series.json` with a relative path, every path inside the data is relative to the root, and every page links `css/`, `js/` and `assets/` relatively. A page one folder down would resolve all of them against the wrong prefix, silently. The addresses are flat for the same reason: see below.
+**Every page stays at the repo root.** The pages fetch `data/studies.json` with a relative path, every path inside the data is relative to the root, and every page links `css/`, `js/` and `assets/` relatively. A page one folder down would resolve all of them against the wrong prefix, silently. The addresses are flat for the same reason: see below.
 
 ## 2. Pages and addresses
 
-**One page per kind, never one per item or per series.**
+**One page per kind, never one per item or per study.**
 
-- `index.html` shows any series' gallery.
+- `index.html` shows any study's gallery.
 - `product.html` shows any item.
-- `series.html` shows any series' manifest.
+- `studies.html` shows any study's manifest.
 - `launch-order.html` is the selection's checkout review.
 
-Adding a product or a series never adds a page. Then there are the shells (`archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
+Adding a product or a study never adds a page. Then there are the shells (`archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
 
-**Clean, flat addresses.** `/` for the gallery, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no series, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The gallery is the root itself, not a `/gallery` page, because Google reads a site's name only from the domain root; `/gallery` redirects to `/#gallery`, which lands past the hero. A fragment never reaches the server, so `/#gallery` is still the one canonical address.
+**Clean, flat addresses.** `/` for the gallery, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no study, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The gallery is the root itself, not a `/gallery` page, because Google reads a site's name only from the domain root; `/gallery` redirects to `/#gallery`, which lands past the hero. A fragment never reaches the server, so `/#gallery` is still the one canonical address.
 
-**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. The template itself doesn't ship: an item-less page would only be an indexable "not found", so `/product` is a real 404. The gallery gets the same treatment: the build writes the featured series' grid into its markup (each item's picture, name linked to its page, and facts), which the live grid replaces at once without the page ever shrinking, and adds the site's Organization and WebSite data with a square logo, for the site name and logo in search results. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
+**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. The template itself doesn't ship: an item-less page would only be an indexable "not found", so `/product` is a real 404. The gallery gets the same treatment: the build writes the featured study's grid into its markup (each item's picture, name linked to its page, and facts), which the live grid replaces at once without the page ever shrinking, and adds the site's Organization and WebSite data with a square logo, for the site name and logo in search results. Every other page has its own static title, `h1`, canonical and social tags. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
 
-**One shared header.** Every page opens with the same header and menu, written in the markup so crawlers see every link. The menu names the featured series, a value that belongs to the data, so `validate-data` checks each page's copy against `data/series.json`; changing the featured series means changing that link on every page.
+**One shared header.** Every page opens with the same header and menu, written in the markup so crawlers see every link. The menu names the featured study, a value that belongs to the data, so `validate-data` checks each page's copy against `data/studies.json`; changing the featured study means changing that link on every page.
 
 **One shared footer, and the legal links everywhere.** Every page but the not-found one ends with the same footer, written in the markup like the header so crawlers see it. Its reason to exist is the law: an online shop must reach its legal notice, terms of sale and privacy policy from every page, and `check-dist` fails a page without them. The gallery's wheel view is the one exception to the footer. The wheel is the page's end by design and can't be scrolled past, so it gets only a line of the legal links over the selection bar, and the circle fits above that line.
 
@@ -36,16 +36,16 @@ Adding a product or a series never adds a page. Then there are the shells (`arch
 - **Back and reload.** They rebuild exactly what was left, mid-hero included.
   Being on the wheel is remembered as such, not as an offset: the page's length follows the phone's browser bars, so the same offset can fall short of the wheel. iOS Safari can show a page back from its back-forward cache at the top and then reload it, so a page coming back saves nothing until it is touched. The gallery stays hidden until the restored page holds still, so what settles after doesn't show.
 
-All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page's height is built asynchronously (series index, hero bundle, products), and native scroll restoration would clamp to the top. CSS keys on the decision at first paint, so nothing flashes and then collapses.
+All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page's height is built asynchronously (studies index, hero bundle, products), and native scroll restoration would clamp to the top. CSS keys on the decision at first paint, so nothing flashes and then collapses.
 
-**The series hero is a swappable bundle.** `index.html` carries empty slots, and the featured series' hero (`series/<slug>/`: an HTML fragment of `<template>`s, a stylesheet and a script) is cloned into them at runtime. That lets each collection bring its own hero animation without the page changing. The hero's script is injected by a runtime string path, so Vite never sees it. It may not use bare imports, and it must be inert until called so the fragment, styles and script can all load in parallel. Two path conventions live side by side in a bundle: the fragment's image paths resolve against the page, the stylesheet's `url()`s against the stylesheet.
+**The study hero is a swappable bundle.** `index.html` carries empty slots, and the featured study's hero (`studies/<slug>/`: an HTML fragment of `<template>`s, a stylesheet and a script) is cloned into them at runtime. That lets each collection bring its own hero animation without the page changing. The hero's script is injected by a runtime string path, so Vite never sees it. It may not use bare imports, and it must be inert until called so the fragment, styles and script can all load in parallel. Two path conventions live side by side in a bundle: the fragment's image paths resolve against the page, the stylesheet's `url()`s against the stylesheet.
 
 **The gallery has two views of the same products** (the code calls the wheel `stack`):
 
 - **The wheel.** After the hero, the camera pulls back from the x-ray hand to a circle of 3D models round its wrist, the rings on the hand sliding to their places on it. Those rings are the wheel's own models, drawn in an x-ray look so they read as part of the radiograph, and they turn to metal as they leave the hand. The circle is then a plate the visitor turns to bring an item to the top. A scroll that stops short of the wheel still lands on it, with no snap: over the entrance's last stretch the shown progress runs ahead of the scroll, moving only when the scroll moves and in its direction, more during a fling's inertia than under a finger, so the help is never seen as a motion of its own.
 - **The grid.** Each item is two tiles, its pictures over its facts, two items side by side on a phone, no 3D: for a quick pick.
 
-**A metal per item, picked in the grid.** Each grid tile has its own row of swatches under its pictures, and a pick changes that item only: its picture, its price range (always for its own metal, so the default metal's until a pick), the wheel's model of it and its page, which opens on it priced as a pick. The wheel has no picker: it is the showroom, and changes only while it is out of sight. The choices are kept for the visit (not across visits, so the site always opens on the items' default metals) and owned by `EmjiveSeries`, which knows the metals offered.
+**A metal per item, picked in the grid.** Each grid tile has its own row of swatches under its pictures, and a pick changes that item only: its picture, its price range (always for its own metal, so the default metal's until a pick), the wheel's model of it and its page, which opens on it priced as a pick. The wheel has no picker: it is the showroom, and changes only while it is out of sight. The choices are kept for the visit (not across visits, so the site always opens on the items' default metals) and owned by `EmjiveStudies`, which knows the metals offered.
 
 **The product page is a two-stage scroll show**: inspiration (the description over a museum wall of photos), then design (the model, its configuration under it, then the information). It's a tall track holding one sticky stage, so scrolling moves the show on, not the page. `js/product-stages.js` turns the scroll into a few eased numbers, and CSS fades everything from them. A screen too short to pin a stage gets the same pieces as one plain column.
 
@@ -77,7 +77,7 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 **Two kinds.**
 
-- **Classic scripts**: almost all of `js/`, and each series' `hero.js`. No bundler is needed to ship them: they are copied verbatim and minified in place. They talk to each other through `window.Emjive*` globals, each set by one file. The index lists who sets and who reads each one, and `eslint.config.mjs` declares them, so a typo is caught.
+- **Classic scripts**: almost all of `js/`, and each study's `hero.js`. No bundler is needed to ship them: they are copied verbatim and minified in place. They talk to each other through `window.Emjive*` globals, each set by one file. The index lists who sets and who reads each one, and `eslint.config.mjs` declares them, so a typo is caught.
 - **ES modules: the 3D layer** (`three-viewer.js`, `stack-scene.js`, the HDR worker and the small `viewer-entry.js` that loads them). Vite bundles these into hashed chunks.
 
 **Load order is a contract.**
@@ -86,10 +86,10 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
   - `helpers.js`, first on every page: the shared helpers every other script uses, the head ones included.
   - `scroll-memory.js`, homepage only, next: the landing decision and the reserved height must be in place before the body is parsed.
   - `loader.js`: the arrival cover must be up before the body is parsed, and every script uses it.
-  - `series.js`: `window.EmjiveSeries` must exist before anything runs, and starting the series fetch at head-parse time is what the hero's no-flash arrival relies on.
+  - `studies.js`: `window.EmjiveStudies` must exist before anything runs, and starting the study fetch at head-parse time is what the hero's no-flash arrival relies on.
 - Everything else is `defer`red, so it downloads in parallel and runs in document order. Where one script builds on another, that order matters. The index shows each page's script list in order.
 
-**Everything starts from the series index.** `EmjiveSeries.ready` resolves the active series (the `?series=` in the address, or the featured one), and every page script starts from it rather than fetching data itself. Product lists are fetched once per series and shared. On the pages that need them first, they are requested the moment the index resolves.
+**Everything starts from the studies index.** `EmjiveStudies.ready` resolves the active study (the `?study=` in the address, or the featured one), and every page script starts from it rather than fetching data itself. Product lists are fetched once per study and shared. On the pages that need them first, they are requested the moment the index resolves.
 
 **Three ways scripts talk.**
 
@@ -105,13 +105,13 @@ The index lists the event names and storage keys.
 
 - Every "didn't load" or "doesn't exist" message is one component (`EmjiveMessage`).
 - Every 3D model has a picture to fall back to: no WebGL, a failed chunk, a lost context, reduced motion.
-- A page that waits for its first paint (the homepage, the item page, the series page) holds an arrival loader until the pictures that paint is made of have decoded, so nothing pops in after the reveal.
+- A page that waits for its first paint (the homepage, the item page, the study page) holds an arrival loader until the pictures that paint is made of have decoded, so nothing pops in after the reveal.
 
 ## 4. The 3D layer
 
-**One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `data/series.json`'s `metal-shaders`, which is why the model optimizer strips textures. The module stays series-unaware all the same: on the site it reads the shaders from the loaded index, and the tools, which don't load it, hand them over.
+**One viewer factory for everything that draws a model.** `js/three-viewer.js` builds every viewer on the site, and the tools render through it: `auto-render` loads the real module in headless Chrome, and `scene-tool` previews and tunes through it. A render or a tuned value therefore can't drift from what the site shows. The model's own materials are ignored, and every mesh gets a metal from `data/studies.json`'s `metal-shaders`, which is why the model optimizer strips textures. The module stays study-unaware all the same: on the site it reads the shaders from the loaded index, and the tools, which don't load it, hand them over.
 
-**One studio for every scene, matched to Blender.** The models are shot in a Blender studio, and every scene reproduces it the same way whatever the HDRI: Blender's plain AgX view (no look), a sun, a blur of the HDRI and a reflection detail, all set once in `data/series.json` and tuned in `scene-tool`. The HDRI only supplies what the metal reflects. Blender forms its image through a 3D lookup table that material shaders can't hold, so the colour is three.js's AgX frame with Blender's measured grey response swapped in. The blur and the detail answer the same problem: three.js reads a reflection from a level of the environment map as coarse as the metal's roughness allows, which on polished metal shows that level's texels. Reading finer levels removes the grid, and blurring the HDRI gives back the softness the coarse level carried.
+**One studio for every scene, matched to Blender.** The models are shot in a Blender studio, and every scene reproduces it the same way whatever the HDRI: Blender's plain AgX view (no look), a sun, a blur of the HDRI and a reflection detail, all set once in `data/studies.json` and tuned in `scene-tool`. The HDRI only supplies what the metal reflects. Blender forms its image through a 3D lookup table that material shaders can't hold, so the colour is three.js's AgX frame with Blender's measured grey response swapped in. The blur and the detail answer the same problem: three.js reads a reflection from a level of the environment map as coarse as the metal's roughness allows, which on polished metal shows that level's texels. Reading finer levels removes the grid, and blurring the HDRI gives back the softness the coarse level carried.
 
 **A metal change fades, on the site.** Each material's colour, metalness and roughness are eased to the new metal's rather than the material being swapped: with the colours linear, that is close to a crossfade of the two renders, it holds on a turning model, and nothing recompiles. The pictures standing in for a model crossfade too, a copy of the old one fading out over the new, since a model's silhouette is the same in every metal. The tools ask for the metal at once, so a render never catches a fade.
 
@@ -139,7 +139,7 @@ The index lists the event names and storage keys.
 
 ## 5. Styling
 
-**One stylesheet, plain CSS**, in sections (listed in the index). A series' `hero.css` is injected after it and wins ties.
+**One stylesheet, plain CSS**, in sections (listed in the index). A study's `hero.css` is injected after it and wins ties.
 
 **Tokens on `:root`, picked by role** (see rules.md). Most dimensions and timings are tokens too, so a value is changed in one place.
 
@@ -179,9 +179,9 @@ The big pictures (the hero, the item x-rays) come in up to four versions: deskto
 **The build** (`vite.config.js`) makes a multi-page Vite build deployable:
 
 - Every page is an entry, so a new page needs adding there.
-- What Vite can't trace (classic scripts, and every path that only exists as data) is copied verbatim and the scripts are minified. Module sources, fonts that Vite already re-emits, the HDRIs no series uses, and print models are left out.
-- Two things Vite does to every `<head>` are undone: it inlines the series index as `data:` and moves the stylesheet.
-- Preload hints are added for the featured series.
+- What Vite can't trace (classic scripts, and every path that only exists as data) is copied verbatim and the scripts are minified. Module sources, fonts that Vite already re-emits, the HDRIs no study uses, and print models are left out.
+- Two things Vite does to every `<head>` are undone: it inlines the studies index as `data:` and moves the stylesheet.
+- Preload hints are added for the featured study.
 - It writes the sitemap and the per-item pages and pictures.
 
 **`npm run verify`** is the gate (see rules.md), in this order:
@@ -231,6 +231,6 @@ When the CSP report-only header logs nothing on any page, switch it to enforcing
 
 ## 8. Not built yet
 
-- **The content pages are empty shells.** `archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, `legal-notice`, `terms`, `privacy` and `series` have real addresses, meta tags and styling hooks, but no designed content. The archives page is meant to list every series from `data/series.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
+- **The content pages are empty shells.** `archives`, `who-are-we`, `intent`, `3d-printing`, `environment`, `legal-notice`, `terms`, `privacy` and `studies` have real addresses, meta tags and styling hooks, but no designed content. The archives page is meant to list every study from `data/studies.json`, which already holds everything it needs. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
 - **There is no checkout.** "Proceed to checkout" (once the terms are accepted) only shows a notice saying so. A real payment step needs a backend (e.g. a Stripe Checkout session).
 - **There is no contact form.** `js/main.js` keeps a guarded handler that does nothing until a page has `#contactForm`. A real form needs a form backend.

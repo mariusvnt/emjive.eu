@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Pure text helpers for the tools that edit the data files (no fs/http):
 // inserting, patching and removing entries in hand-aligned JSON without
-// re-serializing, and rendering whole product/series blocks in canonical formatting.
+// re-serializing, and rendering whole product/study blocks in canonical formatting.
 // renderProductBlock copies the auto-render-owned maps (icons, fallback-img,
 // wheel-poster, hand-poster, plan-views) from the on-disk product, never from form input.
 
@@ -120,7 +120,7 @@ function insertBeforeObjectClose(text, openAnchor, newEntryText) {
   return text.slice(0, afterOpen) + insertion + text.slice(closeIdx);
 }
 
-// Appends to a single-line string array (data/series.json "metals"), keeping it on one line.
+// Appends to a single-line string array (data/studies.json "metals"), keeping it on one line.
 function appendToInlineStringArray(text, openAnchor, value) {
   const startIdx = text.indexOf(openAnchor);
   if (startIdx === -1) return null;
@@ -217,9 +217,9 @@ function updateObjectEntryInText(text, openAnchor, key, newValueText) {
 }
 
 // Patches one field (name/year/hdri, or the flat categories array) of a
-// series, field by field so its hand-authored "hero" is never rewritten.
-function updateSeriesFieldInText(text, seriesSlug, fieldName, newValueText) {
-  const span = anchoredSpan(text, "slug", seriesSlug);
+// study, field by field so its hand-authored "hero" is never rewritten.
+function updateStudyFieldInText(text, studySlug, fieldName, newValueText) {
+  const span = anchoredSpan(text, "slug", studySlug);
   const fieldPattern = new RegExp('"' + fieldName + '":\\s*(\\[[^\\]]*\\]|"[^"]*")');
   return span && replaceInSpan(text, span, fieldPattern, '"' + fieldName + '": ' + newValueText);
 }
@@ -244,7 +244,7 @@ function replaceInSpan(text, span, pattern, replacement) {
 }
 
 // The full { ... } span of a block whose first field is
-// `"anchorKey": "anchorValue"` (a product's "id", a series' "slug").
+// `"anchorKey": "anchorValue"` (a product's "id", a study's "slug").
 function findBlockSpanByAnchor(text, anchorKey, anchorValue) {
   const anchor = '"' + anchorKey + '": "' + anchorValue + '"';
   const anchorIdx = text.indexOf(anchor);
@@ -290,9 +290,9 @@ function removeProductBlockInText(text, productId) {
   return removeArrayEntryInText(text, span);
 }
 
-// The caller deletes the series' folders.
-function removeSeriesBlockInText(text, seriesSlug) {
-  const span = findBlockSpanByAnchor(text, "slug", seriesSlug);
+// The caller deletes the study's folders.
+function removeStudyBlockInText(text, studySlug) {
+  const span = findBlockSpanByAnchor(text, "slug", studySlug);
   if (!span) return null;
   return removeArrayEntryInText(text, span);
 }
@@ -394,8 +394,8 @@ function renderProductBlock(p, metals) {
   ].join("\n");
 }
 
-// A new series' block (existing ones are edited via updateSeriesFieldInText).
-function renderSeriesBlock(s) {
+// A new study's block (existing ones are edited via updateStudyFieldInText).
+function renderStudyBlock(s) {
   const categories = (s.categories || []).map((c) => '"' + esc(c) + '"').join(", ");
   const hero = s.hero || {};
   const preload = (hero.preload || []).map((x) => '"' + esc(x) + '"').join(", ");
@@ -429,7 +429,7 @@ module.exports = {
   updateObjectEntryInText,
   removeObjectEntryInText,
   removeFromInlineStringArray,
-  updateSeriesFieldInText,
+  updateStudyFieldInText,
   anchoredSpan,
   replaceInSpan,
   findBlockSpanByAnchor,
@@ -437,7 +437,7 @@ module.exports = {
   replaceProductBlockInText,
   removeArrayEntryInText,
   removeProductBlockInText,
-  removeSeriesBlockInText,
+  removeStudyBlockInText,
   renderProductBlock,
-  renderSeriesBlock
+  renderStudyBlock
 };

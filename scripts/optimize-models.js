@@ -19,16 +19,16 @@ const { readdirSync, statSync, existsSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { ROOT, repoPath, mb, gltfIO } = require("./helpers");
 
-const SERIES_ROOT = join(ROOT, "assets", "series");
+const STUDIES_ROOT = join(ROOT, "assets", "studies");
 
 // NORMAL is kept: without it three.js shades flat faces.
 const DROPPED_ATTRIBUTE_PREFIXES = ["TEXCOORD_", "COLOR_", "TANGENT", "_"];
 
 function findProductModels() {
   const found = [];
-  if (!existsSync(SERIES_ROOT)) return found;
-  for (const series of readdirSync(SERIES_ROOT)) {
-    const productsDir = join(SERIES_ROOT, series, "products");
+  if (!existsSync(STUDIES_ROOT)) return found;
+  for (const study of readdirSync(STUDIES_ROOT)) {
+    const productsDir = join(STUDIES_ROOT, study, "products");
     if (!existsSync(productsDir) || !statSync(productsDir).isDirectory()) continue;
     for (const product of readdirSync(productsDir)) {
       const dir = join(productsDir, product);
@@ -109,7 +109,7 @@ async function main() {
     : findProductModels();
 
   if (!files.length) {
-    console.error("No .glb files found under assets/series/*/products/.");
+    console.error("No .glb files found under assets/studies/*/products/.");
     process.exitCode = 1;
     return;
   }

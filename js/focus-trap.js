@@ -222,7 +222,7 @@
       focusElement(target, undefined, quiet === true);
     },
 
-    // For outside Escape handling (EmjiveMenus in js/series.js).
+    // For outside Escape handling (EmjiveMenus in js/studies.js).
     isActive: function () {
       return !!activeRoot;
     },

@@ -1,4 +1,4 @@
-// studies.html: fills the requested study's title, year and subtitle from its manifest.
+// studies.html: names the tab after the requested study's manifest, or shows that it doesn't exist.
 
 (function () {
   "use strict";
@@ -30,14 +30,6 @@
       return window.EmjiveStudies.loadManifest(slug).then(function (manifest) {
         var title = manifest.title || entry.name || slug;
         document.title = "em·ji·ve: " + title.toLowerCase();
-
-        document.getElementById("studyManifestYear").textContent =
-          manifest.year || entry.year || "";
-        document.getElementById("studyManifestTitle").textContent = title;
-
-        var subtitleEl = document.getElementById("studyManifestSubtitle");
-        subtitleEl.textContent = manifest.subtitle || "";
-        subtitleEl.hidden = !manifest.subtitle;
 
         loadingEl.hidden = true;
         contentEl.hidden = false;

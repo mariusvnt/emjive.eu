@@ -27,7 +27,7 @@ All JSON, fetched by the pages themselves, so everything in them is public.
 | --- | --- |
 | `data/studies.json` | The brand-wide settings and vocabularies, plus one entry per study (the paths to its data and its hero bundle). |
 | `data/studies/<slug>/products.json` | That study's catalog. |
-| `data/studies/<slug>/manifest.json` | That study's design manifest, for `studies.html` (only its title, year and subtitle render so far). |
+| `data/studies/<slug>/manifest.json` | That study's design manifest, for `studies.html` (only its title is used so far, for the tab's title). |
 
 **The schemas are in `scripts/validate-data.js`**, which is the source of truth for every field. It also checks what a schema can't: every path exists with its exact case, references resolve across files, names are valid addresses, measured geometry matches its file, the generated image versions exist.
 

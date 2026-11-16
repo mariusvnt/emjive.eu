@@ -745,41 +745,6 @@ body:has(.product-stage) .site-header__veil {
   .btn:hover { background: var(--black); color: var(--bg); }
 }
 
-/* ==== Section heads ==== */
-
-.section-head {
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 0 var(--edge-px);
-  display: flex;
-  align-items: baseline;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  margin-bottom: 2.5rem;
-}
-.section-head__index {
-  font-size: calc(0.75rem * var(--text-scale));
-  text-transform: uppercase;
-  color: var(--black);
-  border-top: 1px solid var(--black);
-  padding-top: 0.4rem;
-}
-/* h1 or h2: the level is document structure (the shell pages' titles are h1s), not size. */
-.section-head :is(h1, h2) {
-  font-size: clamp(calc(1.8rem * var(--text-scale)), calc(3.5vw * var(--text-scale)), calc(2.4rem * var(--text-scale)));
-  font-weight: 400;
-}
-.section-head__note {
-  font-size: calc(0.75rem * var(--text-scale));
-  color: var(--category-col);
-  margin-left: auto;
-}
-.section-head__note code {
-  background: var(--bg);
-  padding: 0.1em 0.4em;
-  border: 1px solid var(--black);
-}
-
 /* ==== Products ==== */
 
 /* Two homepage views, data-gallery-view on <html> (js/scroll-memory.js, js/gallery.js):
@@ -1320,17 +1285,6 @@ body:has(.site-header__menu.is-open) .gallery-control {
   margin: 0 auto;
   padding: clamp(4rem, 10vw, 7rem) var(--edge-px) 0;
   min-height: 55vh;
-}
-/* Already inside the page's max-width and padding. */
-.page-shell .section-head {
-  max-width: none;
-  padding: 0;
-}
-.study-manifest__subtitle {
-  font-family: var(--font-main);
-  font-size: calc(0.95rem * var(--text-scale));
-  color: var(--category-col);
-  max-width: 46ch;
 }
 
 /* ==== Selection / order page ==== */

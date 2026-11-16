@@ -54,7 +54,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - landmarks: #main
 - **[css/](../css/)** — The site's one stylesheet.
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a study's hero.css is injected after it.
-    - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Study hero slots · Section heads · Products · Content pages (archives, who are we, study manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Footer · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
+    - sections: Design tokens · Messages · Pop-up notice (EmjiveOrderRows.notice) · 3D viewer (js/three-viewer.js) · Header · Study hero slots · Products · Content pages (archives, who are we, study manifest) · Selection / order page · Checkout bar (launch-order.html) · Product detail page · Footer · Floating selection bar · Modify strip · Focus visibility · Loader · Reduced motion
 - **[js/](../js/)** — Client scripts: classic scripts talking through window.Emjive* globals, and the ES modules of the 3D layer.
   - [focus-trap.js](../js/focus-trap.js) — Modal focus trap and page lock for the bottom sheets (#sizeModal, #modifyModal, the size finder): window.EmjiveFocusTrap.
     - sets `EmjiveFocusTrap` { activate, release, isActive, focus }
@@ -89,7 +89,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [stack-scene.js](../js/stack-scene.js) — The wheel's 3D scene: every product's model in one full-screen canvas (one WebGL context, one environment map).
     - sets `EmjiveMem` { cpuGeometryBytes }
     - exports `createStackScene`
-  - [studies-page.js](../js/studies-page.js) — studies.html: fills the requested study's title, year and subtitle from its manifest.
+  - [studies-page.js](../js/studies-page.js) — studies.html: names the tab after the requested study's manifest, or shows that it doesn't exist.
   - [studies.js](../js/studies.js) — Study resolution (window.EmjiveStudies), plus the page-wide helpers every page needs first: EmjiveHero, EmjiveMessage, EmjiveMenus, and the homepage hero bundle loader.
     - sets `EmjiveHero` { onLayout, publishLayout, onScroll, publishScroll, onStage, publishStage, stage, setStageMap, mapStage }
     - sets `EmjiveMenus` { opened, closed }

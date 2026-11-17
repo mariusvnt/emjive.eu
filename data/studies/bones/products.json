@@ -357,7 +357,7 @@
       "geometry": { "volume-cm3": 1.80585, "volume-cm3-per-size-mm": 0.0340564, "volume-cm3-per-size-mm2": 0.000135842, "area-cm2": 17.7129, "area-cm2-per-size-mm": 0.28652, "area-cm2-per-size-mm2": 0.00094002, "dimensions-mm": [29.8, 27.1, 17.5], "min-size-mm": 2.8, "min-box": { "center": [0, 2.825, 0.493], "axes": [[0.00094, 0.96161, 0.27443], [1, -0.00091, -0.00026], [0, -0.27443, 0.96161]] }, "axis-box": { "sizes-mm": [40, 62, 80], "center": [[0, 2.07, 1.263], [0, 1.991, 1.445], [0, 1.931, 1.594]], "size": [[20.13, 21.57, 16.91], [27.12, 28.42, 19.34], [32.85, 34.03, 21.34]] }, "model-sha1": "001981d38954ee81eb97ca9256a75f21ff70224e" },
       "size-range": { "min": 40, "max": 80 },
       "hero-hand-visibility": { "visible": false, "x": 50, "y": 50, "scale": 6, "rotation": 0 },
-      "3d-viewer-camera-default": { "rotation": -62, "tilt": 43, "zoom": 80, "roll": 29 },
+      "3d-viewer-camera-default": { "rotation": -62, "tilt": 55, "zoom": 80, "roll": 29 },
       "assets": {
         "model": "assets/studies/bones/products/ilium_ring/ilium_gltf.glb",
         "icons": { "steel": "assets/studies/bones/products/ilium_ring/ilium_icon_steel.webp", "silver": "assets/studies/bones/products/ilium_ring/ilium_icon_silver.webp", "bronze": "assets/studies/bones/products/ilium_ring/ilium_icon_bronze.webp" },

@@ -102,7 +102,7 @@
     return hold && typeof hold.done === "function" ? hold : null;
   }
 
-  // The item's slug, from its address /<slug> (the per-item pages,
+  // The item's slug, from its address /<study>/<item> (the per-item pages,
   // emitItemPages() in vite.config.js).
   function getSlug() {
     var last = window.location.pathname.split("/").pop() || "";
@@ -116,7 +116,7 @@
 
   function showNotFound() {
     loadingEl.hidden = false;
-    // Back to the study being browsed (mainHref drops ?study= for the featured one).
+    // Back to the study the address names.
     var slug = state.studySlug || (window.EmjiveStudies && window.EmjiveStudies.slug);
     window.EmjiveMessage.show(loadingEl, "Item not found", {
       label: "Back to gallery",
@@ -137,29 +137,13 @@
     pageReady();
   }
 
-  // A slug is unique across all studies (validate-data), so it identifies the
-  // study too. The active study is tried first, then the others in index order.
+  // The item in the study its address names (js/studies.js resolveSlug).
   function findProduct(slug, itemSlug) {
-    var matches = function (p) {
-      return !!itemSlug && window.EmjiveStudies.productSlug(p) === itemSlug;
-    };
     return window.EmjiveStudies.loadProducts(slug).then(function (products) {
-      var product = products.find(matches);
-      if (product) return { product: product, slug: slug };
-
-      var others = window.EmjiveStudies.all()
-        .map(function (s) { return s.slug; })
-        .filter(function (s) { return s !== slug; });
-
-      return others.reduce(function (chain, otherSlug) {
-        return chain.then(function (found) {
-          if (found) return found;
-          return window.EmjiveStudies.loadProducts(otherSlug).then(function (list) {
-            var hit = list.find(matches);
-            return hit ? { product: hit, slug: otherSlug } : null;
-          });
-        });
-      }, Promise.resolve(null));
+      var product = products.find(function (p) {
+        return !!itemSlug && window.EmjiveStudies.productSlug(p) === itemSlug;
+      });
+      return product ? { product: product, slug: slug } : null;
     });
   }
 

@@ -1,9 +1,11 @@
 <!doctype html>
-<!-- An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself. -->
+<!-- An item's page (/<study>/<item>): the template the build copies to dist/<study>/<item>.html per product; it doesn't ship itself. -->
 <html lang="en" data-page-loader data-products="eager">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<!-- Served a folder deep: every relative path (here, in the scripts, in the data) resolves from the root. -->
+<base href="/" />
 <meta name="theme-color" content="#f8f8f8" />
 <title>em·ji·ve: product</title>
 <meta name="description" content="Item detail" />
@@ -69,10 +71,10 @@
           <div class="site-header__group">
             <dt>Shop</dt>
             <dd><a href="/#gallery" data-featured-study>Bones study</a></dd>
-            <dd><a href="/archives">Archives</a></dd>
+            <dd><a href="/archives">Past studies</a></dd>
           </div>
           <div class="site-header__group">
-            <dt>Design</dt>
+            <dt>Info</dt>
             <dd><a href="/intent">Intent</a></dd>
             <dd><a href="/3d-printing">3D printing</a></dd>
             <dd><a href="/environment">Environment</a></dd>

@@ -420,7 +420,7 @@
 
   // Already on that product's page: close and scroll to the top instead.
   function goToPage() {
-    var href = window.EmjiveStudies.productHref(state.base);
+    var href = window.EmjiveStudies.productHref(state.base, state.slug);
     if (window.location.pathname.replace(/\/+$/, "") === href) {
       close();
       window.scrollTo({ top: 0, left: 0 });

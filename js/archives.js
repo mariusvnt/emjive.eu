@@ -2,7 +2,7 @@
 // newest first. A closed case is a spine showing a slice of the study's hero
 // picture, its name rising above it. Focusing one (a mouse hover, a long press
 // on touch, Enter) opens it to the whole picture, its name turning level over
-// it and its manifest text and items under it. One case is open at a time, and it stays
+// it and its items' icons (default metal) under it. One case is open at a time, and it stays
 // open until another is focused, a click lands elsewhere or Escape is pressed,
 // so the pointer can travel down to the item links.
 //
@@ -12,6 +12,9 @@
 // case under it, which changes size as the focus moves: a mouse sweeping the
 // shelf focuses each study as it passes, and on touch a held finger can slide
 // along the shelf the same way.
+//
+// Leaving by one of the shelf's links keeps the focused study in the history
+// entry, so Back reopens it.
 
 (function () {
   "use strict";
@@ -31,17 +34,17 @@
   // desktop's wide case doesn't sweep past faster than a phone's.
   var GLIDE_S = 0.3;
   var GLIDE_REF_PX = 180;
-  // How long the focus rests before its name turns level and its text shows.
+  // How long the focus rests before its name turns level and its items show.
   var SETTLE_MS = 100;
   // ?test-studies=N appends N placeholder studies, for trying the shelf with
   // more than the real ones. Test only: nothing links to it.
   var TEST_STUDIES_MAX = 20;
 
   var row = null;
-  var cases = []; // { el, name, spine, cover, go, details, picture, full }
+  var cases = []; // { slug, el, name, spine, cover, go, details, picture, full }
   var rulers = null; // { step, spine, open }: the stack's CSS widths, measured
   var openIndex = -1; // the focused study
-  var settledIndex = -1; // the one whose name and text show
+  var settledIndex = -1; // the one whose name and items show
   var settleTimer = 0;
   // pos: the study the opening is centred on; amount: how open the stack is (0 to 1).
   // fade, fadeFrom: the openness a cut is closing (startGlide).
@@ -122,6 +125,7 @@
     var href = entry.test ? "" : window.EmjiveStudies.mainHref(entry.slug);
     function go(e) {
       if (!href) return;
+      remember();
       if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) window.open(href, "_blank", "noopener");
       else window.location.href = href;
     }
@@ -133,37 +137,40 @@
     details.style.setProperty("--k", String(k));
     details.setAttribute("aria-label", entry.name);
 
-    return { el: el, name: name, spine: spine, cover: cover, go: go, details: details, picture: picture, full: full };
+    return { slug: entry.slug, el: el, name: name, spine: spine, cover: cover, go: go, details: details, picture: picture, full: full };
   }
 
-  function fillDetails(details, intro, items) {
-    if (intro) details.appendChild(H.el("p", "archives__intro", intro));
+  function fillDetails(details, items) {
     if (!items.length) return;
     var list = details.appendChild(H.el("ul", "archives__items"));
     items.forEach(function (item) {
       var li = list.appendChild(H.el("li"));
+      var box = li.appendChild(H.el(item.href ? "a" : "span", "archives__item"));
       if (item.href) {
-        var a = li.appendChild(H.el("a", "", item.name));
-        a.href = item.href;
-      } else {
-        li.appendChild(H.el("span", "", item.name));
+        box.href = item.href;
+        box.addEventListener("click", remember);
+      }
+      box.setAttribute("aria-label", item.name);
+      if (item.icon) {
+        var img = box.appendChild(H.el("img"));
+        img.alt = "";
+        img.decoding = "async";
+        H.setThumb(img, item.icon);
       }
     });
   }
 
-  // A study whose files fail shows without text or items; the others don't wait on it.
+  // A study whose products fail to load shows without items; the others don't wait on it.
   function loadDetails(entry, details) {
     if (entry.test) {
-      fillDetails(details, "", [1, 2, 3, 4].map(function (n) { return { name: "Item " + n }; }));
+      fillDetails(details, [1, 2, 3, 4].map(function (n) { return { name: "Item " + n }; }));
       return;
     }
     var studies = window.EmjiveStudies;
-    Promise.all([
-      studies.loadManifest(entry.slug).catch(function () { return {}; }),
-      studies.loadProducts(entry.slug).catch(function () { return []; })
-    ]).then(function (results) {
-      fillDetails(details, results[0].intro || "", results[1].map(function (product) {
-        return { name: product.name || "", href: studies.productHref(product) };
+    studies.loadProducts(entry.slug).catch(function () { return []; }).then(function (products) {
+      fillDetails(details, products.map(function (product) {
+        var icons = (product.assets && product.assets.icons) || {};
+        return { name: product.name || "", href: studies.productHref(product, entry.slug), icon: icons[product["default-metal"]] || "" };
       }));
     });
   }
@@ -171,7 +178,7 @@
   /* ---- open / close ---- */
 
   // The focused case (data-focus) takes the pointer as its study's link at
-  // once and starts widening; its name turns level and its text shows
+  // once and starts widening; its name turns level and its items show
   // (data-open) only once the focus has rested, so a sweep only slides pictures.
   function setOpen(index) {
     if (index === openIndex) {
@@ -291,6 +298,36 @@
       c.el.style.setProperty("--w", openness(k).toFixed(4));
     });
     if (!done) glide.frame = requestAnimationFrame(stepGlide);
+  }
+
+  /* ---- back to the shelf ---- */
+
+  // Written only on the way out: a sweep would otherwise replace the entry at
+  // every case, past the rate Safari allows.
+  function remember() {
+    if (openIndex < 0) return;
+    try {
+      history.replaceState(Object.assign({}, history.state, { archivesOpen: cases[openIndex].slug }), "");
+    } catch (err) { /* the focus is just not kept */ }
+  }
+
+  // Open at once, as it was left: no widening, no name turning.
+  function restore() {
+    var slug = history.state && history.state.archivesOpen;
+    var k = -1;
+    cases.forEach(function (c, i) { if (c.slug === slug) k = i; });
+    if (k < 0) return;
+    shelf.setAttribute("data-instant", "");
+    setOpen(k);
+    clearTimeout(settleTimer);
+    settle(k);
+    glide.pos = { x: k, v: 0 };
+    glide.amount = { x: 1, v: 0 };
+    // The pointer isn't on the shelf yet: its arrival anchors as usual.
+    detached = true;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { shelf.removeAttribute("data-instant"); });
+    });
   }
 
   /* ---- which study the pointer points at ---- */
@@ -534,6 +571,7 @@
       loadDetails(entry, c.details);
     });
     wire();
+    restore();
 
     var loader = window.EmjiveLoader;
     if (!loader) return;

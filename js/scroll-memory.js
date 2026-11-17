@@ -15,15 +15,13 @@
   var STORAGE_PREFIX = "emjive:scroll:";
   // The last chosen view this visit (cleared on a landing).
   var VIEW_KEY = "emjive_gallery_view";
-  // Set by js/gallery.js once the visitor has been in the gallery, for this tab.
-  var REACHED_KEY = "emjive_gallery_reached";
 
   var html = document.documentElement;
   var H = window.EmjiveHelpers;
 
   /* ---- the landing ----
      1. The entry's saved state (Back, reload): the exact layout left.
-     2. #gallery in the address, or the gallery already reached in this tab:
+     2. #gallery in the address, or this address's gallery already reached in this tab:
         skip the hero, the address then naming #gallery (a #top would have
         the browser scroll back up to the hero).
      3. Otherwise the hero plays. Arriving from outside the site resets the
@@ -44,7 +42,7 @@
     if (view !== "grid") view = "stack";
     var hero;
     if (saved && saved.hero) hero = saved.hero;
-    else if (window.location.hash === "#gallery" || H.readStorage("sessionStorage", REACHED_KEY) === "1") hero = "skip";
+    else if (window.location.hash === "#gallery" || H.readStorage("sessionStorage", H.galleryReachedKey()) === "1") hero = "skip";
     else hero = "play";
     if (hero !== "skip") hero = "play";
     if (!saved && hero === "skip" && window.location.hash !== "#gallery") {

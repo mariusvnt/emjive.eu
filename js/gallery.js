@@ -20,7 +20,6 @@
 
   // Read by js/scroll-memory.js in the <head>.
   var VIEW_KEY = "emjive_gallery_view";
-  var REACHED_KEY = "emjive_gallery_reached";
   // The veil's fade (--fade-standard); its fallback timer adds a margin.
   var VEIL_MS = 300;
   // Longest the arrival loader waits on the grid's first items.
@@ -177,14 +176,14 @@
 
   /* ---- reaching the gallery ----
      Once the visitor has been in it (the wheel landed, the grid's top at the
-     screen's, or the hero skipped), every landing from the site skips the
+     screen's, or the hero skipped), every landing on this address skips its
      hero for the rest of the visit: js/scroll-memory.js reads the mark,
      which a new tab doesn't have. */
   var reached = false;
   function markReached() {
     if (reached) return;
     reached = true;
-    H.writeStorage("sessionStorage", REACHED_KEY, "1");
+    H.writeStorage("sessionStorage", H.galleryReachedKey(), "1");
   }
 
   function watchGridTop() {

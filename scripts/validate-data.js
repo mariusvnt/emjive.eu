@@ -645,8 +645,9 @@ if (index && validate("data/studies.json", indexSchema, index)) {
   if (index["swatch-hdri"] && !hdriKeys.has(index["swatch-hdri"])) fail("data/studies.json", 'swatch-hdri "' + index["swatch-hdri"] + '" is not a key of hdris');
   for (const [key, rel] of Object.entries(index.hdris)) checkPath("data/studies.json hdris." + key, rel);
 
-  // Item slugs are flat at the root (emjive.eu/<slug>): unique across all studies
-  // and not shadowing a page or top-level entry.
+  // A study's address is /<slug>, kept off the root's names, and its items'
+  // /<slug>/<item>. Item slugs are still unique across all studies: the build
+  // names each item's link preview by it (assets/previews/<slug>.jpg).
   const reserved = reservedNames(ROOT);
   const itemSlugs = new Map();
 
@@ -695,8 +696,7 @@ if (index && validate("data/studies.json", indexSchema, index)) {
 
         const itemSlug = slugify(product.name);
         if (!itemSlug) fail(label, "name has no letters or digits to build an address from");
-        else if (reserved.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is taken by a page or a top-level file/folder');
-        else if (itemSlugs.has(itemSlug)) fail(label, 'its address "/' + itemSlug + '" is already used by ' + itemSlugs.get(itemSlug));
+        else if (itemSlugs.has(itemSlug)) fail(label, 'its slug "' + itemSlug + '" is already used by ' + itemSlugs.get(itemSlug));
         else itemSlugs.set(itemSlug, study.slug + " / " + product.id);
         if (!study.categories.includes(product.category)) fail(label, 'category "' + product.category + '" is not declared by its study');
         if (!metals.has(product["default-metal"])) fail(label, 'default-metal "' + product["default-metal"] + '" is not in metals');
@@ -735,6 +735,12 @@ if (index && validate("data/studies.json", indexSchema, index)) {
     if (manifest && validate(study.manifest, manifestSchema, manifest)) {
       if (manifest.study !== study.slug) fail(study.manifest, 'study field "' + manifest.study + '" does not match slug "' + study.slug + '"');
     }
+  }
+
+  for (const slug of slugs) {
+    const where = "study " + slug;
+    if (slugify(slug) !== slug) fail(where, 'its slug is not an address ("' + slugify(slug) + '" would be)');
+    else if (reserved.has(slug)) fail(where, 'its address "/' + slug + '" is taken by a page or a top-level file/folder');
   }
 }
 

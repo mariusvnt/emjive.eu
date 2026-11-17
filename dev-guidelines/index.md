@@ -11,13 +11,13 @@ The repo's structure, generated from the code. Each description is the first sen
   - landmarks: #main
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
-- [archives.html](../archives.html) — Archives (/archives): every study across the brand's lifetime, as a shelf of cases (js/archives.js).
+- [archives.html](../archives.html) — Past studies (/archives): every study across the brand's lifetime, as a shelf of cases (js/archives.js).
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/archives.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [environment.html](../environment.html) — Environment (/environment): the environmental impact of making each piece.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
-- [index.html](../index.html) — The homepage (/): the featured study's hero, then its gallery as the wheel or the grid.
+- [index.html](../index.html) — A study's gallery: at / the featured study, at /<study> any study (dist/<study>.html per study); its hero, then its gallery as the wheel or the grid.
   - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #gallery
 - [intent.html](../intent.html) — Intent (/intent): what the emjive project sets out to do.
@@ -37,7 +37,7 @@ The repo's structure, generated from the code. Each description is the first sen
 - [privacy.html](../privacy.html) — Privacy policy (/privacy): what is stored about a visitor, cookies included.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
-- [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself.
+- [product.html](../product.html) — An item's page (/<study>/<item>): the template the build copies to dist/<study>/<item>.html per product; it doesn't ship itself.
   - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product-wall.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
@@ -64,10 +64,10 @@ The repo's structure, generated from the code. Each description is the first sen
   - [gallery.js](../js/gallery.js) — Homepage gallery (index.html): one of two views, data-gallery-view on <html> (set in the <head> by js/scroll-memory.js).
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, ICON_NEXT, ICON_OUT, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, galleryReachedKey, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, ICON_NEXT, ICON_OUT, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
-  - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu and the chromatic-aberration filter.
+  - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu, the chromatic-aberration filter and in-page links under a <base>.
   - [modify-modal.js](../js/modify-modal.js) — The Modify sheet, on every page: opened by a row's Modify in query mode (js/order-rows.js), in the order list (js/selection-page.js) or the floating bar's drawer (js/selection-bar.js).
     - sets `EmjiveModifyModal` { open, isOpen }
   - [option-dial.js](../js/option-dial.js) — Option dials (js/product.js, js/modify-modal.js): a circular button showing the active option, the dial's name under it, opening a disc over three blurs, divided into one section per option, each always in the same place, the active one dotted (the button's circle shrinking to the dot, turning round the middle to it).
@@ -138,7 +138,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - `assets/metal-sample_*.webp` — The material dial's swatches, rendered by npm run auto-render.
 - **[scripts/](../scripts/)** — Node tooling: the build checks, the catalog pipeline and the dev tools' servers.
   - [auto-render.js](../scripts/auto-render.js) — Re-renders the product images and metal swatches through the site's own viewer code (js/three-viewer.js, js/stack-scene.js) in headless Chrome with a real GPU (for MSAA; the startup log names the WebGL renderer).
-  - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the studies.json preload, noindex pages, link preview images, per-item pages, clean URLs and the sitemap.
+  - [check-dist.js](../scripts/check-dist.js) — Assertions about the built site in dist/, before deploy (which mirrors dist/ with --delete): required host files, nothing private, every local href/src resolves, <head> order and the studies.json preload, noindex pages, link preview images, per-study and per-item pages, clean URLs and the sitemap.
   - [docs-index.js](../scripts/docs-index.js) — Generates dev-guidelines/index.md: the repo's tree down to each file's public surface, described by the code's own header comments.
   - [helpers.js](../scripts/helpers.js) — Shared helpers for the Node tooling (scripts/ and vite.config.js): the repo's paths and constants, file and argument plumbing, catalog lookups and drift checks, the glTF reader, and the dev tools' loopback server.
     - exports `ROOT`, `STUDIES_JSON_PATH`, `SITE_ORIGIN`, `PHONE_QUERY`, `REFERENCE_SIZE_MM`, `AXIAL_STRETCH_SHARE`, `SIZE_SPAN_MM`, `MEASURED_SIZES_MM`, `readJson`, `repoPath`, `walk`, `mb`, `argValue`, `exitOnProblems`, `findStudyEntry`, `folderSlug`, `productFolder`, `volumeAt`, `areaAt`, `productionCost`, `salePrice`, `priceSpan`, `isSwatchCamera`, `catalogDrift`, `gltfIO`, `readJsonBody`, `sendJson`, `serveStatic`, `startToolServer`
@@ -156,7 +156,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [ring-size.js](../scripts/ring-size.js) — Ring sizing, ported from the Jewelry Printing Toolbox (ring_tools/sizer.py), for the print models and their measurements; also the size-stl command that writes a print model at an ordered size.
     - exports `AXES`, `STL_AXIS`, `sizeToRadius`, `radiusToSize`, `shiftFor`, `polarShift`, `outsideWidth`, `axialStretch`, `resize`, `estimateSize`, `axisClearance`, `detectAxis`, `minSize`
   - [scene-tool-server.js](../scripts/scene-tool-server.js) — Dev server for scene-tool.html (npm run scene-tool): live preview of product cameras, study and swatch HDRIs, the HDRI blur, swatch blur and camera, the sun, reflection detail and metal shaders through the real viewer, saved by text-patching the data files in place.
-  - [slugs.js](../scripts/slugs.js) — An item's URL slug (emjive.eu/<slug>), for the build side.
+  - [slugs.js](../scripts/slugs.js) — An item's URL slug (emjive.eu/<study>/<slug>), for the build side.
     - exports `slugify`, `reservedNames`, `PAGE_ROUTES`
   - [split-models.js](../scripts/split-models.js) — Splits combined Blender exports into the per-model .glb files the site loads.
   - [stl.js](../scripts/stl.js) — Binary STL reading, splitting and writing for the print models (scripts/split-models.js, scripts/measure-models.js).
@@ -210,7 +210,7 @@ Event names and storage keys: the string literals starting with `emjive:` or `em
 | Name | Used in |
 | --- | --- |
 | `emjive_calibration` | `js/size-finder.js` |
-| `emjive_gallery_reached` | `js/gallery.js`, `js/scroll-memory.js` |
+| `emjive_gallery_reached:` | `js/helpers.js` |
 | `emjive_gallery_view` | `js/gallery.js`, `js/scroll-memory.js` |
 | `emjive_metals` | `js/studies.js` |
 | `emjive_model_interacted` | `js/three-viewer.js` |

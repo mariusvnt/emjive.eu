@@ -1,4 +1,4 @@
-// An item's URL slug (emjive.eu/<slug>), for the build side.
+// An item's URL slug (emjive.eu/<study>/<slug>), for the build side.
 // Mirrors productSlug() in js/studies.js; validate-data checks they agree.
 
 const fs = require("node:fs");
@@ -12,9 +12,9 @@ function slugify(name) {
     .replace(/^-+|-+$/g, "");
 }
 
-// Names no item may take: the page routes plus every top-level entry of the built site.
+// Names no study may take: the page routes plus every top-level entry of the built site.
 const PAGE_ROUTES = [
-  "gallery", "series", "archives", "who-are-we", "intent", "3d-printing", "environment", "studies", "terms", "legal-notice", "privacy", "launch-order",
+  "archives", "who-are-we", "intent", "3d-printing", "environment", "studies", "terms", "legal-notice", "privacy", "launch-order",
   "product", "index", "404"
 ];
 

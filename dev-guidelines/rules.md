@@ -14,8 +14,8 @@ Every rule that must hold in this repo, process and code alike, and the one plac
 - **Never run a formatter over `data/**/*.json`.** The files are hand-aligned, and every tool edits them by text surgery to keep that alignment.
 - **Never edit a generated file by hand.** That means the renders (icons, fallback images, wheel posters, hand posters, specs posters, metal swatches), the image versions (`_lo`, `_m`, `_m_lo`, `_128`), a product's `geometry`, `public/` favicons and `dev-guidelines/index.md`. Change the source and re-run the tool that writes the file ([item-guide.md](item-guide.md) says which).
 - **Re-run `npm run measure-models` after any change to a `.glb` or an `.stl`**, a re-optimization included: `geometry` is pinned to the file's hash.
-- **Paths in data and hero fragments are repo-root-relative with no leading slash**, and every page stays at the repo root. The one exception is `url()` in a hero's CSS, which resolves against the CSS file.
-- **A product's name is its address.** It must be unique across every study and must not be a reserved name (a page, a top-level file or folder). Renaming a product changes its address.
+- **Paths in data and hero fragments are repo-root-relative with no leading slash**, and every page stays at the repo root. A page served a folder deep (the item page) carries `<base href="/">` (`check-dist` checks). The one exception is `url()` in a hero's CSS, which resolves against the CSS file.
+- **A study's slug and a product's name are addresses** (`/<study>`, `/<study>/<item>`). A study's slug must not be a reserved name (a page, a top-level file or folder), and a product's name must be unique across every study. Renaming either changes its addresses.
 - **A product's asset folder is `<name>_<category>`.** The tools build that path; they don't read it.
 
 ## Code

@@ -10,7 +10,8 @@
 
   var INDEX_PATH = "data/studies.json";
 
-  // data/*.json paths are repo-root-relative, which only resolves because every page sits at the root.
+  // data/*.json paths are repo-root-relative: every page sits at the root or,
+  // served deeper (an item page), carries <base href="/">.
   var index = null;
   var activeSlug = null;
   var activeStudy = null;
@@ -34,7 +35,14 @@
     return new URLSearchParams(window.location.search).get(name);
   }
 
+  // The study an address names: its first segment (/<study>, /<study>/<item>),
+  // else ?study= (studies.html), else the featured one.
   function resolveSlug(data) {
+    var first = window.location.pathname.split("/")[1] || "";
+    try { first = decodeURIComponent(first).toLowerCase(); } catch (e) { first = ""; }
+    for (var j = 0; j < data.studies.length; j++) {
+      if (data.studies[j].slug === first) return first;
+    }
     var wanted = queryParam("study");
     if (wanted) {
       for (var i = 0; i < data.studies.length; i++) {
@@ -102,21 +110,16 @@
     return memoized(manifestCache, slug, function () { return fetchJson(entry.manifest); });
   }
 
-  // Addresses: / (the gallery), /studies?study=<slug>, and /<item slug> flat at the
-  // root (pages reference css/, js/, assets/ relatively). public/.htaccess and
-  // vite.config.js map them to the .html files. The featured study gets no
-  // ?study=, keeping common URLs clean.
+  // Addresses: / (the featured study's gallery), /<study> (any study's
+  // gallery), /<study>/<item>, and /studies?study=<slug>. public/.htaccess and
+  // vite.config.js map them to the .html files. Links to the featured study
+  // name /, its one canonical address while it is featured.
   function isFeatured(slug) {
     return !!index && slug === index.featured;
   }
 
-  function studyParam(slug, leading) {
-    if (!slug || isFeatured(slug)) return "";
-    return (leading || "?") + "study=" + encodeURIComponent(slug);
-  }
-
   function mainHref(slug) {
-    return "/" + studyParam(slug);
+    return !slug || isFeatured(slug) ? "/" : "/" + encodeURIComponent(slug);
   }
 
   function manifestHref(slug) {
@@ -130,9 +133,9 @@
     return String(product.name).trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   }
 
-  // Item slugs are unique across studies, so no ?study=.
-  function productHref(product) {
-    return "/" + productSlug(product);
+  // studySlug: the study the product belongs to.
+  function productHref(product, studySlug) {
+    return "/" + encodeURIComponent(studySlug) + "/" + productSlug(product);
   }
 
   // A product shown as one of its designs. The product's own fields are the

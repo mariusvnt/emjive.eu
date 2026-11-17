@@ -8,23 +8,23 @@ A static site: HTML pages at the repo root, one stylesheet, vanilla JavaScript a
 
 **Vite is required, both to run the site and to ship it.** The 3D layer is made of ES modules that import `three` from npm, and only a bundler resolves those imports. Everything else is classic scripts that Vite can't trace, so `vite.config.js` copies them across as they are. A plain static host serving the raw repo would break at the first `import "three"`, which is why what ships is `dist/`, never the repo.
 
-**Every page stays at the repo root.** The pages fetch `data/studies.json` with a relative path, every path inside the data is relative to the root, and every page links `css/`, `js/` and `assets/` relatively. A page one folder down would resolve all of them against the wrong prefix, silently. The addresses are flat for the same reason: see below.
+**Every page stays at the repo root.** The pages fetch `data/studies.json` with a relative path, every path inside the data is relative to the root, and every page links `css/`, `js/` and `assets/` relatively. A page one folder down would resolve all of them against the wrong prefix, silently. The item page is the one served a folder deep (`/<study>/<item>`), so it carries `<base href="/">`: every relative path, in its markup, its scripts and the data alike, then resolves from the root, and no path in the data changes. The cost is its in-page `#` links, which a base would send to the root; `js/main.js` keeps them on the page.
 
 ## 2. Pages and addresses
 
 **One page per kind, never one per item or per study.**
 
-- `index.html` shows any study's gallery.
+- `index.html` shows any study's gallery: its hero, then its items.
 - `product.html` shows any item.
 - `studies.html` shows any study's manifest.
-- `archives.html` shows every study, newest first, as a shelf of cases (`js/archives.js`).
+- `archives.html` ("Past studies" in the menu) shows every study, newest first, as a shelf of cases, each opening to its items' icons (`js/archives.js`).
 - `launch-order.html` is the selection's checkout review.
 
 Adding a product or a study never adds a page. Then there are the shells (`who-are-we`, `intent`, `3d-printing`, `environment`, and the legal pages `legal-notice`, `terms` and `privacy`), the not-found page, and three dev-only pages (`json-tool`, `scene-tool`, `loader-test`), which are kept out of the build.
 
-**Clean, flat addresses.** `/` for the gallery, `/archives`, and `/<item>` for every item, where the item's address is its name made URL-safe. No address shows a file name or an `?id=`. The address is flat (no study, no folder) because of the relative links above, which is also why a trailing slash is redirected away. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The gallery is the root itself, not a `/gallery` page, because Google reads a site's name only from the domain root; `/gallery` redirects to `/#gallery`, which lands past the hero. A fragment never reaches the server, so `/#gallery` is still the one canonical address.
+**Clean addresses that follow the catalog.** `/` for the featured study's gallery, `/<study>` for any study's gallery, `/<study>/<item>` for every item, and `/archives`. A study's address is its slug, an item's its name made URL-safe. No address shows a file name or an `?id=`, and a trailing slash is redirected away. Both addresses are permanent, since an item never changes study. In production the server does the mapping (`public/.htaccess`). In dev and preview, a small middleware in `vite.config.js` does the same, and the two must agree. Every redirect names the full canonical address, so search engines see exactly one URL per page. The featured study's gallery is the root itself, because Google reads a site's name only from the domain root: its `/<study>` serves the same page with `/` as its canonical, and every link to the featured study names `/` (`EmjiveStudies.mainHref`). When another study is featured, the old one's own address takes over with nothing to change. `/#gallery` lands past the hero; a fragment never reaches the server, so it is still the one canonical address.
 
-**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. The template itself doesn't ship: an item-less page would only be an indexable "not found", so `/product` is a real 404. The gallery gets the same treatment: the build writes the featured study's grid into its markup (each item's picture, name linked to its page, and facts), which the live grid replaces at once without the page ever shrinking, and adds the site's Organization and WebSite data with a square logo, for the site name and logo in search results. Every other page has its own static title, canonical and social tags, and an `h1` once it has content. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
+**One built page per item.** The pages render their content in JavaScript, so crawlers and link previews would only ever see the template. The build therefore writes `dist/<study>/<item>.html` for every item: the built `product.html` with that item's own title, description, canonical address and social tags, its name and description already in the markup, schema.org Product data (with its price span), and a link-preview picture drawn at build time. The template itself doesn't ship: an item-less page would only be an indexable "not found", so `/product` is a real 404. The galleries get the same treatment: the build writes `dist/<study>.html` for every study, with that study's grid in its markup (each item's picture, name linked to its page, and facts), which the live grid replaces at once without the page ever shrinking, and its own title, canonical and load hints. The home page is the featured study's, and only it carries the site's Organization and WebSite data with a square logo, for the site name and logo in search results. Every other page has its own static title, canonical and social tags, and an `h1` once it has content. Pages that aren't meant to be indexed yet (the shells, the per-visitor order page) are `noindex`, and `check-dist` enforces exactly that set.
 
 **One shared header.** Every page opens with the same header and menu, written in the markup so crawlers see every link. The menu names the featured study, a value that belongs to the data, so `validate-data` checks each page's copy against `data/studies.json`; changing the featured study means changing that link on every page.
 
@@ -94,7 +94,7 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
   - `studies.js`: `window.EmjiveStudies` must exist before anything runs, and starting the study fetch at head-parse time is what the hero's no-flash arrival relies on.
 - Everything else is `defer`red, so it downloads in parallel and runs in document order. Where one script builds on another, that order matters. The index shows each page's script list in order.
 
-**Everything starts from the studies index.** `EmjiveStudies.ready` resolves the active study (the `?study=` in the address, or the featured one), and every page script starts from it rather than fetching data itself. Product lists are fetched once per study and shared. On the pages that need them first, they are requested the moment the index resolves.
+**Everything starts from the studies index.** `EmjiveStudies.ready` resolves the active study (the one the address names, or the featured one), and every page script starts from it rather than fetching data itself. Product lists are fetched once per study and shared. On the pages that need them first, they are requested the moment the index resolves.
 
 **Three ways scripts talk.**
 
@@ -195,7 +195,7 @@ The big pictures (the hero, the item x-rays) come in up to four versions: deskto
 2. **The docs index check.**
 3. **Data validation.** The schemas, then what a schema can't check: every path exists with its exact case (the host is Linux, so case matters where Windows doesn't care), measured geometry matches its file, the image versions exist, mirrored constants agree.
 4. **The build.**
-5. **Assertions on the built output** (`check-dist`): nothing private shipped, every link resolves, the head order, the clean-URL rules, the per-item pages, the sitemap.
+5. **Assertions on the built output** (`check-dist`): nothing private shipped, every link resolves, the head order, the clean-URL rules, the per-study and per-item pages, the sitemap.
 
 **CI.** `.github/workflows/verify.yml` runs `verify` (plus an audit of runtime dependencies) on every pull request. `deploy.yml` runs on every push to `main`: it calls `verify` and ships the very `dist/` it built.
 
@@ -229,7 +229,7 @@ To deploy without GitHub, upload the contents of a fresh `dist/` to `www/` with 
 - the cache and compression headers on a fixed-name script, a hashed bundle and a model;
 - the branded 404 for a missing path;
 - `/robots.txt`, `/sitemap.xml` and `/favicon.ico`;
-- clean URLs: `/`, `/archives` and an item answer `200`, `/gallery`, `/index.html` and `/archives.html` redirect, an unknown name is a real 404;
+- clean URLs: `/`, `/archives`, a study (`/bones`) and an item (`/bones/furcula`) answer `200`, `/index.html`, `/archives.html` and `/bones/` redirect, an unknown name is a real 404;
 - the security headers.
 
 When the CSP report-only header logs nothing on any page, switch it to enforcing. Raise the HSTS max-age once HTTPS has been stable.

@@ -238,6 +238,12 @@
     try { window[area].removeItem(key); } catch (e) { /* nothing was kept */ }
   }
 
+  // sessionStorage mark of a gallery reached in this tab (js/gallery.js writes
+  // it, js/scroll-memory.js reads it), per address: each study's hero plays once.
+  function galleryReachedKey() {
+    return "emjive_gallery_reached:" + window.location.pathname;
+  }
+
   /* ---- input ---- */
 
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -677,6 +683,7 @@
     jumpScroll: jumpScroll,
     readStorage: readStorage,
     readStorageJson: readStorageJson,
+    galleryReachedKey: galleryReachedKey,
     writeStorage: writeStorage,
     removeStorage: removeStorage,
     reducedMotion: reducedMotion,

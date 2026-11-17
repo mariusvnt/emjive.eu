@@ -1,4 +1,4 @@
-// Site-wide behaviour on every page: the header menu and the chromatic-aberration filter.
+// Site-wide behaviour on every page: the header menu, the chromatic-aberration filter and in-page links under a <base>.
 
 (function () {
   "use strict";
@@ -50,6 +50,24 @@
     document.body.appendChild(svg);
     document.documentElement.classList.add("has-backdrop-svg");
   })();
+
+  /* ---- in-page links ----
+     Under the item pages' <base href="/"> a "#id" link would name the site's
+     root: kept on the page instead. */
+  if (document.querySelector("base")) {
+    document.addEventListener("click", function (e) {
+      var link = e.target.closest && e.target.closest('a[href^="#"]');
+      if (!link || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      var hash = link.getAttribute("href");
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
+        return;
+      }
+      var target = document.getElementById(hash.slice(1));
+      if (target) target.scrollIntoView();
+    });
+  }
 
   /* ---- header menu ---- */
 

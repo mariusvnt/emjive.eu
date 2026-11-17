@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The homepage (/): the featured study's hero, then its gallery as the wheel or the grid. -->
+<!-- A study's gallery: at / the featured study, at /<study> any study (dist/<study>.html per study); its hero, then its gallery as the wheel or the grid. -->
 <html lang="en" data-page-loader data-viewer="idle" data-products="eager">
 <head>
 <meta charset="UTF-8" />
@@ -76,10 +76,10 @@
           <div class="site-header__group">
             <dt>Shop</dt>
             <dd><a href="/#gallery" data-featured-study aria-current="page">Bones study</a></dd>
-            <dd><a href="/archives">Archives</a></dd>
+            <dd><a href="/archives">Past studies</a></dd>
           </div>
           <div class="site-header__group">
-            <dt>Design</dt>
+            <dt>Info</dt>
             <dd><a href="/intent">Intent</a></dd>
             <dd><a href="/3d-printing">3D printing</a></dd>
             <dd><a href="/environment">Environment</a></dd>
@@ -139,7 +139,7 @@
     </nav>
 
     <div class="product-grid" id="productGrid">
-      <!-- Grid items, rendered by js/gallery.js over the static ones the build writes here (emitGalleryContent in vite.config.js). -->
+      <!-- Grid items, rendered by js/gallery.js over the static ones the build writes here (emitStudyPages in vite.config.js). -->
     </div>
   </section>
 

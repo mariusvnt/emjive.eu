@@ -2,7 +2,7 @@
 // Assertions about the built site in dist/, before deploy (which mirrors dist/
 // with --delete): required host files, nothing private, every local href/src
 // resolves, <head> order and the studies.json preload, noindex pages, link
-// preview images, per-item pages, clean URLs and the sitemap.
+// preview images, per-study and per-item pages, clean URLs and the sitemap.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -49,25 +49,30 @@ for (const file of files) {
 
 /* ---- pages ------------------------------------------------------------- */
 
-// Root-level pages only: studies/<slug>/ hero fragments are cloned into
-// index.html, so their paths resolve against it.
-const pages = files.filter((f) => f.endsWith(".html") && !f.includes("/"));
+const catalog = readJson("data/studies.json");
+const studySlugs = new Set(catalog.studies.map((study) => study.slug));
+
+// Root-level pages and the item pages in <study>/: studies/<slug>/ hero
+// fragments are cloned into a gallery, so their paths resolve against it.
+const pages = files.filter((f) => f.endsWith(".html") && (!f.includes("/") || (f.split("/").length === 2 && studySlugs.has(f.split("/")[0]))));
 
 // Blanked to the same length so tags mentioned in comments aren't matched.
 const stripComments = (html) => html.replace(/<!--[\s\S]*?-->/g, (c) => " ".repeat(c.length));
 
-function resolvesLocally(ref, fromPage) {
+// fromDir: where relative references resolve, the root under <base href="/">.
+function resolvesLocally(ref, fromDir) {
   const clean = ref.split("#")[0].split("?")[0];
   if (clean === "") return true; // "#top", "?x=y" — the page itself
   const target = clean.startsWith("/")
     ? clean.slice(1)
-    : path.posix.normalize(path.posix.join(path.posix.dirname(fromPage), clean));
+    : path.posix.normalize(path.posix.join(fromDir, clean));
   if (target === "" || target === ".") return fileSet.has("index.html");
   if (fileSet.has(target)) return true;
-  // A clean address (/archives, /furcula), served by public/.htaccess as
-  // <name>.html. /gallery and /index only redirect to /, so a link names / instead.
-  if (clean.startsWith("/") && !target.includes("/") && !target.includes(".")) {
-    return target !== "gallery" && target !== "index" && fileSet.has(target + ".html");
+  // A clean address (/archives, /bones, /bones/furcula), served by
+  // public/.htaccess as <address>.html. /index only redirects to /, so a link
+  // names / instead.
+  if (clean.startsWith("/") && target.split("/").length <= 2 && !target.includes(".")) {
+    return target !== "index" && fileSet.has(target + ".html");
   }
   return false;
 }
@@ -89,6 +94,10 @@ for (const page of pages) {
   if (/<link\b[^>]*\bhref="data:application\/json/.test(head)) {
     fail(page + ": the studies.json preload was inlined into a data: URL (see restoreHeadOrderAndPreload in vite.config.js)");
   }
+
+  // An item page sits a folder deep: its relative paths need the root as their base.
+  const hasBase = /<base href="\/" \/>/.test(head);
+  if (page.includes("/") && !hasBase) fail(page + ': no <base href="/" /> (a folder deep, its relative paths would miss)');
 
   const firstScript = head.search(/<script\b/);
   const sheet = head.search(/<link\b[^>]*\brel="stylesheet"/);
@@ -134,26 +143,26 @@ for (const page of pages) {
   for (const match of html.matchAll(/\b(?:href|src)="([^"]*)"/g)) {
     const ref = match[1];
     if (/^(https?:|mailto:|tel:|data:|javascript:|\/\/)/i.test(ref)) continue;
-    if (!resolvesLocally(ref, page)) fail(page + ": references a file that is not in dist/: " + ref);
+    if (!resolvesLocally(ref, hasBase ? "" : path.posix.dirname(page))) fail(page + ": references a file that is not in dist/: " + ref);
   }
 }
 
 /* ---- items -------------------------------------------------------------- */
 
-const catalog = readJson("data/studies.json");
 const items = [];
 for (const study of catalog.studies) {
   for (const product of readJson(study.products).products) {
-    items.push({ product, study, slug: slugify(product.name) });
+    const slug = slugify(product.name);
+    items.push({ product, study, slug, path: study.slug + "/" + slug });
   }
 }
 
-for (const { product, study, slug } of items) {
-  const file = slug + ".html";
+for (const { product, study, path: itemPath } of items) {
+  const file = itemPath + ".html";
   if (!fileSet.has(file)) { fail("no page for item " + product.name + ": dist/" + file + " is missing (emitItemPages in vite.config.js)"); continue; }
   const html = fs.readFileSync(path.join(DIST, file), "utf8");
   const head = html.split("</head>")[0];
-  const url = SITE_ORIGIN + "/" + slug;
+  const url = SITE_ORIGIN + "/" + itemPath;
   const ld = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
   if (!ld) fail(file + ": no structured data (emitItemPages in vite.config.js)");
   else {
@@ -169,24 +178,40 @@ for (const { product, study, slug } of items) {
   if (!head.includes('href="' + study.products + '"')) fail(file + ": no products.json hint for its study (" + study.products + ")");
 }
 
+// A study's gallery: / for the featured one, /<slug> for the others.
+const studyUrl = (study) => SITE_ORIGIN + "/" + (study.slug === catalog.featured ? "" : study.slug);
+const galleries = [{ page: "index.html", study: catalog.studies.find((s) => s.slug === catalog.featured) }]
+  .concat(catalog.studies.map((study) => ({ page: study.slug + ".html", study })));
+
 // Non-item pages' canonical form has no .html.
-for (const page of ["index.html", "archives.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
+for (const page of ["archives.html", ...[...NOINDEX].filter((p) => p !== "404.html")]) {
   if (!fileSet.has(page)) continue;
   const head = fs.readFileSync(path.join(DIST, page), "utf8").split("</head>")[0];
-  const url = page === "index.html" ? SITE_ORIGIN + "/" : SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
+  const url = SITE_ORIGIN + "/" + page.replace(/\.html$/, "");
   if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(page + ": og:url is not " + url);
-  if (page === "index.html" && !head.includes('<link rel="canonical" href="' + url + '" />')) fail(page + ": canonical is not " + url);
 }
 
-// The gallery's static grid and site data (emitGalleryContent in vite.config.js).
+// Each gallery's address, static grid and hints (emitStudyPages in vite.config.js).
+for (const { page, study } of galleries) {
+  if (!study) continue;
+  if (!fileSet.has(page)) { fail("no gallery for study " + study.slug + ": dist/" + page + " is missing (emitStudyPages in vite.config.js)"); continue; }
+  const html = fs.readFileSync(path.join(DIST, page), "utf8");
+  const head = html.split("</head>")[0];
+  const url = studyUrl(study);
+  if (!head.includes('<meta property="og:url" content="' + url + '" />')) fail(page + ": og:url is not " + url);
+  if (!head.includes('<link rel="canonical" href="' + url + '" />')) fail(page + ": canonical is not " + url);
+  if (!head.includes('href="' + study.products + '"')) fail(page + ": no products.json hint for its study (" + study.products + ")");
+  const grid = (/<div class="product-grid" id="productGrid">([\s\S]*?)<\/section>/.exec(html) || ["", ""])[1];
+  for (const item of items) {
+    const link = '<a class="grid-item__name" href="/' + item.path + '">';
+    if (item.study.slug === study.slug && !grid.includes(link)) fail(page + ": the static grid has no link to /" + item.path);
+    if (item.study.slug !== study.slug && grid.includes(link)) fail(page + ": the static grid links another study's item, /" + item.path);
+  }
+}
+
+// The site's data, on the home page.
 if (fileSet.has("index.html")) {
   const html = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
-  const grid = (/<div class="product-grid" id="productGrid">([\s\S]*?)<\/section>/.exec(html) || ["", ""])[1];
-  for (const { study, slug } of items) {
-    if (study.slug === catalog.featured && !grid.includes('<a class="grid-item__name" href="/' + slug + '">')) {
-      fail("index.html: the static grid has no link to /" + slug);
-    }
-  }
   const types = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => {
     try { return (JSON.parse(m[1])["@graph"] || []).map((node) => node["@type"]); } catch (e) { return []; }
   });
@@ -195,7 +220,7 @@ if (fileSet.has("index.html")) {
 
 if (fileSet.has(".htaccess")) {
   const rules = fs.readFileSync(path.join(DIST, ".htaccess"), "utf8");
-  for (const needle of ["RewriteRule ^index$ https://%{HTTP_HOST}/ [L,R=301]", "RewriteRule ^gallery$ https://%{HTTP_HOST}/#gallery [NE,L,R=301]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/ [L,R=301]"]) {
+  for (const needle of ["RewriteRule ^index$ https://%{HTTP_HOST}/ [L,R=301]", "RewriteCond %{REQUEST_FILENAME}.html -f", "RewriteRule ^([^/]+/[^/]+)$ $1.html [L]", "RewriteRule ^index\\.html$ https://%{HTTP_HOST}/ [L,R=301]"]) {
     if (!rules.includes(needle)) fail(".htaccess: the clean-URL rules are missing (" + needle + ")");
   }
 }
@@ -206,7 +231,7 @@ if (fileSet.has("sitemap.xml")) {
   const sitemap = fs.readFileSync(path.join(DIST, "sitemap.xml"), "utf8");
   const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   if (urls.length < 2) fail("sitemap.xml lists fewer than two URLs");
-  const wanted = [SITE_ORIGIN + "/", SITE_ORIGIN + "/archives", ...items.map((i) => SITE_ORIGIN + "/" + i.slug)];
+  const wanted = [...catalog.studies.map(studyUrl), SITE_ORIGIN + "/archives", ...items.map((i) => SITE_ORIGIN + "/" + i.path)];
   for (const url of wanted) if (!urls.includes(url)) fail("sitemap.xml does not list " + url);
   for (const url of urls) {
     if (!wanted.includes(url)) fail("sitemap.xml lists an address the site does not use: " + url);

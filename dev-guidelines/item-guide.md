@@ -4,10 +4,10 @@ Everything about the catalog's items: how the data is organised, where their fil
 
 ## 1. The model
 
-- **Studies.** The catalog is organised into studies (collections). Each has its own products, its own design manifest and its own homepage hero. Retired studies stay reachable.
-- **The featured study.** One field in `data/studies.json`, `featured`, decides which study the homepage shows. Switching it is the whole switch.
+- **Studies.** The catalog is organised into studies (collections). Each has its own products, its own design manifest and its own hero, at the top of its gallery. Retired studies stay reachable at their own address.
+- **The featured study.** One field in `data/studies.json`, `featured`, decides which study the homepage shows. Switching it is the whole switch. Every study also has its own gallery at its slug (`/bones`).
 - **Products.** A product belongs to one study and one category.
-  - Its **name is its address** (`/furcula`), so names are unique across all studies.
+  - Its **name is its address** within its study (`/bones/furcula`). Names are still unique across all studies, since the build names each item's link-preview picture by it.
   - Its **id** only numbers it within its study.
 - **Designs.** A product can have several designs: variants of the same item, a different shape, parts added or removed. A design is a combination of the visitor's picks among the product's options. The product's own fields *are* the default design. The other designs carry their own model and renders, and nothing else needs to know they exist.
 - **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/studies.json`.
@@ -111,7 +111,7 @@ Both local pages run their own small servers on loopback only, and both are kept
 
 ### Add a product
 
-1. Pick its name. It becomes its address, so it must not clash with another product in any study or with a page.
+1. Pick its name. It becomes its address, so it must not clash with another product in any study.
 2. Add it with `json-tool` (or by hand, in its study's `products.json`, with its folder).
 3. Bring in its model: `split-models` from the Blender exports, or drop the model in `json-tool` and run `optimize-models`. Check the vertex count it prints.
 4. `measure-models`. If its finger hole runs along the model's x, add `"finger-axis": "x"` to the product.
@@ -132,7 +132,7 @@ Keep its orientation (§3), re-run `measure-models` (its hash changed), and re-r
 
 ### Add a study
 
-`json-tool` → Studies → Add new scaffolds the data files, the asset folders and a copy of an existing hero bundle as a starting point. Then write the study's own hero (its contract is in code-guide.md §2) and add its art. It shows on the homepage once `featured` names it.
+`json-tool` → Studies → Add new scaffolds the data files, the asset folders and a copy of an existing hero bundle as a starting point. Then write the study's own hero (its contract is in code-guide.md §2) and add its art. Its slug becomes its gallery's address, so it must not clash with a page. It shows on the homepage once `featured` names it.
 
 ### Add a category
 

@@ -1,7 +1,7 @@
 // Vite config: a multi-page build made deployable on a plain static host. Adds
 // the verbatim copy of what the build can't trace, the <head> fixes, load hints,
-// the sitemap, one page, link preview and structured data per item, clean URLs
-// in dev and preview, and the dropped decoder copies.
+// the sitemap, one page per study, one page, link preview and structured data
+// per item, clean URLs in dev and preview, and the dropped decoder copies.
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -101,7 +101,9 @@ function copyFilesVitesBuildCantTrace() {
   };
 }
 
-// Undoes two things Vite's HTML build does to every <head>:
+// Undoes two things Vite's HTML build does to every <head>, in the build only
+// (in dev the first script is Vite's own client, and moving the stylesheet
+// above it would also lift it over the item page's <base>):
 // 1. It inlines the data/studies.json preload as a data: URL, which can't
 //    satisfy js/studies.js's fetch; restore the path (check-dist guards it).
 // 2. It moves the stylesheet after the blocking scripts, which rely on its
@@ -112,7 +114,8 @@ function restoreHeadOrderAndPreload() {
     name: "restore-head-order-and-preload",
     transformIndexHtml: {
       order: "post",
-      handler(html) {
+      handler(html, ctx) {
+        if (!ctx || !ctx.bundle) return html;
         html = html.replace(
           /(<link\b[^>]*\bhref=")data:application\/json;base64,[^"]*(")/g,
           "$1data/studies.json$2"
@@ -149,12 +152,43 @@ function restoreHeadOrderAndPreload() {
 
 // Preload hints, at build time from data/studies.json, for requests the
 // browser would otherwise discover several round trips deep. They name the
-// featured study (other studies just get unused preloads):
+// featured study (each study page swaps in its own, emitStudyPages; an item
+// page its products.json, emitItemPages):
 //   - its products.json, on pages with data-products="eager"
-//   - the homepage hero bundle and its LCP image
+//   - the gallery's hero bundle and its LCP image
 // Not the three.js chunk, HDRI or model: not part of the first paint, and
 // hinting them delayed the LCP image; js/product.js starts them later.
 // crossorigin makes an as=fetch preload match a same-origin fetch().
+function loadHints(study, kinds) {
+  const hints = [];
+  const hint = (attrs) => hints.push("<link " + attrs + " />");
+  if (kinds.products) hint('rel="preload" as="fetch" href="' + study.products + '" crossorigin');
+  if (kinds.hero && study.hero) {
+    const hero = study.hero;
+    if (hero.fragment) hint('rel="preload" as="fetch" href="' + hero.fragment + '" crossorigin');
+    if (hero.css) hint('rel="preload" as="style" href="' + hero.css + '"');
+    if (hero.js) hint('rel="preload" as="script" href="' + hero.js + '"');
+    if (hero.preload && hero.preload[0]) {
+      // The LCP picture's low-res variant for each side of the phone query; the
+      // browser takes the matching one (js/loader.js "responsive images").
+      const first = hero.preload[0];
+      const low = (suffix) => first.replace(/(.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
+      hint('rel="preload" as="image" href="' + low("m_lo") + '" media="' + PHONE_QUERY + '" fetchpriority="high"');
+      hint('rel="preload" as="image" href="' + low("lo") + '" media="not all and ' + PHONE_QUERY + '" fetchpriority="high"');
+    }
+  }
+  return hints.length ? hints.join("\n") + "\n" : "";
+}
+
+// Which hints a page takes, from its markup.
+function hintKinds(html) {
+  const htmlTag = /<html\b[^>]*>/.exec(html);
+  return {
+    products: !!htmlTag && /\bdata-products="eager"/.test(htmlTag[0]),
+    hero: html.includes('id="studyHero"')
+  };
+}
+
 function injectLoadHints() {
   return {
     name: "inject-load-hints",
@@ -163,40 +197,13 @@ function injectLoadHints() {
       handler(html, ctx) {
         // Build only: the dev server has no bundle.
         if (!ctx || !ctx.bundle) return html;
-
-        const htmlTag = /<html\b[^>]*>/.exec(html);
-        if (!htmlTag) return html;
-        const hasAttr = (name, value) =>
-          new RegExp("\\bdata-" + name + "=\"" + value + "\"").test(htmlTag[0]);
-
         const index = readJson("data/studies.json");
         const study = index.studies.find((s) => s.slug === index.featured);
         if (!study) return html;
-
-        const hints = [];
-        const hint = (attrs) => hints.push("<link " + attrs + " />");
-
-        if (hasAttr("products", "eager")) {
-          hint('rel="preload" as="fetch" href="' + study.products + '" crossorigin');
-        }
-        if (html.includes('id="studyHero"') && study.hero) {
-          const hero = study.hero;
-          if (hero.fragment) hint('rel="preload" as="fetch" href="' + hero.fragment + '" crossorigin');
-          if (hero.css) hint('rel="preload" as="style" href="' + hero.css + '"');
-          if (hero.js) hint('rel="preload" as="script" href="' + hero.js + '"');
-          if (hero.preload && hero.preload[0]) {
-            // The LCP picture's low-res variant for each side of the phone query; the
-            // browser takes the matching one (js/loader.js "responsive images").
-            const first = hero.preload[0];
-            const low = (suffix) => first.replace(/(.[A-Za-z0-9]+)$/, "_" + suffix + "$1");
-            hint('rel="preload" as="image" href="' + low("m_lo") + '" media="' + PHONE_QUERY + '" fetchpriority="high"');
-            hint('rel="preload" as="image" href="' + low("lo") + '" media="not all and ' + PHONE_QUERY + '" fetchpriority="high"');
-          }
-        }
-        if (!hints.length) return html;
+        const block = loadHints(study, hintKinds(html));
+        if (!block) return html;
 
         // Before the stylesheet, where the preload scanner meets them first.
-        const block = hints.join("\n") + "\n";
         const sheet = /[ \t]*<link\b[^>]*\brel="stylesheet"/.exec(html);
         if (sheet) return html.slice(0, sheet.index) + block + html.slice(sheet.index);
         const headEnd = html.indexOf("</head>");
@@ -207,25 +214,30 @@ function injectLoadHints() {
 }
 
 // Every product with its study, from the site's own data; the address is
-// /<slug> (scripts/slugs.js).
+// /<study>/<slug> (scripts/slugs.js), `path` without the leading slash.
 function readProducts() {
   const index = readJson("data/studies.json");
   const list = [];
   for (const study of index.studies) {
     for (const product of readJson(study.products).products) {
-      list.push({ product, study, slug: slugify(product.name), featured: study.slug === index.featured });
+      const slug = slugify(product.name);
+      list.push({ product, study, slug, path: study.slug + "/" + slug, featured: study.slug === index.featured });
     }
   }
   return { index, list };
 }
 
-// The gallery, the archives and every item. The noindex pages are left out.
+// A study's gallery: / for the featured one, /<slug> for the others.
+const studyUrl = (study, index) => SITE_ORIGIN + "/" + (study.slug === index.featured ? "" : study.slug);
+
+// The galleries, the archives and every item. The noindex pages are left out.
 function emitSitemap() {
   return {
     name: "emit-sitemap",
     generateBundle() {
-      const urls = [SITE_ORIGIN + "/", SITE_ORIGIN + "/archives"];
-      for (const item of readProducts().list) urls.push(SITE_ORIGIN + "/" + item.slug);
+      const { index, list } = readProducts();
+      const urls = index.studies.map((study) => studyUrl(study, index)).concat(SITE_ORIGIN + "/archives");
+      for (const item of list) urls.push(SITE_ORIGIN + "/" + item.path);
       const xml =
         '<?xml version="1.0" encoding="UTF-8"?>\n' +
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
@@ -324,7 +336,7 @@ function siteStructuredData() {
 
 // A grid item as js/gallery.js buildItem() first draws it (no metal picked,
 // the model's picture only), with the name as a link: keep the two in step.
-function galleryItemMarkup(product, index, slug) {
+function galleryItemMarkup(product, index, path) {
   const name = product.name || "";
   const metal = product["default-metal"];
   const assets = product.assets || {};
@@ -350,37 +362,72 @@ function galleryItemMarkup(product, index, slug) {
       : "") +
     picker +
     '<dl class="grid-item__facts">' +
-    fact("name", "Id", false, '<a class="grid-item__name" href="/' + slug + '">' + escapeText(name) + "</a>") +
+    fact("name", "Id", false, '<a class="grid-item__name" href="/' + path + '">' + escapeText(name) + "</a>") +
     fact("category", "Category", false, escapeText((product.category || "").toLowerCase())) +
     (range ? fact("size", "size", true, range.min + " – " + range.max) : "") +
     fact("price", "Price", false, price) +
     "</dl></article>";
 }
 
-// The gallery's static content, so crawlers that don't run its scripts still
-// see the items: the featured study's grid written into #productGrid (js/gallery.js
-// replaces it with the live one), the site's structured data, and its logo.
-// Build only; after the bundle is written (closeBundle).
-function emitGalleryContent() {
+// The galleries' static content, so crawlers that don't run their scripts
+// still see the items: a study's grid written into #productGrid (js/gallery.js
+// replaces it with the live one). index.html is the featured study's, with the
+// site's structured data and its logo. dist/<slug>.html serves each study's
+// own address: the featured one's is a copy of index.html (canonical /), the
+// others' have their own title, canonical, load hints and grid. Build only;
+// after the bundle is written (closeBundle).
+function emitStudyPages() {
   let isBuild = false;
   return {
-    name: "emit-gallery-content",
+    name: "emit-study-pages",
     apply: "build",
     configResolved(config) { isBuild = config.command === "build"; },
     async closeBundle() {
       if (!isBuild) return;
       const distDir = resolve(__dirname, "dist");
       const pagePath = join(distDir, "index.html");
-      let html = readFileSync(pagePath, "utf8");
+      const base = readFileSync(pagePath, "utf8");
       const { index, list } = readProducts();
-      const items = list.filter((item) => item.featured).map((item) => galleryItemMarkup(item.product, index, item.slug));
+      const featured = index.studies.find((s) => s.slug === index.featured);
 
+      const swap = (html, pattern, replacement, what) => {
+        if (!pattern.test(html)) throw new Error("emit-study-pages: index.html has no " + what + " to rewrite");
+        return html.replace(pattern, () => replacement);
+      };
       const grid = /(<div class="product-grid" id="productGrid">)[\s\S]*?(<\/div>)/;
-      if (!grid.test(html)) throw new Error("emit-gallery-content: index.html has no #productGrid");
-      html = html.replace(grid, (all, open, close) => open + "\n" + items.join("\n") + "\n" + close);
-      if (!html.includes("</body>")) throw new Error("emit-gallery-content: index.html has no </body>");
-      html = html.replace("</body>", () => siteStructuredData() + "\n</body>");
-      writeFileSync(pagePath, html);
+      if (!grid.test(base)) throw new Error("emit-study-pages: index.html has no #productGrid");
+      if (!base.includes("</body>")) throw new Error("emit-study-pages: index.html has no </body>");
+      const withGrid = (html, study) => {
+        const items = list.filter((item) => item.study.slug === study.slug).map((item) => galleryItemMarkup(item.product, index, item.path));
+        return html.replace(grid, (all, open, close) => open + "\n" + items.join("\n") + "\n" + close);
+      };
+
+      const home = withGrid(base, featured).replace("</body>", () => siteStructuredData() + "\n</body>");
+      writeFileSync(pagePath, home);
+
+      const kinds = hintKinds(base);
+      const featuredHints = loadHints(featured, kinds);
+      for (const study of index.studies) {
+        if (study.slug === featured.slug) {
+          writeFileSync(join(distDir, study.slug + ".html"), home);
+          continue;
+        }
+        const url = studyUrl(study, index);
+        const title = "em·ji·ve: " + study.name.toLowerCase() + " study";
+        let html = withGrid(base, study);
+        html = swap(html, /<title>[^<]*<\/title>/, "<title>" + escapeAttr(title) + "</title>", "<title>");
+        html = swap(html, /<link rel="canonical" href="[^"]*" \/>/, '<link rel="canonical" href="' + url + '" />', "canonical");
+        html = swap(html, /<meta property="og:title" content="[^"]*" \/>/, '<meta property="og:title" content="' + escapeAttr(title) + '" />', "og:title");
+        html = swap(html, /<meta property="og:url" content="[^"]*" \/>/, '<meta property="og:url" content="' + url + '" />', "og:url");
+        html = swap(html, /<meta name="twitter:title" content="[^"]*" \/>/, '<meta name="twitter:title" content="' + escapeAttr(title) + '" />', "twitter:title");
+        if (featuredHints) {
+          if (!html.includes(featuredHints)) throw new Error("emit-study-pages: index.html's load hints are not the featured study's");
+          html = html.replace(featuredHints, () => loadHints(study, kinds));
+        }
+        // The header's featured-study link is not this page.
+        html = html.replace(/(<a\b[^>]*\bdata-featured-study\b[^>]*?) aria-current="page"/g, "$1");
+        writeFileSync(join(distDir, study.slug + ".html"), html);
+      }
 
       const mark = await sharp(resolve(__dirname, "assets/logo_compact.svg"), { density: 400 }).resize({ width: LOGO_MARK_SIZE, height: LOGO_MARK_SIZE, fit: "inside" }).png().toBuffer();
       const logo = await sharp({ create: { width: LOGO_SIZE, height: LOGO_SIZE, channels: 3, background: pageBackground() } })
@@ -392,7 +439,7 @@ function emitGalleryContent() {
   };
 }
 
-// One real page per item, dist/<slug>.html: the built product.html with the
+// One real page per item, dist/<study>/<slug>.html: the built product.html with the
 // item's own title, description, canonical and social tags, its name and
 // description in the markup, and its structured data, so link previews and
 // non-JS crawlers see the item. js/product.js still finds the product from
@@ -426,11 +473,11 @@ function emitItemPages() {
       writeFileSync(join(distDir, "preview.jpg"), await previewCard(background, logo));
       mkdirSync(join(distDir, "assets/previews"), { recursive: true });
 
-      for (const { product, study, slug } of list) {
+      for (const { product, study, slug, path } of list) {
         const name = product.name || "Product";
         const title = "em\u00b7ji\u00b7ve: " + name.toLowerCase();
         const description = product.description || "Item detail";
-        const url = SITE_ORIGIN + "/" + slug;
+        const url = SITE_ORIGIN + "/" + path;
         const metal = "steel";
         const poster = product.assets && product.assets["wheel-poster"] && product.assets["wheel-poster"][metal];
 
@@ -465,7 +512,8 @@ function emitItemPages() {
         // At the body's end: check-dist wants js/helpers.js as the first classic <script>.
         const previewImage = poster ? SITE_ORIGIN + "/assets/previews/" + slug + ".jpg" : SITE_ORIGIN + "/preview.jpg";
         html = swap(html, /<\/body>/, productStructuredData(product, index, url, previewImage) + "\n</body>", "</body>");
-        writeFileSync(join(distDir, slug + ".html"), html);
+        mkdirSync(join(distDir, study.slug), { recursive: true });
+        writeFileSync(join(distDir, path + ".html"), html);
       }
       unlinkSync(templatePath);
     }
@@ -473,10 +521,10 @@ function emitItemPages() {
 }
 
 // What public/.htaccess does, for dev and preview: /index redirected to /,
-// /gallery to /#gallery, /series and ?series= to /studies and ?study=, /<page>, and /<slug> (its own page in preview, the shared
-// product.html in dev, where /product itself is left to 404 as in
-// production). Only extension-less single-segment paths. Keep in step with
-// .htaccess.
+// then /<page>, /<study> and /<study>/<slug> served (their own pages in
+// preview; in dev index.html and the shared product.html, where /product
+// itself is left to 404 as in production). Only extension-less paths. Keep
+// in step with .htaccess.
 function cleanUrls() {
   const rewrite = (root, isPreview) => (req, res, next) => {
     const url = req.url || "";
@@ -485,20 +533,23 @@ function cleanUrls() {
     const rest = q === -1 ? "" : url.slice(q);
     let name = "";
     try { name = decodeURIComponent(path).replace(/^\/+/, "").toLowerCase(); } catch (e) { return next(); }
-    if (name === "series" || ((!name || name === "studies") && /[?&]series=/.test(rest))) {
-      res.writeHead(301, { Location: (name ? "/studies" : "/") + rest.replace(/([?&])series=/, "$1study=") });
-      res.end();
-      return;
-    }
-    if (!name || name === "product" || name.includes("/") || name.includes(".")) return next();
+    if (!name || name === "product" || name.includes(".")) return next();
 
-    if (name === "gallery" || name === "index") {
-      res.writeHead(301, { Location: "/" + rest + (name === "gallery" ? "#gallery" : "") });
+    if (name === "index") {
+      res.writeHead(301, { Location: "/" + rest });
       res.end();
       return;
     }
-    if (existsSync(join(root, name + ".html"))) req.url = "/" + name + ".html" + rest;
-    else if (!isPreview && readProducts().list.some((item) => item.slug === name)) req.url = "/product.html" + rest;
+    const segments = name.split("/");
+    if (segments.length > 2 || segments.some((s) => !s)) return next();
+    if (existsSync(join(root, name + ".html"))) {
+      req.url = "/" + name + ".html" + rest;
+      return next();
+    }
+    if (isPreview) return next();
+    const { index, list } = readProducts();
+    if (segments.length === 1 && index.studies.some((s) => s.slug === name)) req.url = "/index.html" + rest;
+    else if (segments.length === 2 && list.some((item) => item.path === name)) req.url = "/product.html" + rest;
     next();
   };
   return {
@@ -536,7 +587,7 @@ export default defineConfig({
     cleanUrls(),
     copyFilesVitesBuildCantTrace(),
     emitItemPages(),
-    emitGalleryContent()
+    emitStudyPages()
   ],
   build: {
     // Just above the lazy three.js chunk, so the warning

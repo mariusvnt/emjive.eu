@@ -22,8 +22,8 @@ const SITE_ORIGIN = "https://emjive.eu";
 const PHONE_QUERY = "(max-width: 640px) and (max-aspect-ratio: 3/5)";
 
 // The size, in mm, models are drawn at and their geometry measured from; must
-// match js/helpers.js (validate-data checks).
-const REFERENCE_SIZE_MM = 62;
+// match js/helpers.js (validate-data checks). A 20 mm bore.
+const REFERENCE_SIZE_MM = 62.83;
 
 // The share of the change in a ring's outside width its length along the
 // finger follows when sized (scripts/ring-size.js); must match js/helpers.js

@@ -327,8 +327,8 @@
   }
 
   // The size, in mm, a product's model is drawn at and its geometry measured
-  // from. Mirrored in scripts/helpers.js (validate-data checks).
-  var REFERENCE_SIZE_MM = 62;
+  // from: a 20 mm bore. Mirrored in scripts/helpers.js (validate-data checks).
+  var REFERENCE_SIZE_MM = 62.83;
   // The share of the change in a ring's outside width its length along the
   // finger follows when sized (axialStretch). Mirrored in scripts/helpers.js
   // (validate-data checks).

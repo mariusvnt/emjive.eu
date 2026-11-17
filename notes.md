@@ -14,6 +14,7 @@
 
 **Démarches** :
 
+- [ ] Rédaction du statut de l'entreprise
 - [ ] Guichet unique !!!
 - [ ] dépôt de marque (https://www.inpi.fr/realiser-demarches/propriete-intellectuelle/depot-de-marque)
 

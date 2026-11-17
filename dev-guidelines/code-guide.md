@@ -56,7 +56,7 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 - **The hang:** it is seeded by the item's name rather than random. Each item keeps its own wall on every visit and at every width, nothing moves after load, and neighbouring items still differ.
 - **Empty frames:** an item still waiting for its photographs shows empty frames in their places, so the wall can be judged now.
 - **Phones:** a phone gets the same hang turned vertical, walked up as the page scrolls. Mapping a phone's scroll sideways felt too forceful there. Since a vertical wall has no eye line for labels to share, one label card fixed on screen shows the label of the frame being passed.
-- **The photo viewer:** a photo's frame opens it full screen.
+- **The photo viewer:** a photo's frame opens it full screen. The viewer is its own script (`js/photo-viewer.js`), shared with the size finder's photos.
 - **The pace:** the wall is walked and design is browsed one for one with the scroll, so both stages read as one scroll and move as the finger does; a slower pace felt off. Only the way between them changes pace.
 - **The way to design:** the band rising to design erases the wall as it passes, on top of the wall's fade, so nothing of inspiration lingers under it. On a phone, where the wall moves the way the finger does, any step in pace is felt: the wall eases to rest at its end and holds still, then the band eases back up to the scroll's pace. Arriving in design, a stretch of scroll moves nothing, so the visitor can stop there with every element in place.
 
@@ -68,11 +68,15 @@ All of this is decided in the `<head>` (`js/scroll-memory.js`) because the page'
 
 **The information follows the configuration, always shown**: label | value rows in clusters (the material, the price breakdown, shipping and returns) on two columns they all share. The design stretch is as long as scrolling the last of it clear of the bottom bars takes.
 
+**"Unsure about size?" lays every way to a size on one screen** (`js/size-finder.js`), as label | value rows like the information: buying a sizing strip, measuring a ring on screen, and the size chart itself. A question to answer first (do you have a ring?) hid the other ways behind it. Measuring needs a ring laid on the screen, so a desktop doesn't offer it.
+
+**The sizing strip is an item without a metal or a size.** It goes in the selection like a piece, with a `kind` that marks it as an accessory: its row shows its name, its category and what comes with it (the free-shipping voucher), and has no Modify, since there's nothing to configure. Adding it from a Modify sheet closes that sheet, since the visitor's attention has moved to the new item.
+
 **An item is one configuration with a count.** Adding a piece already in the selection, or modifying one into another's configuration, merges them, so the selection never lists the same piece twice.
 
 **A selection row is edited in place first.** A tap turns the row into its own controls (the count, Modify, a close), so changing how many, or removing one by counting down to zero, never opens a sheet. Its Undo is the row itself, held for a moment.
 
-**The Modify sheet is on every page**, opened from a row's Modify in the floating selection bar's drawer or in the order list, and it shows the item's live 3D model over the product page's dials. That's why every page loads the sheet's scripts and the size finder, and can load the 3D chunk. Its back and Save sit on the row it rests on, whose band they take over, rather than on the page's bar, which stays as it was: the row turns into the sheet's controls and back with only the labels changing.
+**The Modify sheet is on every page**, opened from a row's Modify in the floating selection bar's drawer or in the order list, and it shows the item's live 3D model over the product page's dials. That's why every page loads the sheet's scripts, the size finder and its photo viewer, and can load the 3D chunk. Its back and Save sit on the row it rests on, whose band they take over, rather than on the page's bar, which stays as it was: the row turns into the sheet's controls and back with only the labels changing.
 
 ## 3. Scripts
 
@@ -234,4 +238,5 @@ When the CSP report-only header logs nothing on any page, switch it to enforcing
 
 - **The content pages are empty shells.** `who-are-we`, `intent`, `3d-printing`, `environment`, `legal-notice`, `terms`, `privacy` and `studies` have real addresses, meta tags and styling hooks, but show nothing between the header and the footer, not even a title. When a shell gets content, drop its `noindex`, add it to the sitemap and to `check-dist`'s expectations.
 - **There is no checkout.** "Proceed to checkout" (once the terms are accepted) only shows a notice saying so. A real payment step needs a backend (e.g. a Stripe Checkout session).
+- **The sizing strip's free shipping is a promise only.** The strip's row says a free-shipping voucher comes with it, but nothing issues or redeems one: that waits for the checkout.
 - **There is no contact form.** `js/main.js` keeps a guarded handler that does nothing until a page has `#contactForm`. A real form needs a form backend.

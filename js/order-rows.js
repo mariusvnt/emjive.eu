@@ -118,7 +118,7 @@
     }
 
     // Rows in the list, in order: { item, shown, index, li, inner, words,
-    // button, thumb, name, attrs, count, price, query }. A collapsing row has already
+    // button, thumb, name, attrs, includes, count, price, query }. A collapsing row has already
     // left, so indexes match storage.
     var bindings = [];
     // The Undo line requested but not yet answered (offerUndo() precedes the
@@ -136,9 +136,21 @@
       if (options.onResize) options.onResize();
     }
 
+    // An accessory has no metal or size: its category alone.
     function fillAttrs(node, item) {
+      if (sel.isAccessory(item)) {
+        node.textContent = "." + item.category;
+        return;
+      }
       node.textContent = "." + item.category + "." + item.metal + ".";
       sel.appendSize(node, item.size);
+    }
+
+    // What comes with an accessory (" + free-shipping-voucher"); none otherwise.
+    function fillIncludes(node, item) {
+      var text = sel.isAccessory(item) && item.includes ? " + " + item.includes : "";
+      node.textContent = text;
+      node.hidden = !text;
     }
 
     // The label keeps room at its end for the count (.has-count, --count-chars),
@@ -155,8 +167,9 @@
     // The visible label is a dotted string, so the button gets a plain spoken name.
     function spokenLabel(item) {
       var count = sel.countOf(item);
-      return "Change " + item.name + ", " + item.metal + ", size " + String(parseFloat(item.size)) +
-        (count > 1 ? ", " + count + " pieces" : "");
+      var config = !sel.isAccessory(item) ? ", " + item.metal + ", size " + String(parseFloat(item.size)) :
+        item.includes ? " with " + item.includes : "";
+      return "Change " + item.name + config + (count > 1 ? ", " + count + " pieces" : "");
     }
 
     function buildRow(item) {
@@ -184,9 +197,12 @@
       var name = el("span", "order-item__name", item.name);
       var attrs = el("span", "order-item__attrs");
       fillAttrs(attrs, item);
+      var includes = el("span", "order-item__includes");
+      fillIncludes(includes, item);
       // No space between name and attrs: they read as one label.
       meta.appendChild(name);
       meta.appendChild(attrs);
+      meta.appendChild(includes);
       var count = el("span", "order-item__count");
       text.appendChild(meta);
       text.appendChild(count);
@@ -230,6 +246,7 @@
       binding.thumb = thumb;
       binding.name = name;
       binding.attrs = attrs;
+      binding.includes = includes;
       binding.count = count;
       binding.price = price;
       return binding;
@@ -256,6 +273,9 @@
       }
       if (old.category !== item.category || old.metal !== item.metal || String(old.size) !== String(item.size)) {
         swap(binding.attrs, function () { fillAttrs(binding.attrs, item); });
+      }
+      if (old.includes !== item.includes) {
+        swap(binding.includes, function () { fillIncludes(binding.includes, item); });
       }
       if (oldCount !== count) {
         swap(binding.count, function () { fillCount(binding.count, item); });
@@ -382,6 +402,8 @@
       var stored = sel.countOf(binding.item);
       query = { binding: binding, stored: stored, draft: stored };
       binding.query.layer.setAttribute("aria-label", binding.item.name);
+      // An accessory has nothing to Modify.
+      binding.query.modify.hidden = sel.isAccessory(binding.item);
       syncQuery();
       binding.inner.inert = true;
       binding.query.layer.inert = false;

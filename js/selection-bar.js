@@ -260,12 +260,13 @@
     if (!scrollStaysHere(e.target, dx, dy) && e.cancelable) e.preventDefault();
   }, { passive: false });
 
-  // For window.EmjiveMenus click-away: root covers the whole bar and the Modify
-  // sheet, so tapping the sheet's backdrop keeps the drawer open.
+  // For window.EmjiveMenus click-away: root covers the whole bar, the Modify
+  // sheet and what opens over it (the size finder, its photo viewer), so
+  // tapping the sheet's backdrop or adding the sizing strip keeps the drawer open.
   var barMenuPanel = {
     root: {
       contains: function (node) {
-        return bar.contains(node) || !!(node && node.closest && node.closest("#modifyModal"));
+        return bar.contains(node) || !!(node && node.closest && node.closest("#modifyModal, #sizeFinder, .photo-viewer"));
       }
     },
     close: function () { setDrawerOpen(false); },

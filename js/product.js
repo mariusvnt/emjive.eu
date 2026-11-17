@@ -1570,7 +1570,7 @@
       var mm = parseFloat(window.EmjiveSelection.normalizeSize(size));
       return isFinite(mm) ? mm.toFixed(1) : "";
     }
-    // "Find my size", under the dials, with the category's size guide; none without one.
+    // "Unsure about size?", under the dials, with the category's size guide; none without one.
     var guide = info["size-guide"];
     var hasFinder = !!(window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length);
     var dialHost = document.getElementById("productSizeDial");
@@ -1586,6 +1586,7 @@
       onFind: hasFinder ? function () {
         window.EmjiveSizeFinder.open({
           guide: guide,
+          strip: info["sizing-strip"],
           returnFocus: state.sizeDial.finder,
           onFill: function (size) {
             sizeField.value = oneDecimal(size);

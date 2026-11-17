@@ -395,9 +395,9 @@
        range         { min, max }, mm (EmjiveHelpers.sizeRange)
        onChange(mm)  the visitor moved it (to a tenth of a mm, in the range)
        onShow(text)  the size while open, "" once closed
-       onFind()      "Find my size" (none without it)
+       onFind()      "Unsure about size?" (none without it)
      -> { set(mm, given), finder }: set() shows mm, as the visitor's size
-        (given) or a stand-in; finder is the "Find my size" button, for the
+        (given) or a stand-in; finder is the "Unsure about size?" button, for the
         caller to place, or null. */
   var SIZE_KEY_STEP = 0.5;
   var SIZE_KEY_FINE = 0.1;
@@ -449,7 +449,7 @@
     menu.appendChild(ring);
     var finder = null;
     if (opts.onFind) {
-      finder = el("button", "product-size__finder-toggle", "Find my size");
+      finder = el("button", "product-size__finder-toggle", "Unsure about size?");
       finder.type = "button";
       finder.addEventListener("click", function () {
         close();

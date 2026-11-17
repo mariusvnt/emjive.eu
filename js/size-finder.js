@@ -1,10 +1,12 @@
-// "Find my size": a full-screen overlay measuring a ring size, opened from
-// the product page (size row, Select sheet) and the Modify sheet.
+// "Unsure about size?": a full-screen overlay helping to a ring size, opened
+// from the product page (size row, Select sheet) and the Modify sheet.
 //
 // Steps:
-//   ask        has the visitor a fitting ring? A desktop (a fine pointer
-//              that hovers) has no screen to lay one on: it opens on chart.
-//   calibrate  (yes, first time) a slider lowers a top band onto an upright
+//   ask        three ways, one under the other: the sizing strip (its Add
+//              puts it in the selection and closes), measuring a ring (Go),
+//              and the size chart itself. A desktop (a fine pointer that hovers) has no
+//              screen to lay a ring on: no measuring there.
+//   calibrate  (measuring, first time) a slider lowers a top band onto an upright
 //              ID-1 card, giving px per mm (the browser can't report it); kept
 //              in localStorage per screen and zoom
 //   measure    the ring on screen, three lines at 120° dragged out until they
@@ -14,16 +16,18 @@
 //              sits.
 //   measure2   the same lines dragged back in until they reappear; both passes
 //              are weighed (lineMm()).
-//   result     the inner circumference (the size, in mm), drawn as a circle
-//   chart      (no, or the regular size guide) the category's size guide
+//   result     the inner circumference (the size, in mm), drawn as a circle;
+//              Measure again, or All sizing options (ask, as at opening)
 // Only the slider dot, the lines and the buttons take touches while a card or
 // ring lies on the screen. The card window and the lines are inversions
 // (.size-finder__card, .size-finder__line).
 //
 // window.EmjiveSizeFinder = { open(options), isOpen(), sizeFromDiameter(mm) }
 //   options.guide        the category's "size-guide"
+//   options.strip        the category's "sizing-strip" (no strip without it)
+//   options.onAdd()      after the strip's Add, once the finder has closed
 //   options.onFill(size) on close, with the last validated size; not after
-//                        "No" or "Regular size guide", which discard it
+//                        the strip or going back to the options, which discard it
 //   options.returnFocus  element or function
 // Opens over a sheet's focus trap, hence the trap's `nested` option.
 
@@ -74,7 +78,6 @@
   var desktopMedia = global.matchMedia("(hover: hover) and (pointer: fine)");
 
   var TEXT = {
-    ask: "Do you have a fitting ring at your disposal?",
     // An array is paragraphs.
     calibrate: [
       "Stand a standard card (like a credit card) upright on the white band at the bottom of the screen.",
@@ -95,8 +98,7 @@
     calibrate: { parts: ["controls"], shape: "card" },
     measure:   { parts: ["controls"], shape: null },
     measure2:  { parts: ["controls"], shape: null },
-    result:    { parts: ["result"], shape: null },
-    chart:     { parts: ["chart"], shape: null }
+    result:    { parts: ["result"], shape: null }
   };
 
   var state = {
@@ -205,6 +207,81 @@
     var btn = el("button", "size-finder__button" + (className ? " " + className : ""), label);
     btn.type = "button";
     return btn;
+  }
+
+  // One of the first screen's ways, a label | value row as the product
+  // page's information: its title the label, the rest appended to the value.
+  function way(title) {
+    var row = el("section", "product-info__item size-finder__way");
+    var label = el("h2", "product-info__label", title);
+    var value = el("div", "product-info__value");
+    row.appendChild(label);
+    row.appendChild(value);
+    return { el: row, title: label, value: value };
+  }
+
+  // A way's closing button: its words (`label`, changeable), then the arrow out.
+  function wayButton(text) {
+    var btn = button("", "size-finder__way-button");
+    var label = el("span", "", text);
+    btn.appendChild(label);
+    btn.insertAdjacentHTML("beforeend", H.ICON_OUT);
+    return { button: btn, label: label };
+  }
+
+  /* ---- the sizing strip ---- */
+
+  // Its way for this opening: photos rebuilt only for another strip.
+  function fillStrip(strip) {
+    nodes.stripWay.el.hidden = !strip;
+    if (!strip) return;
+    nodes.add.label.textContent = "Add (" + global.EmjiveSelection.formatPrice(strip.price) + ")";
+    if (nodes.photos.dataset.for === strip.image) return;
+    nodes.photos.dataset.for = strip.image;
+    nodes.photos.innerHTML = "";
+    // Each opens full screen, the others a swipe or an arrow away.
+    var shown = strip.photos.map(function (src, i) {
+      return { src: src, alt: "Sizing strip, photo " + (i + 1) };
+    });
+    shown.forEach(function (photo, i) {
+      var tile = el("button", "size-finder__photo");
+      tile.type = "button";
+      tile.setAttribute("aria-label", "Open " + photo.alt);
+      tile.setAttribute("aria-haspopup", "dialog");
+      var img = el("img");
+      img.alt = "";
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.draggable = false;
+      img.src = photo.src;
+      tile.appendChild(img);
+      tile.addEventListener("click", function () {
+        global.EmjivePhotoViewer.open(shown, i, { from: tile });
+      });
+      nodes.photos.appendChild(tile);
+    });
+  }
+
+  // Into the selection, then closed: the bar shows the new row.
+  function addStrip() {
+    var strip = state.options && state.options.strip;
+    if (!strip) return;
+    state.lastSize = null;
+    global.EmjiveSelection.addItem({
+      kind: "sizing-strip",
+      productId: "sizing-strip",
+      name: strip.name,
+      category: strip.category,
+      includes: strip.includes,
+      metal: "",
+      size: "",
+      price: strip.price,
+      image: strip.image
+    });
+    // After the close, so a sheet underneath gets its focus trap back first.
+    var onAdd = state.options.onAdd;
+    closeFinder();
+    if (onAdd) onAdd();
   }
 
   /* ---- the slider ----
@@ -451,7 +528,7 @@
     root.id = "sizeFinder";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", "Find my size");
+    root.setAttribute("aria-label", "Unsure about size?");
     root.setAttribute("aria-hidden", "true");
     root.tabIndex = -1;
     nodes.root = root;
@@ -482,22 +559,37 @@
     nodes.label.setAttribute("aria-live", "polite");
     top.appendChild(nodes.label);
 
-    nodes.ask = el("div", "size-finder__choices");
-    var yes = button("Yes");
-    var no = button("No");
-    nodes.ask.appendChild(yes);
-    nodes.ask.appendChild(no);
+    // The first screen's ways: the strip (text, photos, Add), the online tool
+    // measuring a ring (text, Go); the chart's way follows as its own part.
+    nodes.ask = el("div", "size-finder__ways");
+    nodes.stripWay = way("Sizing strip");
+    nodes.stripWay.value.appendChild(el("p", "product-info__text", "Buy a sizing strip and the shipping will be offered on your next order."));
+    nodes.photos = el("div", "size-finder__photos");
+    nodes.stripWay.value.appendChild(nodes.photos);
+    nodes.add = wayButton("Add");
+    var add = nodes.add.button;
+    nodes.stripWay.value.appendChild(add);
+    nodes.measureWay = way("Online tool");
+    nodes.measureWay.value.appendChild(el("p", "product-info__text",
+      "Follow on-screen instructions to measure one of your rings. The more carefully the instructions are followed, the more precise the tool is."));
+    var toMeasure = wayButton("Go").button;
+    nodes.measureWay.value.appendChild(toMeasure);
+    nodes.ask.appendChild(nodes.stripWay.el);
+    nodes.ask.appendChild(nodes.measureWay.el);
     top.appendChild(nodes.ask);
 
     // The result's buttons stand under the circle, not in the top part.
     nodes.result = el("div", "size-finder__choices size-finder__choices--stack size-finder__result");
     var again = button("Measure again");
-    var guide = button("Regular size guide");
+    var toOptions = button("All sizing options");
     nodes.result.appendChild(again);
-    nodes.result.appendChild(guide);
+    nodes.result.appendChild(toOptions);
 
     nodes.chart = el("div", "size-finder__chart size-guide");
-    top.appendChild(nodes.chart);
+    var chartWay = way("Size chart");
+    chartWay.value.appendChild(nodes.chart);
+    nodes.chartWay = chartWay.el;
+    top.appendChild(nodes.chartWay);
     root.appendChild(top);
 
     // Slider (calibration only), Validate, and an invisible marker for the card's bottom edge.
@@ -536,10 +628,11 @@
     nodes.card.setAttribute("aria-hidden", "true");
     root.appendChild(nodes.card);
 
-    nodes.primary = { ask: yes, calibrate: nodes.slider.el, measure: nodes.lines[0].hit, measure2: nodes.lines[0].hit, result: again };
+    nodes.primary = { calibrate: nodes.slider.el, measure: nodes.lines[0].hit, measure2: nodes.lines[0].hit, result: again };
 
+    add.addEventListener("click", addStrip);
     // Straight to measuring when this screen is already calibrated.
-    yes.addEventListener("click", function () {
+    toMeasure.addEventListener("click", function () {
       var stored = readCalibration();
       if (stored) {
         advance("measure", function () {
@@ -550,15 +643,15 @@
       }
       advance("calibrate", function () { state.scale = null; });
     });
-    no.addEventListener("click", function () {
-      advance("chart", function () { state.lastSize = null; });
-    });
     // The last size stays until a new one is validated.
     again.addEventListener("click", function () {
       advance("measure", resetLines);
     });
-    guide.addEventListener("click", function () {
-      advance("chart", function () { state.lastSize = null; });
+    // The first screen as at opening: no way back, no size kept.
+    toOptions.addEventListener("click", function () {
+      state.history = [];
+      state.lastSize = null;
+      go("ask");
     });
     validate.addEventListener("click", function () {
       if (state.step === "calibrate") {
@@ -615,7 +708,7 @@
     nodes.root.setAttribute("data-step", step);
     nodes.ask.hidden = def.parts.indexOf("ask") === -1;
     nodes.result.hidden = def.parts.indexOf("result") === -1;
-    nodes.chart.hidden = def.parts.indexOf("chart") === -1;
+    nodes.chartWay.hidden = step !== "ask";
     nodes.edge.hidden = step !== "calibrate";
     nodes.controls.hidden = def.parts.indexOf("controls") === -1;
     nodes.slider.el.hidden = step !== "calibrate";
@@ -651,7 +744,7 @@
     }
 
     // Focus follows the step, except right at opening.
-    var primary = nodes.primary[step] || nodes.chart.querySelector(".size-guide__scroll") || nodes.back;
+    var primary = step === "ask" ? nodes.ask.querySelector(".size-finder__way:not([hidden]) .size-finder__way-button") : nodes.primary[step];
     if (primary && !primary.hidden && state.isOpen && !nodes.root.classList.contains("is-opening")) {
       primary.focus({ preventScroll: true });
     }
@@ -677,9 +770,11 @@
     state.scale = DEFAULT_SCALE;
     resetLines();
     global.EmjiveSelection.fillSizeGuide(nodes.chart, state.options.guide);
+    fillStrip(state.options.strip);
+    nodes.measureWay.el.hidden = desktopMedia.matches;
 
     nodes.root.classList.add("is-opening");
-    go(desktopMedia.matches ? "chart" : "ask", true);
+    go("ask", true);
     nodes.root.classList.remove("is-swapping");
     nodes.root.classList.add("is-open");
     nodes.root.setAttribute("aria-hidden", "false");

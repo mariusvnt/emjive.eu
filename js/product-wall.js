@@ -5,7 +5,7 @@
 // own wall. CSS lays it out (horizontally, or turned vertical on phones) from
 // the numbers set here; js/product.js walks it with the scroll. On phones the
 // labels are read off one placard fixed on screen instead, showing the frame
-// being passed. A photo's frame opens it full screen (the photo viewer).
+// being passed. A photo's frame opens it full screen (js/photo-viewer.js).
 //
 // window.EmjiveProductWall:
 //   build(track, product, placard)  fills the track and the placard; returns
@@ -145,7 +145,9 @@
       frame.appendChild(img);
       frame.type = "button";
       frame.setAttribute("aria-haspopup", "dialog");
-      frame.addEventListener("click", function () { openViewer(photo.src, img.alt, frame); });
+      frame.addEventListener("click", function () {
+        window.EmjivePhotoViewer.open([{ src: photo.src, alt: img.alt }], 0, { from: frame });
+      });
       var caption = photo.description ? captionFor(photo.description) : el("figcaption", "product-wall__label");
       figure.appendChild(caption);
       addPlacardItem(placard, caption, false);
@@ -179,59 +181,6 @@
     if (placardItems[placardAt]) placardItems[placardAt].classList.remove("is-current");
     placardAt = index;
     if (placardItems[index]) placardItems[index].classList.add("is-current");
-  }
-
-  /* ---- the photo viewer ----
-     A photo full screen over the dimmed page, closed by its cross, a tap
-     beside it or Escape (EmjiveFocusTrap, which also locks the page). Built
-     on first use. */
-
-  var viewer = null;
-
-  function buildViewer() {
-    var root = el("div", "photo-viewer");
-    root.setAttribute("role", "dialog");
-    root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", "Photo");
-    root.setAttribute("aria-hidden", "true");
-    root.tabIndex = -1;
-    var backdrop = el("div", "photo-viewer__backdrop");
-    backdrop.addEventListener("click", closeViewer);
-    var img = el("img", "photo-viewer__img");
-    img.decoding = "async";
-    img.draggable = false;
-    var close = el("button", "photo-viewer__close");
-    close.type = "button";
-    close.setAttribute("aria-label", "Close");
-    close.innerHTML = H.ICON_CLOSE;
-    close.addEventListener("click", closeViewer);
-    root.appendChild(backdrop);
-    root.appendChild(img);
-    root.appendChild(close);
-    document.body.appendChild(root);
-    viewer = { root: root, img: img, isOpen: false };
-  }
-
-  function openViewer(src, alt, from) {
-    if (!viewer) buildViewer();
-    if (viewer.isOpen) return;
-    viewer.img.src = src;
-    viewer.img.alt = alt;
-    viewer.isOpen = true;
-    viewer.root.classList.add("is-open");
-    viewer.root.setAttribute("aria-hidden", "false");
-    // After .is-open: focus() is a no-op while hidden.
-    if (window.EmjiveFocusTrap) {
-      window.EmjiveFocusTrap.activate(viewer.root, { returnFocus: from, onEscape: closeViewer });
-    }
-  }
-
-  function closeViewer() {
-    if (!viewer || !viewer.isOpen) return;
-    viewer.isOpen = false;
-    viewer.root.classList.remove("is-open");
-    viewer.root.setAttribute("aria-hidden", "true");
-    if (window.EmjiveFocusTrap) window.EmjiveFocusTrap.release();
   }
 
   window.EmjiveProductWall = { build: build, showPlacard: showPlacard, isVertical: isVertical };

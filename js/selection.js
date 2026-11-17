@@ -40,6 +40,9 @@
     if (item.study != null) item.study = String(item.study);
     // The chosen design's key; absent for single-design products.
     if (item.design != null) item.design = String(item.design);
+    // An accessory's kind (isAccessory()) and what comes with it; absent for a piece of jewelry.
+    if (item.kind != null) item.kind = String(item.kind);
+    if (item.includes != null) item.includes = String(item.includes);
     item.count = countOf(raw);
     return item;
   }
@@ -115,7 +118,9 @@
 
   // item: { study, productId, design, name, category, metal, size, price, image, count },
   // a self-contained snapshot (name and image are the chosen design's). study
-  // qualifies productId, which is only unique within a study. The same
+  // qualifies productId, which is only unique within a study. An accessory
+  // (the sizing strip) has a `kind` and may have `includes` (what comes with
+  // it), no study, design, metal or size. The same
   // configuration again adds one to that item's count, in place.
   function addItem(item) {
     var items = readAll();
@@ -174,6 +179,11 @@
     var items = readAll();
     if (!items[index]) return false;
     return twinOf(items, Object.assign({}, items[index], patch), index) !== -1;
+  }
+
+  // Not a piece of jewelry: no metal or size, nothing to Modify.
+  function isAccessory(item) {
+    return !!(item && item.kind);
   }
 
   function clear() {
@@ -334,17 +344,11 @@
     parent.appendChild(frac);
   }
 
-  // Builds a category's "size-guide" ({ how, head, rows }) into `container`.
-  // false when there is no guide (then no "Find my size" button).
+  // Builds a category's "size-guide" ({ head, rows }) into `container`.
+  // false when there is no guide (then no "Unsure about size?" button).
   function fillSizeGuide(container, guide) {
     container.innerHTML = "";
     if (!guide || !guide.rows || !guide.rows.length) return false;
-    (guide.how || []).forEach(function (paragraph) {
-      var how = document.createElement("p");
-      how.className = "size-guide__how";
-      how.textContent = paragraph;
-      container.appendChild(how);
-    });
     // Transposed: one table row per head label, one column per size. Scrolls when too wide.
     var table = document.createElement("table");
     table.className = "size-guide__table";
@@ -382,6 +386,7 @@
     insertItem: insertItem,
     updateItem: updateItem,
     wouldMerge: wouldMerge,
+    isAccessory: isAccessory,
     clear: clear,
     countOf: countOf,
     linePrice: linePrice,

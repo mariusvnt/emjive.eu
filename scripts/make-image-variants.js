@@ -10,6 +10,7 @@
 //   hero/<n>_3k.webp                      all four
 //   hero/hand_xray*.webp                  _m only, cropped exactly like the picture they overlay
 //   products/<n>/<n>_icon_<metal>.webp    <name>_128.webp thumbnail
+// and assets/sizing-strip/<name>.webp      <name>_128.webp thumbnail (the strip's cart picture is one)
 //
 //   npm run image-variants                 write missing ones
 //   npm run image-variants -- --force      rewrite all
@@ -22,6 +23,7 @@ const { join, dirname, basename, extname } = require("node:path");
 const { ROOT, repoPath, walk, argValue } = require("./helpers");
 
 const ASSETS_ROOT = join(ROOT, "assets", "studies");
+const STRIP_ROOT = join(ROOT, "assets", "sizing-strip");
 
 // Share of the width a smartphone version keeps, around the centre. Mirrored
 // by --hero-crop (studies/<slug>/hero.css); validate-data.js checks they match.
@@ -50,7 +52,8 @@ const RULES = [
   { kind: "xray", pattern: /[\\/]products[\\/].*_xray\.webp$/, versions: XRAY },
   { kind: "hero", pattern: /[\\/]hero[\\/].*_3k\.webp$/, versions: HERO },
   { kind: "hero", pattern: /[\\/]hero[\\/](hand_xray|hand_xray_extension_\d+)\.webp$/, versions: HERO_LAYER },
-  { kind: "icons", pattern: /[\\/]products[\\/].*_icon_[a-z0-9-]+\.webp$/i, versions: [{ suffix: "128", width: 128, quality: 82 }] }
+  { kind: "icons", pattern: /[\\/]products[\\/].*_icon_[a-z0-9-]+\.webp$/i, versions: [{ suffix: "128", width: 128, quality: 82 }] },
+  { kind: "icons", pattern: /[\\/]sizing-strip[\\/](?![^\\/]*_128\.webp$)[^\\/]+\.webp$/i, versions: [{ suffix: "128", width: 128, quality: 82 }] }
 ];
 
 function kb(bytes) {
@@ -85,10 +88,11 @@ async function makeVariants(options) {
   if (!existsSync(root)) throw new Error("No such study folder: " + repoPath(root));
   const rules = opts.kinds ? RULES.filter((r) => opts.kinds.includes(r.kind)) : RULES;
   const sharp = require("sharp");
+  const files = walk(root).concat(!opts.study && existsSync(STRIP_ROOT) ? walk(STRIP_ROOT) : []);
 
   let made = 0;
   let skipped = 0;
-  for (const file of walk(root).sort()) {
+  for (const file of files.sort()) {
     const rule = rules.find((r) => r.pattern.test(file));
     if (!rule) continue;
     for (const version of rule.versions) {

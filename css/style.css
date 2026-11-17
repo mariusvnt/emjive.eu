@@ -33,7 +33,7 @@
   --button-font-size: calc(0.75rem * var(--text-scale));
   --button-letter-spacing: 0.05rem;
   --button-text-transform: uppercase;
-  /* Secondary buttons ("Find my size"): the same recipe scaled by --button-secondary-scale. */
+  /* Secondary buttons ("Unsure about size?"): the same recipe scaled by --button-secondary-scale. */
   --button-secondary-scale: 0.7;
   --button-secondary-font-size: calc(var(--button-font-size) * var(--button-secondary-scale));
   --button-secondary-letter-spacing: calc(var(--button-letter-spacing) * var(--button-secondary-scale));
@@ -1854,6 +1854,7 @@ html.is-archives-touch * {
 .order-item__thumb,
 .order-item__name,
 .order-item__attrs,
+.order-item__includes,
 .order-item__count,
 .order-item__price {
   transition: opacity 0.18s ease;
@@ -1880,7 +1881,9 @@ html.is-archives-touch * {
 .order-item__text.has-count .order-item__meta {
   padding-right: calc(var(--count-chars) * 0.7em + 0.5em);
 }
-.order-item__name { font-family: var(--font-main); color: var(--black); }
+.order-item__name,
+.order-item__includes { font-family: var(--font-main); color: var(--black); }
+.order-item__includes[hidden] { display: none; }
 .order-item__attrs {
   font-size: calc(0.75rem * var(--text-scale));
   font-family: var(--font-secondary);
@@ -1981,6 +1984,9 @@ html.is-archives-touch * {
   /* Modify, Save and Remove (and the cross, and −) crossfade rather than
      blink as the count changes. */
   transition: opacity var(--fade-quick) ease;
+}
+.order-item__q[hidden] {
+  display: none;
 }
 .order-item__q:disabled {
   opacity: 0.35;
@@ -3198,7 +3204,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
 
 /* Under the model (--model-gap), rising with the lift and fading with design,
    the page wide between its margins: the dials and the size centred under
-   the model, "Find my size" in a row under them, then, 4.5rem lower (10.5rem past the breakpoint), the
+   the model, "Unsure about size?" in a row under them, then, 4.5rem lower (10.5rem past the breakpoint), the
    information in a column on the left. Transparent over the x-ray;
    only its controls take taps. Everything in it but the dials' discs fades
    with design: an opacity around a disc would cut its blurs off from what's
@@ -3241,7 +3247,7 @@ body:has(.product-select-bar[hidden]) .product-bottom-veil {
    --dial-dot-r out, turning round the middle to it (--dial-turn). The
    button keeps its option; each section shows its preview at --dial-ring:
    the shape's a design's icon, the material's a metal's round swatch. */
-/* The dials' row, then "Find my size" centred in its own (js/product.js,
+/* The dials' row, then "Unsure about size?" centred in its own (js/product.js,
    js/modify-modal.js). */
 .product-config {
   display: flex;
@@ -4315,7 +4321,7 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 .size-modal__size-input::placeholder { color: var(--category-col); opacity: 0.5; }
 
-/* ---- "Find my size" ----
+/* ---- "Unsure about size?" ----
    Opens js/size-finder.js; a secondary button in its own row under the
    dials (.product-config), over an open dial's blurs (.product-dial.is-open
    is z-index 3). Like the dials' controls, it takes taps on the product
@@ -4361,13 +4367,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 }
 @media (hover: hover) {
   .product-size__finder-toggle:hover { opacity: 0.6; }
-}
-.size-guide__how {
-  margin: 0 0 0.75rem;
-  font-family: var(--font-main);
-  font-size: calc(12px * var(--text-scale));
-  line-height: 1.5;
-  color: var(--category-col);
 }
 /* Transposed (labels as the first column, one column per size); scrolls on its own when too wide. */
 /* A thin scrollbar under the table (--guide-thumb), under the room below
@@ -4447,14 +4446,15 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   color: var(--black);
 }
 
-/* ---- the photo viewer (js/product-wall.js) ----
-   A wall photo full screen, as large as the screen takes clear of the cross,
-   over the page dimmed as behind the review sheet. Over the bottom bars too
-   (z-index 95, the size finder's). */
+/* ---- the photo viewer (js/photo-viewer.js) ----
+   A photo full screen, as large as the screen takes clear of the cross (and
+   of the arrows, with several), over the page (or the size finder) dimmed
+   as behind the review sheet. Over the bottom bars and the size finder
+   (z-index 95). */
 .photo-viewer {
   position: fixed;
   inset: 0;
-  z-index: 95;
+  z-index: 96;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4489,6 +4489,47 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   user-select: none;
   -webkit-user-select: none;
 }
+/* Clear of the arrows at the sides. */
+.photo-viewer.has-arrows .photo-viewer__img {
+  max-width: calc(100vw - 2 * (var(--edge-px) + 2.75rem));
+}
+/* Swipes are the viewer's, not the browser's. */
+.photo-viewer.has-arrows {
+  touch-action: none;
+}
+.photo-viewer__arrow {
+  position: absolute;
+  top: 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.75rem;
+  border: none;
+  background: none;
+  color: var(--white);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: opacity var(--fade-quick) ease;
+}
+.photo-viewer__arrow[hidden] {
+  display: none;
+}
+.photo-viewer__arrow--prev {
+  left: max(var(--edge-px), env(safe-area-inset-left));
+  margin-left: -0.75rem;
+}
+.photo-viewer__arrow--next {
+  right: max(var(--edge-px), env(safe-area-inset-right));
+  margin-right: -0.75rem;
+}
+.photo-viewer__arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@media (hover: hover) {
+  .photo-viewer__arrow:hover { opacity: 0.6; }
+}
+.photo-viewer .photo-viewer__arrow:focus-visible,
 .photo-viewer .photo-viewer__close:focus-visible {
   position: absolute;
   outline: var(--focus-ring-inverted);
@@ -4586,14 +4627,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   gap: 2rem;
   transition: opacity var(--fade-quick) ease;
 }
-/* The first screen: label and buttons 4rem apart, centred. */
-.size-finder[data-step="ask"] .size-finder__top {
-  bottom: 0;
-  justify-content: center;
-  padding-top: 5rem;
-  padding-bottom: 5rem;
-  gap: 4rem;
-}
 /* Left-aligned text in a centred column. */
 .size-finder__label {
   margin: 0;
@@ -4603,10 +4636,6 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.45;
-}
-/* Except the first screen's, centred. */
-.size-finder[data-step="ask"] .size-finder__label {
-  text-align: center;
 }
 .size-finder__paragraph {
   margin: 0;
@@ -4641,26 +4670,81 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
 @media (hover: hover) {
   .size-finder__button:hover { opacity: 0.6; }
 }
-/* The size guide, white on dark. */
-.size-finder__chart {
+/* The first screen's ways, one under the other, --way-gap apart (the chart's
+   way included, after the top part's own gap): 6rem up to 640px, growing
+   evenly to 8rem at 1280px and held there, as --band-h. They are the product
+   page's label | value rows (.product-info__item), light on dark. In a value,
+   the closing button keeps its height but no side room, so it starts where
+   the text does. */
+.size-finder {
+  --way-gap: clamp(6rem, 4rem + 5vw, 8rem);
+}
+.size-finder__ways {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--way-gap);
+}
+.size-finder__ways:not([hidden]) + .size-finder__way {
+  margin-top: calc(var(--way-gap) - 2rem);
+}
+.size-finder__way {
   width: 100%;
   text-align: left;
 }
-/* 1rem like the labels (buttons keep the site size); 1.25rem between
-   paragraphs, 2.5rem before the table (collapsing margins). */
-.size-finder__chart .size-guide__how,
-.size-finder__chart .size-guide__table {
-  font-size: 1rem;
-  line-height: 1.45;
-}
-.size-finder__chart .size-guide__how {
-  margin-bottom: 1.25rem;
-}
-.size-finder__chart .size-guide__how + .size-guide__scroll {
-  margin-top: 2.5rem;
-}
-.size-finder__chart .size-guide__how {
+.size-finder .product-info__label {
   color: var(--white);
+}
+.size-finder .product-info__text {
+  color: rgba(255, 255, 255, 0.6);
+}
+/* Block-level, so no line box puts room above it. */
+.size-finder__way-button {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: 0.25rem;
+  padding-left: 0;
+  padding-right: 0;
+}
+.size-finder__way-button svg {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+/* The strip's photos in one row. */
+.size-finder__photos {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+/* A photo is a button opening it full screen (js/photo-viewer.js). */
+.size-finder__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  transition: opacity var(--fade-quick) ease;
+}
+.size-finder__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+@media (hover: hover) {
+  .size-finder__photo:hover { opacity: 0.8; }
+}
+/* The size guide, white on dark, in its row's value. */
+.size-finder__chart {
+  width: 100%;
+  text-align: left;
 }
 .size-finder__chart .size-guide__table th {
   color: rgba(255, 255, 255, 0.6);
@@ -4979,12 +5063,12 @@ body:has(.selection-bar.is-peek-up) .product-select-bar {
   max-height: none;
   overflow: visible;
 }
-/* The dials (js/option-dial.js) and "Find my size", centred, with room
+/* The dials (js/option-dial.js) and "Unsure about size?", centred, with room
    under them for the discs. As on the product page, an open disc takes taps. */
 .size-modal__config {
   padding-bottom: 3.5rem;
 }
-/* With "Find my size" last, 2rem between it and the sheet's foot. */
+/* With "Unsure about size?" last, 2rem between it and the sheet's foot. */
 .size-modal__config:has(.product-size__finder-toggle) {
   padding-bottom: 2rem;
 }

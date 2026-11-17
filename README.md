@@ -8,7 +8,7 @@ Each piece has its own page:
 
 - **Photographs** and a description.
 - **The piece in 3D**, to turn freely, in the chosen metal (with its composition and how it is printed) and, for some pieces, one of several designs.
-- **Its specifications**: the size (set on a dial under the piece, with a guide to find one's own), a front and a side view (a tap turns the piece to one and lays its outline over it, its length, width and depth marked), and how its price breaks down.
+- **Its specifications**: the size (set on a dial under the piece; a visitor unsure of theirs can order a sizing strip, which comes with free shipping on their next order, measure a ring they own on their phone's screen, or read the size chart), a front and a side view (a tap turns the piece to one and lays its outline over it, its length, width and depth marked), and how its price breaks down.
 
 Visitors build a **selection** as they go, which follows them from page to page. They can review it on an order page, change an item or how many of it they want, remove it, and accept the terms.
 

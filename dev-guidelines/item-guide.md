@@ -11,7 +11,7 @@ Everything about the catalog's items: how the data is organised, where their fil
   - Its **id** only numbers it within its study.
 - **Designs.** A product can have several designs: variants of the same item, a different shape, parts added or removed. A design is a combination of the visitor's picks among the product's options. The product's own fields *are* the default design. The other designs carry their own model and renders, and nothing else needs to know they exist.
 - **Brand-wide vocabularies.** Categories, metals and lighting are brand-wide, declared once in `data/studies.json`.
-  - **Categories** own sizing: whether their items are sized at all (a unit), and the size guide. The site never shows the unit: a size is a plain number, since few people know a European ring size is the inner circumference in mm, and "62 mm" reads as a width. A study picks the categories it sells.
+  - **Categories** own sizing: whether their items are sized at all (a unit), the size guide, and the sizing strip sold to find a size (`sizing-strip`: its price, photos, and what comes with it). The site never shows the unit: a size is a plain number, since few people know a European ring size is the inner circumference in mm, and "62 mm" reads as a width. A study picks the categories it sells.
   - **Metals** are global, because the 3D materials are global.
   - **Lighting**: the HDRIs, named in one map; each study picks one, and only the picked ones ship. The rest of the studio (the sun, the HDRI's blur, the reflection detail) is one setting for every scene, so an HDRI changes only what the metal reflects.
 - **A ring changes size the way it is printed.** Every point of the model moves away from the finger axis by the difference of the two sizes' inner radii, then the ring is stretched along the axis so its length follows half the change in its outside width: the sizing of the Jewelry Printing Toolbox, which `scripts/ring-size.js` ports. Thickness stays as designed, so a smaller size never thins a delicate part below what prints, as a scale would; kept at full length, a small ring would reach as far down the finger as a large one and look bulky. Models are drawn at the reference size with the finger axis through their origin. The model on the page, its outlines and dimensions, its price, and the print model sent to the printer all follow the same sizing.
@@ -47,7 +47,7 @@ The files are hand-aligned, and every tool writes them by text surgery, never by
 
 ## 3. Assets
 
-**Study-scoped or brand-wide.** Everything under `assets/studies/<slug>/` belongs to that study: its hero art, and one folder per product. Everything else in `assets/` (fonts, HDRIs, the Draco decoder, logos, metal swatches) is brand-wide and referenced from code that knows nothing about studies.
+**Study-scoped or brand-wide.** Everything under `assets/studies/<slug>/` belongs to that study: its hero art, and one folder per product. Everything else in `assets/` (fonts, HDRIs, the Draco decoder, logos, metal swatches, the sizing strip's photos in `assets/sizing-strip/`) is brand-wide and referenced from code that knows nothing about studies.
 
 **One folder per product, `<name>_<category>`**, holding everything that product is made of. The tools build that path, so a hand-renamed folder gets a new one beside it. Files follow the name:
 
@@ -64,7 +64,7 @@ A non-default design's files are named `<name>-<design key>_…`. The renders ar
 **Generated or hand-added.**
 
 - **Generated, and committed:** the renders and the image versions. Never edit one; change the source and re-run its tool.
-- **Hand-added:** the models (or split out of a Blender export), the x-rays, the photos and the hero art.
+- **Hand-added:** the models (or split out of a Blender export), the x-rays, the photos (the sizing strip's included) and the hero art.
 
 Hand-added art is WebP. Don't put the hero art through `optimize-images`, whose fixed size cap and quality are wrong for it: resize it with `sharp` directly.
 
@@ -74,7 +74,7 @@ Hand-added art is WebP. Don't put the hero art through `optimize-images`, whose 
 
 **A model's node transform is part of its pose.** The renders were made with whatever rotation the file carries, and the live viewer shows the same. A re-export that loses it turns the model away from its own poster at the handover. When replacing a model, compare it against its old `fallback-img`. `split-models` puts a lost rotation back when it can tell.
 
-**Image versions.** The x-rays and the hero pictures come in desktop/phone × low/high versions written beside the original (`_lo`, `_m`, `_m_lo`), and each icon has a small thumbnail (`_128`). See code-guide.md §6 for why.
+**Image versions.** The x-rays and the hero pictures come in desktop/phone × low/high versions written beside the original (`_lo`, `_m`, `_m_lo`), and each icon and sizing-strip photo has a small thumbnail (`_128`), what the selection's rows show. See code-guide.md §6 for why.
 
 ## 4. The pipeline
 

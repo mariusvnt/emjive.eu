@@ -184,11 +184,25 @@ const indexSchema = {
           // The size guide (js/selection.js fillSizeGuide).
           "size-guide": {
             type: "object",
-            required: ["how", "head", "rows"],
+            required: ["head", "rows"],
             properties: {
-              how: { type: "array", items: str, minItems: 1 },
               head: { type: "array", items: str, minItems: 1 },
               rows: { type: "array", items: { type: "array", items: str } }
+            }
+          },
+          // The sizing strip sold from the size finder (js/size-finder.js).
+          "sizing-strip": {
+            type: "object",
+            required: ["name", "category", "price", "image", "photos"],
+            additionalProperties: false,
+            properties: {
+              name: str,
+              // Its row's label: name.category + includes.
+              category: str,
+              includes: str,
+              price: { type: "number", exclusiveMinimum: 0 },
+              image: str,
+              photos: { type: "array", items: str, minItems: 1 }
             }
           }
         }
@@ -593,6 +607,12 @@ if (index && validate("data/studies.json", indexSchema, index)) {
     if (!metals.has(metal)) fail("data/studies.json", 'production-costs has unknown metal "' + metal + '"');
   }
   for (const [cat, info] of Object.entries(index.categories)) {
+    const strip = info["sizing-strip"];
+    if (strip) {
+      const where = 'data/studies.json categories "' + cat + '" sizing-strip';
+      checkPath(where + " image", strip.image);
+      strip.photos.forEach((photo, i) => checkPath(where + " photos[" + i + "]", photo));
+    }
     const guide = info["size-guide"];
     if (!guide) continue;
     for (const row of guide.rows) {

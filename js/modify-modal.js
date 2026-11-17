@@ -5,7 +5,7 @@
 // poster until the sheet has slid in, scheduleViewer), the item's name
 // leading to its page (top left) and the draft's price for the item's count
 // (top right), and the product page's dials (js/option-dial.js): shape (with
-// more than one design), material, size with "Find my size".
+// more than one design), material, size with "Unsure about size?".
 //
 // Its buttons are a strip laid over the row (options.bar): back arrow | Save.
 // The arrow (like Escape and the backdrop) closes without saving, the row
@@ -83,7 +83,7 @@
   dialName.setAttribute("aria-hidden", "true");
   content.appendChild(dialName);
   // The dials, built per open (mountDials), and under them the size dial's
-  // "Find my size".
+  // "Unsure about size?".
   var config = el("div", "product-config size-modal__config");
   var dials = el("div", "product-dials");
   config.appendChild(dials);
@@ -271,8 +271,8 @@
     state.sizeDial = null;
     var info = window.EmjiveStudies.categoryInfo(state.base.category);
     if (!info.unit) return;
-    // "Find my size" with the category's size guide; none without one. Its
-    // result goes in as if dialled.
+    // "Unsure about size?" with the category's size guide; none without one.
+    // A measured size goes in as if dialled.
     var guide = info["size-guide"];
     var range = H.sizeRange(state.base);
     var dial = window.EmjiveOptionDial.mountSize(dialHost(), {
@@ -282,7 +282,11 @@
       onFind: window.EmjiveSizeFinder && guide && guide.rows && guide.rows.length ? function () {
         window.EmjiveSizeFinder.open({
           guide: guide,
+          strip: info["sizing-strip"],
           returnFocus: dial.finder,
+          // The strip went into the selection: the sheet closes, its draft
+          // dropped, and the row comes back out of query mode.
+          onAdd: function () { close({ outOfQuery: true }); },
           onFill: function (size) {
             var mm = H.clamp(Math.round(parseFloat(window.EmjiveSelection.normalizeSize(size)) * 10) / 10, range.min, range.max);
             if (!isFinite(mm)) return;
@@ -605,6 +609,8 @@
   }
 
   // saved        a Save closed it (the row is told so)
+  // outOfQuery   the row comes back out of query mode, as after a Save, with
+  //              no Save (the sizing strip was added)
   // keepPreview  the row keeps the draft (a Save)
   function close(opts) {
     if (!state.isOpen) return;
@@ -615,7 +621,7 @@
     modal.classList.remove("is-open");
     modal.setAttribute("aria-hidden", "true");
     // Before the release: the row takes focus back only once uncovered.
-    if (options.bar) options.bar.hide(strip, !!opts.saved);
+    if (options.bar) options.bar.hide(strip, !!(opts.saved || opts.outOfQuery));
     window.EmjiveFocusTrap.release();
     // A pending viewer build is cancelled; a built one goes after the slide-out.
     if (state.cancelViewerBuild) {
@@ -660,6 +666,7 @@
     window.EmjiveStudies.ready.then(function () {
       var seen = {};
       window.EmjiveSelection.getSelection().forEach(function (item) {
+        if (window.EmjiveSelection.isAccessory(item)) return;
         var slug = item.study || window.EmjiveStudies.slug;
         if (!slug || seen[slug]) return;
         seen[slug] = true;

@@ -7,50 +7,50 @@ The repo's structure, generated from the code. Each description is the first sen
 ## Tree
 
 - [3d-printing.html](../3d-printing.html) — 3D printing (/3d-printing): how each piece is printed in metal.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [404.html](../404.html) — The not-found page (public/.htaccess ErrorDocument).
   - landmarks: #main
 - [archives.html](../archives.html) — Archives (/archives): every study across the brand's lifetime, as a shelf of cases (js/archives.js).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/archives.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/archives.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [environment.html](../environment.html) — Environment (/environment): the environmental impact of making each piece.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [index.html](../index.html) — The homepage (/): the featured study's hero, then its gallery as the wheel or the grid.
-  - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/scroll-memory.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/gallery-stack.js (defer), js/gallery.js (defer), js/main.js (defer)
   - landmarks: #main, #gallery
 - [intent.html](../intent.html) — Intent (/intent): what the emjive project sets out to do.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [json-tool.html](../json-tool.html) — Dev-only page (not built), served by scripts/json-tool-server.js (npm run json-tool): edit data/studies.json's globals, studies and products, with drag-and-drop (and Replace/Remove) for hand-owned assets (model, x-ray, photos).
   - scripts: js/helpers.js (blocking), inline (module)
   - landmarks: #panel-global, #panel-studies, #panel-products
 - [launch-order.html](../launch-order.html) — The order page (/launch-order): the selection's checkout review, up to a "Proceed to checkout" stub.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-page.js (defer)
   - landmarks: #main
 - [legal-notice.html](../legal-notice.html) — Legal notice (/legal-notice): the publisher, host and contact the law requires.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [loader-test.html](../loader-test.html) — Dev-only page (not built): the logo loader on an endless loop.
   - scripts: js/helpers.js (blocking), js/loader.js (blocking), inline (blocking)
 - [privacy.html](../privacy.html) — Privacy policy (/privacy): what is stored about a visitor, cookies included.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [product.html](../product.html) — An item's page (/<slug>): the template the build copies to dist/<slug>.html per product; it doesn't ship itself.
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product-wall.js (defer), js/product.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/option-dial.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer), js/main.js (defer), js/product-stages.js (defer), js/product-wall.js (defer), js/product.js (defer)
   - landmarks: #productDetail, #productCompositionItem, #productPrinting, #productCosts
 - [scene-tool.html](../scene-tool.html) — Dev-only page (not built), served by scripts/scene-tool-server.js (npm run scene-tool): preview a product or the swatch scene under a chosen HDRI and metal, set the camera by dragging or typing, tune the HDRI blur, the sun, the reflection detail and the metal's shader live, then save the ticked parts (HDRI, camera, blur, detail, sun, shader).
   - scripts: js/helpers.js (head, blocking), js/three-viewer.js (module), inline (module)
   - landmarks: #hdriSection, #sunSection, #cameraSection, #shaderSection, #saveSection
 - [studies.html](../studies.html) — A study's design manifest (/studies?study=<slug>).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/studies-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/studies-page.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #studyManifest
 - [terms.html](../terms.html) — Terms of sale (/terms).
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - [who-are-we.html](../who-are-we.html) — Who are we?
-  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
+  - scripts: js/helpers.js (head, blocking), js/loader.js (head, blocking), js/studies.js (head, blocking), js/viewer-entry.js (module), js/main.js (defer), js/focus-trap.js (defer), js/selection.js (defer), js/order-rows.js (defer), js/option-dial.js (defer), js/photo-viewer.js (defer), js/size-finder.js (defer), js/modify-modal.js (defer), js/selection-bar.js (defer)
   - landmarks: #main
 - **[css/](../css/)** — The site's one stylesheet.
   - [style.css](../css/style.css) — The site's one stylesheet, for every page; a study's hero.css is injected after it.
@@ -64,7 +64,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - [gallery.js](../js/gallery.js) — Homepage gallery (index.html): one of two views, data-gallery-view on <html> (set in the <head> by js/scroll-memory.js).
   - [hdr-worker.js](../js/hdr-worker.js) — HDR decode worker: Radiance .hdr -> half-float RGBA, off the main thread.
   - [helpers.js](../js/helpers.js) — Shared browser helpers (window.EmjiveHelpers): the small utilities more than one script needs, kept here instead of copied into each.
-    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, ICON_OUT, preload, crossfadeSrc, resampleBand }
+    - sets `EmjiveHelpers` { el, edgeFades, remPx, devicePx, clamp, clamp01, lerp, smoothstep, smootherstep, invSmootherstep, easeOutCubic, easeInOutCubic, cubicBezierEase, seededRandom, wait, whenIdle, afterTransition, transitionDone, imageReady, jumpScroll, readStorage, readStorageJson, writeStorage, removeStorage, reducedMotion, sliderKey, dragPointer, requestJson, assetFor, posterFor, REFERENCE_SIZE_MM, DEFAULT_SIZE_MM, sizeRange, sizeText, sizeShift, axialStretch, volumeAt, areaAt, productionCost, salePrice, designGeometries, PLAN_VIEWS, ringAxes, planFrame, thumbSrc, setThumb, thumbStack, ICON_BACK, ICON_CLOSE, ICON_NEXT, ICON_OUT, preload, crossfadeSrc, resampleBand }
   - [loader.js](../js/loader.js) — The logo loader (.loader in css/style.css): the mark's three parts cross their container right to left, fading in and out, slowing past the middle.
     - sets `EmjiveLoader` { mount, cover, isPhone, onPhoneChange, versions, variant, setSrc, upgradeImage, pageReady, holdPage, isPageReady }
   - [main.js](../js/main.js) — Site-wide behaviour on every page: the header menu and the chromatic-aberration filter.
@@ -74,6 +74,8 @@ The repo's structure, generated from the code. Each description is the first sen
     - sets `EmjiveOptionDial` { mount, mountSize, nameShower }
   - [order-rows.js](../js/order-rows.js) — Item rows shared by launch-order.html's list and the floating bar's drawer.
     - sets `EmjiveOrderRows` { create, notice }
+  - [photo-viewer.js](../js/photo-viewer.js) — The photo viewer: one photo full screen, opened from the product page's museum wall (js/product-wall.js) and the size finder's sizing strip (js/size-finder.js).
+    - sets `EmjivePhotoViewer` { open, isOpen }
   - [product-stages.js](../js/product-stages.js) — The product page's two-stage show: a tall track (.product-stage) holding one sticky stage, where scrolling steps inspiration (description and museum wall) -> design (the model and its configuration: design options, metal, size, plan views; then the information).
     - sets `EmjiveProductStages` { mount, screenPx }
   - [product-wall.js](../js/product-wall.js) — The product page's museum wall (inspiration stage): the item's photos hung as frames of varied size and format, their centres on one line, wide gaps between, each with its wall label; empty frames hold the places of photos still to come.
@@ -84,8 +86,8 @@ The repo's structure, generated from the code. Each description is the first sen
   - [selection-bar.js](../js/selection-bar.js) — The floating selection bar, on every page but launch-order.html: a fixed black bar showing the selection's thumbnails (stacked for a count above one, or "No selected item") and "Order (N) ›", N counting pieces.
   - [selection-page.js](../js/selection-page.js) — launch-order.html: the checkout review of window.EmjiveSelection — item rows (js/order-rows.js: a tap puts a row in query mode, whose Modify opens the Modify sheet), the terms toggle, and a "Proceed to checkout" bar gated on it.
   - [selection.js](../js/selection.js) — The selection (cart), in localStorage: window.EmjiveSelection.
-    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, wouldMerge, clear, countOf, linePrice, pieceCount, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
-  - [size-finder.js](../js/size-finder.js) — "Find my size": a full-screen overlay measuring a ring size, opened from the product page (size row, Select sheet) and the Modify sheet.
+    - sets `EmjiveSelection` { fillSizeGuide, getSelection, addItem, removeItem, insertItem, updateItem, wouldMerge, isAccessory, clear, countOf, linePrice, pieceCount, formatPrice, priceFrom, priceSpan, formatPriceFrom, formatPriceRange, priceAt, sanitizeSizeInput, normalizeSize, isValidSize, isOrderableSize, syncSizeField, appendSize, itemKey, singleChange }
+  - [size-finder.js](../js/size-finder.js) — "Unsure about size?": a full-screen overlay helping to a ring size, opened from the product page (size row, Select sheet) and the Modify sheet.
     - sets `EmjiveSizeFinder` { open, isOpen, sizeFromDiameter }
   - [stack-scene.js](../js/stack-scene.js) — The wheel's 3D scene: every product's model in one full-screen canvas (one WebGL context, one environment map).
     - sets `EmjiveMem` { cpuGeometryBytes }
@@ -124,6 +126,7 @@ The repo's structure, generated from the code. Each description is the first sen
   - **[assets/draco/](../assets/draco/)** — three's Draco decoder, self-hosted (the site makes no external requests).
   - **[assets/fonts/](../assets/fonts/)** — Self-hosted fonts: DINish and Geist Mono.
   - **[assets/hdri/](../assets/hdri/)** — Environment maps the models are lit with.
+  - **[assets/sizing-strip/](../assets/sizing-strip/)**
   - **[assets/studies/](../assets/studies/)** — One folder per study: its hero art and its products' files.
     - **[assets/studies/bones/](../assets/studies/bones/)**
       - **[assets/studies/bones/hero/](../assets/studies/bones/hero/)** — That study's homepage hero art.
@@ -177,9 +180,9 @@ The `window.Emjive*` names the classic scripts publish to each other.
 
 | Global | Set by | Read by |
 | --- | --- | --- |
-| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/product-wall.js`, `js/product.js`, `js/size-finder.js`, `js/studies.js` |
+| `EmjiveFocusTrap` | `js/focus-trap.js` | `js/modify-modal.js`, `js/order-rows.js`, `js/photo-viewer.js`, `js/product.js`, `js/size-finder.js`, `js/studies.js` |
 | `EmjiveGalleryStack` | `js/gallery-stack.js` | `js/gallery.js` |
-| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `studies/bones/hero.js`, `scripts/auto-render.js` |
+| `EmjiveHelpers` | `js/helpers.js` | `json-tool.html`, `scene-tool.html`, `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `js/modify-modal.js`, `js/option-dial.js`, `js/order-rows.js`, `js/photo-viewer.js`, `js/product-stages.js`, `js/product-wall.js`, `js/product.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `js/selection.js`, `js/size-finder.js`, `js/stack-scene.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js`, `studies/bones/hero.js`, `scripts/auto-render.js` |
 | `EmjiveHero` | `js/studies.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/scroll-memory.js`, `js/selection-bar.js`, `studies/bones/hero.js` |
 | `EmjiveLoader` | `js/loader.js` | `loader-test.html`, `js/archives.js`, `js/gallery-stack.js`, `js/gallery.js`, `js/helpers.js`, `js/modify-modal.js`, `js/product-wall.js`, `js/product.js`, `js/studies-page.js`, `js/studies.js`, `js/three-viewer.js`, `js/viewer-entry.js` |
 | `EmjiveLoadStack` | `js/viewer-entry.js` | `js/gallery-stack.js` |
@@ -191,6 +194,7 @@ The `window.Emjive*` names the classic scripts publish to each other.
 | `EmjiveModifyModal` | `js/modify-modal.js` | `js/order-rows.js`, `js/selection-bar.js`, `js/selection-page.js` |
 | `EmjiveOptionDial` | `js/option-dial.js` | `js/modify-modal.js`, `js/product.js` |
 | `EmjiveOrderRows` | `js/order-rows.js` | `js/modify-modal.js`, `js/selection-bar.js`, `js/selection-page.js` |
+| `EmjivePhotoViewer` | `js/photo-viewer.js` | `js/product-wall.js`, `js/size-finder.js` |
 | `EmjiveProductStages` | `js/product-stages.js` | `js/product.js` |
 | `EmjiveProductWall` | `js/product-wall.js` | `js/product.js` |
 | `EmjiveScrollMemory` | `js/scroll-memory.js` | `js/gallery-stack.js`, `js/gallery.js`, `js/loader.js`, `studies/bones/hero.js` |
